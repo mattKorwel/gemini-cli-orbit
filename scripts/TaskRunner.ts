@@ -23,7 +23,7 @@ export class TaskRunner {
   constructor(logDir: string, header: string) {
     this.logDir = logDir;
     this.header = header;
-    fs.mkdirSync(logDir, { recursive: true });
+    try { fs.mkdirSync(logDir, { recursive: true }); } catch (e) { console.error(`❌ Failed to create log directory: ${logDir}`); throw e; }
   }
 
   register(tasks: Task[]) {

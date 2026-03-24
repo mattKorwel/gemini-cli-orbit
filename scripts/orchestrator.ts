@@ -82,6 +82,7 @@ export async function runOrchestrator(
 
   // FIX: Ensure container user (node) owns the workspaces directories
   console.log('   - Synchronizing container permissions...');
+  await provider.exec(`sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
   await provider.exec(`sudo chown -R 1000:1000 /home/node/.workspaces`);
   if (check.status !== 0) {
     console.log(`   - Provisioning isolated git worktree for ${prNumber}...`);
@@ -142,13 +143,15 @@ GEMINI_AUTO_UPDATE=0
 GEMINI_SANDBOX=workspace
 GEMINI_HOST=${targetVM}
 `.trim();
+  await provider.exec(`sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
   await provider.exec(
-    `sudo docker exec maintainer-worker sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`,
+    `sudo docker exec -u node maintainer-worker sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`,
   );
 
   // Also inject the settings.json into the worktree's .gemini folder for maximum reliability
+  await provider.exec(`sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
   await provider.exec(
-    `sudo docker exec maintainer-worker sh -c ${q(`mkdir -p ${remoteWorktreeDir}/.gemini && echo ${q(remoteSettingsJson)} > ${remoteWorktreeDir}/.gemini/settings.json`)}`,
+    `sudo docker exec -u node maintainer-worker sh -c ${q(`mkdir -p ${remoteWorktreeDir}/.gemini && echo ${q(remoteSettingsJson)} > ${remoteWorktreeDir}/.gemini/settings.json`)}`,
   );
 
   // 4. Execution Logic
@@ -166,7 +169,7 @@ GEMINI_HOST=${targetVM}
   `.replace(/\n/g, '');
 
   const tmuxCmd = `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`)}`;
-  const containerWrap = `sudo docker exec -it -e COLORTERM=truecolor -e TERM=xterm-256color ${authEnv}maintainer-worker sh -c ${q(tmuxCmd)}`;
+  const containerWrap = `sudo docker exec -it -u node -e COLORTERM=truecolor -e TERM=xterm-256color ${authEnv}maintainer-worker sh -c ${q(tmuxCmd)}`;
 
   const finalSSH = provider.getRunCommand(containerWrap, { interactive: true });
 
