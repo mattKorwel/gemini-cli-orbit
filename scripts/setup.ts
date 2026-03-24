@@ -10,8 +10,11 @@ import os from 'node:os';
 
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { fileURLToPath } from 'node:url';
 
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const EXTENSION_ROOT = path.resolve(__dirname, '..');
 const REPO_ROOT = process.cwd();
 
 /**
@@ -306,8 +309,8 @@ and full builds) to a dedicated, high-performance GCP worker.
   await provider.exec(`sudo chmod -R 777 ${workspaceRoot}`);
   
   // 1. Sync Scripts & Policies
-  await provider.sync('extensions/workspaces/scripts/', `${persistentScripts}/`, { delete: true, sudo: true });
-  await provider.sync('policies/workspaces/workspace-policy.toml', `${workspaceRoot}/policies/workspace-policy.toml`, { sudo: true });
+  await provider.sync(path.join(EXTENSION_ROOT, 'scripts/'), `${persistentScripts}/`, { delete: true, sudo: true });
+  await provider.sync(path.join(EXTENSION_ROOT, 'policies/workspace-policy.toml'), `${workspaceRoot}/policies/workspace-policy.toml`, { sudo: true });
 
   // 2. Initialize Remote Gemini Config with Auth
   console.log('⚙️  Initializing remote Gemini configuration...');
