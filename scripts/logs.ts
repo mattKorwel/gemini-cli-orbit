@@ -7,6 +7,11 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { 
+  MAIN_REPO_PATH, 
+  WORKTREES_PATH, 
+  type WorkspaceConfig 
+} from './Constants.ts';
 
 const REPO_ROOT = process.cwd();
 
@@ -25,7 +30,7 @@ export async function runLogs(args: string[]) {
       return 1;
   }
 
-  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  const settings: { workspace: WorkspaceConfig } = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   const config = settings.workspace;
   if (!config) {
       console.error('❌ Workspace configuration not found.');
@@ -48,7 +53,7 @@ export async function runLogs(args: string[]) {
   }
 
   // Look for any persistent log files in the worktree
-  const worktreePath = `/mnt/disks/data/worktrees/workspace-${prNumber}-${action}`;
+  const worktreePath = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
   const logDir = `${worktreePath}/.gemini/logs`;
   
   const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapContainer: 'maintainer-worker' });

@@ -8,6 +8,15 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { 
+  WORKSPACES_ROOT, 
+  MAIN_REPO_PATH, 
+  WORKTREES_PATH, 
+  POLICIES_PATH, 
+  SCRIPTS_PATH, 
+  CONFIG_DIR,
+  type WorkspaceConfig 
+} from './Constants.ts';
 
 
 const REPO_ROOT = process.cwd();
@@ -70,7 +79,7 @@ Actions:
     );
     return 1;
   }
-  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  const settings: { workspace: WorkspaceConfig } = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   const config = settings.workspace;
 
   const targetVM = `gcli-workspace-${env.USER || 'mattkorwel'}`;
@@ -87,19 +96,14 @@ Actions:
   await provider.getExecOutput('whoami');
 
   // Paths - Unified across host and container
-  const hostWorkspaceRoot = `/mnt/disks/data`;
-  const hostWorkDir = `${hostWorkspaceRoot}/main`;
-  const containerWorkspaceRoot = `/mnt/disks/data`;
-
-  const remotePolicyPath = `${containerWorkspaceRoot}/policies/workspace-policy.toml`;
-  const persistentScripts = `${containerWorkspaceRoot}/scripts`;
+  const remotePolicyPath = `${POLICIES_PATH}/workspace-policy.toml`;
   const timestamp = Date.now();
   const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
-  const remoteWorktreeDir = `${containerWorkspaceRoot}/worktrees/workspace-${prNumber}-${action}`;
-  const hostWorktreeDir = `${hostWorkspaceRoot}/worktrees/workspace-${prNumber}-${action}`;
+  const remoteWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+  const hostWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
 
   // 3. Authentication & UI Context (Retrieve from host, inject to container)
-  const remoteConfigPath = `${hostWorkspaceRoot}/gemini-cli-config/.gemini/settings.json`;
+  const remoteConfigPath = `${CONFIG_DIR}/settings.json`;
   const remoteSettingsRes = await provider.getExecOutput(
     `cat ${remoteConfigPath}`,
   );
@@ -111,7 +115,7 @@ Actions:
   const remoteApiKey = apiKeyRes.stdout.trim();
 
   const ghTokenRes = await provider.getExecOutput(
-    `cat ${hostWorkspaceRoot}/.gh_token`,
+    `cat ${WORKSPACES_ROOT}/.gh_token`,
   );
   const remoteGhToken = ghTokenRes.stdout.trim();
 
@@ -128,12 +132,11 @@ GEMINI_HOST=${targetVM}
   const ghEnv = remoteGhToken ? `-e GITHUB_TOKEN=${remoteGhToken} -e GH_TOKEN=${remoteGhToken} ` : '';
 
   // 4. Remote Context Setup (Executed INSIDE container for path consistency)
-  const containerWorkDir = `/mnt/disks/data/main`;
-  const containerWorktreeDir = `/mnt/disks/data/worktrees/workspace-${prNumber}-${action}`;
+  const containerWorkDir = MAIN_REPO_PATH;
+  const containerWorktreeDir = remoteWorktreeDir;
 
   // Clear previous history for this session if it exists to ensure a fresh start
-  const isolatedConfigDir = `/mnt/disks/data/gemini-cli-config/.gemini`;
-  const clearHistoryCmd = `rm -f ${isolatedConfigDir}/history/workspace-${prNumber}-${action}*`;
+  const clearHistoryCmd = `rm -f ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`;
   await provider.exec(clearHistoryCmd, { wrapContainer: 'maintainer-worker' });
 
   // Use the container-safe path for check
@@ -169,7 +172,7 @@ GEMINI_HOST=${targetVM}
     const gitTarget = 'FETCH_HEAD';
 
     // Ensure the worktrees parent directory is owned by node
-    await provider.exec(`sudo mkdir -p /mnt/disks/data/worktrees && sudo chown -R 1000:1000 /mnt/disks/data/worktrees`);
+    await provider.exec(`sudo mkdir -p ${WORKTREES_PATH} && sudo chown -R 1000:1000 ${WORKTREES_PATH}`);
 
     // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
     const preflightCmd = `
@@ -181,7 +184,7 @@ GEMINI_HOST=${targetVM}
 
     // If the directory exists but .git is missing, it's broken. Wipe it.
     const setupCmd = `
-      mkdir -p /mnt/disks/data/worktrees && \
+      mkdir -p ${WORKTREES_PATH} && \
       (git -C ${containerWorkDir} worktree remove -f ${containerWorktreeDir} || rm -rf ${containerWorktreeDir}) 2>/dev/null && \
       ${gitFetch} && \
       git -C ${containerWorkDir} worktree add --quiet -f ${containerWorktreeDir} ${gitTarget}
@@ -220,7 +223,7 @@ GEMINI_HOST=${targetVM}
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
   const remoteWorker = isShellMode
     ? `gemini`
-    : `tsx ${persistentScripts}/entrypoint.ts ${prNumber} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+    : `tsx ${SCRIPTS_PATH}/entrypoint.ts ${prNumber} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
 
   // PERSISTENCE: Wrap the entire execution in a tmux session inside the container
   const tmuxStyle = `
@@ -230,7 +233,7 @@ GEMINI_HOST=${targetVM}
   const tmuxCmd = `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Command Failed' && sleep 30); exec $SHELL`)}`;
 
   // GH AUTH: Ensure the containerized GH CLI is authorized for the node user
-  const ghLoginCmd = `(gh auth status >/dev/null 2>&1 || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < /mnt/disks/data/.gh_token)) && `;
+  const ghLoginCmd = `(gh auth status >/dev/null 2>&1 || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < ${WORKSPACES_ROOT}/.gh_token)) && `;
 
   const containerWrap = `sudo docker exec -it -u node \
     -e COLORTERM=truecolor \

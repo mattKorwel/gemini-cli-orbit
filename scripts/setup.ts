@@ -11,6 +11,15 @@ import os from 'node:os';
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
 import { fileURLToPath } from 'node:url';
+import { 
+  WORKSPACES_ROOT, 
+  MAIN_REPO_PATH, 
+  WORKTREES_PATH, 
+  POLICIES_PATH, 
+  SCRIPTS_PATH, 
+  CONFIG_DIR,
+  type WorkspaceConfig 
+} from './Constants.ts';
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -257,15 +266,15 @@ and full builds) to a dedicated, high-performance GCP worker.
   const targetVM = `gcli-workspace-${env.USER || 'mattkorwel'}`;
   if (!fs.existsSync(path.dirname(settingsPath))) fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   
-  settings = {
-      workspace: { 
-          projectId, zone, terminalTarget, 
-          userFork, upstreamRepo,
-          remoteHost: 'gcli-worker',
-          remoteWorkDir: '~/dev/main',
-          useContainer: true
-      }
+  const workspaceConfig: WorkspaceConfig = { 
+    projectId, zone, terminalTarget: terminalTarget as any, 
+    userFork, upstreamRepo,
+    remoteHost: 'gcli-worker',
+    remoteWorkDir: MAIN_REPO_PATH,
+    useContainer: true
   };
+
+  settings = { workspace: workspaceConfig };
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
   console.log(`\n✅ Configuration saved to ${settingsPath}`);
 
@@ -296,21 +305,15 @@ and full builds) to a dedicated, high-performance GCP worker.
   const setupRes = await provider.setup({ projectId, zone, dnsSuffix: '.internal.gcpnode.com' });
   if (setupRes !== 0) return setupRes;
 
-  // Use the unified path to ensure host and container match perfectly
-  const workspaceRoot = `/mnt/disks/data`;
-  
-  const persistentScripts = `${workspaceRoot}/scripts`;
-  const remoteConfigDir = `${workspaceRoot}/gemini-cli-config/.gemini`;
-
   console.log(`\n📦 Synchronizing Logic & Credentials...`);
   // Ensure the directory structure exists on the host
-  await provider.exec(`sudo mkdir -p ${workspaceRoot}/main ${workspaceRoot}/worktrees ${workspaceRoot}/policies ${workspaceRoot}/scripts ${remoteConfigDir}`);
-  await provider.exec(`sudo chown -R 1000:1000 ${workspaceRoot}`);
-  await provider.exec(`sudo chmod -R 777 ${workspaceRoot}`);
+  await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR}`);
+  await provider.exec(`sudo chown -R 1000:1000 ${WORKSPACES_ROOT}`);
+  await provider.exec(`sudo chmod -R 777 ${WORKSPACES_ROOT}`);
   
   // 1. Sync Scripts & Policies
-  await provider.sync(path.join(EXTENSION_ROOT, 'scripts/'), `${persistentScripts}/`, { delete: true, sudo: true });
-  await provider.sync(path.join(EXTENSION_ROOT, 'policies/workspace-policy.toml'), `${workspaceRoot}/policies/workspace-policy.toml`, { sudo: true });
+  await provider.sync(path.join(EXTENSION_ROOT, 'scripts/'), `${SCRIPTS_PATH}/`, { delete: true, sudo: true });
+  await provider.sync(path.join(EXTENSION_ROOT, 'policies/workspace-policy.toml'), `${POLICIES_PATH}/workspace-policy.toml`, { sudo: true });
 
   // 2. Initialize Remote Gemini Config with Auth
   console.log('⚙️  Initializing remote Gemini configuration...');
@@ -357,29 +360,29 @@ and full builds) to a dedicated, high-performance GCP worker.
   fs.writeFileSync(tmpSettingsPath, JSON.stringify(remoteSettings, null, 2));
   
   // Ensure the remote config dir exists before syncing
-  await provider.exec(`sudo mkdir -p ${remoteConfigDir} && sudo chmod 777 ${remoteConfigDir}`);
-  await provider.sync(tmpSettingsPath, `${remoteConfigDir}/settings.json`, { sudo: true });
+  await provider.exec(`sudo mkdir -p ${CONFIG_DIR} && sudo chmod 777 ${CONFIG_DIR}`);
+  await provider.sync(tmpSettingsPath, `${CONFIG_DIR}/settings.json`, { sudo: true });
   fs.unlinkSync(tmpSettingsPath);
 
   // 3. Sync credentials for Google Accounts if needed
   if (authStrategy === 'google_accounts' || authStrategy === 'oauth-personal') {
       if (fs.existsSync(path.join(env.HOME || '', '.gemini/google_accounts.json'))) {
-        await provider.sync(path.join(env.HOME || '', '.gemini/google_accounts.json'), `${remoteConfigDir}/google_accounts.json`, { sudo: true });
+        await provider.sync(path.join(env.HOME || '', '.gemini/google_accounts.json'), `${CONFIG_DIR}/google_accounts.json`, { sudo: true });
         console.log('   ✅ Synchronized Google Accounts credentials.');
       }
   }
 
   if (githubToken) {
-    await provider.exec(`echo ${githubToken} | sudo tee ${workspaceRoot}/.gh_token > /dev/null && sudo chmod 600 ${workspaceRoot}/.gh_token`);
+    await provider.exec(`echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null && sudo chmod 600 ${WORKSPACES_ROOT}/.gh_token`);
     // Authenticate GH CLI on host
-    await provider.exec(`sudo -u $(whoami) gh auth login --with-token < ${workspaceRoot}/.gh_token`);
+    await provider.exec(`sudo -u $(whoami) gh auth login --with-token < ${WORKSPACES_ROOT}/.gh_token`);
     console.log('   ✅ Authenticated GitHub CLI on host.');
   }
 
   // Final Repo Sync
   console.log(`🚀 Finalizing Remote Repository (${userFork})...`);
   const repoUrl = `https://github.com/${userFork}.git`;
-  const repoPath = `${workspaceRoot}/main`;
+  const repoPath = MAIN_REPO_PATH;
   
   const setupRepoCmd = `
     if [ ! -d "${repoPath}/.git" ]; then
@@ -388,7 +391,7 @@ and full builds) to a dedicated, high-performance GCP worker.
       sudo git -C ${repoPath} remote add upstream https://github.com/${upstreamRepo}.git
     fi && \
     sudo git -C ${repoPath} fetch --quiet upstream && \
-    sudo chown -R 1000:1000 ${workspaceRoot}
+    sudo chown -R 1000:1000 ${WORKSPACES_ROOT}
   `;
   await provider.exec(setupRepoCmd);
 

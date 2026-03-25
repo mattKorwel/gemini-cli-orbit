@@ -8,6 +8,13 @@ import fs from 'node:fs';
 
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { 
+  WORKSPACES_ROOT, 
+  MAIN_REPO_PATH, 
+  WORKTREES_PATH, 
+  CONFIG_DIR,
+  type WorkspaceConfig 
+} from './Constants.ts';
 
 
 const REPO_ROOT = process.cwd();
@@ -38,7 +45,7 @@ export async function runCleanup(
     return 1;
   }
 
-  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  const settings: { workspace: WorkspaceConfig } = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   const config = settings.workspace;
   if (!config) {
     console.error('❌ Workspace configuration not found.');
@@ -54,8 +61,7 @@ export async function runCleanup(
   });
 
   if (prNumber && action) {
-    const worktreePath = `/mnt/disks/data/worktrees/workspace-${prNumber}-${action}`;
-    const isolatedConfigDir = `/mnt/disks/data/gemini-cli-config/.gemini`;
+    const worktreePath = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
 
     console.log(
       `🧹 Surgically removing session and worktree for ${prNumber}-${action}...`,
@@ -68,12 +74,12 @@ export async function runCleanup(
 
     // Remove specific worktree inside container
     await provider.exec(
-      `cd /mnt/disks/data/main && git worktree remove -f ${worktreePath} 2>/dev/null && git worktree prune`,
+      `cd ${MAIN_REPO_PATH} && git worktree remove -f ${worktreePath} 2>/dev/null && git worktree prune`,
       { wrapContainer: 'maintainer-worker' },
     );
 
     // Clear history files for this PR and action
-    await provider.exec(`rm -f ${isolatedConfigDir}/history/workspace-${prNumber}-${action}*`, {
+    await provider.exec(`rm -f ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`, {
       wrapContainer: 'maintainer-worker',
     });
 
@@ -103,20 +109,20 @@ export async function runCleanup(
 
   console.log('   - Cleaning up ALL Git Worktrees...');
   await provider.exec(
-    `cd /mnt/disks/data/main && git worktree prune && rm -rf /mnt/disks/data/worktrees/*`,
+    `cd ${MAIN_REPO_PATH} && git worktree prune && rm -rf ${WORKTREES_PATH}/*`,
     { wrapContainer: 'maintainer-worker' },
   );
 
   console.log('   - Clearing Gemini session history and state...');
-  await provider.exec(`rm -rf /mnt/disks/data/gemini-cli-config/.gemini/history/*`, {
+  await provider.exec(`rm -rf ${CONFIG_DIR}/history/*`, {
     wrapContainer: 'maintainer-worker',
   });
-  await provider.exec(`rm -f /mnt/disks/data/gemini-cli-config/.gemini/state.json`, {
+  await provider.exec(`rm -f ${CONFIG_DIR}/state.json`, {
     wrapContainer: 'maintainer-worker',
   });
 
   console.log('   - Wiping main repository clone...');
-  await provider.exec(`rm -rf /mnt/disks/data/main`, {
+  await provider.exec(`rm -rf ${MAIN_REPO_PATH}`, {
     wrapContainer: 'maintainer-worker',
   });
 
