@@ -163,15 +163,7 @@ and full builds) to a dedicated, high-performance GCP worker.
       }
   };
 
-  // Profile Discovery (if no profile passed via CLI)
-  if (profileUrl && !profileUrl.startsWith('http') && !fs.existsSync(profileUrl)) {
-      // Try to find by name in local profiles
-      const potentialPath = path.join(PROFILES_DIR, profileUrl.endsWith('.json') ? profileUrl : `${profileUrl}.json`);
-      if (fs.existsSync(potentialPath)) {
-          profileUrl = potentialPath;
-      }
-  }
-
+  // Profile Discovery
   if (!profileUrl && !skipConfigArg && fs.existsSync(PROFILES_DIR)) {
       const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
       if (localProfiles.length > 0) {
@@ -186,6 +178,14 @@ and full builds) to a dedicated, high-performance GCP worker.
                   profileUrl = path.join(PROFILES_DIR, selectedFile);
               }
           }
+      }
+  }
+
+  // Resolve local profile names provided via --profile=NAME
+  if (profileUrl && !profileUrl.startsWith('http') && !fs.existsSync(profileUrl)) {
+      const potentialPath = path.join(PROFILES_DIR, profileUrl.endsWith('.json') ? profileUrl : `${profileUrl}.json`);
+      if (fs.existsSync(potentialPath)) {
+          profileUrl = potentialPath;
       }
   }
 
