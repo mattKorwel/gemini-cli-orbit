@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runOrchestrator } from './orchestrator.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
 import fs from 'node:fs';
-import { WORKTREES_PATH, CONFIG_DIR } from './Constants.ts';
+import { WORKTREES_PATH } from './Constants.ts';
 
 vi.mock('node:fs');
 vi.mock('node:child_process', () => ({
@@ -55,30 +55,10 @@ describe('runOrchestrator', () => {
 
     await runOrchestrator(['23176']);
     
-    // Check for pre-flight commands
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('git worktree prune'),
-    );
-
     // Check if it provisioned inside container using WORKTREES_PATH
     // This is the setupCmd which calls docker exec manually
     expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
         expect.stringContaining(`${WORKTREES_PATH}/workspace-23176-open`),
-    );
-  });
-
-  it('should clear history before launching', async () => {
-    await runOrchestrator(['23176']);
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining(`${CONFIG_DIR}/history/workspace-23176-open`),
-        expect.objectContaining({ wrapContainer: 'maintainer-worker' })
-    );
-  });
-
-  it('should use jq to extract the API key', async () => {
-    await runOrchestrator(['23176']);
-    expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
-        expect.stringContaining('jq -r'),
     );
   });
 

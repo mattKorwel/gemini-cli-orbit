@@ -103,42 +103,11 @@ Actions:
   const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
   const hostWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
 
-  // 3. Authentication & UI Context (Retrieve from host, inject to container)
-  const remoteConfigPath = `${CONFIG_DIR}/settings.json`;
-  const remoteSettingsRes = await provider.getExecOutput(
-    `cat ${remoteConfigPath}`,
-  );
-  const remoteSettingsJson = remoteSettingsRes.stdout.trim();
-
-  const apiKeyRes = await provider.getExecOutput(
-    `jq -r '.security.auth.apiKey // .workspace.apiKey' ${remoteConfigPath}`,
-  );
-  const remoteApiKey = apiKeyRes.stdout.trim();
-
-  const ghTokenRes = await provider.getExecOutput(
-    `cat ${WORKSPACES_ROOT}/.gh_token`,
-  );
-  const remoteGhToken = ghTokenRes.stdout.trim();
-
-  // AUTH: Inject credentials and settings directly into the worktree
-  console.log('   - Injecting remote authentication and UI context...');
-  const dotEnvContent = `
-GEMINI_API_KEY=${remoteApiKey}
-COLORTERM=truecolor
-TERM=xterm-256color
-GEMINI_AUTO_UPDATE=0
-GEMINI_HOST=${targetVM}
-`.trim();
-
-  const ghEnv = remoteGhToken ? `-e GITHUB_TOKEN=${remoteGhToken} -e GH_TOKEN=${remoteGhToken} ` : '';
-
+  // 3. Remote Preparation
   // 4. Remote Context Setup (Executed INSIDE container for path consistency)
   const provisioner = new RemoteProvisioner(provider);
-  const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, ghEnv);
-
-  await provider.exec(
-    `sudo docker exec -u node maintainer-worker sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`,
-  );
+  // We don't pass ghEnv anymore as we auth inside the container's main command
+  const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '');
 
   // 5. Execution Logic
   const isWithinGemini =

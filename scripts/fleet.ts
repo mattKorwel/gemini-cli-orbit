@@ -91,16 +91,31 @@ async function stopWorker() {
   await provider.stop();
 }
 
-async function rebuildWorker() {
-  const projectId = getProjectId();
-  console.log(`🔥 Rebuilding worker ${INSTANCE_PREFIX}...`);
+function getZone(): string {
+  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      return settings.workspace?.zone || DEFAULT_ZONE;
+    } catch {
+      // Ignore
+    }
+  }
+  return DEFAULT_ZONE;
+}
 
-  const knownHostsPath = path.join(REPO_ROOT, '.gemini/workspaces_known_hosts');
+async function destroyWorker() {
+  const projectId = getProjectId();
+  const zone = getZone();
+  console.log(`🔥 DESTROYING worker ${INSTANCE_PREFIX} and its data disk...`);
+
+  const knownHostsPath = path.join(REPO_ROOT, '.gemini/workspaces/known_hosts');
   if (fs.existsSync(knownHostsPath)) {
     console.log(`   - Clearing isolated known_hosts...`);
     fs.unlinkSync(knownHostsPath);
   }
 
+  // Delete instance
   spawnSync(
     'gcloud',
     [
@@ -111,11 +126,32 @@ async function rebuildWorker() {
       '--project',
       projectId,
       '--zone',
-      DEFAULT_ZONE,
+      zone,
       '--quiet',
     ],
     { stdio: 'inherit' },
   );
+
+  // Delete static IP if it exists
+  spawnSync(
+    'gcloud',
+    [
+      'compute',
+      'addresses',
+      'delete',
+      `${INSTANCE_PREFIX}-ip`,
+      '--project',
+      projectId,
+      '--region',
+      zone.split('-').slice(0, 2).join('-'),
+      '--quiet',
+    ],
+    { stdio: 'pipe' },
+  );
+}
+
+async function rebuildWorker() {
+  await destroyWorker();
   await provisionWorker();
 }
 
@@ -131,6 +167,9 @@ async function main() {
       break;
     case 'rebuild':
       await rebuildWorker();
+      break;
+    case 'destroy':
+      await destroyWorker();
       break;
     case 'stop':
       await stopWorker();

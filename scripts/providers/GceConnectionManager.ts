@@ -16,29 +16,40 @@ export class GceConnectionManager {
   private projectId: string;
   private zone: string;
   private instanceName: string;
+  private overrideHost: string | null = null;
 
-  constructor(projectId: string, zone: string, instanceName: string) {
+  constructor(projectId: string, zone: string, instanceName: string, private repoRoot: string = process.cwd()) {
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;
   }
 
+  setOverrideHost(host: string | null) {
+    this.overrideHost = host;
+  }
+
   getMagicRemote(): string {
     const user = `${process.env.USER || 'node'}_google_com`;
+    if (this.overrideHost) {
+      return `${user}@${this.overrideHost}`;
+    }
     const dnsSuffix = '.internal.gcpnode.com';
     return `${user}@nic0.${this.instanceName}.${this.zone}.c.${this.projectId}${dnsSuffix}`;
   }
 
   getCommonArgs(): string[] {
+    const knownHostsPath = `${this.repoRoot}/.gemini/workspaces/known_hosts`;
     return [
       '-o', 'StrictHostKeyChecking=no',
-      '-o', 'UserKnownHostsFile=/dev/null',
+      '-o', `UserKnownHostsFile=${knownHostsPath}`,
+      '-o', 'GlobalKnownHostsFile=/dev/null',
+      '-o', 'CheckHostIP=no',
       '-o', 'LogLevel=ERROR',
       '-o', 'ConnectTimeout=60',
       '-o', 'ServerAliveInterval=30',
       '-o', 'ServerAliveCountMax=3',
       '-o', 'ControlMaster=auto',
-      '-o', 'ControlPath=~/.ssh/gcli-control-%h-%p-%r',
+      '-o', 'ControlPath=~/.ssh/gcli-%C',
       '-o', 'ControlPersist=10m',
       '-o', 'SendEnv=USER',
       '-i', `${os.homedir()}/.ssh/google_compute_engine`
@@ -50,11 +61,16 @@ export class GceConnectionManager {
     return `ssh ${this.getCommonArgs().join(' ')} ${options.interactive ? '-t' : ''} ${fullRemote} ${this.quote(command)}`;
   }
 
-  run(command: string, options: { interactive?: boolean; stdio?: 'pipe' | 'inherit' } = {}): { status: number; stdout: string; stderr: string } {
+  run(command: string, options: { interactive?: boolean; stdio?: 'pipe' | 'inherit'; quiet?: boolean } = {}): { status: number; stdout: string; stderr: string } {
     const sshCmd = this.getRunCommand(command, options);
     const res = spawnSync(sshCmd, { stdio: options.stdio || 'pipe', shell: true });
+    const status = (res.status === null) ? 1 : res.status;
+    if (status !== 0 && options.stdio !== 'inherit' && !options.quiet) {
+        console.error(`   ❌ SSH Command failed (status ${status}): ${sshCmd}`);
+        if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
+    }
     return { 
-      status: res.status ?? 1, 
+      status, 
       stdout: res.stdout?.toString() || '', 
       stderr: res.stderr?.toString() || '' 
     };

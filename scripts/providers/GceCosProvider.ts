@@ -21,9 +21,7 @@ export class GceCosProvider implements WorkerProvider {
   private projectId: string;
   private zone: string;
   private instanceName: string;
-  private sshConfigPath: string;
   private knownHostsPath: string;
-  private sshAlias = 'gcli-worker';
   private conn: GceConnectionManager;
 
   constructor(
@@ -38,9 +36,8 @@ export class GceCosProvider implements WorkerProvider {
     const workspacesDir = path.join(repoRoot, '.gemini/workspaces');
     if (!fs.existsSync(workspacesDir))
       fs.mkdirSync(workspacesDir, { recursive: true });
-    this.sshConfigPath = path.join(workspacesDir, 'ssh_config');
     this.knownHostsPath = path.join(workspacesDir, 'known_hosts');
-    this.conn = new GceConnectionManager(projectId, zone, instanceName);
+    this.conn = new GceConnectionManager(projectId, zone, instanceName, repoRoot);
   }
 
   async provision(): Promise<number> {
@@ -268,7 +265,7 @@ export class GceCosProvider implements WorkerProvider {
         '--metadata',
         'enable-oslogin=TRUE',
         '--network-interface',
-        `network=${vpcName},subnet=${subnetName},private-network-ip=${addressName},address=""`,
+        `network=${vpcName},subnet=${subnetName},private-network-ip=${addressName},no-address`,
         '--scopes',
         'https://www.googleapis.com/auth/cloud-platform',
         '--quiet',
@@ -379,27 +376,25 @@ export class GceCosProvider implements WorkerProvider {
   async setup(options: SetupOptions): Promise<number> {
     const dnsSuffix = options.dnsSuffix || '.internal.gcpnode.com';
     const internalHostname = `nic0.${this.instanceName}.${this.zone}.c.${this.projectId}${dnsSuffix.startsWith('.') ? dnsSuffix : '.' + dnsSuffix}`;
-    const user = `${process.env.USER || 'node'}_google_com`;
 
-    const sshEntry = `
-Host ${this.sshAlias}
-    HostName ${internalHostname}
-    IdentityFile ~/.ssh/google_compute_engine
-    User ${user}
-    UserKnownHostsFile /dev/null
-    CheckHostIP no
-    StrictHostKeyChecking no
-    ConnectTimeout 60
-    ServerAliveInterval 30
-`;
-
-    fs.writeFileSync(this.sshConfigPath, sshEntry);
-    console.log(`   ✅ Created project SSH config: ${this.sshConfigPath}`);
+    // Ensure stale entries are removed from the isolated known_hosts file
+    if (fs.existsSync(this.knownHostsPath)) {
+        spawnSync('ssh-keygen', ['-R', internalHostname, '-f', this.knownHostsPath], { stdio: 'pipe' });
+    }
 
     console.log(
       '   - Verifying direct connection (may trigger corporate SSO prompt)...',
     );
-    const res = this.conn.run('echo 1');
+    let res = this.conn.run('echo 1');
+    if (res.status !== 0) {
+      console.log('   ⚠️  Hostname connection failed. Attempting internal IP fallback...');
+      const status = await this.getStatus();
+      if (status.internalIp) {
+          this.conn.setOverrideHost(status.internalIp);
+          res = this.conn.run('echo 1');
+      }
+    }
+
     if (res.status !== 0) {
       console.error(
         '\n❌ All connection attempts failed. Please ensure you have "gcert" and IAP permissions.',
@@ -440,6 +435,7 @@ Host ${this.sshAlias}
     return this.conn.run(finalCmd, {
       interactive: options.interactive,
       stdio: options.interactive ? 'inherit' : 'pipe',
+      quiet: options.quiet,
     });
   }
 

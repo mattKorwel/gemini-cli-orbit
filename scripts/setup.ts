@@ -368,7 +368,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   fs.unlinkSync(tmpSettingsPath);
 
   // 3. Sync credentials for Google Accounts if needed
-  if (authStrategy === 'google_accounts' || authStrategy === 'oauth-personal') {
+  if (authStrategy !== 'gemini-api-key' && (authStrategy === 'google_accounts' || authStrategy === 'oauth-personal')) {
       if (fs.existsSync(path.join(env.HOME || '', '.gemini/google_accounts.json'))) {
         await provider.sync(path.join(env.HOME || '', '.gemini/google_accounts.json'), `${CONFIG_DIR}/google_accounts.json`, { sudo: true });
         console.log('   ✅ Synchronized Google Accounts credentials.');

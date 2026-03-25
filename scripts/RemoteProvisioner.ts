@@ -27,13 +27,13 @@ export class RemoteProvisioner {
     await this.provider.exec(clearHistoryCmd, { wrapContainer: 'maintainer-worker' });
 
     // Use the container-safe path for check
-    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: 'maintainer-worker' });
+    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: 'maintainer-worker', quiet: true });
 
     if (check.status !== 0) {
       console.log(`   - Provisioning isolated git worktree for ${prNumber} (inside container)...`);
 
       // Ensure the main repo exists inside the container
-      const repoCheck = await this.provider.getExecOutput(`ls -d ${MAIN_REPO_PATH}/.git`, { wrapContainer: 'maintainer-worker' });
+      const repoCheck = await this.provider.getExecOutput(`ls -d ${MAIN_REPO_PATH}/.git`, { wrapContainer: 'maintainer-worker', quiet: true });
       if (repoCheck.status !== 0) {
           console.log(`   - Initializing main repository inside container...`);
           const initRepoCmd = `
