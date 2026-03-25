@@ -222,6 +222,24 @@ export class GceCosProvider implements WorkerProvider {
     );
     fs.writeFileSync(tmpScriptPath, startupScriptContent);
 
+    const addressName = `${this.instanceName}-ip`;
+    spawnSync(
+        'gcloud',
+        [
+          'compute',
+          'addresses',
+          'create',
+          addressName,
+          '--project',
+          this.projectId,
+          '--region',
+          region,
+          '--subnet',
+          subnetName,
+        ],
+        { stdio: 'pipe' },
+    );
+
     const result = spawnSync(
       'gcloud',
       [
@@ -250,7 +268,7 @@ export class GceCosProvider implements WorkerProvider {
         '--metadata',
         'enable-oslogin=TRUE',
         '--network-interface',
-        `network=${vpcName},subnet=${subnetName},no-address`,
+        `network=${vpcName},subnet=${subnetName},private-network-ip=${addressName},address=""`,
         '--scopes',
         'https://www.googleapis.com/auth/cloud-platform',
         '--quiet',
@@ -447,7 +465,7 @@ Host ${this.sshAlias}
         '--zone',
         this.zone,
         '--format',
-        'json(name,status,networkInterfaces[0].networkIP)',
+        'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)',
       ],
       { stdio: 'pipe' },
     );
@@ -462,6 +480,7 @@ Host ${this.sshAlias}
         name: data.name,
         status: data.status,
         internalIp: data.networkInterfaces?.[0]?.networkIP,
+        externalIp: data.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP,
       };
     } catch {
       return { name: this.instanceName, status: 'UNKNOWN' };

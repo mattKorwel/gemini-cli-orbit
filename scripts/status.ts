@@ -40,6 +40,9 @@ async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   const status = await provider.getStatus();
   console.log(`   - VM State:   ${status.status}`);
   console.log(`   - Internal IP: ${status.internalIp || 'N/A'}`);
+  if (status.externalIp) {
+    console.log(`   - External IP: ${status.externalIp}`);
+  }
 
   if (status.status === 'RUNNING') {
     console.log(`\n🧵 Active Sessions (tmux):`);

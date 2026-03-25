@@ -17,8 +17,13 @@ export class ProviderFactory {
     projectId: string;
     zone: string;
     instanceName: string;
+    providerType?: string;
   }): WorkerProvider {
-    // Currently we only have GceCosProvider, but this is where we'd branch
+    if (config.providerType === 'local-docker') {
+        throw new Error('Local Docker provider not yet implemented.');
+    }
+    
+    // Default to GCE
     return new GceCosProvider(
       config.projectId,
       config.zone,

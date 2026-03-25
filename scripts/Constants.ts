@@ -27,4 +27,5 @@ export interface WorkspaceConfig {
   remoteHost: string;
   remoteWorkDir: string;
   useContainer: boolean;
+  providerType?: 'gce' | 'local-docker';
 }
