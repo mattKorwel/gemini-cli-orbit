@@ -215,7 +215,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (githubToken) {
-      console.log('\n🔐 Found GitHub PAT in environment or settings.');
+      console.log('🔐 Found GitHub PAT in environment or settings.');
       if (!skipConfig) {
           githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access and PR operations.', true);
       }
@@ -256,7 +256,6 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // 4. Gemini API Auth Strategy
-  console.log('\n🔐 Detecting Gemini Authentication strategy...');
   const localSettingsPath = path.join(env.HOME || '', '.gemini/settings.json');
   let authStrategy = 'google_accounts';
   let geminiApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
@@ -268,20 +267,21 @@ and full builds) to a dedicated, high-performance GCP worker.
           if (!geminiApiKey && localSettings.security?.auth?.apiKey) {
               geminiApiKey = localSettings.security.auth.apiKey;
           }
-          console.log(`   - Local Auth Method: ${authStrategy}`);
       } catch (e) {}
   }
 
   if (authStrategy === 'gemini-api-key') {
       if (geminiApiKey) {
-          console.log('\n🔐 Found Gemini API Key in environment or settings.');
-          geminiApiKey = await prompt('Gemini API Key', geminiApiKey, 'Enter to use? Or paste a new one', true);
+          console.log('🔐 Found Gemini API Key in environment or settings.');
+          if (!skipConfig) {
+              geminiApiKey = await prompt('Gemini API Key', geminiApiKey, 'Enter to use? Or paste a new one', true);
+          }
       } else {
           console.log('\n📖 In API Key mode, the remote worker needs your Gemini API Key to authenticate.');
           geminiApiKey = await prompt('Gemini API Key', '', 'Paste your Gemini API Key', true);
       }
   } else {
-      console.log(`   - Using current auth strategy: ${authStrategy}`);
+      console.log(`🔐 Using current auth strategy: ${authStrategy}`);
   }
 
   // 5. Save Confirmed State

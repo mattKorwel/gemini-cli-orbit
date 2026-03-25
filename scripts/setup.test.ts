@@ -40,8 +40,12 @@ describe('runSetup', () => {
   });
 
   it('should run setup flow and use sync for scripts', async () => {
-    // We pass --yes to skip interactive prompts
-    const res = await runSetup({ ...process.env, GOOGLE_CLOUD_PROJECT: 'test-p' });
+    // We pass --yes to skip interactive prompts and provide a mock token
+    const res = await runSetup({ 
+        ...process.env, 
+        GOOGLE_CLOUD_PROJECT: 'test-p',
+        WORKSPACE_GH_TOKEN: 'mock-token'
+    });
     
     expect(res).toBe(0);
     expect(mockProvider.setup).toHaveBeenCalled();
@@ -66,7 +70,8 @@ describe('runSetup', () => {
     };
     vi.mocked(readline.createInterface).mockReturnValue(rl as any);
 
-    await runSetup();
+    const res = await runSetup({ ...process.env, WORKSPACE_GH_TOKEN: 'mock-token' });
+    expect(res).toBe(0);
     
     // Should skip some configuration prompts but still run execution phases
     expect(mockProvider.setup).toHaveBeenCalled();
