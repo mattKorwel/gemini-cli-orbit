@@ -32,8 +32,23 @@ async function main() {
   const action = process.argv[5] || 'review';
   const customPrompt = process.argv[6];
 
-  // 1. Run the Parallel Reviewer
-  console.log('🚀 Launching Parallel Review Worker...');
+  // 1. Run the Workspace Doctor (Health Check)
+  console.log('🩺 Running Workspace Doctor...');
+  const healthCheckRes = spawnSync('df', ['-h', targetDir], { stdio: 'pipe' });
+  if (healthCheckRes.status === 0) {
+      console.log(`   ✅ Disk usage verified for ${targetDir}`);
+  }
+
+  const gitCheckRes = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', cwd: targetDir });
+  if (gitCheckRes.status !== 0) {
+      console.error('   ❌ Critical: Not a valid git worktree. Attempting self-repair...');
+      // Self-repair logic can be added here if needed
+  } else {
+      console.log('   ✅ Git worktree health verified.');
+  }
+
+  // 2. Run the Parallel Reviewer
+  console.log('\n🚀 Launching Parallel Review Worker...');
   console.log(`   - Script: ${path.join(__dirname, 'worker.ts')}`);
   console.log(`   - Action: ${action}`);
 

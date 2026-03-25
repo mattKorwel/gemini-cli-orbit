@@ -171,6 +171,14 @@ GEMINI_HOST=${targetVM}
     // Ensure the worktrees parent directory is owned by node
     await provider.exec(`sudo mkdir -p /mnt/disks/data/worktrees && sudo chown -R 1000:1000 /mnt/disks/data/worktrees`);
 
+    // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
+    const preflightCmd = `
+      cd ${containerWorkDir} && \
+      git worktree prune && \
+      git clean -ffdx
+    `;
+    await provider.exec(`sudo docker exec -u node maintainer-worker sh -c ${q(preflightCmd)}`);
+
     // If the directory exists but .git is missing, it's broken. Wipe it.
     const setupCmd = `
       mkdir -p /mnt/disks/data/worktrees && \
