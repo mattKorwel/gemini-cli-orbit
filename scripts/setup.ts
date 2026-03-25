@@ -18,6 +18,7 @@ import {
   POLICIES_PATH, 
   SCRIPTS_PATH, 
   CONFIG_DIR,
+  PROFILES_DIR,
   UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
@@ -106,11 +107,16 @@ async function createFork(upstream: string): Promise<string> {
 async function fetchRemoteSettings(url: string): Promise<Partial<WorkspaceConfig>> {
   console.log(`🌐 Fetching remote workspace profile from: ${url}...`);
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
-    const data = await res.json() as any;
-    // Handle cases where the remote JSON might have a 'workspace' wrapper or be flat
-    return data.workspace || data;
+    if (url.startsWith('http')) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
+        const data = await res.json() as any;
+        return data.workspace || data;
+    } else if (fs.existsSync(url)) {
+        const data = JSON.parse(fs.readFileSync(url, 'utf8'));
+        return data.workspace || data;
+    }
+    throw new Error(`Unsupported profile source: ${url}`);
   } catch (e) {
     console.error(`   ❌ Failed to load remote profile: ${e instanceof Error ? e.message : String(e)}`);
     return {};
@@ -121,13 +127,8 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   loadDotEnv();
   const args = process.argv.slice(2);
   const reconfigure = args.includes('--reconfigure');
-  const profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
   const skipConfigArg = args.includes('--yes') || args.includes('-y');
-
-  let remoteProfile: Partial<WorkspaceConfig> = {};
-  if (profileUrl) {
-    remoteProfile = await fetchRemoteSettings(profileUrl);
-  }
+  let profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
 
   console.log(`
 ================================================================================
@@ -153,6 +154,29 @@ and full builds) to a dedicated, high-performance GCP worker.
           backendType: 'direct-internal'
       }
   };
+
+  // Profile Discovery (if no profile passed via CLI)
+  if (!profileUrl && !skipConfigArg && fs.existsSync(PROFILES_DIR)) {
+      const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
+      if (localProfiles.length > 0) {
+          console.log(`📋 Found ${localProfiles.length} local workspace profiles:`);
+          localProfiles.forEach((p, i) => console.log(`   ${i + 1}. ${p.replace('.json', '')}`));
+          console.log(`   0. Create New / Use Current`);
+          
+          const choice = await prompt('Select a profile number or 0', '0');
+          if (choice !== '0') {
+              const selectedFile = localProfiles[parseInt(choice) - 1];
+              if (selectedFile) {
+                  profileUrl = path.join(PROFILES_DIR, selectedFile);
+              }
+          }
+      }
+  }
+
+  let remoteProfile: Partial<WorkspaceConfig> = {};
+  if (profileUrl) {
+    remoteProfile = await fetchRemoteSettings(profileUrl);
+  }
 
   let skipConfig = false;
 
@@ -350,6 +374,20 @@ and full builds) to a dedicated, high-performance GCP worker.
   settings = { workspace: workspaceConfig };
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
   console.log(`\n✅ Configuration saved to ${settingsPath}`);
+
+  // Option to save as profile
+  if (!skipConfig || reconfigure) {
+      const shouldSaveProfile = await confirm('Save this configuration as a named profile?');
+      if (shouldSaveProfile) {
+          const profileName = await prompt('Profile Name (e.g. sandbox, corp)', '');
+          if (profileName) {
+              if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
+              const profilePath = path.join(PROFILES_DIR, `${profileName.toLowerCase()}.json`);
+              fs.writeFileSync(profilePath, JSON.stringify(settings, null, 2));
+              console.log(`✅ Profile saved to ${profilePath}`);
+          }
+      }
+  }
 
   // Transition to Execution
   const provider = ProviderFactory.getProvider({ projectId, zone, instanceName: targetVM });

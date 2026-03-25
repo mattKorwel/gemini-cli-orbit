@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import path from 'node:path';
+
+const REPO_ROOT = process.cwd();
+
 /**
  * Canonical paths for the Workspace system.
  * Standardized across Host and Container.
@@ -14,6 +18,7 @@ export const WORKTREES_PATH = `${WORKSPACES_ROOT}/worktrees`;
 export const POLICIES_PATH = `${WORKSPACES_ROOT}/policies`;
 export const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
 export const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
+export const PROFILES_DIR = path.join(REPO_ROOT, '.gemini/workspaces/profiles');
 
 /**
  * Repository Metadata

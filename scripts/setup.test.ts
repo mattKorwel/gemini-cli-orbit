@@ -17,6 +17,7 @@ vi.mock('./Constants.ts', () => ({
     POLICIES_PATH: '/mnt/disks/data/policies',
     SCRIPTS_PATH: '/mnt/disks/data/scripts',
     CONFIG_DIR: '/mnt/disks/data/gemini-cli-config/.gemini',
+    PROFILES_DIR: '/Users/mattkorwel/dev/main/.gemini/workspaces/profiles',
     UPSTREAM_REPO_URL: 'https://github.com/google-gemini/gemini-cli.git',
     UPSTREAM_ORG: 'google-gemini',
     DEFAULT_REPO_NAME: 'gemini-cli',
@@ -53,6 +54,7 @@ describe('runSetup', () => {
     } as any);
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.readdirSync).mockReturnValue([] as any);
     vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{}') } as any);
   });
 
