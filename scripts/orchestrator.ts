@@ -8,6 +8,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { RemoteProvisioner } from './RemoteProvisioner.ts';
 import { 
   WORKSPACES_ROOT, 
   MAIN_REPO_PATH, 
@@ -100,7 +101,6 @@ Actions:
   const remotePolicyPath = `${POLICIES_PATH}/workspace-policy.toml`;
   const timestamp = Date.now();
   const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
-  const remoteWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
   const hostWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
 
   // 3. Authentication & UI Context (Retrieve from host, inject to container)
@@ -133,76 +133,9 @@ GEMINI_HOST=${targetVM}
   const ghEnv = remoteGhToken ? `-e GITHUB_TOKEN=${remoteGhToken} -e GH_TOKEN=${remoteGhToken} ` : '';
 
   // 4. Remote Context Setup (Executed INSIDE container for path consistency)
-  const containerWorkDir = MAIN_REPO_PATH;
-  const containerWorktreeDir = remoteWorktreeDir;
+  const provisioner = new RemoteProvisioner(provider);
+  const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, ghEnv);
 
-  // Clear previous history for this session if it exists to ensure a fresh start
-  const clearHistoryCmd = `rm -f ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`;
-  await provider.exec(clearHistoryCmd, { wrapContainer: 'maintainer-worker' });
-
-  // Use the container-safe path for check
-  const check = await provider.getExecOutput(`ls -d ${containerWorktreeDir}/.git`, { wrapContainer: 'maintainer-worker' });
-
-  if (check.status !== 0) {
-    console.log(`   - Provisioning isolated git worktree for ${prNumber} (inside container)...`);
-
-    // Ensure the main repo exists inside the container
-    const repoCheck = await provider.getExecOutput(`ls -d ${containerWorkDir}/.git`, { wrapContainer: 'maintainer-worker' });
-    if (repoCheck.status !== 0) {
-        console.log(`   - Initializing main repository inside container...`);
-        const initRepoCmd = `
-          rm -rf ${containerWorkDir} && \
-          git clone --quiet --filter=blob:none ${UPSTREAM_REPO_URL} ${containerWorkDir} && \
-          cd ${containerWorkDir} && \
-          git remote add upstream ${UPSTREAM_REPO_URL} && \
-          git fetch --quiet upstream
-        `;
-        const initRes = await provider.getExecOutput(`sudo docker exec -u node ${ghEnv}maintainer-worker sh -c ${q(initRepoCmd)}`);
-        if (initRes.status !== 0) {
-            console.error('   ❌ Failed to initialize main repository inside container.');
-            console.error('   STDOUT:', initRes.stdout);
-            console.error('   STDERR:', initRes.stderr);
-            return 1;
-        }
-    }
-
-    const gitFetch = isShellMode
-      ? `git -C ${containerWorkDir} fetch --quiet origin`
-      : `git -C ${containerWorkDir} fetch --quiet upstream pull/${prNumber}/head`;
-
-    const gitTarget = 'FETCH_HEAD';
-
-    // Ensure the worktrees parent directory is owned by node
-    await provider.exec(`sudo mkdir -p ${WORKTREES_PATH} && sudo chown -R 1000:1000 ${WORKTREES_PATH}`);
-
-    // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
-    const preflightCmd = `
-      cd ${containerWorkDir} && \
-      git worktree prune && \
-      git clean -ffdx
-    `;
-    await provider.exec(`sudo docker exec -u node maintainer-worker sh -c ${q(preflightCmd)}`);
-
-    // If the directory exists but .git is missing, it's broken. Wipe it.
-    const setupCmd = `
-      mkdir -p ${WORKTREES_PATH} && \
-      (git -C ${containerWorkDir} worktree remove -f ${containerWorktreeDir} || rm -rf ${containerWorktreeDir}) 2>/dev/null && \
-      ${gitFetch} && \
-      git -C ${containerWorkDir} worktree add --quiet -f ${containerWorktreeDir} ${gitTarget}
-    `;
-    const setupRes = await provider.getExecOutput(`sudo docker exec -u node ${ghEnv}maintainer-worker sh -c ${q(setupCmd)}`);
-    if (setupRes.status !== 0) {
-      console.error('   ❌ Failed to provision remote worktree inside container.');
-      console.error('   STDOUT:', setupRes.stdout);
-      console.error('   STDERR:', setupRes.stderr);
-      return 1;
-    }
-    console.log('   ✅ Worktree provisioned successfully.');
-  } else {
-    console.log('   ✅ Remote worktree ready.');
-  }
-
-  await provider.exec(`sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
   await provider.exec(
     `sudo docker exec -u node maintainer-worker sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`,
   );

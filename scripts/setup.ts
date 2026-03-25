@@ -20,6 +20,7 @@ import {
   CONFIG_DIR,
   UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
+  DEFAULT_REPO_NAME,
   type WorkspaceConfig 
 } from './Constants.ts';
 
