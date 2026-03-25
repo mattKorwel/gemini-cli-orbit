@@ -1,0 +1,20 @@
+{
+  "name": "@google/gemini-workspaces-extension",
+  "version": "0.1.0",
+  "description": "High-performance remote development workspaces for Gemini CLI.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "Matt Korwel",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}
