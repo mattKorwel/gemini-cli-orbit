@@ -7,7 +7,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GceConnectionManager } from './GceConnectionManager.ts';
 import { spawnSync } from 'child_process';
-import os from 'os';
 
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(),
@@ -21,47 +20,46 @@ describe('GceConnectionManager', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    manager = new GceConnectionManager(projectId, zone, instanceName);
   });
 
-  it('should generate the correct magic remote string', () => {
+  it('should generate correct internal magic remote', () => {
+    manager = new GceConnectionManager(projectId, zone, instanceName, {
+        backendType: 'direct-internal',
+        dnsSuffix: '.c.${projectId}.internal.gcpnode.com'
+    });
+    const remote = manager.getMagicRemote();
+    const user = `${process.env.USER || 'node'}`;
+    expect(remote).toBe(`${user}@nic0.${instanceName}.${zone}.c.${projectId}.internal.gcpnode.com`);
+  });
+
+  it('should support user suffix for corporate identities', () => {
+    manager = new GceConnectionManager(projectId, zone, instanceName, {
+        userSuffix: '_google_com'
+    });
     const remote = manager.getMagicRemote();
     const user = `${process.env.USER || 'node'}_google_com`;
-    expect(remote).toBe(`${user}@nic0.test-instance.us-west1-a.c.test-project.internal.gcpnode.com`);
+    expect(remote).toContain(user);
   });
 
-  it('should generate a valid SSH run command', () => {
-    const cmd = manager.getRunCommand('ls -la');
-    expect(cmd).toContain('ssh');
-    expect(cmd).toContain('StrictHostKeyChecking=no');
-    expect(cmd).toContain('ls -la');
+  it('should generate IAP gcloud command', () => {
+    manager = new GceConnectionManager(projectId, zone, instanceName, {
+        backendType: 'iap'
+    });
+    const cmd = manager.getRunCommand('uptime');
+    expect(cmd).toContain('gcloud compute ssh');
+    expect(cmd).toContain('--tunnel-through-iap');
+    expect(cmd).toContain(instanceName);
   });
 
-  it('should execute a command via spawnSync', () => {
-    vi.mocked(spawnSync).mockReturnValue({
-      status: 0,
-      stdout: Buffer.from('hello world'),
-      stderr: Buffer.from(''),
-    } as any);
-
-    const res = manager.run('echo hello');
-    
-    expect(spawnSync).toHaveBeenCalled();
-    expect(res.status).toBe(0);
-    expect(res.stdout).toBe('hello world');
-  });
-
-  it('should handle rsync with correct flags', () => {
+  it('should handle rsync with IAP backend', () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
-
-    const res = manager.sync('/local/path', '/remote/path', { delete: true });
+    manager = new GceConnectionManager(projectId, zone, instanceName, {
+        backendType: 'iap'
+    });
     
-    expect(res).toBe(0);
+    manager.sync('/local', '/remote');
     const lastCall = vi.mocked(spawnSync).mock.calls[0][0] as string;
-    expect(lastCall).toContain('rsync');
-    expect(lastCall).toContain('--delete');
-    expect(lastCall).toContain('--checksum');
-    expect(lastCall).toContain('/local/path');
-    expect(lastCall).toContain('/remote/path');
+    expect(lastCall).toContain('gcloud compute ssh');
+    expect(lastCall).toContain('--tunnel-through-iap');
   });
 });

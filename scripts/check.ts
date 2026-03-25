@@ -34,7 +34,7 @@ export async function runChecker(
     return 1;
   }
   const { projectId, zone, remoteWorkDir } = config;
-  const targetVM = `gcli-workspace-${env.USER || 'mattkorwel'}`;
+  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,

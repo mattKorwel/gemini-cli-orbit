@@ -53,7 +53,7 @@ export async function runCleanup(
   }
 
   const { projectId, zone } = config;
-  const targetVM = `gcli-workspace-${env.USER || 'mattkorwel'}`;
+  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,

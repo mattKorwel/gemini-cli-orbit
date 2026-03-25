@@ -17,6 +17,8 @@ vi.mock('./providers/ProviderFactory.ts');
 describe('runCleanup', () => {
   const mockProvider = {
     exec: vi.fn().mockResolvedValue(0),
+    removeContainer: vi.fn().mockResolvedValue(0),
+    getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'gcli-23176-open', stderr: '' }),
   };
 
   beforeEach(() => {
@@ -37,25 +39,15 @@ describe('runCleanup', () => {
   it('should perform surgical cleanup for a specific PR', async () => {
     await runCleanup(['23176', 'open']);
     
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('workspace-23176-open'),
-        expect.any(Object)
-    );
-    // Should NOT trigger bulk cleanup confirm
-    expect(readline.createInterface).not.toHaveBeenCalled();
+    expect(mockProvider.removeContainer).toHaveBeenCalledWith('gcli-23176-open');
+    expect(mockProvider.exec).toHaveBeenCalledWith(expect.stringContaining('rm -rf'));
   });
 
   it('should perform bulk cleanup when no arguments provided', async () => {
     await runCleanup([]);
     
     expect(readline.createInterface).toHaveBeenCalled();
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('tmux kill-server'),
-        expect.any(Object)
-    );
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('rm -rf /mnt/disks/data/main'),
-        expect.any(Object)
-    );
+    expect(mockProvider.getExecOutput).toHaveBeenCalledWith(expect.stringContaining('docker ps'), expect.any(Object));
+    expect(mockProvider.exec).toHaveBeenCalledWith(expect.stringContaining('docker rm -f'));
   });
 });

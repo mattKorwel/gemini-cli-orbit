@@ -103,9 +103,32 @@ async function createFork(upstream: string): Promise<string> {
     return upstream;
 }
 
+async function fetchRemoteSettings(url: string): Promise<Partial<WorkspaceConfig>> {
+  console.log(`🌐 Fetching remote workspace profile from: ${url}...`);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
+    const data = await res.json() as any;
+    // Handle cases where the remote JSON might have a 'workspace' wrapper or be flat
+    return data.workspace || data;
+  } catch (e) {
+    console.error(`   ❌ Failed to load remote profile: ${e instanceof Error ? e.message : String(e)}`);
+    return {};
+  }
+}
+
 export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   loadDotEnv();
-  
+  const args = process.argv.slice(2);
+  const reconfigure = args.includes('--reconfigure');
+  const profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
+  const skipConfigArg = args.includes('--yes') || args.includes('-y');
+
+  let remoteProfile: Partial<WorkspaceConfig> = {};
+  if (profileUrl) {
+    remoteProfile = await fetchRemoteSettings(profileUrl);
+  }
+
   console.log(`
 ================================================================================
 🚀 GEMINI WORKSPACES: HIGH-PERFORMANCE REMOTE DEVELOPMENT
@@ -119,30 +142,44 @@ and full builds) to a dedicated, high-performance GCP worker.
   console.log('--------------------------------------------------------------------------------');
 
   const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  let settings: any = {};
+  let settings: { workspace: WorkspaceConfig } = {
+      workspace: {
+          projectId: '', zone: 'us-west1-a', terminalTarget: 'tab',
+          userFork: '', upstreamRepo: `${UPSTREAM_ORG || 'google-gemini'}/${DEFAULT_REPO_NAME || 'gemini-cli'}`,
+          remoteHost: 'gcli-worker', remoteWorkDir: MAIN_REPO_PATH,
+          useContainer: true,
+          dnsSuffix: typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal',
+          userSuffix: typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '',
+          backendType: 'direct-internal'
+      }
+  };
+
   let skipConfig = false;
 
   if (fs.existsSync(settingsPath)) {
       try {
-          settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-          if (settings.workspace && !process.argv.includes('--reconfigure')) {
-              console.log('   ✅ Existing configuration found.');
-              const shouldSkip = await confirm('Use existing configuration and skip to execution?');
-              if (shouldSkip) {
-                  skipConfig = true;
+          const existingSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+          if (existingSettings.workspace) {
+              settings = existingSettings;
+              if (!reconfigure && !profileUrl) {
+                  console.log('   ✅ Existing configuration found.');
+                  skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
               }
           }
       } catch (e) {}
   }
 
-  // 1. Project Identity
-  let projectId = settings.workspace?.projectId || '';
-  let zone = settings.workspace?.zone || 'us-west1-a';
-  let terminalTarget = settings.workspace?.terminalTarget || 'tab';
-  let upstreamRepo = settings.workspace?.upstreamRepo || `${UPSTREAM_ORG}/${DEFAULT_REPO_NAME}`;
-  let userFork = settings.workspace?.userFork || upstreamRepo;
+  // 1. Project Identity & Networking
+  let projectId = remoteProfile.projectId || settings.workspace?.projectId || '';
+  let zone = remoteProfile.zone || settings.workspace?.zone || 'us-west1-a';
+  let terminalTarget = remoteProfile.terminalTarget || settings.workspace?.terminalTarget || 'tab';
+  let upstreamRepo = remoteProfile.upstreamRepo || settings.workspace?.upstreamRepo || `${(typeof UPSTREAM_ORG !== 'undefined' ? UPSTREAM_ORG : 'google-gemini')}/${(typeof DEFAULT_REPO_NAME !== 'undefined' ? DEFAULT_REPO_NAME : 'gemini-cli')}`;
+  let userFork = remoteProfile.userFork || settings.workspace?.userFork || upstreamRepo;
+  let dnsSuffix = remoteProfile.dnsSuffix || settings.workspace?.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal');
+  let userSuffix = remoteProfile.userSuffix || settings.workspace?.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
+  let backendType = remoteProfile.backendType || settings.workspace?.backendType || 'direct-internal';
 
-  if (!skipConfig) {
+  if (!skipConfig || profileUrl) {
       const defaultProject = env.GOOGLE_CLOUD_PROJECT || env.WORKSPACE_PROJECT || projectId || '';
       projectId = await prompt('GCP Project ID', defaultProject, 
         'The GCP Project where your workspace worker will live. Your personal project is recommended.');
@@ -152,11 +189,21 @@ and full builds) to a dedicated, high-performance GCP worker.
           return 1;
       }
 
-      zone = await prompt('Compute Zone', env.WORKSPACE_ZONE || zone, 
-        'The physical location of your worker. us-west1-a is the team default.');
+      zone = await prompt('GCP Zone', env.WORKSPACE_ZONE || zone, 
+        'The GCE zone where your worker will be provisioned.');
 
-      terminalTarget = await prompt('Terminal UI Target (foreground, background, tab, window)', env.WORKSPACE_TERM_TARGET || terminalTarget,
+      terminalTarget = await prompt('Terminal Target (foreground, background, tab, window)', env.WORKSPACE_TERM_TARGET || terminalTarget,
         'When you start a job in gemini-cli, should it run as a foreground shell, background shell (no attach), new iterm2 tab, or new iterm2 window?');
+
+      console.log('\n🌐 Networking Configuration:');
+      backendType = await prompt('Connectivity Backend (direct-internal, external, iap)', env.WORKSPACE_BACKEND_TYPE || backendType,
+        'direct-internal: Use magic hostname (Fastest, VPC-internal)\nexternal: Use Public IP (if enabled)\niap: Use gcloud IAP tunnel (Secure off-VPC fallback)') as any;
+
+      dnsSuffix = await prompt('Internal DNS Suffix', env.WORKSPACE_DNS_SUFFIX || dnsSuffix,
+        'The DNS suffix for internal magic hostnames. Standard is ".c.${projectId}.internal".');
+
+      userSuffix = await prompt('OS Login User Suffix', env.WORKSPACE_USER_SUFFIX || userSuffix,
+        'Optional suffix for OS Login usernames (e.g. "_google_com" for corporate environments).');
 
       // 2. Repository Discovery (Dynamic)
       console.log('\n🔍 Detecting repository origins...');
@@ -285,7 +332,8 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // 5. Save Confirmed State
-  const targetVM = `gcli-workspace-${env.USER || 'mattkorwel'}`;
+  const workspaceUser = env.USER || env.USERNAME || 'gcli-user';
+  const targetVM = `gcli-workspace-${workspaceUser}`;
   if (!fs.existsSync(path.dirname(settingsPath))) fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   
   const workspaceConfig: WorkspaceConfig = { 
@@ -293,7 +341,10 @@ and full builds) to a dedicated, high-performance GCP worker.
     userFork, upstreamRepo,
     remoteHost: 'gcli-worker',
     remoteWorkDir: MAIN_REPO_PATH,
-    useContainer: true
+    useContainer: true,
+    dnsSuffix,
+    userSuffix,
+    backendType: backendType as any
   };
 
   settings = { workspace: workspaceConfig };
@@ -324,7 +375,13 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   console.log('\n🚀 PHASE 3: REMOTE INITIALIZATION');
   console.log('--------------------------------------------------------------------------------');
-  const setupRes = await provider.setup({ projectId, zone, dnsSuffix: '.internal.gcpnode.com' });
+  const setupRes = await provider.setup({ 
+      projectId, 
+      zone, 
+      dnsSuffix,
+      userSuffix,
+      backendType: backendType as any
+  });
   if (setupRes !== 0) return setupRes;
 
   console.log(`\n📦 Synchronizing Logic & Credentials...`);

@@ -23,6 +23,12 @@ export const DEFAULT_REPO_NAME = 'gemini-cli';
 export const UPSTREAM_ORG = 'google-gemini';
 
 /**
+ * Networking Defaults (General GCP standard)
+ */
+export const DEFAULT_DNS_SUFFIX = '.c.${projectId}.internal';
+export const DEFAULT_USER_SUFFIX = '';
+
+/**
  * Workspace Configuration Interface
  */
 export interface WorkspaceConfig {
@@ -35,4 +41,7 @@ export interface WorkspaceConfig {
   remoteWorkDir: string;
   useContainer: boolean;
   providerType?: 'gce' | 'local-docker';
+  dnsSuffix?: string;
+  userSuffix?: string;
+  backendType?: 'direct-internal' | 'external' | 'iap';
 }

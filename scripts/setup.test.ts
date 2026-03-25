@@ -5,16 +5,33 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runSetup } from './setup.ts';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import readline from 'node:readline';
+
+// Mock Constants before importing anything that uses them
+vi.mock('./Constants.ts', () => ({
+    WORKSPACES_ROOT: '/mnt/disks/data',
+    MAIN_REPO_PATH: '/mnt/disks/data/main',
+    WORKTREES_PATH: '/mnt/disks/data/worktrees',
+    POLICIES_PATH: '/mnt/disks/data/policies',
+    SCRIPTS_PATH: '/mnt/disks/data/scripts',
+    CONFIG_DIR: '/mnt/disks/data/gemini-cli-config/.gemini',
+    UPSTREAM_REPO_URL: 'https://github.com/google-gemini/gemini-cli.git',
+    UPSTREAM_ORG: 'google-gemini',
+    DEFAULT_REPO_NAME: 'gemini-cli',
+    DEFAULT_DNS_SUFFIX: '.c.${projectId}.internal',
+    DEFAULT_USER_SUFFIX: '',
+}));
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('node:readline');
 vi.mock('./providers/ProviderFactory.ts');
+
+// Import runSetup after mocks
+import { runSetup } from './setup.ts';
+import { ProviderFactory } from './providers/ProviderFactory.ts';
 
 describe('runSetup', () => {
   const mockProvider = {

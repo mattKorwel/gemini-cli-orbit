@@ -12,7 +12,7 @@ import { ProviderFactory } from './providers/ProviderFactory.ts';
 
 const REPO_ROOT = process.cwd();
 
-const USER = process.env.USER || 'mattkorwel';
+const USER = process.env.USER || 'gcli-user';
 const INSTANCE_PREFIX = `gcli-workspace-${USER}`;
 const DEFAULT_ZONE = 'us-west1-a';
 

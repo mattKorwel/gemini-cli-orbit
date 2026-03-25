@@ -112,7 +112,7 @@ Actions:
   const settings: { workspace: WorkspaceConfig } = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   const config = settings.workspace;
 
-  const targetVM = `gcli-workspace-${env.USER || 'mattkorwel'}`;
+  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
   const provider = ProviderFactory.getProvider({
     projectId: config.projectId,
     zone: config.zone,

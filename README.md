@@ -11,7 +11,7 @@ High-performance remote development workspaces for Gemini CLI. This extension al
 ## Installation
 
 ```bash
-gemini extensions install https://github.com/mattKorwel/gemini-workspaces-extension.git
+gemini extensions install https://github.com/google-gemini/gemini-workspaces-extension.git
 ```
 
 ## Quick Start

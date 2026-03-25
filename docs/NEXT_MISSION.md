@@ -1,7 +1,7 @@
 # Mission: GCE Container-First Refactor 🚀
 
 ## Current State
-- **Architecture**: Persistent GCE VM (`gcli-workspace-mattkorwel`) with Fast-Path SSH (`gcli-worker`).
+- **Architecture**: Persistent GCE VM (`gcli-workspace-<user>`) with Fast-Path SSH.
 - **Logic**: Decoupled scripts in `~/.workspace/scripts`, using Git Worktrees for concurrency.
 - **Auth**: Scoped GitHub PATs mirrored via setup.
 

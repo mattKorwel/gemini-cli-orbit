@@ -29,6 +29,7 @@ export class GceCosProvider implements WorkerProvider {
     zone: string,
     instanceName: string,
     repoRoot: string,
+    config: { dnsSuffix?: string, userSuffix?: string } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
@@ -37,7 +38,7 @@ export class GceCosProvider implements WorkerProvider {
     if (!fs.existsSync(workspacesDir))
       fs.mkdirSync(workspacesDir, { recursive: true });
     this.knownHostsPath = path.join(workspacesDir, 'known_hosts');
-    this.conn = new GceConnectionManager(projectId, zone, instanceName, repoRoot);
+    this.conn = new GceConnectionManager(projectId, zone, instanceName, config, repoRoot);
   }
 
   async provision(): Promise<number> {
