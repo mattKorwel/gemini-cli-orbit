@@ -30,7 +30,7 @@ export const UPSTREAM_ORG = 'google-gemini';
 /**
  * Networking Defaults (General GCP standard)
  */
-export const DEFAULT_DNS_SUFFIX = '.c.${projectId}.internal';
+export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
 
 /**

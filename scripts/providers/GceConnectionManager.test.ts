@@ -25,7 +25,7 @@ describe('GceConnectionManager', () => {
   it('should generate correct internal magic remote', () => {
     manager = new GceConnectionManager(projectId, zone, instanceName, {
         backendType: 'direct-internal',
-        dnsSuffix: '.c.${projectId}.internal.gcpnode.com'
+        dnsSuffix: '.gcpnode.com'
     });
     const remote = manager.getMagicRemote();
     const user = `${process.env.USER || 'node'}`;

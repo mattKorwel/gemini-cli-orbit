@@ -24,12 +24,15 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
     return 1;
   }
 
-  const { projectId, zone } = config;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType } = config;
   const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,
     instanceName: targetVM,
+    dnsSuffix,
+    userSuffix,
+    backendType
   });
 
   console.log(`\n🛰️  Workspace Mission Control: ${targetVM}`);

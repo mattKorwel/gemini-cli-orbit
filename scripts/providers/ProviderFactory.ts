@@ -18,6 +18,9 @@ export class ProviderFactory {
     zone: string;
     instanceName: string;
     providerType?: string;
+    dnsSuffix?: string;
+    userSuffix?: string;
+    backendType?: string;
   }): WorkerProvider {
     if (config.providerType === 'local-docker') {
         throw new Error('Local Docker provider not yet implemented.');
@@ -29,6 +32,11 @@ export class ProviderFactory {
       config.zone,
       config.instanceName,
       REPO_ROOT,
+      { 
+        dnsSuffix: config.dnsSuffix, 
+        userSuffix: config.userSuffix,
+        backendType: config.backendType
+      }
     );
   }
 }

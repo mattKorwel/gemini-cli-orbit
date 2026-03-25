@@ -55,10 +55,12 @@ export class GceConnectionManager {
         return this.overrideHost ? `${user}@${this.overrideHost}` : `${user}@nic0.${this.instanceName}.${this.zone}.c.${this.projectId}.internal`;
     }
 
-    const dnsTemplate = this.config.dnsSuffix || '.c.${projectId}.internal';
-    const dnsSuffix = dnsTemplate.replace('${projectId}', this.projectId);
+    // Direct Internal: nic0.<name>.<zone>.c.<project>.internal[.<custom-suffix>]
+    const customSuffix = this.config.dnsSuffix || '';
+    const baseSuffix = `.c.${this.projectId}.internal`;
+    const fullSuffix = baseSuffix + (customSuffix.startsWith('.') ? customSuffix : (customSuffix ? '.' + customSuffix : ''));
     
-    return `${user}@nic0.${this.instanceName}.${this.zone}${dnsSuffix.startsWith('.') ? dnsSuffix : '.' + dnsSuffix}`;
+    return `${user}@nic0.${this.instanceName}.${this.zone}${fullSuffix}`;
   }
 
   getCommonArgs(): string[] {

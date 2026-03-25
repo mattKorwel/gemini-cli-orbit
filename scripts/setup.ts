@@ -223,8 +223,8 @@ and full builds) to a dedicated, high-performance GCP worker.
       backendType = await prompt('Connectivity Backend (direct-internal, external, iap)', env.WORKSPACE_BACKEND_TYPE || backendType,
         'direct-internal: Use magic hostname (Fastest, VPC-internal)\nexternal: Use Public IP (if enabled)\niap: Use gcloud IAP tunnel (Secure off-VPC fallback)') as any;
 
-      dnsSuffix = await prompt('Internal DNS Suffix', env.WORKSPACE_DNS_SUFFIX || dnsSuffix,
-        'The DNS suffix for internal magic hostnames. Standard is ".c.${projectId}.internal".');
+      dnsSuffix = await prompt('Regional DNS Suffix', env.WORKSPACE_DNS_SUFFIX || dnsSuffix,
+        'Optional suffix that follows ".internal" for your specific network (e.g. ".gcpnode.com" or enter for none).');
 
       userSuffix = await prompt('OS Login User Suffix', env.WORKSPACE_USER_SUFFIX || userSuffix,
         'Optional suffix for OS Login usernames (e.g. "_google_com" for corporate environments).');
@@ -390,7 +390,14 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // Transition to Execution
-  const provider = ProviderFactory.getProvider({ projectId, zone, instanceName: targetVM });
+  const provider = ProviderFactory.getProvider({ 
+      projectId, 
+      zone, 
+      instanceName: targetVM,
+      dnsSuffix,
+      userSuffix,
+      backendType
+  });
 
   console.log('\n🏗️  PHASE 2: INFRASTRUCTURE');
   console.log('--------------------------------------------------------------------------------');

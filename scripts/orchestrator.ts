@@ -117,6 +117,9 @@ Actions:
     projectId: config.projectId,
     zone: config.zone,
     instanceName: targetVM,
+    dnsSuffix: config.dnsSuffix,
+    userSuffix: config.userSuffix,
+    backendType: config.backendType
   });
 
   // 2. Wake Worker & Verify Container
