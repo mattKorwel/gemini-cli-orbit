@@ -142,7 +142,7 @@ Actions:
     -e COLORTERM=truecolor \
     -e TERM=xterm-256color \
     -e GEMINI_AUTO_UPDATE=0 \
-    maintainer-worker sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < /mnt/disks/data/.gh_token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
+    maintainer-worker sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
 
   const finalSSH = provider.getRunCommand(containerWrap, { interactive: true });
 

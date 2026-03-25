@@ -206,6 +206,7 @@ export class GceCosProvider implements WorkerProvider {
         docker run -d --name maintainer-worker --restart always --user root \\
           --memory="16g" --cpus="4" \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
+          -v /mnt/disks/data/.gh_token:/mnt/disks/data/.gh_token:ro \\
           -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
           -v ~/.config/gh:/home/node/.config/gh:rw \\
           ${imageUri} /bin/bash -c "chown -R node:node /home/node/.config && ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"
@@ -356,6 +357,7 @@ export class GceCosProvider implements WorkerProvider {
           sudo docker run -d --name maintainer-worker --restart always --user root \
             --memory="16g" --cpus="4" \
             -v /mnt/disks/data:/mnt/disks/data:rw \
+            -v /mnt/disks/data/.gh_token:/mnt/disks/data/.gh_token:ro \
             -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \
             -v ~/.config/gh:/home/node/.config/gh:rw \
             ${imageUri} /bin/bash -c "chown -R node:node /home/node/.config && ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"

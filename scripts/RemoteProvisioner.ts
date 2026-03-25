@@ -60,11 +60,11 @@ export class RemoteProvisioner {
 
       // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
       const preflightCmd = `
+        git config --system --add safe.directory '*' && \
         cd ${MAIN_REPO_PATH} && \
         git worktree prune && \
         git clean -ffdx
-      `;
-      await this.provider.exec(`sudo docker exec -u node maintainer-worker sh -c ${q(preflightCmd)}`);
+      `;      await this.provider.exec(`sudo docker exec -u node maintainer-worker sh -c ${q(preflightCmd)}`);
 
       // If the directory exists but .git is missing, it's broken. Wipe it.
       const setupCmd = `

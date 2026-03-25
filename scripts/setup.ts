@@ -206,34 +206,51 @@ and full builds) to a dedicated, high-performance GCP worker.
       console.log(`   ✅ Workspace:   ${userFork}`);
   }
 
-  // 3. Security & Auth (Always check for token if init is needed)
+  // 3. Security & Auth (Always check for token, force prompt if missing)
+  const localGhTokenPath = path.join(REPO_ROOT, '.gemini/workspaces/gh_token');
   let githubToken = env.WORKSPACE_GH_TOKEN || '';
-  if (!skipConfig) {
-      if (!githubToken) {
-          const hasToken = await confirm('\nDo you already have a GitHub Personal Access Token (PAT) with "Read/Write" access to contents & PRs?');
-          if (hasToken) {
-              githubToken = await prompt('Paste Scoped Token', '');
-          } else {
-              const shouldGenToken = await confirm('Would you like to generate a new scoped token now? (Highly Recommended)');
-              if (shouldGenToken) {
-                  const baseUrl = 'https://github.com/settings/personal-access-tokens/new';
-                  const name = `Workspace-${env.USER}`;
-                  const repoParams = userFork !== upstreamRepo 
-                      ? `&repositories[]=${encodeURIComponent(upstreamRepo)}&repositories[]=${encodeURIComponent(userFork)}`
-                      : `&repositories[]=${encodeURIComponent(upstreamRepo)}`;
+  
+  if (!githubToken && fs.existsSync(localGhTokenPath)) {
+      githubToken = fs.readFileSync(localGhTokenPath, 'utf8').trim();
+  }
 
-                  const magicLink = `${baseUrl}?name=${encodeURIComponent(name)}&description=Gemini+Workspaces+Worker${repoParams}&contents=write&pull_requests=write&metadata=read`;
-                  const terminalLink = `\u001b]8;;${magicLink}\u0007${magicLink}\u001b]8;;\u0007`;
-
-                  console.log(`\n🔐 ACTION REQUIRED: Create a token with the required permissions:`);
-                  console.log(`\n${terminalLink}\n`);
-                  
-                  githubToken = await prompt('Paste Scoped Token', '');
-              }
-          }
+  // FORCE PROMPT if token is missing, regardless of skipConfig
+  if (!githubToken) {
+      console.log('\n🔑 GitHub PAT is missing. A token with "Contents" and "Pull Request" access is required.');
+      const hasToken = await confirm('Do you already have a GitHub Personal Access Token (PAT)?');
+      if (hasToken) {
+          githubToken = await prompt('Paste Scoped Token', '');
       } else {
-          githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access and PR operations.', true);
+          const shouldGenToken = await confirm('Would you like to generate a new scoped token now? (Highly Recommended)');
+          if (shouldGenToken) {
+              const baseUrl = 'https://github.com/settings/personal-access-tokens/new';
+              const name = `Workspace-${env.USER}`;
+              const repoParams = userFork !== upstreamRepo 
+                  ? `&repositories[]=${encodeURIComponent(upstreamRepo)}&repositories[]=${encodeURIComponent(userFork)}`
+                  : `&repositories[]=${encodeURIComponent(upstreamRepo)}`;
+
+              const magicLink = `${baseUrl}?name=${encodeURIComponent(name)}&description=Gemini+Workspaces+Worker${repoParams}&contents=write&pull_requests=write&metadata=read`;
+              const terminalLink = `\u001b]8;;${magicLink}\u0007${magicLink}\u001b]8;;\u0007`;
+
+              console.log(`\n🔐 ACTION REQUIRED: Create a token with the required permissions:`);
+              console.log(`\n${terminalLink}\n`);
+              
+              githubToken = await prompt('Paste Scoped Token', '');
+          }
       }
+      
+      if (!githubToken) {
+          console.error('❌ GitHub Token is required to provision the workspace.');
+          return 1;
+      }
+  } else if (!skipConfig) {
+      githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access and PR operations.', true);
+  }
+
+  // Persist the token locally for future runs
+  if (githubToken) {
+      if (!fs.existsSync(path.dirname(localGhTokenPath))) fs.mkdirSync(path.dirname(localGhTokenPath), { recursive: true });
+      fs.writeFileSync(localGhTokenPath, githubToken, { mode: 0o600 });
   }
 
   // 4. Gemini API Auth Strategy
@@ -376,7 +393,8 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (githubToken) {
-    await provider.exec(`echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null && sudo chmod 600 ${WORKSPACES_ROOT}/.gh_token`);
+    // Ensure we remove any directory that might have been accidentally created with this name
+    await provider.exec(`sudo rm -rf ${WORKSPACES_ROOT}/.gh_token && echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null && sudo chmod 644 ${WORKSPACES_ROOT}/.gh_token && sudo chown 1000:1000 ${WORKSPACES_ROOT}/.gh_token`);
     // Authenticate GH CLI on host
     await provider.exec(`sudo -u $(whoami) gh auth login --with-token < ${WORKSPACES_ROOT}/.gh_token`);
     console.log('   ✅ Authenticated GitHub CLI on host.');
