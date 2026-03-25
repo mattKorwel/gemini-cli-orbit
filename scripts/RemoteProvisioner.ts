@@ -23,7 +23,7 @@ export class RemoteProvisioner {
     const remoteWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
 
     // Clear previous history for this session if it exists to ensure a fresh start
-    const clearHistoryCmd = `rm -f ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`;
+    const clearHistoryCmd = `rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`;
     await this.provider.exec(clearHistoryCmd, { wrapContainer: 'maintainer-worker' });
 
     // Use the container-safe path for check
@@ -50,8 +50,8 @@ export class RemoteProvisioner {
       }
 
       const gitFetch = isShellMode
-        ? `git -C ${MAIN_REPO_PATH} fetch --quiet origin`
-        : `git -C ${MAIN_REPO_PATH} fetch --quiet upstream pull/${prNumber}/head`;
+        ? `git -c safe.directory='*' -C ${MAIN_REPO_PATH} fetch --quiet origin`
+        : `git -c safe.directory='*' -C ${MAIN_REPO_PATH} fetch --quiet upstream pull/${prNumber}/head`;
 
       const gitTarget = 'FETCH_HEAD';
 
@@ -60,7 +60,8 @@ export class RemoteProvisioner {
 
       // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
       const preflightCmd = `
-        git config --system --add safe.directory '*' && \
+        export HOME=${CONFIG_DIR}/.. && \
+        git config --global --add safe.directory '*' && \
         cd ${MAIN_REPO_PATH} && \
         git worktree prune && \
         git clean -ffdx
@@ -68,10 +69,11 @@ export class RemoteProvisioner {
 
       // If the directory exists but .git is missing, it's broken. Wipe it.
       const setupCmd = `
+        export HOME=${CONFIG_DIR}/.. && \
         mkdir -p ${WORKTREES_PATH} && \
-        (git -C ${MAIN_REPO_PATH} worktree remove -f ${remoteWorktreeDir} || rm -rf ${remoteWorktreeDir}) 2>/dev/null && \
+        (git -c safe.directory='*' -C ${MAIN_REPO_PATH} worktree remove -f ${remoteWorktreeDir} || rm -rf ${remoteWorktreeDir}) 2>/dev/null && \
         ${gitFetch} && \
-        git -C ${MAIN_REPO_PATH} worktree add --quiet -f ${remoteWorktreeDir} ${gitTarget}
+        git -c safe.directory='*' -C ${MAIN_REPO_PATH} worktree add --quiet -f ${remoteWorktreeDir} ${gitTarget}
       `;
       const setupRes = await this.provider.getExecOutput(`sudo docker exec -u node ${ghEnv}maintainer-worker sh -c ${q(setupCmd)}`);
       if (setupRes.status !== 0) {

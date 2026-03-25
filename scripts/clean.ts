@@ -79,7 +79,7 @@ export async function runCleanup(
     );
 
     // Clear history files for this PR and action
-    await provider.exec(`rm -f ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`, {
+    await provider.exec(`rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`, {
       wrapContainer: 'maintainer-worker',
     });
 

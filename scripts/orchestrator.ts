@@ -23,6 +23,33 @@ import {
 
 const REPO_ROOT = process.cwd();
 
+/**
+ * Loads and parses a local .env file from the repository root and the home directory.
+ */
+function loadDotEnv(env: NodeJS.ProcessEnv) {
+  const envPaths = [
+    path.join(REPO_ROOT, '.env'),
+    path.join(process.env.HOME || '', '.env')
+  ];
+
+  envPaths.forEach(envPath => {
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      content.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          const value = match[2].trim().replace(/^["'](.*)["']$/, '$1');
+          if (!env[key]) env[key] = value;
+        }
+      });
+    }
+  });
+}
+
 function q(str: string) {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
@@ -31,6 +58,7 @@ export async function runOrchestrator(
   args: string[],
   env: NodeJS.ProcessEnv = process.env,
 ) {
+  loadDotEnv(env);
   const promptArgs: string[] = [];
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--open') {
@@ -102,14 +130,24 @@ Actions:
   const timestamp = Date.now();
   const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
   const hostWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+// 3. Remote Preparation
+const localApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
 
-  // 3. Remote Preparation
-  // 4. Remote Context Setup (Executed INSIDE container for path consistency)
-  const provisioner = new RemoteProvisioner(provider);
-  // We don't pass ghEnv anymore as we auth inside the container's main command
-  const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '');
+// 4. Remote Context Setup (Executed INSIDE container for path consistency)
+const provisioner = new RemoteProvisioner(provider);
+// We don't pass ghEnv anymore as we auth inside the container's main command
+const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '');
 
-  // 5. Execution Logic
+// AUTH: Inject credentials directly into the worktree .env
+if (localApiKey) {
+  console.log('   - Injecting remote authentication context...');
+  const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${targetVM}`;
+  await provider.exec(
+      `sudo docker exec -u node maintainer-worker sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
+  );
+}
+
+// 5. Execution Logic
   const isWithinGemini =
     !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
 

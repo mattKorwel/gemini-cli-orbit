@@ -214,8 +214,12 @@ and full builds) to a dedicated, high-performance GCP worker.
       githubToken = fs.readFileSync(localGhTokenPath, 'utf8').trim();
   }
 
-  // FORCE PROMPT if token is missing, regardless of skipConfig
-  if (!githubToken) {
+  if (githubToken) {
+      console.log('\n🔐 Found GitHub PAT in environment or settings.');
+      if (!skipConfig) {
+          githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access and PR operations.', true);
+      }
+  } else {
       console.log('\n🔑 GitHub PAT is missing. A token with "Contents" and "Pull Request" access is required.');
       const hasToken = await confirm('Do you already have a GitHub Personal Access Token (PAT)?');
       if (hasToken) {
@@ -238,13 +242,11 @@ and full builds) to a dedicated, high-performance GCP worker.
               githubToken = await prompt('Paste Scoped Token', '');
           }
       }
-      
-      if (!githubToken) {
-          console.error('❌ GitHub Token is required to provision the workspace.');
-          return 1;
-      }
-  } else if (!skipConfig) {
-      githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access and PR operations.', true);
+  }
+
+  if (!githubToken) {
+      console.error('❌ GitHub Token is required to provision the workspace.');
+      return 1;
   }
 
   // Persist the token locally for future runs
@@ -371,17 +373,13 @@ and full builds) to a dedicated, high-performance GCP worker.
     }
   };
   
-  if (authStrategy === 'gemini-api-key' && geminiApiKey) {
-      remoteSettings.security.auth.apiKey = geminiApiKey;
-      console.log('   ✅ Configuring remote for API Key authentication.');
-  }
-
   const tmpSettingsPath = path.join(os.tmpdir(), `remote-settings-${Date.now()}.json`);
   fs.writeFileSync(tmpSettingsPath, JSON.stringify(remoteSettings, null, 2));
   
   // Ensure the remote config dir exists before syncing
   await provider.exec(`sudo mkdir -p ${CONFIG_DIR} && sudo chmod 777 ${CONFIG_DIR}`);
   await provider.sync(tmpSettingsPath, `${CONFIG_DIR}/settings.json`, { sudo: true });
+  await provider.exec(`sudo chown -R 1000:1000 ${CONFIG_DIR}`);
   fs.unlinkSync(tmpSettingsPath);
 
   // 3. Sync credentials for Google Accounts if needed
@@ -395,24 +393,24 @@ and full builds) to a dedicated, high-performance GCP worker.
   if (githubToken) {
     // Ensure we remove any directory that might have been accidentally created with this name
     await provider.exec(`sudo rm -rf ${WORKSPACES_ROOT}/.gh_token && echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null && sudo chmod 644 ${WORKSPACES_ROOT}/.gh_token && sudo chown 1000:1000 ${WORKSPACES_ROOT}/.gh_token`);
-    // Authenticate GH CLI on host
-    await provider.exec(`sudo -u $(whoami) gh auth login --with-token < ${WORKSPACES_ROOT}/.gh_token`);
-    console.log('   ✅ Authenticated GitHub CLI on host.');
+    console.log('   ✅ Uploaded GitHub PAT to remote worker.');
   }
 
+  // Final Repo Sync
   // Final Repo Sync
   console.log(`🚀 Finalizing Remote Repository (${userFork})...`);
   const repoUrl = `https://github.com/${userFork}.git`;
   const repoPath = MAIN_REPO_PATH;
-  
+
   const setupRepoCmd = `
     if [ ! -d "${repoPath}/.git" ]; then
       sudo rm -rf ${repoPath} && \
       sudo git clone --quiet --filter=blob:none ${repoUrl} ${repoPath} && \
+      sudo git -C ${repoPath} config --local safe.directory ${repoPath} && \
       sudo git -C ${repoPath} remote add upstream ${UPSTREAM_REPO_URL}
     fi && \
-    sudo git -C ${repoPath} fetch --quiet upstream && \
-    sudo git -C ${repoPath} worktree prune && \
+    sudo git -C ${repoPath} -c safe.directory='*' fetch --quiet upstream && \
+    sudo git -C ${repoPath} -c safe.directory='*' worktree prune && \
     sudo chown -R 1000:1000 ${WORKSPACES_ROOT}
   `;
   await provider.exec(setupRepoCmd);
