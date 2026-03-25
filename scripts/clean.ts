@@ -106,7 +106,7 @@ export async function runCleanup(
     await provider.exec(`sudo docker rm -f ${names}`);
   }
   // Also remove the old global worker if it exists
-  await provider.exec(`sudo docker rm -f maintainer-worker || true`);
+  await provider.exec(`sudo docker rm -f development-worker || true`);
 
   console.log('   - Cleaning up ALL Git Worktrees...');
   await provider.exec(`sudo rm -rf ${WORKTREES_PATH}/*`);

@@ -25,7 +25,7 @@ async function main() {
   const workDir = process.cwd(); // This is remoteWorkDir as set in review.ts
   const targetDir = path.join(workDir, branchName);
 
-  // Use global tools pre-installed in the maintainer image
+  // Use global tools pre-installed in the development image
   const tsxBin = 'tsx'; 
   const geminiBin = 'gemini';
 

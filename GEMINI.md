@@ -41,7 +41,7 @@ npm test
 Custom slash commands are registered via TOML files in `commands/workspace/`. These wrap the TypeScript scripts in `scripts/` using `npx tsx`.
 
 ### Provisioning Logic
-If you modify the remote environment setup, you must update `scripts/setup.ts` and potentially the `maintainer` Docker image used in `GceCosProvider.ts`.
+If you modify the remote environment setup, you must update `scripts/setup.ts` and potentially the `development` Docker image used in `GceCosProvider.ts`.
 
 ## 🛡️ Security Mandates
 1.  **Read-Only Source**: Never mount the main host repository as Read-Write into job containers.

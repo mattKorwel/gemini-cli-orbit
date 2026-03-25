@@ -48,7 +48,7 @@ export async function runAttach(
   });
 
   const sessionName = `workspace-${prNumber}-${action}`;
-  const containerAttach = `sudo docker exec -it maintainer-worker sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
+  const containerAttach = `sudo docker exec -it development-worker sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
   const finalSSH = provider.getRunCommand(containerAttach, {
     interactive: true,
   });

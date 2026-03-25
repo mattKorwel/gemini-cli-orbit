@@ -6,7 +6,7 @@ export USER=${USER:-ubuntu}
 export HOME=/home/$USER
 export DEBIAN_FRONTEND=noninteractive
 
-echo "🛠️ Provisioning High-Performance Gemini CLI Maintainer Worker..."
+echo "🛠️ Provisioning High-Performance Gemini CLI Development Worker..."
 
 # Wait for apt lock
 wait_for_apt() {

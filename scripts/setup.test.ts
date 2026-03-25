@@ -84,7 +84,7 @@ describe('runSetup', () => {
 
     // Verify extension linking inside container
     expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('docker exec -u node maintainer-worker gemini extensions link')
+        expect.stringContaining('docker exec -u node development-worker gemini extensions link')
     );
   });
 

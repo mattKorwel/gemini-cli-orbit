@@ -203,8 +203,8 @@ export class GceCosProvider implements WorkerProvider {
         docker pull ${imageUri} && break || (echo "Pull failed, retry $i..." && sleep 5)
       done
 
-      if ! docker ps -a | grep -q "maintainer-worker"; then
-        docker run -d --name maintainer-worker --restart always --user root \\
+      if ! docker ps -a | grep -q "development-worker"; then
+        docker run -d --name development-worker --restart always --user root \\
           --memory="16g" --cpus="4" \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
           -v /mnt/disks/data/.gh_token:/mnt/disks/data/.gh_token:ro \\
@@ -315,15 +315,25 @@ export class GceCosProvider implements WorkerProvider {
 
     // NEW: Verify the container is actually running AND up to date
     console.log('   - Verifying remote container health and image version...');
-    const containerCheck = await this.getExecOutput(
-      'sudo docker ps -q --filter "name=maintainer-worker"',
+    let containerCheck = await this.getExecOutput(
+      'sudo docker ps -a --filter "name=development-worker" --format "{{.Names}}"',
     );
+
+    // Migration logic: Rename old container if it exists
+    if (!containerCheck.stdout.includes('development-worker')) {
+        const legacyCheck = await this.getExecOutput('sudo docker ps -a --filter "name=maintainer-worker" --format "{{.Names}}"');
+        if (legacyCheck.stdout.includes('maintainer-worker')) {
+            console.log('   🔄 Migrating supervisor: maintainer-worker -> development-worker...');
+            await this.exec('sudo docker rename maintainer-worker development-worker');
+            containerCheck = await this.getExecOutput('sudo docker ps -q --filter "name=development-worker"');
+        }
+    }
 
     let needsUpdate = false;
     if (containerCheck.status === 0 && containerCheck.stdout.trim()) {
       // Check if the volume mounts are correct by checking for files inside .workspaces/main
       const mountCheck = await this.getExecOutput(
-        'sudo docker exec maintainer-worker ls -A /home/node/.workspaces/main',
+        'sudo docker exec development-worker ls -A /home/node/.workspaces/main',
       );
       if (mountCheck.status !== 0 || !mountCheck.stdout.trim()) {
         console.log(
@@ -333,7 +343,7 @@ export class GceCosProvider implements WorkerProvider {
       } else {
         // Check if the running image is stale
         const tmuxCheck = await this.getExecOutput(
-          'sudo docker exec maintainer-worker which tmux',
+          'sudo docker exec development-worker which tmux',
         );
         if (tmuxCheck.status !== 0) {
           console.log(
@@ -354,8 +364,8 @@ export class GceCosProvider implements WorkerProvider {
       const recoverCmd = `
           (mountpoint -q /mnt/disks/data || sudo mount /dev/disk/by-id/google-data /mnt/disks/data) && \
           sudo docker pull ${imageUri} && \
-          (sudo docker rm -f maintainer-worker || true) && \
-          sudo docker run -d --name maintainer-worker --restart always --user root \
+          (sudo docker rm -f development-worker || true) && \
+          sudo docker run -d --name development-worker --restart always --user root \
             --memory="16g" --cpus="4" \
             -v /mnt/disks/data:/mnt/disks/data:rw \
             -v /mnt/disks/data/.gh_token:/mnt/disks/data/.gh_token:ro \
@@ -366,11 +376,22 @@ export class GceCosProvider implements WorkerProvider {
       const recoverRes = await this.exec(recoverCmd);
       if (recoverRes !== 0) {
         console.error(
-          '   ❌ Critical: Failed to refresh maintainer container.',
+          '   ❌ Critical: Failed to refresh development container.',
         );
         return 1;
       }
       console.log('   ✅ Container refreshed.');
+    }
+
+    // Wait for the container to stabilize
+    console.log('⏳ Waiting for development-worker to stabilize...');
+    for (let i = 0; i < 30; i++) {
+        const status = await this.getContainerStatus('development-worker');
+        if (status.running) {
+            console.log('   ✅ Supervisor container is ready.');
+            break;
+        }
+        await new Promise(r => setTimeout(r, 2000));
     }
 
     return 0;

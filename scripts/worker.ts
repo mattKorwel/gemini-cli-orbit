@@ -27,7 +27,7 @@ export async function runWorker(args: string[]) {
 
   const targetDir = process.cwd();
   
-  // Use global gemini command pre-installed in the maintainer image
+  // Use global gemini command pre-installed in the development image
   const geminiBin = 'gemini';
 
   // Dispatch to Playbook

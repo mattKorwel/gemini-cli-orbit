@@ -25,7 +25,7 @@ Perform a "Day 0" test from a clean slate:
 
 ## 4. Documentation & Cleanup
 - [ ] **README Audit**: Ensure all new slash commands are correctly documented with their arguments.
-- [ ] **GEMINI.md Audit**: Verify the "Shared State" architecture section is clear for future maintainers.
+- [ ] **GEMINI.md Audit**: Verify the "Shared State" architecture section is clear for future developments.
 - [ ] **Artifact Cleanup**: Delete all temporary session files.
 
 ## 5. Official Release

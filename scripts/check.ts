@@ -61,7 +61,7 @@ export async function runChecker(
     const exitFile = `${logDir}/${task}.exit`;
     const checkExit = await provider.getExecOutput(
       `[ -f ${exitFile} ] && cat ${exitFile}`,
-      { wrapContainer: 'maintainer-worker' },
+      { wrapContainer: 'development-worker' },
     );
 
     if (checkExit.status === 0 && checkExit.stdout.trim()) {
@@ -71,7 +71,7 @@ export async function runChecker(
       );
     } else {
       const checkRunning = await provider.exec(`[ -f ${logDir}/${task}.log ]`, {
-        wrapContainer: 'maintainer-worker',
+        wrapContainer: 'development-worker',
       });
       if (checkRunning === 0) {
         console.log(`  ⏳ ${task.padEnd(10)}: RUNNING`);

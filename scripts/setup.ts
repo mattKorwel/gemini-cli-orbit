@@ -66,8 +66,8 @@ async function prompt(question: string, defaultValue: string, explanation?: stri
   const flagName = question.toLowerCase().replace(/\s+/g, '-');
   const flagOverride = args.find(a => a.startsWith(`--${flagName}=`))?.split('=')[1];
   
-  const finalValue = flagOverride || (autoAccept && defaultValue ? defaultValue : null);
-  if (finalValue !== null) return finalValue;
+  if (flagOverride !== undefined) return flagOverride;
+  if (autoAccept) return defaultValue;
 
   if (explanation) {
       console.log(`\n📖 ${explanation}`);
@@ -111,22 +111,25 @@ async function createFork(upstream: string): Promise<string> {
     }
     return upstream;
 }
-
 async function fetchRemoteSettings(url: string): Promise<Partial<WorkspaceConfig>> {
-  console.log(`🌐 Fetching remote workspace profile from: ${url}...`);
+  console.log(`🌐 Loading workspace profile: ${url}...`);
   try {
+    let data: any;
     if (url.startsWith('http')) {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
-        const data = await res.json() as any;
-        return data.workspace || data;
+        data = await res.json();
     } else if (fs.existsSync(url)) {
-        const data = JSON.parse(fs.readFileSync(url, 'utf8'));
-        return data.workspace || data;
+        data = JSON.parse(fs.readFileSync(url, 'utf8'));
+    } else {
+        throw new Error(`Profile source not found: ${url}`);
     }
-    throw new Error(`Unsupported profile source: ${url}`);
+
+    const profile = data.workspace || data;
+    console.log(`   ✅ Loaded profile for project: ${profile.projectId || 'unknown'}`);
+    return profile;
   } catch (e) {
-    console.error(`   ❌ Failed to load remote profile: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`   ❌ Failed to load profile: ${e instanceof Error ? e.message : String(e)}`);
     return {};
   }
 }
@@ -163,7 +166,7 @@ and full builds) to a dedicated, high-performance GCP worker.
       }
   };
 
-  let profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
+  profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
 
   // Resolve local profile names provided via --profile=NAME
   if (profileUrl && !profileUrl.startsWith('http') && !fs.existsSync(profileUrl)) {
@@ -394,7 +397,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   console.log(`\n✅ Configuration saved to ${settingsPath}`);
 
   // Option to save as profile
-  if (!skipConfig || reconfigure) {
+  if (!skipConfigArg && !profileUrl || reconfigure) {
       const shouldSaveProfile = await confirm('Save this configuration as a named profile?');
       if (shouldSaveProfile) {
           const profileName = await prompt('Profile Name (e.g. sandbox, corp)', '');
@@ -438,6 +441,10 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   console.log('\n🚀 PHASE 3: REMOTE INITIALIZATION');
   console.log('--------------------------------------------------------------------------------');
+  
+  // Ensure container is running and stabilized before any remote commands
+  await provider.ensureReady();
+
   const setupRes = await provider.setup({ 
       projectId, 
       zone, 
@@ -464,8 +471,9 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   // 2. Link Extension inside the shared container
   console.log('🔗 Linking extension in remote container...');
-  // We run this inside the maintainer-worker as the 'node' user so it updates the shared /home/node/.gemini/extension-enablement.json
-  await provider.exec(`sudo docker exec -u node maintainer-worker gemini extensions link ${EXTENSION_REMOTE_PATH}`);
+  // We run this inside the development-worker as the 'node' user so it updates the shared /home/node/.gemini/extension-enablement.json
+  // We provide a dummy GEMINI_API_KEY because the CLI checks for it even for non-API commands like 'extensions link'
+  await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker gemini extensions link ${EXTENSION_REMOTE_PATH}`);
 
   // 3. Initialize Remote Gemini Config with Auth
   console.log('⚙️  Initializing remote Gemini configuration...');

@@ -44,7 +44,7 @@ export async function runLogs(args: string[]) {
   console.log(`📋 Checking remote status for job ${prNumber}-${action}...`);
 
   // Check for active tmux sessions
-  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "workspace-${prNumber}-${action}"`, { wrapContainer: 'maintainer-worker' });
+  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "workspace-${prNumber}-${action}"`, { wrapContainer: 'development-worker' });
   if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
       console.log(`🧵 Found active sessions:\n${tmuxRes.stdout.trim()}`);
       console.log(`\n💡 To attach, run: npx tsx scripts/attach.ts ${prNumber}`);
@@ -56,11 +56,11 @@ export async function runLogs(args: string[]) {
   const worktreePath = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
   const logDir = `${worktreePath}/.gemini/logs`;
   
-  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapContainer: 'maintainer-worker' });
+  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapContainer: 'development-worker' });
   if (logRes.status === 0 && logRes.stdout.trim()) {
       const latestLog = logRes.stdout.trim();
       console.log(`📄 Latest log file: ${latestLog}`);
-      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapContainer: 'maintainer-worker' });
+      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapContainer: 'development-worker' });
       console.log('\n--- LAST 50 LINES ---');
       console.log(catRes.stdout);
   } else {

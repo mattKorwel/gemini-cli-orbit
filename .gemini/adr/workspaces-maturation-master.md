@@ -55,7 +55,7 @@ This document outlines the detailed sub-plans for improving the Gemini Workspace
 1.  **Delta Sync Implementation**:
     - Update `setup.ts` to use `rsync --checksum` or specific file filters to avoid re-syncing the entire `scripts/` folder if no changes were made locally.
 2.  **Container Warm-up**:
-    - Refine `GceCosProvider.ts` to perform "lazy" image pulls or background refreshes to keep the `maintainer-worker` ready without blocking the main orchestration flow.
+    - Refine `GceCosProvider.ts` to perform "lazy" image pulls or background refreshes to keep the `development-worker` ready without blocking the main orchestration flow.
 3.  **SSH Multiplexing**:
     - Enable SSH connection sharing (`ControlMaster`) in the generated `ssh_config` to reduce the overhead of multiple `provider.exec` calls.
 
@@ -68,4 +68,4 @@ This document outlines the detailed sub-plans for improving the Gemini Workspace
 1.  **Environment Separation**:
     - Ensure that the background `worker.ts` runs with a distinct `GEMINI_CLI_HOME` or temporary profile compared to the interactive session.
 2.  **Resource Limiting**:
-    - Investigate adding `docker` resource limits (`--memory`, `--cpus`) to the `maintainer-worker` container to prevent a runaway agentic loop from freezing the host VM.
+    - Investigate adding `docker` resource limits (`--memory`, `--cpus`) to the `development-worker` container to prevent a runaway agentic loop from freezing the host VM.

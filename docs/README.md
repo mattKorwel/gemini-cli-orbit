@@ -1,4 +1,4 @@
-# Workspace maintainer skill
+# Workspace development skill
 
 The `workspace` skill provides a high-performance, parallelized workflow for
 workspaceing intensive developer tasks to a remote workstation. It leverages a
@@ -7,7 +7,7 @@ dedicated terminal window.
 
 ## Why use workspace?
 
-As a maintainer, you eventually reach the limits of how much work you can manage
+As a development, you eventually reach the limits of how much work you can manage
 at once on a single local machine. Heavy builds, concurrent test suites, and
 multiple PRs in flight can quickly overload local resources, leading to
 performance degradation and developer friction.
@@ -53,8 +53,8 @@ maximum performance and reliability:
     builds and massive test suites) from your local machine, keeping your
     primary workstation responsive.
 2.  **The Docker Container (Consistency & Resilience)**:
-    - **Source of Truth**: The `.gcp/Dockerfile.maintainer` defines the exact
-      environment. If a tool is added there, every maintainer gets it instantly.
+    - **Source of Truth**: The `.gcp/Dockerfile.development` defines the exact
+      environment. If a tool is added there, every development gets it instantly.
     - **Zero Drift**: Containers are immutable. Every job starts in a fresh
       state, preventing the "OS rot" that typically affects persistent VMs.
     - **Local-to-Remote Parity**: The same image can be run locally on your Mac
@@ -77,7 +77,7 @@ maximum performance and reliability:
 ### Getting Started (Onboarding)
 
 For a complete guide on setting up your remote environment, see the
-[Maintainer Onboarding Guide](../../../MAINTAINER_ONBOARDING.md).
+[Development Onboarding Guide](../../../MAINTAINER_ONBOARDING.md).
 
 ### Persistence and Job Recovery
 
@@ -90,7 +90,7 @@ terminal is closed or the connection is lost.
 1.  **Host-Level Persistence**: The orchestrator launches each job in a named
     **`tmux`** session on the remote VM.
 2.  **Container Isolation**: The actual work is performed inside the persistent
-    `maintainer-worker` Docker container.
+    `development-worker` Docker container.
 
 ### Re-attaching to a Job
 
