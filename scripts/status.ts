@@ -11,7 +11,7 @@ import { ProviderFactory } from './providers/ProviderFactory.ts';
 
 const REPO_ROOT = process.cwd();
 
-async function runStatus(env: NodeJS.ProcessEnv = process.env) {
+export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
   if (!fs.existsSync(settingsPath)) {
     console.error('❌ Settings not found. Run "workspace setup" first.');
@@ -45,24 +45,24 @@ async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   }
 
   if (status.status === 'RUNNING') {
-    console.log(`\n🧵 Active Sessions (tmux):`);
-    // We fetch the list of sessions from INSIDE the container
-    const tmuxRes = await provider.getExecOutput(
-      'tmux list-sessions -F "#S" 2>/dev/null',
-      { wrapContainer: 'maintainer-worker' },
-    );
-
-    if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-      const sessions = tmuxRes.stdout.trim().split('\n');
-      sessions.forEach((s) => {
-        if (s.startsWith('workspace-')) {
-          console.log(`     ✅ ${s}`);
-        } else {
-          console.log(`     🔹 ${s} (Non-workspace)`);
-        }
-      });
+    console.log(`\n🧵 Active Sessions (Containers):`);
+    
+    // Find all containers starting with 'gcli-'
+    const containerRes = await provider.getExecOutput("sudo docker ps --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
+    
+    if (containerRes.status === 0 && containerRes.stdout.trim()) {
+      const containers = containerRes.stdout.trim().split('\n');
+      for (const containerName of containers) {
+          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName });
+          if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+              const sessions = tmuxRes.stdout.trim().split('\n');
+              sessions.forEach(s => console.log(`     ✅ [${containerName}] ${s}`));
+          } else {
+              console.log(`     🔹 [${containerName}] (No active tmux sessions)`);
+          }
+      }
     } else {
-      console.log('     - No active sessions');
+      console.log('     - No active workspace containers found');
     }
   }
 

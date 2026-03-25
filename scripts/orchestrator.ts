@@ -129,6 +129,7 @@ Actions:
   const remotePolicyPath = `${POLICIES_PATH}/workspace-policy.toml`;
   const timestamp = Date.now();
   const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
+  const containerName = `gcli-${prNumber}-${action}`;
   const hostWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
 // 3. Remote Preparation
 const localApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
@@ -143,7 +144,7 @@ if (localApiKey) {
   console.log('   - Injecting remote authentication context...');
   const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${targetVM}`;
   await provider.exec(
-      `sudo docker exec -u node maintainer-worker sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
+      `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
   );
 }
 
@@ -180,7 +181,7 @@ if (localApiKey) {
     -e COLORTERM=truecolor \
     -e TERM=xterm-256color \
     -e GEMINI_AUTO_UPDATE=0 \
-    maintainer-worker sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
+    ${containerName} sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
 
   const finalSSH = provider.getRunCommand(containerWrap, { interactive: true });
 

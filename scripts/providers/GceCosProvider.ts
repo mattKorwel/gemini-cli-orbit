@@ -503,6 +503,27 @@ export class GceCosProvider implements WorkerProvider {
     return res.status ?? 1;
   }
 
+  async getContainerStatus(name: string): Promise<{ running: boolean; exists: boolean }> {
+    const res = await this.getExecOutput(`sudo docker inspect -f '{{.State.Running}}' ${name}`, { quiet: true });
+    if (res.status !== 0) {
+      return { running: false, exists: false };
+    }
+    return { running: res.stdout.trim() === 'true', exists: true };
+  }
+
+  async runContainer(config: ContainerConfig): Promise<number> {
+    const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.container}${m.readonly ? ':ro' : ':rw'}`).join(' ');
+    const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+    const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
+    
+    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${config.image} ${config.command || ''}`;
+    return this.exec(dockerCmd);
+  }
+
+  async removeContainer(name: string): Promise<number> {
+    return this.exec(`sudo docker rm -f ${name} || true`);
+  }
+
   private quote(str: string) {
     return `'${str.replace(/'/g, "'\\''")}'`;
   }

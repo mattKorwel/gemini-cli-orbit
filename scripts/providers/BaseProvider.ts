@@ -60,6 +60,21 @@ export interface WorkerProvider {
    * Stops the workspace to save costs.
    */
   stop(): Promise<number>;
+
+  /**
+   * Returns the status of a specific container in the workspace.
+   */
+  getContainerStatus(name: string): Promise<{ running: boolean; exists: boolean }>;
+
+  /**
+   * Runs a container with specific configuration.
+   */
+  runContainer(config: ContainerConfig): Promise<number>;
+
+  /**
+   * Stops and removes a specific container.
+   */
+  removeContainer(name: string): Promise<number>;
 }
 
 export interface SetupOptions {
@@ -73,6 +88,18 @@ export interface ExecOptions {
   interactive?: boolean;
   cwd?: string;
   wrapContainer?: string;
+  quiet?: boolean;
+}
+
+export interface ContainerConfig {
+  name: string;
+  image: string;
+  mounts: { host: string; container: string; readonly?: boolean }[];
+  env?: Record<string, string>;
+  cpuLimit?: string;
+  memoryLimit?: string;
+  command?: string;
+  user?: string;
 }
 
 export interface SyncOptions {

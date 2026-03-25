@@ -9,7 +9,8 @@ import {
   MAIN_REPO_PATH, 
   WORKTREES_PATH, 
   UPSTREAM_REPO_URL,
-  CONFIG_DIR
+  CONFIG_DIR,
+  WORKSPACES_ROOT
 } from './Constants.ts';
 
 function q(str: string) {
@@ -21,33 +22,43 @@ export class RemoteProvisioner {
 
   async provisionWorktree(prNumber: string, action: string, isShellMode: boolean, ghEnv: string): Promise<string> {
     const remoteWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+    const containerName = `gcli-${prNumber}-${action}`;
+    const imageUri = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
 
-    // Clear previous history for this session if it exists to ensure a fresh start
-    const clearHistoryCmd = `rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`;
-    await this.provider.exec(clearHistoryCmd, { wrapContainer: 'maintainer-worker' });
+    // 1. Ensure the specific job container is running
+    const containerStatus = await this.provider.getContainerStatus(containerName);
 
-    // Use the container-safe path for check
-    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: 'maintainer-worker', quiet: true });
+    if (!containerStatus.running) {
+      console.log(`   - Provisioning isolated container ${containerName}...`);
+      if (containerStatus.exists) {
+        await this.provider.removeContainer(containerName);
+      }
+
+      await this.provider.runContainer({
+        name: containerName,
+        image: imageUri,
+        user: 'root',
+        cpuLimit: '2',
+        memoryLimit: '8g',
+        mounts: [
+          { host: MAIN_REPO_PATH, container: MAIN_REPO_PATH, readonly: true },
+          { host: remoteWorktreeDir, container: remoteWorktreeDir },
+          { host: WORKSPACES_ROOT, container: WORKSPACES_ROOT, readonly: true },
+          { host: `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini' }
+        ],
+        command: `/bin/bash -c "chown -R node:node /home/node/.config && ln -sfn ${WORKSPACES_ROOT} /home/node/.workspaces && while true; do sleep 1000; done"`
+      });
+    }
+
+    // 2. Clear previous history for this session
+    const clearHistoryCmd = `rm -rf /home/node/.gemini/history/workspace-${prNumber}-${action}*`;
+    await this.provider.exec(clearHistoryCmd, { wrapContainer: containerName });
+
+    // 3. Provision the worktree
+    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: containerName, quiet: true });
 
     if (check.status !== 0) {
       console.log(`   - Provisioning isolated git worktree for ${prNumber} (inside container)...`);
-
-      // Ensure the main repo exists inside the container
-      const repoCheck = await this.provider.getExecOutput(`ls -d ${MAIN_REPO_PATH}/.git`, { wrapContainer: 'maintainer-worker', quiet: true });
-      if (repoCheck.status !== 0) {
-          console.log(`   - Initializing main repository inside container...`);
-          const initRepoCmd = `
-            rm -rf ${MAIN_REPO_PATH} && \
-            git clone --quiet --filter=blob:none ${UPSTREAM_REPO_URL} ${MAIN_REPO_PATH} && \
-            cd ${MAIN_REPO_PATH} && \
-            git remote add upstream ${UPSTREAM_REPO_URL} && \
-            git fetch --quiet upstream
-          `;
-          const initRes = await this.provider.getExecOutput(`sudo docker exec -u node ${ghEnv}maintainer-worker sh -c ${q(initRepoCmd)}`);
-          if (initRes.status !== 0) {
-              throw new Error(`Failed to initialize main repository: ${initRes.stderr}`);
-          }
-      }
 
       const gitFetch = isShellMode
         ? `git -c safe.directory='*' -C ${MAIN_REPO_PATH} fetch --quiet origin`
@@ -60,22 +71,23 @@ export class RemoteProvisioner {
 
       // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
       const preflightCmd = `
-        export HOME=${CONFIG_DIR}/.. && \
+        export HOME=/home/node && \
         git config --global --add safe.directory '*' && \
         cd ${MAIN_REPO_PATH} && \
         git worktree prune && \
         git clean -ffdx
-      `;      await this.provider.exec(`sudo docker exec -u node maintainer-worker sh -c ${q(preflightCmd)}`);
+      `;
+      await this.provider.exec(preflightCmd, { wrapContainer: containerName });
 
       // If the directory exists but .git is missing, it's broken. Wipe it.
       const setupCmd = `
-        export HOME=${CONFIG_DIR}/.. && \
-        mkdir -p ${WORKTREES_PATH} && \
+        export HOME=/home/node && \
         (git -c safe.directory='*' -C ${MAIN_REPO_PATH} worktree remove -f ${remoteWorktreeDir} || rm -rf ${remoteWorktreeDir}) 2>/dev/null && \
         ${gitFetch} && \
-        git -c safe.directory='*' -C ${MAIN_REPO_PATH} worktree add --quiet -f ${remoteWorktreeDir} ${gitTarget}
+        git -C ${MAIN_REPO_PATH} -c safe.directory='*' worktree add --quiet -f ${remoteWorktreeDir} ${gitTarget} && \
+        git -C ${remoteWorktreeDir} repair
       `;
-      const setupRes = await this.provider.getExecOutput(`sudo docker exec -u node ${ghEnv}maintainer-worker sh -c ${q(setupCmd)}`);
+      const setupRes = await this.provider.getExecOutput(setupCmd, { wrapContainer: containerName });
       if (setupRes.status !== 0) {
         throw new Error(`Failed to provision remote worktree: ${setupRes.stderr}`);
       }
@@ -84,7 +96,7 @@ export class RemoteProvisioner {
       console.log('   ✅ Remote worktree ready.');
     }
 
-    await this.provider.exec(`sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
+    await this.provider.exec(`chown -R 1000:1000 ${remoteWorktreeDir}`, { wrapContainer: containerName });
     return remoteWorktreeDir;
   }
 }

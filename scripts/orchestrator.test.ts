@@ -22,6 +22,8 @@ describe('runOrchestrator', () => {
     exec: vi.fn().mockResolvedValue(0),
     getRunCommand: vi.fn().mockReturnValue('mock-ssh-command'),
     getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
+    getContainerStatus: vi.fn().mockResolvedValue({ running: true, exists: true }),
+    runContainer: vi.fn().mockResolvedValue(0),
   };
 
   beforeEach(() => {
@@ -56,9 +58,18 @@ describe('runOrchestrator', () => {
     await runOrchestrator(['23176']);
     
     // Check if it provisioned inside container using WORKTREES_PATH
-    // This is the setupCmd which calls docker exec manually
+    // This is the setupCmd which calls docker exec via the provider
     expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
         expect.stringContaining(`${WORKTREES_PATH}/workspace-23176-open`),
+        expect.objectContaining({ wrapContainer: 'gcli-23176-open' })
+    );
+  });
+
+  it('should clear history before launching', async () => {
+    await runOrchestrator(['23176']);
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+        expect.stringContaining('history/workspace-23176-open'),
+        expect.objectContaining({ wrapContainer: 'gcli-23176-open' })
     );
   });
 
