@@ -34,11 +34,21 @@ gemini extensions install https://github.com/google-gemini/gemini-workspaces-ext
 ## Commands
 - `/workspace:setup`: Interactive environment configuration.
 - `/workspace:open <pr>`: Launch/attach to a PR workspace.
+- `/workspace:review <pr>`: Autonomous PR analysis and regression checking.
+- `/workspace:fix <pr>`: Automated self-healing loop for CI failures.
+- `/workspace:implement <issue>`: Research -> Test -> Fix loop for new features.
 - `/workspace:status`: View Mission Control dashboard.
 - `/workspace:clean <pr> <action>`: Surgically remove a job.
 - `/workspace:clean --all`: Full remote reset.
 - `/workspace:fleet <action>`: Manage the GCE worker (stop, destroy, provision).
 - `/workspace:logs <pr>`: View remote job logs.
+
+## Ported Skills
+This extension includes specialized skills for automated development:
+- **`ci`**: High-performance GitHub Actions monitoring.
+- **`async-pr-review`**: Background triggers for PR reviews.
+- **`fix-pr`**: Remote self-healing logic.
+- **`review-pr`**: Systematic PR analysis.
 
 ## License
 Apache-2.0

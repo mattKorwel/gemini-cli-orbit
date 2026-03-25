@@ -1,9 +1,15 @@
 {
   "name": "workspaces",
-  "version": "1.0.0",
-  "description": "High-performance remote development workspaces with process-level isolation.",
+  "version": "1.1.0",
+  "description": "High-performance remote development workspaces with process-level isolation and automated supervisor loops.",
   "author": "Matt Korwel",
   "license": "Apache-2.0",
-  "skills": ["skills/workspaces/SKILL.md"],
+  "skills": [
+    "skills/workspaces/SKILL.md",
+    "skills/ci/SKILL.md",
+    "skills/async-pr-review/SKILL.md",
+    "skills/fix-pr/SKILL.md",
+    "skills/review-pr/SKILL.md"
+  ],
   "contextFileName": "docs/GEMINI.md"
 }
