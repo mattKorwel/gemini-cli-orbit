@@ -1,0 +1,6 @@
+description = "View remote logs for a specific PR or action."
+prompt = """
+Fetching remote logs for #{{args}}...
+
+!{npx tsx scripts/logs.ts {{args}} }
+"""

@@ -1,0 +1,10 @@
+description = "Initialize or reconfigure your Gemini Workspace environment."
+prompt = """
+I will now start the Gemini Workspace setup process. This will:
+1. Verify your GCP Project and Zone.
+2. Configure your GitHub Scoped PAT.
+3. Provision the persistent data disk on your remote worker.
+4. Synchronize all scripts and security policies.
+
+!{npx tsx scripts/setup.ts {{args}} }
+"""

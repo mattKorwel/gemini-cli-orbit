@@ -59,9 +59,15 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
               const paneOutput = await provider.capturePane(containerName);
               const lines = paneOutput.trim().split('\n');
               const lastLine = lines[lines.length - 1] || '';
+              const lastTwoLines = lines.slice(-2).join(' ');
               
-              // If it ends with the prompt, it's waiting
-              const isWaiting = lastLine.includes(' > ') || lastLine.trim().endsWith('>');
+              // More robust waiting detection
+              const isWaiting = 
+                lastLine.includes(' > ') ||                // Standard prompt
+                lastLine.trim().endsWith('>') ||           // Minimal prompt
+                lastTwoLines.includes('(y/n)') ||          // Approvals
+                lastLine.trim().endsWith('?') ||           // Questions
+                lastLine.includes('node@') && lastLine.includes('$'); // Shell prompt
               
               if (isWaiting) {
                   console.log(`     ✋ [WAITING] ${containerName} (Needs your input!)`);

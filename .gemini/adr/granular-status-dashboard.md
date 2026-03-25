@@ -17,12 +17,10 @@ Enhance the `status` command to provide "At-a-Glance" intelligence about what ex
 - Update `GceCosProvider.ts` (or a helper) to implement `capturePane(container: string)`:
   - Command: `sudo docker exec <container> tmux capture-pane -pt <session>`
 
-### Phase 2: Heuristic Analysis in `status.ts`
-- Iterate through each `gcli-*` container.
-- If a `tmux` session exists:
-    1. Capture the last 2 lines of the pane.
-    2. Check for the `> ` prompt or common "Done" indicators.
-    3. Determine the state based on the match.
+### Phase 2: LLM-Powered Analysis
+- Implement `getLlmState(paneOutput)` in `status.ts`.
+- Use a fast model (Gemini Flash) to analyze the last 10 lines of the capture.
+- Provide a heuristic fallback if the API call fails or is too slow.
 
 ### Phase 3: Visual Polish
 - Use colorized labels (Green for Thinking, Yellow for Waiting, Blue for Idle).
