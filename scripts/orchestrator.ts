@@ -111,7 +111,7 @@ Actions:
   const remoteSettingsJson = remoteSettingsRes.stdout.trim();
 
   const apiKeyRes = await provider.getExecOutput(
-    `cat ${remoteConfigPath} | grep apiKey | cut -d '"' -f 4`,
+    `jq -r '.security.auth.apiKey // .workspace.apiKey' ${remoteConfigPath}`,
   );
   const remoteApiKey = apiKeyRes.stdout.trim();
 

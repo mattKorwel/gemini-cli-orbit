@@ -75,6 +75,13 @@ describe('runOrchestrator', () => {
     );
   });
 
+  it('should use jq to extract the API key', async () => {
+    await runOrchestrator(['23176']);
+    expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
+        expect.stringContaining('jq -r'),
+    );
+  });
+
   it('should NOT pass secrets via environment flags in docker exec', async () => {
     await runOrchestrator(['23176']);
     
