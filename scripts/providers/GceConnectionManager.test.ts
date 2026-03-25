@@ -60,6 +60,7 @@ describe('GceConnectionManager', () => {
     const lastCall = vi.mocked(spawnSync).mock.calls[0][0] as string;
     expect(lastCall).toContain('rsync');
     expect(lastCall).toContain('--delete');
+    expect(lastCall).toContain('--checksum');
     expect(lastCall).toContain('/local/path');
     expect(lastCall).toContain('/remote/path');
   });

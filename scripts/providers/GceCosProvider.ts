@@ -371,6 +371,9 @@ Host ${this.sshAlias}
     StrictHostKeyChecking no
     ConnectTimeout 60
     ServerAliveInterval 30
+    ControlMaster auto
+    ControlPath ~/.ssh/gcli-control-%h-%p-%r
+    ControlPersist 10m
 `;
 
     fs.writeFileSync(this.sshConfigPath, sshEntry);

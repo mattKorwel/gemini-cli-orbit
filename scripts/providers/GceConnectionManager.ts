@@ -37,6 +37,9 @@ export class GceConnectionManager {
       '-o', 'ConnectTimeout=60',
       '-o', 'ServerAliveInterval=30',
       '-o', 'ServerAliveCountMax=3',
+      '-o', 'ControlMaster=auto',
+      '-o', `ControlPath=~/.ssh/gcli-control-%h-%p-%r`,
+      '-o', 'ControlPersist=10m',
       '-o', 'SendEnv=USER',
       '-i', `${os.homedir()}/.ssh/google_compute_engine`
     ];
@@ -61,7 +64,8 @@ export class GceConnectionManager {
     const fullRemote = this.getMagicRemote();
     // We use --no-t and --no-perms to avoid "Operation not permitted" errors 
     // when syncing to volumes that might have UID mismatches with the container.
-    const rsyncArgs = ['-rvz', '--quiet', '--no-t', '--no-perms', '--no-owner', '--no-group'];
+    // We use --checksum to ensure we only sync files that have actually changed in content.
+    const rsyncArgs = ['-rvz', '--quiet', '--checksum', '--no-t', '--no-perms', '--no-owner', '--no-group'];
     if (options.delete) rsyncArgs.push('--delete');
     if (options.exclude) options.exclude.forEach(ex => rsyncArgs.push(`--exclude="${ex}"`));
     

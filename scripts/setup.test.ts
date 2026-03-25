@@ -39,13 +39,18 @@ describe('runSetup', () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{}') } as any);
   });
 
-  it('should run setup flow with default answers', async () => {
+  it('should run setup flow and use sync for scripts', async () => {
     // We pass --yes to skip interactive prompts
     const res = await runSetup({ ...process.env, GOOGLE_CLOUD_PROJECT: 'test-p' });
     
     expect(res).toBe(0);
     expect(mockProvider.setup).toHaveBeenCalled();
-    expect(mockProvider.sync).toHaveBeenCalled();
+    // Verify sync was called for scripts folder
+    expect(mockProvider.sync).toHaveBeenCalledWith(
+        expect.stringContaining('scripts/'),
+        expect.stringContaining('/mnt/disks/data/scripts/'),
+        expect.objectContaining({ delete: true, sudo: true })
+    );
   });
 
   it('should detect existing configuration', async () => {
