@@ -18,6 +18,7 @@ import {
   POLICIES_PATH, 
   SCRIPTS_PATH, 
   CONFIG_DIR,
+  EXTENSION_REMOTE_PATH,
   PROFILES_DIR,
   UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
@@ -431,15 +432,25 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   console.log(`\n📦 Synchronizing Logic & Credentials...`);
   // Ensure the directory structure exists on the host
-  await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR}`);
+  await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
   await provider.exec(`sudo chown -R 1000:1000 ${WORKSPACES_ROOT}`);
   await provider.exec(`sudo chmod -R 777 ${WORKSPACES_ROOT}`);
   
-  // 1. Sync Scripts & Policies
-  await provider.sync(path.join(EXTENSION_ROOT, 'scripts/'), `${SCRIPTS_PATH}/`, { delete: true, sudo: true });
+  // 1. Sync Full Extension & Policies
+  console.log('📦 Syncing extension source and skills...');
+  await provider.sync(EXTENSION_ROOT + '/', `${EXTENSION_REMOTE_PATH}/`, { 
+      delete: true, 
+      sudo: true,
+      exclude: ['node_modules', '.git', '.gemini/workspaces/profiles'] 
+  });
   await provider.sync(path.join(EXTENSION_ROOT, 'policies/workspace-policy.toml'), `${POLICIES_PATH}/workspace-policy.toml`, { sudo: true });
 
-  // 2. Initialize Remote Gemini Config with Auth
+  // 2. Link Extension inside the shared container
+  console.log('🔗 Linking extension in remote container...');
+  // We run this inside the maintainer-worker as the 'node' user so it updates the shared /home/node/.gemini/extension-enablement.json
+  await provider.exec(`sudo docker exec -u node maintainer-worker gemini extensions link ${EXTENSION_REMOTE_PATH}`);
+
+  // 3. Initialize Remote Gemini Config with Auth
   console.log('⚙️  Initializing remote Gemini configuration...');
   
   // NEW: Sync local theme and UI preferences

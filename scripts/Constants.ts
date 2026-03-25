@@ -18,6 +18,7 @@ export const WORKTREES_PATH = `${WORKSPACES_ROOT}/worktrees`;
 export const POLICIES_PATH = `${WORKSPACES_ROOT}/policies`;
 export const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
 export const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
+export const EXTENSION_REMOTE_PATH = `${WORKSPACES_ROOT}/extension`;
 export const PROFILES_DIR = path.join(REPO_ROOT, '.gemini/workspaces/profiles');
 
 /**

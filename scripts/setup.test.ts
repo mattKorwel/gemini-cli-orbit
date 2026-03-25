@@ -16,12 +16,13 @@ vi.mock('./Constants.ts', () => ({
     WORKTREES_PATH: '/mnt/disks/data/worktrees',
     POLICIES_PATH: '/mnt/disks/data/policies',
     SCRIPTS_PATH: '/mnt/disks/data/scripts',
+    EXTENSION_REMOTE_PATH: '/mnt/disks/data/extension',
     CONFIG_DIR: '/mnt/disks/data/gemini-cli-config/.gemini',
     PROFILES_DIR: '/Users/mattkorwel/dev/main/.gemini/workspaces/profiles',
     UPSTREAM_REPO_URL: 'https://github.com/google-gemini/gemini-cli.git',
     UPSTREAM_ORG: 'google-gemini',
     DEFAULT_REPO_NAME: 'gemini-cli',
-    DEFAULT_DNS_SUFFIX: '.c.${projectId}.internal',
+    DEFAULT_DNS_SUFFIX: '',
     DEFAULT_USER_SUFFIX: '',
 }));
 
@@ -41,6 +42,7 @@ describe('runSetup', () => {
     setup: vi.fn().mockResolvedValue(0),
     exec: vi.fn().mockResolvedValue(0),
     sync: vi.fn().mockResolvedValue(0),
+    getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: '' }),
   };
 
   beforeEach(() => {
@@ -58,7 +60,7 @@ describe('runSetup', () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{}') } as any);
   });
 
-  it('should run setup flow and use sync for scripts', async () => {
+  it('should run setup flow and sync the full extension', async () => {
     // We pass --yes to skip interactive prompts and provide a mock token
     const res = await runSetup({ 
         ...process.env, 
@@ -68,11 +70,21 @@ describe('runSetup', () => {
     
     expect(res).toBe(0);
     expect(mockProvider.setup).toHaveBeenCalled();
-    // Verify sync was called for scripts folder
+    
+    // Verify full extension sync
     expect(mockProvider.sync).toHaveBeenCalledWith(
-        expect.stringContaining('scripts/'),
-        expect.stringContaining('/mnt/disks/data/scripts/'),
-        expect.objectContaining({ delete: true, sudo: true })
+        expect.stringMatching(/\/$/), // Source (EXTENSION_ROOT/)
+        expect.stringContaining('/mnt/disks/data/extension/'), // Target
+        expect.objectContaining({ 
+            delete: true, 
+            sudo: true,
+            exclude: expect.arrayContaining(['node_modules', '.git'])
+        })
+    );
+
+    // Verify extension linking inside container
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+        expect.stringContaining('docker exec -u node maintainer-worker gemini extensions link')
     );
   });
 
