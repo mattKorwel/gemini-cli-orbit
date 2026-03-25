@@ -23,13 +23,14 @@ export class GceCosProvider implements WorkerProvider {
   private instanceName: string;
   private knownHostsPath: string;
   private conn: GceConnectionManager;
+  private imageUri: string;
 
   constructor(
     projectId: string,
     zone: string,
     instanceName: string,
     repoRoot: string,
-    config: { dnsSuffix?: string, userSuffix?: string } = {}
+    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
@@ -39,11 +40,11 @@ export class GceCosProvider implements WorkerProvider {
       fs.mkdirSync(workspacesDir, { recursive: true });
     this.knownHostsPath = path.join(workspacesDir, 'known_hosts');
     this.conn = new GceConnectionManager(projectId, zone, instanceName, config, repoRoot);
+    this.imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
   }
 
   async provision(): Promise<number> {
-    const imageUri =
-      'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+    const imageUri = this.imageUri;
     const region = this.zone.split('-').slice(0, 2).join('-');
     const vpcName = 'iap-vpc';
     const subnetName = 'iap-subnet';
@@ -358,8 +359,7 @@ export class GceCosProvider implements WorkerProvider {
 
     if (needsUpdate) {
       console.log('   ⚠️ Container missing or stale. Attempting refresh...');
-      const imageUri =
-        'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+      const imageUri = this.imageUri;
       // Ensure data mount is available before running
       const recoverCmd = `
           (mountpoint -q /mnt/disks/data || sudo mount /dev/disk/by-id/google-data /mnt/disks/data) && \

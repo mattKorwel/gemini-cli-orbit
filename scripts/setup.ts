@@ -223,8 +223,9 @@ and full builds) to a dedicated, high-performance GCP worker.
   let dnsSuffix = remoteProfile.dnsSuffix || settings.workspace?.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal');
   let userSuffix = remoteProfile.userSuffix || settings.workspace?.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
   let backendType = remoteProfile.backendType || settings.workspace?.backendType || 'direct-internal';
+  let imageUri = remoteProfile.imageUri || settings.workspace?.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest');
 
-  if (!skipConfig || profileUrl) {
+  if (!skipConfigArg || profileUrl) {
       const defaultProject = env.GOOGLE_CLOUD_PROJECT || env.WORKSPACE_PROJECT || projectId || '';
       projectId = await prompt('GCP Project ID', defaultProject, 
         'The GCP Project where your workspace worker will live. Your personal project is recommended.');
@@ -249,6 +250,9 @@ and full builds) to a dedicated, high-performance GCP worker.
 
       userSuffix = await prompt('OS Login User Suffix', env.WORKSPACE_USER_SUFFIX || userSuffix,
         'Optional suffix for OS Login usernames (e.g. "_google_com" for corporate environments).');
+
+      imageUri = await prompt('Workspace Docker Image', env.WORKSPACE_IMAGE_URI || imageUri,
+        'The Docker image used for the supervisor and PR containers.');
 
       // 2. Repository Discovery (Dynamic)
       console.log('\n🔍 Detecting repository origins...');
@@ -389,7 +393,8 @@ and full builds) to a dedicated, high-performance GCP worker.
     useContainer: true,
     dnsSuffix,
     userSuffix,
-    backendType: backendType as any
+    backendType: backendType as any,
+    imageUri
   };
 
   settings = { workspace: workspaceConfig };
@@ -417,7 +422,8 @@ and full builds) to a dedicated, high-performance GCP worker.
       instanceName: targetVM,
       dnsSuffix,
       userSuffix,
-      backendType
+      backendType,
+      imageUri
   });
 
   console.log('\n🏗️  PHASE 2: INFRASTRUCTURE');

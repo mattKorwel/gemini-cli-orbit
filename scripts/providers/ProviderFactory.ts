@@ -21,6 +21,7 @@ export class ProviderFactory {
     dnsSuffix?: string;
     userSuffix?: string;
     backendType?: string;
+    imageUri?: string;
   }): WorkerProvider {
     if (config.providerType === 'local-docker') {
         throw new Error('Local Docker provider not yet implemented.');
@@ -35,7 +36,8 @@ export class ProviderFactory {
       { 
         dnsSuffix: config.dnsSuffix, 
         userSuffix: config.userSuffix,
-        backendType: config.backendType
+        backendType: config.backendType,
+        imageUri: config.imageUri
       }
     );
   }

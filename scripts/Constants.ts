@@ -33,6 +33,7 @@ export const UPSTREAM_ORG = 'google-gemini';
  */
 export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
+export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
 /**
  * Workspace Configuration Interface
@@ -50,4 +51,5 @@ export interface WorkspaceConfig {
   dnsSuffix?: string;
   userSuffix?: string;
   backendType?: 'direct-internal' | 'external' | 'iap';
+  imageUri?: string;
 }
