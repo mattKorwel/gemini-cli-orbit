@@ -206,11 +206,11 @@ export class GceCosProvider implements WorkerProvider {
       done
 
       if ! docker ps -a | grep -q "maintainer-worker"; then
-        docker run -d --name maintainer-worker --restart always \\
-          -v /mnt/disks/data:/home/node/.workspaces:rw \\
+        docker run -d --name maintainer-worker --restart always --user root \\
+          -v /mnt/disks/data:/mnt/disks/data:rw \\
           -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
           -v ~/.config/gh:/home/node/.config/gh:rw \\
-          ${imageUri} /bin/bash -c "while true; do sleep 1000; done"
+          ${imageUri} /bin/bash -c "chown -R node:node /home/node/.config && ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"
       fi
       echo "✅ Unified Workspace is active."
     `;
@@ -337,11 +337,11 @@ export class GceCosProvider implements WorkerProvider {
           (mountpoint -q /mnt/disks/data || sudo mount /dev/disk/by-id/google-data /mnt/disks/data) && \
           sudo docker pull ${imageUri} && \
           (sudo docker rm -f maintainer-worker || true) && \
-          sudo docker run -d --name maintainer-worker --restart always \
-            -v /mnt/disks/data:/home/node/.workspaces:rw \
+          sudo docker run -d --name maintainer-worker --restart always --user root \
+            -v /mnt/disks/data:/mnt/disks/data:rw \
             -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \
             -v ~/.config/gh:/home/node/.config/gh:rw \
-            ${imageUri} /bin/bash -c "while true; do sleep 1000; done"
+            ${imageUri} /bin/bash -c "chown -R node:node /home/node/.config && ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"
         `;
       const recoverRes = await this.exec(recoverCmd);
       if (recoverRes !== 0) {

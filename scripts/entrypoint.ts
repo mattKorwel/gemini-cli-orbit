@@ -30,6 +30,7 @@ async function main() {
   const geminiBin = 'gemini';
 
   const action = process.argv[5] || 'review';
+  const customPrompt = process.argv[6];
 
   // 1. Run the Parallel Reviewer
   console.log('🚀 Launching Parallel Review Worker...');
@@ -47,10 +48,23 @@ async function main() {
   }
 
   // 2. Launch the Interactive Gemini Session (Local Nightly)
-  console.log('\n✨ Verification complete. Joining interactive session...');
+  console.log('\n✨ Workspace ready. Joining interactive session...');
   
   const geminiArgs = ['--policy', policyPath];
-  geminiArgs.push('-p', `Review for PR #${prNumber} is complete. Read the logs in .gemini/logs/review-${prNumber}/ and synthesize your findings.`);
+  let initialPrompt = '';
+
+  if (customPrompt) {
+      initialPrompt = customPrompt;
+  } else if (action !== 'open') {
+      // For any non-open action (if we re-add them), provide a helper prompt.
+      // But if it's 'open' and no prompt was passed, we want it to be clean.
+      initialPrompt = `I've jumped into this workspace for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
+  }
+
+  // Use --prompt-interactive ONLY if we have a prompt to avoid argument errors
+  if (initialPrompt) {
+      geminiArgs.push('--prompt-interactive', initialPrompt);
+  }
 
   process.chdir(targetDir);
   spawnSync(geminiBin, geminiArgs, {

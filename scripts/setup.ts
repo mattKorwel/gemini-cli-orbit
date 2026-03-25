@@ -297,7 +297,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   if (setupRes !== 0) return setupRes;
 
   // Use the unified path to ensure host and container match perfectly
-  const workspaceRoot = `/home/node/.workspaces`;
+  const workspaceRoot = `/mnt/disks/data`;
   
   const persistentScripts = `${workspaceRoot}/scripts`;
   const remoteConfigDir = `${workspaceRoot}/gemini-cli-config/.gemini`;
@@ -379,8 +379,18 @@ and full builds) to a dedicated, high-performance GCP worker.
   // Final Repo Sync
   console.log(`🚀 Finalizing Remote Repository (${userFork})...`);
   const repoUrl = `https://github.com/${userFork}.git`;
-  const cloneCmd = `sudo rm -rf ${workspaceRoot}/main && sudo git clone --quiet --filter=blob:none ${repoUrl} ${workspaceRoot}/main && sudo git -C ${workspaceRoot}/main remote add upstream https://github.com/${upstreamRepo}.git && sudo git -C ${workspaceRoot}/main fetch --quiet upstream && sudo chown -R 1000:1000 ${workspaceRoot}`;
-  await provider.exec(cloneCmd);
+  const repoPath = `${workspaceRoot}/main`;
+  
+  const setupRepoCmd = `
+    if [ ! -d "${repoPath}/.git" ]; then
+      sudo rm -rf ${repoPath} && \
+      sudo git clone --quiet --filter=blob:none ${repoUrl} ${repoPath} && \
+      sudo git -C ${repoPath} remote add upstream https://github.com/${upstreamRepo}.git
+    fi && \
+    sudo git -C ${repoPath} fetch --quiet upstream && \
+    sudo chown -R 1000:1000 ${workspaceRoot}
+  `;
+  await provider.exec(setupRepoCmd);
 
   console.log('\n✨ ALL SYSTEMS GO! Your Gemini Workspace is ready.');
   return 0;

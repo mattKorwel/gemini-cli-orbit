@@ -42,14 +42,14 @@ toolName = "activate_skill"
 decision = "allow"
 priority = 100
 [rule.toolParameters]
-name = "fix-pr"
+name = "pr-address-comments"
 
 [[rule]]
 toolName = "activate_skill"
 decision = "allow"
 priority = 100
 [rule.toolParameters]
-name = "pr-address-comments"
+name = "pr-creator"
 
 # --- SHELL COMMANDS ---
 
@@ -78,6 +78,9 @@ commandPrefix = [
   "git branch",
   "git br",
   "git log",
+  "git config",
+  "git commit",
+  "git add",
   "git --version"
 ]
 decision = "allow"
@@ -118,11 +121,12 @@ toolName = "run_shell_command"
 commandPrefix = [
   "npm run start",
   "npm install",
-  "npm run",
+  "npm run ",
   "npm test",
   "npm ci",
   "npm list",
-  "npm --version"
+  "npm --version",
+  "npx "
 ]
 decision = "allow"
 priority = 100
@@ -131,6 +135,8 @@ priority = 100
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = [
+  "git ",
+  "gh ",
   "sleep",
   "env",
   "break",

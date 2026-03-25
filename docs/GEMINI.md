@@ -23,6 +23,10 @@
 - **Context Execution**: Use `docker exec -it maintainer-worker ...` for interactive tasks and `tmux` sessions. This provides persistence against connection drops while keeping the host OS "invisible."
 - **Path Resolution**: Both Host and Container must share identical tilde (`~`) paths to avoid mapping confusion in automation scripts.
 
+## Git & Path Management
+- **Container-First Git**: All git operations (cloning, fetching, and worktree creation) MUST be performed inside the `maintainer-worker` container. This ensures that absolute paths stored in `.git` metadata (e.g., in `.git` files of worktrees) are consistent with the container's filesystem, preventing "not a git repository" errors.
+- **Root Path Standardization**: Standardize the root path to `/mnt/disks/data` for both host and container to ensure absolute path parity across environments.
+
 ## Maintenance
 - **Rebuilds**: If the environment drifts or the image updates, delete the VM and re-run the `provision` action.
 - **Status**: The Mission Control dashboard derives state by scanning host `tmux` sessions and container filesystem logs.

@@ -54,23 +54,28 @@ export async function runCleanup(
   });
 
   if (prNumber && action) {
-    const sessionName = `workspace-${prNumber}-${action}`;
-    const worktreePath = `/home/node/.workspaces/worktrees/${sessionName}`;
+    const worktreePath = `/mnt/disks/data/worktrees/workspace-${prNumber}-${action}`;
+    const isolatedConfigDir = `/mnt/disks/data/gemini-cli-config/.gemini`;
 
     console.log(
       `🧹 Surgically removing session and worktree for ${prNumber}-${action}...`,
     );
 
-    // Kill specific tmux session inside container
-    await provider.exec(`tmux kill-session -t ${sessionName} 2>/dev/null`, {
+    // Kill any tmux sessions matching the PR and action (ignoring timestamp)
+    await provider.exec(`tmux list-sessions -F "#S" | grep "workspace-${prNumber}-${action}" | xargs -I {} tmux kill-session -t {} 2>/dev/null`, {
       wrapContainer: 'maintainer-worker',
     });
 
     // Remove specific worktree inside container
     await provider.exec(
-      `cd /home/node/.workspaces/main && git worktree remove -f ${worktreePath} 2>/dev/null && git worktree prune`,
+      `cd /mnt/disks/data/main && git worktree remove -f ${worktreePath} 2>/dev/null && git worktree prune`,
       { wrapContainer: 'maintainer-worker' },
     );
+
+    // Clear history files for this PR and action
+    await provider.exec(`rm -f ${isolatedConfigDir}/history/workspace-${prNumber}-${action}*`, {
+      wrapContainer: 'maintainer-worker',
+    });
 
     console.log(`✅ Cleaned up ${prNumber}-${action}.`);
     return 0;
@@ -90,9 +95,28 @@ export async function runCleanup(
 
   console.log(`🧹 Starting BULK cleanup...`);
 
-  // 1. Standard Cleanup
+  // 1. Standard Cleanup (Using container before removal)
   console.log('   - Killing ALL remote tmux sessions...');
   await provider.exec(`tmux kill-server`, {
+    wrapContainer: 'maintainer-worker',
+  });
+
+  console.log('   - Cleaning up ALL Git Worktrees...');
+  await provider.exec(
+    `cd /mnt/disks/data/main && git worktree prune && rm -rf /mnt/disks/data/worktrees/*`,
+    { wrapContainer: 'maintainer-worker' },
+  );
+
+  console.log('   - Clearing Gemini session history and state...');
+  await provider.exec(`rm -rf /mnt/disks/data/gemini-cli-config/.gemini/history/*`, {
+    wrapContainer: 'maintainer-worker',
+  });
+  await provider.exec(`rm -f /mnt/disks/data/gemini-cli-config/.gemini/state.json`, {
+    wrapContainer: 'maintainer-worker',
+  });
+
+  console.log('   - Wiping main repository clone...');
+  await provider.exec(`rm -rf /mnt/disks/data/main`, {
     wrapContainer: 'maintainer-worker',
   });
 
@@ -100,29 +124,7 @@ export async function runCleanup(
   await provider.exec(`sudo docker rm -f maintainer-worker || true`);
   await provider.exec(`sudo docker system prune -af --volumes`);
 
-  console.log('   - Cleaning up ALL Git Worktrees...');
-  await provider.exec(
-    `cd /home/node/.workspaces/main && git worktree prune && rm -rf /home/node/.workspaces/worktrees/*`,
-    { wrapContainer: 'maintainer-worker' },
-  );
-
-  console.log('✅ Remote environment cleared.');
-
-  // 2. Full Wipe Option
-  const shouldWipe = await confirm(
-    '\nWould you like to COMPLETELY wipe the remote workspace (main clone)?',
-  );
-
-  if (shouldWipe) {
-    console.log(`🔥 Wiping /home/node/.workspaces/main...`);
-    await provider.exec(
-      `rm -rf /home/node/.workspaces/main && mkdir -p /home/node/.workspaces/main`,
-      { wrapContainer: 'maintainer-worker' },
-    );
-    console.log(
-      '✅ Remote hub wiped. You will need to run workspace setup again.',
-    );
-  }
+  console.log('✅ Remote environment cleared. You will need to run workspace setup again.');
   return 0;
 }
 

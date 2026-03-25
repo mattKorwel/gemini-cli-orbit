@@ -9,9 +9,9 @@ export async function runFixPlaybook(prNumber: string, targetDir: string, policy
   // Note: Gemini doesn't support --cwd, so the caller (worker.ts) must ensure we are already in targetDir
   const result = spawnSync(geminiBin, [
     '--policy', policyPath,
-    '-p', `Please activate the 'fix-pr' skill and use it to iteratively fix PR #${prNumber}. 
-           Ensure you handle CI failures, merge conflicts, and unaddressed review comments 
-           until the PR is fully passing and mergeable.`
+    '-p', `I'm in a remote workspace to fix PR #${prNumber}. 
+           Please help me resolve merge conflicts, fix failing tests, and address any open review comments.
+           You have full access to the codebase and common development tools.`
   ], { stdio: 'inherit' });
 
   return result?.status ?? 1;

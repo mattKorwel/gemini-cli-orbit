@@ -6,46 +6,62 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
-
-
+import { ProviderFactory } from './providers/ProviderFactory.ts';
 
 const REPO_ROOT = process.cwd();
 
 export async function runLogs(args: string[]) {
   const prNumber = args[0];
-  const action = args[1] || 'review';
+  const action = args[1] || 'open';
 
   if (!prNumber) {
     console.error('Usage: workspace logs <PR_NUMBER> [action]');
     return 1;
   }
 
-  const settingsPath = path.join(REPO_ROOT, '.gemini/settings.json');
+  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
+  if (!fs.existsSync(settingsPath)) {
+      console.error('❌ Settings not found. Run "workspace setup" first.');
+      return 1;
+  }
+
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  const config = settings.maintainer?.workspace;
-  const { remoteHost, remoteHome } = config;
-  const sshConfigPath = path.join(REPO_ROOT, '.gemini/workspace_ssh_config');
+  const config = settings.workspace;
+  if (!config) {
+      console.error('❌ Workspace configuration not found.');
+      return 1;
+  }
 
-  const jobDir = `${remoteHome}/dev/worktrees/workspace-${prNumber}-${action}`;
-  const logDir = `${jobDir}/.gemini/logs`;
+  const { projectId, zone } = config;
+  const targetVM = `gcli-workspace-${process.env.USER || 'mattkorwel'}`;
+  const provider = ProviderFactory.getProvider({ projectId, zone, instanceName: targetVM });
 
-  console.log(`📋 Tailing latest logs for job ${prNumber}-${action}...`);
+  console.log(`📋 Checking remote status for job ${prNumber}-${action}...`);
 
-  // Remote command to find the latest log file and tail it
-  const tailCmd = `
-    latest_log=$(ls -t ${logDir}/*.log 2>/dev/null | head -n 1)
-    if [ -z "$latest_log" ]; then
-      echo "❌ No logs found for this job yet."
-      exit 1
-    fi
-    echo "📄 Tailing: $latest_log"
-    tail -f "$latest_log"
-  `;
+  // Check for active tmux sessions
+  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "workspace-${prNumber}-${action}"`, { wrapContainer: 'maintainer-worker' });
+  if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+      console.log(`🧵 Found active sessions:\n${tmuxRes.stdout.trim()}`);
+      console.log(`\n💡 To attach, run: npx tsx scripts/attach.ts ${prNumber}`);
+  } else {
+      console.log('❌ No active tmux session found for this job.');
+  }
 
-  spawnSync(
-    `ssh -F ${sshConfigPath} ${remoteHost} ${JSON.stringify(tailCmd)}`,
-    { stdio: 'inherit', shell: true },
-  );
+  // Look for any persistent log files in the worktree
+  const worktreePath = `/mnt/disks/data/worktrees/workspace-${prNumber}-${action}`;
+  const logDir = `${worktreePath}/.gemini/logs`;
+  
+  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapContainer: 'maintainer-worker' });
+  if (logRes.status === 0 && logRes.stdout.trim()) {
+      const latestLog = logRes.stdout.trim();
+      console.log(`📄 Latest log file: ${latestLog}`);
+      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapContainer: 'maintainer-worker' });
+      console.log('\n--- LAST 50 LINES ---');
+      console.log(catRes.stdout);
+  } else {
+      console.log('❌ No log files found in the worktree.');
+  }
+
   return 0;
 }
 
