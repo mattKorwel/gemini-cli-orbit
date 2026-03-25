@@ -207,6 +207,7 @@ export class GceCosProvider implements WorkerProvider {
 
       if ! docker ps -a | grep -q "maintainer-worker"; then
         docker run -d --name maintainer-worker --restart always --user root \\
+          --memory="16g" --cpus="4" \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
           -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
           -v ~/.config/gh:/home/node/.config/gh:rw \\
@@ -338,6 +339,7 @@ export class GceCosProvider implements WorkerProvider {
           sudo docker pull ${imageUri} && \
           (sudo docker rm -f maintainer-worker || true) && \
           sudo docker run -d --name maintainer-worker --restart always --user root \
+            --memory="16g" --cpus="4" \
             -v /mnt/disks/data:/mnt/disks/data:rw \
             -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \
             -v ~/.config/gh:/home/node/.config/gh:rw \
@@ -371,9 +373,6 @@ Host ${this.sshAlias}
     StrictHostKeyChecking no
     ConnectTimeout 60
     ServerAliveInterval 30
-    ControlMaster auto
-    ControlPath ~/.ssh/gcli-control-%h-%p-%r
-    ControlPersist 10m
 `;
 
     fs.writeFileSync(this.sshConfigPath, sshEntry);

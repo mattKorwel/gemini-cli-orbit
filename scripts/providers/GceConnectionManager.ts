@@ -38,7 +38,7 @@ export class GceConnectionManager {
       '-o', 'ServerAliveInterval=30',
       '-o', 'ServerAliveCountMax=3',
       '-o', 'ControlMaster=auto',
-      '-o', `ControlPath=~/.ssh/gcli-control-%h-%p-%r`,
+      '-o', 'ControlPath=~/.ssh/gcli-control-%h-%p-%r',
       '-o', 'ControlPersist=10m',
       '-o', 'SendEnv=USER',
       '-i', `${os.homedir()}/.ssh/google_compute_engine`
