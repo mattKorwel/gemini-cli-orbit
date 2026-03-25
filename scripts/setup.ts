@@ -59,8 +59,15 @@ function loadDotEnv() {
 }
 
 async function prompt(question: string, defaultValue: string, explanation?: string, sensitive: boolean = false): Promise<string> {
-  const autoAccept = process.argv.includes('--yes') || process.argv.includes('-y');
-  if (autoAccept && defaultValue) return defaultValue;
+  const args = process.argv.slice(2);
+  const autoAccept = args.includes('--yes') || args.includes('-y');
+  
+  // Check for specific flag overrides (e.g. --project=foo)
+  const flagName = question.toLowerCase().replace(/\s+/g, '-');
+  const flagOverride = args.find(a => a.startsWith(`--${flagName}=`))?.split('=')[1];
+  
+  const finalValue = flagOverride || (autoAccept && defaultValue ? defaultValue : null);
+  if (finalValue !== null) return finalValue;
 
   if (explanation) {
       console.log(`\n📖 ${explanation}`);
@@ -157,6 +164,14 @@ and full builds) to a dedicated, high-performance GCP worker.
   };
 
   // Profile Discovery (if no profile passed via CLI)
+  if (profileUrl && !profileUrl.startsWith('http') && !fs.existsSync(profileUrl)) {
+      // Try to find by name in local profiles
+      const potentialPath = path.join(PROFILES_DIR, profileUrl.endsWith('.json') ? profileUrl : `${profileUrl}.json`);
+      if (fs.existsSync(potentialPath)) {
+          profileUrl = potentialPath;
+      }
+  }
+
   if (!profileUrl && !skipConfigArg && fs.existsSync(PROFILES_DIR)) {
       const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
       if (localProfiles.length > 0) {
