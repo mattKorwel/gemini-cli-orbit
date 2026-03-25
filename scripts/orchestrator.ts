@@ -15,6 +15,7 @@ import {
   POLICIES_PATH, 
   SCRIPTS_PATH, 
   CONFIG_DIR,
+  UPSTREAM_REPO_URL,
   type WorkspaceConfig 
 } from './Constants.ts';
 
@@ -151,9 +152,9 @@ GEMINI_HOST=${targetVM}
         console.log(`   - Initializing main repository inside container...`);
         const initRepoCmd = `
           rm -rf ${containerWorkDir} && \
-          git clone --quiet --filter=blob:none https://github.com/google-gemini/gemini-cli.git ${containerWorkDir} && \
+          git clone --quiet --filter=blob:none ${UPSTREAM_REPO_URL} ${containerWorkDir} && \
           cd ${containerWorkDir} && \
-          git remote add upstream https://github.com/google-gemini/gemini-cli.git && \
+          git remote add upstream ${UPSTREAM_REPO_URL} && \
           git fetch --quiet upstream
         `;
         const initRes = await provider.getExecOutput(`sudo docker exec -u node ${ghEnv}maintainer-worker sh -c ${q(initRepoCmd)}`);

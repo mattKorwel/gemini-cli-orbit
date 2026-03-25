@@ -16,6 +16,13 @@ export const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
 export const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
 
 /**
+ * Repository Metadata
+ */
+export const UPSTREAM_REPO_URL = 'https://github.com/google-gemini/gemini-cli.git';
+export const DEFAULT_REPO_NAME = 'gemini-cli';
+export const UPSTREAM_ORG = 'google-gemini';
+
+/**
  * Workspace Configuration Interface
  */
 export interface WorkspaceConfig {

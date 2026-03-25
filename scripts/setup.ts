@@ -18,6 +18,8 @@ import {
   POLICIES_PATH, 
   SCRIPTS_PATH, 
   CONFIG_DIR,
+  UPSTREAM_REPO_URL,
+  UPSTREAM_ORG,
   type WorkspaceConfig 
 } from './Constants.ts';
 
@@ -136,7 +138,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   let projectId = settings.workspace?.projectId || '';
   let zone = settings.workspace?.zone || 'us-west1-a';
   let terminalTarget = settings.workspace?.terminalTarget || 'tab';
-  let upstreamRepo = settings.workspace?.upstreamRepo || 'google-gemini/gemini-cli';
+  let upstreamRepo = settings.workspace?.upstreamRepo || `${UPSTREAM_ORG}/${DEFAULT_REPO_NAME}`;
   let userFork = settings.workspace?.userFork || upstreamRepo;
 
   if (!skipConfig) {
@@ -388,9 +390,10 @@ and full builds) to a dedicated, high-performance GCP worker.
     if [ ! -d "${repoPath}/.git" ]; then
       sudo rm -rf ${repoPath} && \
       sudo git clone --quiet --filter=blob:none ${repoUrl} ${repoPath} && \
-      sudo git -C ${repoPath} remote add upstream https://github.com/${upstreamRepo}.git
+      sudo git -C ${repoPath} remote add upstream ${UPSTREAM_REPO_URL}
     fi && \
     sudo git -C ${repoPath} fetch --quiet upstream && \
+    sudo git -C ${repoPath} worktree prune && \
     sudo chown -R 1000:1000 ${WORKSPACES_ROOT}
   `;
   await provider.exec(setupRepoCmd);
