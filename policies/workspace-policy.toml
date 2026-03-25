@@ -135,8 +135,6 @@ priority = 100
 [[rule]]
 toolName = "run_shell_command"
 commandPrefix = [
-  "git ",
-  "gh ",
   "sleep",
   "env",
   "break",

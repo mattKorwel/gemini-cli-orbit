@@ -43,7 +43,6 @@ describe('runOrchestrator', () => {
   it('should parse arguments correctly for default open action', async () => {
     await runOrchestrator(['23176']);
     
-    // Check if it provisioned inside container
     expect(mockProvider.exec).toHaveBeenCalledWith(
         expect.stringContaining('workspace-23176-open'),
         expect.objectContaining({ wrapContainer: 'maintainer-worker' })
@@ -57,6 +56,16 @@ describe('runOrchestrator', () => {
         expect.stringContaining('my custom prompt'),
         expect.any(Object)
     );
+  });
+
+  it('should NOT pass secrets via environment flags in docker exec', async () => {
+    await runOrchestrator(['23176']);
+    
+    const lastCall = vi.mocked(mockProvider.getRunCommand).mock.calls[0][0];
+    // Check that common secret flags are NOT present
+    expect(lastCall).not.toContain('GEMINI_API_KEY=');
+    expect(lastCall).not.toContain('GITHUB_TOKEN=');
+    expect(lastCall).not.toContain('GH_TOKEN=');
   });
 
   it('should handle shell mode', async () => {

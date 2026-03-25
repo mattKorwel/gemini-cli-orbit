@@ -228,9 +228,7 @@ GEMINI_HOST=${targetVM}
     -e COLORTERM=truecolor \
     -e TERM=xterm-256color \
     -e GEMINI_AUTO_UPDATE=0 \
-    ${remoteApiKey ? `-e GEMINI_API_KEY=${remoteApiKey} ` : ''}\
-    ${remoteGhToken ? `-e GITHUB_TOKEN=${remoteGhToken} -e GH_TOKEN=${remoteGhToken} ` : ''}\
-    maintainer-worker sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < /mnt/disks/data/.gh_token) && ${tmuxCmd}`)}`;
+    maintainer-worker sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < /mnt/disks/data/.gh_token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
 
   const finalSSH = provider.getRunCommand(containerWrap, { interactive: true });
 
