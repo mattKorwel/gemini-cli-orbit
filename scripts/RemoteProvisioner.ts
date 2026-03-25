@@ -41,62 +41,53 @@ export class RemoteProvisioner {
         cpuLimit: '2',
         memoryLimit: '8g',
         mounts: [
-          { host: MAIN_REPO_PATH, container: MAIN_REPO_PATH, readonly: true },
-          { host: remoteWorktreeDir, container: remoteWorktreeDir },
+          { host: MAIN_REPO_PATH, container: MAIN_REPO_PATH, readonly: true }, // MOUNT READ-ONLY
+          { host: remoteWorktreeDir, container: remoteWorktreeDir, readonly: false },
           { host: WORKSPACES_ROOT, container: WORKSPACES_ROOT, readonly: true },
-          { host: `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini' }
+          { host: `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini', readonly: false }
         ],
-        command: `/bin/bash -c "chown -R node:node /home/node/.config && ln -sfn ${WORKSPACES_ROOT} /home/node/.workspaces && while true; do sleep 1000; done"`
+        command: `/bin/bash -c "ln -sfn ${WORKSPACES_ROOT} /home/node/.workspaces && while true; do sleep 1000; done"`
       });
+
+      // Wait for container to stabilize
+      await new Promise(r => setTimeout(r, 5000));
     }
 
     // 2. Clear previous history for this session
     const clearHistoryCmd = `rm -rf /home/node/.gemini/history/workspace-${prNumber}-${action}*`;
     await this.provider.exec(clearHistoryCmd, { wrapContainer: containerName });
 
-    // 3. Provision the worktree
+    // 3. Provision the repository using a reference clone for speed and isolation
     const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: containerName, quiet: true });
 
     if (check.status !== 0) {
-      console.log(`   - Provisioning isolated git worktree for ${prNumber} (inside container)...`);
+      console.log(`   - Provisioning isolated git repo for ${prNumber} (inside container via reference)...`);
 
-      const gitFetch = isShellMode
-        ? `git -c safe.directory='*' -C ${MAIN_REPO_PATH} fetch --quiet origin`
-        : `git -c safe.directory='*' -C ${MAIN_REPO_PATH} fetch --quiet upstream pull/${prNumber}/head`;
+      // 3.1 Ensure WORKTREES_PATH is owned by node on the HOST first
+      await this.provider.exec(`sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
 
-      const gitTarget = 'FETCH_HEAD';
-
-      // Ensure the worktrees parent directory is owned by node
-      await this.provider.exec(`sudo mkdir -p ${WORKTREES_PATH} && sudo chown -R 1000:1000 ${WORKTREES_PATH}`);
-
-      // PRE-FLIGHT: Prune stale worktree metadata and clean the main repo
-      const preflightCmd = `
-        export HOME=/home/node && \
+      // 3.2 Perform Reference Clone inside the container
+      // We point to the RO main repo as the reference
+      const cloneCmd = `
+        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) && \
         git config --global --add safe.directory '*' && \
-        cd ${MAIN_REPO_PATH} && \
-        git worktree prune && \
-        git clean -ffdx
+        (rm -rf ${remoteWorktreeDir} || true) && \
+        git clone --reference ${MAIN_REPO_PATH} --quiet -c core.filemode=false ${UPSTREAM_REPO_URL} ${remoteWorktreeDir} && \
+        cd ${remoteWorktreeDir} && \
+        git config --replace-all core.filemode false && \
+        git remote add upstream ${UPSTREAM_REPO_URL} && \
+        gh pr checkout ${prNumber}
       `;
-      await this.provider.exec(preflightCmd, { wrapContainer: containerName });
 
-      // If the directory exists but .git is missing, it's broken. Wipe it.
-      const setupCmd = `
-        export HOME=/home/node && \
-        (git -c safe.directory='*' -C ${MAIN_REPO_PATH} worktree remove -f ${remoteWorktreeDir} || rm -rf ${remoteWorktreeDir}) 2>/dev/null && \
-        ${gitFetch} && \
-        git -C ${MAIN_REPO_PATH} -c safe.directory='*' worktree add --quiet -f ${remoteWorktreeDir} ${gitTarget} && \
-        git -C ${remoteWorktreeDir} repair
-      `;
-      const setupRes = await this.provider.getExecOutput(setupCmd, { wrapContainer: containerName });
+      const setupRes = await this.provider.getExecOutput(cloneCmd.replace(/\n/g, ''), { wrapContainer: containerName });
       if (setupRes.status !== 0) {
-        throw new Error(`Failed to provision remote worktree: ${setupRes.stderr}`);
+        throw new Error(`Failed to provision isolated repo: ${setupRes.stderr}`);
       }
-      console.log('   ✅ Worktree provisioned successfully.');
+      console.log('   ✅ Isolated repository provisioned successfully.');
     } else {
-      console.log('   ✅ Remote worktree ready.');
+      console.log('   ✅ Remote repository ready.');
     }
 
     await this.provider.exec(`chown -R 1000:1000 ${remoteWorktreeDir}`, { wrapContainer: containerName });
     return remoteWorktreeDir;
-  }
-}
+  }}

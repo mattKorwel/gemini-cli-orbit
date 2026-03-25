@@ -405,8 +405,9 @@ and full builds) to a dedicated, high-performance GCP worker.
   const setupRepoCmd = `
     if [ ! -d "${repoPath}/.git" ]; then
       sudo rm -rf ${repoPath} && \
-      sudo git clone --quiet --filter=blob:none ${repoUrl} ${repoPath} && \
+      sudo git clone --quiet -c core.filemode=false ${repoUrl} ${repoPath} && \
       sudo git -C ${repoPath} config --local safe.directory ${repoPath} && \
+      sudo git -C ${repoPath} config --replace-all core.filemode false && \
       sudo git -C ${repoPath} remote add upstream ${UPSTREAM_REPO_URL}
     fi && \
     sudo git -C ${repoPath} -c safe.directory='*' fetch --quiet upstream && \

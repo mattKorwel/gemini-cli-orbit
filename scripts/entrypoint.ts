@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const prNumber = process.argv[2];
 const branchName = process.argv[3];
 const policyPath = process.argv[4];
-const ISOLATED_CONFIG = process.env.GEMINI_CLI_HOME || path.join(process.env.HOME || '', '.workspaces/gemini-cli-config');
+const ISOLATED_CONFIG = '/home/node';
 
 async function main() {
   if (!prNumber || !branchName || !policyPath) {

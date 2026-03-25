@@ -515,7 +515,7 @@ export class GceCosProvider implements WorkerProvider {
     const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.container}${m.readonly ? ':ro' : ':rw'}`).join(' ');
     const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
-    
+
     const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${config.image} ${config.command || ''}`;
     return this.exec(dockerCmd);
   }

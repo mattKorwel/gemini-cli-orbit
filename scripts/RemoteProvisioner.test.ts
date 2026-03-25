@@ -21,16 +21,19 @@ describe('RemoteProvisioner', () => {
   });
 
   it('should provision a unique container for each PR session', async () => {
+    vi.useFakeTimers();
     mockProvider.getContainerStatus.mockResolvedValue({ running: false, exists: false });
     // first getExecOutput is for .git check
     mockProvider.getExecOutput.mockResolvedValueOnce({ status: 1 }); 
-    // second is for main repo check
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0 }); 
-    // third is for setupCmd
+    // second is for cloneCmd
     mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0 }); 
     
     const provisioner = new RemoteProvisioner(mockProvider as any);
-    await provisioner.provisionWorktree('23176', 'open', false, '');
+    const provisionPromise = provisioner.provisionWorktree('23176', 'open', false, '');
+
+    // Fast-forward the stability wait
+    await vi.runAllTimersAsync();
+    await provisionPromise;
 
     expect(mockProvider.runContainer).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -41,9 +44,15 @@ describe('RemoteProvisioner', () => {
         })
     );
 
-    // Verify git worktree repair is called (part of setupCmd)
+    // Verify git clone with reference is called
     expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
-        expect.stringContaining('git -C /mnt/disks/data/worktrees/workspace-23176-open repair'),
+        expect.stringContaining('git clone --reference /mnt/disks/data/main'),
+        expect.objectContaining({ wrapContainer: 'gcli-23176-open' })
+    );
+
+    // Verify gh pr checkout is called
+    expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
+        expect.stringContaining('gh pr checkout 23176'),
         expect.objectContaining({ wrapContainer: 'gcli-23176-open' })
     );
   });
