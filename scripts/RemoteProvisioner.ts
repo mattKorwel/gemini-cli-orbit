@@ -44,8 +44,8 @@ export class RemoteProvisioner {
         memoryLimit: '8g',
         mounts: [
           { host: MAIN_REPO_PATH, container: MAIN_REPO_PATH, readonly: true }, // MOUNT READ-ONLY
-          { host: remoteWorktreeDir, container: remoteWorktreeDir, readonly: false },
-          { host: WORKSPACES_ROOT, container: WORKSPACES_ROOT, readonly: true },
+          { host: remoteWorktreeDir, container: remoteWorktreeDir, readonly: false }, // Specific Worktree RW
+          { host: WORKSPACES_ROOT, container: WORKSPACES_ROOT, readonly: true }, // Broad mount as RO for shared assets
           { host: `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini', readonly: false }
         ],
         command: `/bin/bash -c "ln -sfn ${WORKSPACES_ROOT} /home/node/.workspaces && while true; do sleep 1000; done"`

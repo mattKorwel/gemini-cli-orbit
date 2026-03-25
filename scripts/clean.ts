@@ -62,26 +62,20 @@ export async function runCleanup(
 
   if (prNumber && action) {
     const worktreePath = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+    const containerName = `gcli-${prNumber}-${action}`;
 
     console.log(
-      `🧹 Surgically removing session and worktree for ${prNumber}-${action}...`,
+      `🧹 Surgically removing session, container, and worktree for ${prNumber}-${action}...`,
     );
 
-    // Kill any tmux sessions matching the PR and action (ignoring timestamp)
-    await provider.exec(`tmux list-sessions -F "#S" | grep "workspace-${prNumber}-${action}" | xargs -I {} tmux kill-session -t {} 2>/dev/null`, {
-      wrapContainer: 'maintainer-worker',
-    });
+    // 1. Remove the specific container
+    await provider.removeContainer(containerName);
 
-    // Remove specific worktree inside container
-    await provider.exec(
-      `cd ${MAIN_REPO_PATH} && git worktree remove -f ${worktreePath} 2>/dev/null && git worktree prune`,
-      { wrapContainer: 'maintainer-worker' },
-    );
+    // 2. Remove specific worktree directory on host
+    await provider.exec(`sudo rm -rf ${worktreePath}`);
 
-    // Clear history files for this PR and action
-    await provider.exec(`rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`, {
-      wrapContainer: 'maintainer-worker',
-    });
+    // 3. Clear history files for this PR and action on host
+    await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`);
 
     console.log(`✅ Cleaned up ${prNumber}-${action}.`);
     return 0;
@@ -101,33 +95,27 @@ export async function runCleanup(
 
   console.log(`🧹 Starting BULK cleanup...`);
 
-  // 1. Standard Cleanup (Using container before removal)
-  console.log('   - Killing ALL remote tmux sessions...');
-  await provider.exec(`tmux kill-server`, {
-    wrapContainer: 'maintainer-worker',
-  });
+  // 1. Standard Cleanup
+  console.log('   - Killing ALL remote tmux sessions and containers...');
+  const containerRes = await provider.getExecOutput("sudo docker ps -a --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
+  if (containerRes.status === 0 && containerRes.stdout.trim()) {
+    const names = containerRes.stdout.trim().split('\n').join(' ');
+    await provider.exec(`sudo docker rm -f ${names}`);
+  }
+  // Also remove the old global worker if it exists
+  await provider.exec(`sudo docker rm -f maintainer-worker || true`);
 
   console.log('   - Cleaning up ALL Git Worktrees...');
-  await provider.exec(
-    `cd ${MAIN_REPO_PATH} && git worktree prune && rm -rf ${WORKTREES_PATH}/*`,
-    { wrapContainer: 'maintainer-worker' },
-  );
+  await provider.exec(`sudo rm -rf ${WORKTREES_PATH}/*`);
 
   console.log('   - Clearing Gemini session history and state...');
-  await provider.exec(`rm -rf ${CONFIG_DIR}/history/*`, {
-    wrapContainer: 'maintainer-worker',
-  });
-  await provider.exec(`rm -f ${CONFIG_DIR}/state.json`, {
-    wrapContainer: 'maintainer-worker',
-  });
+  await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/*`);
+  await provider.exec(`sudo rm -f ${CONFIG_DIR}/state.json`);
 
   console.log('   - Wiping main repository clone...');
-  await provider.exec(`rm -rf ${MAIN_REPO_PATH}`, {
-    wrapContainer: 'maintainer-worker',
-  });
+  await provider.exec(`sudo rm -rf ${MAIN_REPO_PATH}`);
 
   console.log('   - Cleaning up Docker resources...');
-  await provider.exec(`sudo docker rm -f maintainer-worker || true`);
   await provider.exec(`sudo docker system prune -af --volumes`);
 
   console.log('✅ Remote environment cleared. You will need to run workspace setup again.');

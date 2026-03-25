@@ -53,7 +53,7 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
     if (containerRes.status === 0 && containerRes.stdout.trim()) {
       const containers = containerRes.stdout.trim().split('\n');
       for (const containerName of containers) {
-          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName });
+          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName, quiet: true });
           if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
               const sessions = tmuxRes.stdout.trim().split('\n');
               sessions.forEach(s => console.log(`     ✅ [${containerName}] ${s}`));
