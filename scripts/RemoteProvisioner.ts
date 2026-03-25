@@ -29,9 +29,11 @@ export class RemoteProvisioner {
     const containerStatus = await this.provider.getContainerStatus(containerName);
 
     if (!containerStatus.running) {
-      console.log(`   - Provisioning isolated container ${containerName}...`);
       if (containerStatus.exists) {
+        console.log(`   - Reviving isolated container ${containerName}...`);
         await this.provider.removeContainer(containerName);
+      } else {
+        console.log(`   - Provisioning isolated container ${containerName}...`);
       }
 
       await this.provider.runContainer({
@@ -50,19 +52,20 @@ export class RemoteProvisioner {
       });
 
       // Wait for container to stabilize
-      await new Promise(r => setTimeout(r, 5000));
+      await this.waitForContainer(containerName, 10000);
+    } else {
+        console.log(`   ✅ Isolated container ${containerName} is already active.`);
     }
 
-    // 2. Clear previous history for this session
-    const clearHistoryCmd = `rm -rf /home/node/.gemini/history/workspace-${prNumber}-${action}*`;
-    await this.provider.exec(clearHistoryCmd, { wrapContainer: containerName });
-
-    // 3. Provision the repository using a reference clone for speed and isolation
+    // 2. Provision the repository using a reference clone for speed and isolation
     const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: containerName, quiet: true });
 
     if (check.status !== 0) {
-      console.log(`   - Provisioning isolated git repo for ${prNumber} (inside container via reference)...`);
+      // Clear previous history for this session only if we are doing a fresh provision
+      const clearHistoryCmd = `rm -rf /home/node/.gemini/history/workspace-${prNumber}-${action}*`;
+      await this.provider.exec(clearHistoryCmd, { wrapContainer: containerName });
 
+      console.log(`   - Provisioning isolated git repo for ${prNumber} (inside container via reference)...`);
       // 3.1 Ensure WORKTREES_PATH is owned by node on the HOST first
       await this.provider.exec(`sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
 
@@ -90,4 +93,23 @@ export class RemoteProvisioner {
 
     await this.provider.exec(`chown -R 1000:1000 ${remoteWorktreeDir}`, { wrapContainer: containerName });
     return remoteWorktreeDir;
-  }}
+    }
+
+    async waitForContainer(name: string, timeoutMs: number): Promise<void> {
+    const start = Date.now();
+    process.stdout.write(`   - Waiting for container ${name} to stabilize...`);
+
+    while (Date.now() - start < timeoutMs) {
+      const res = await this.provider.getExecOutput('echo 1', { wrapContainer: name, quiet: true });
+      if (res.status === 0) {
+        process.stdout.write(' ✅ Ready.\n');
+        return;
+      }
+      process.stdout.write('.');
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    process.stdout.write(' ❌ Timeout.\n');
+    throw new Error(`Container ${name} failed to stabilize within ${timeoutMs}ms`);
+    }
+    }

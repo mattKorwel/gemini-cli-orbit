@@ -23,15 +23,19 @@ describe('RemoteProvisioner', () => {
   it('should provision a unique container for each PR session', async () => {
     vi.useFakeTimers();
     mockProvider.getContainerStatus.mockResolvedValue({ running: false, exists: false });
-    // first getExecOutput is for .git check
+    
+    // Sequence of calls:
+    // 1. waitForContainer (polling echo 1)
+    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0 }); 
+    // 2. .git check
     mockProvider.getExecOutput.mockResolvedValueOnce({ status: 1 }); 
-    // second is for cloneCmd
+    // 3. cloneCmd
     mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0 }); 
     
     const provisioner = new RemoteProvisioner(mockProvider as any);
     const provisionPromise = provisioner.provisionWorktree('23176', 'open', false, '');
 
-    // Fast-forward the stability wait
+    // Fast-forward the stability wait / polling
     await vi.runAllTimersAsync();
     await provisionPromise;
 
