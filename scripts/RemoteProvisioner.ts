@@ -23,7 +23,7 @@ export class RemoteProvisioner {
   async provisionWorktree(prNumber: string, action: string, isShellMode: boolean, ghEnv: string): Promise<string> {
     const remoteWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
-    const imageUri = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
+    const imageUri = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
     // 1. Ensure the specific job container is running
     const containerStatus = await this.provider.getContainerStatus(containerName);

@@ -43,7 +43,7 @@ export class GceCosProvider implements WorkerProvider {
 
   async provision(): Promise<number> {
     const imageUri =
-      'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
+      'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
     const region = this.zone.split('-').slice(0, 2).join('-');
     const vpcName = 'iap-vpc';
     const subnetName = 'iap-subnet';
@@ -349,7 +349,7 @@ export class GceCosProvider implements WorkerProvider {
     if (needsUpdate) {
       console.log('   ⚠️ Container missing or stale. Attempting refresh...');
       const imageUri =
-        'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
+        'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
       // Ensure data mount is available before running
       const recoverCmd = `
           (mountpoint -q /mnt/disks/data || sudo mount /dev/disk/by-id/google-data /mnt/disks/data) && \
