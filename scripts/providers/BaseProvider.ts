@@ -75,6 +75,11 @@ export interface WorkerProvider {
    * Stops and removes a specific container.
    */
   removeContainer(name: string): Promise<number>;
+
+  /**
+   * Captures the contents of the current tmux pane in a container.
+   */
+  capturePane(containerName: string): Promise<string>;
 }
 
 export interface SetupOptions {

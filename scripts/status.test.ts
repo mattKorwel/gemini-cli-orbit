@@ -16,6 +16,7 @@ describe('runStatus', () => {
   const mockProvider = {
     getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
     getExecOutput: vi.fn(),
+    capturePane: vi.fn(),
   };
 
   beforeEach(() => {
@@ -28,19 +29,23 @@ describe('runStatus', () => {
     }));
   });
 
-  it('should scan all gcli- containers and display their sessions', async () => {
+  it('should detect THINKING vs WAITING states', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     
-    // 1st call: find containers
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'gcli-123-open\ngcli-456-open', stderr: '' });
-    // 2nd call: tmux sessions for 123
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'session-123', stderr: '' });
-    // 3rd call: tmux sessions for 456
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'session-456', stderr: '' });
+    // 1. Find containers
+    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'gcli-1-open\ngcli-2-open', stderr: '' });
+    
+    // Container 1: Has tmux session, but Gemini is thinking (no prompt)
+    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'session', stderr: '' });
+    mockProvider.capturePane.mockResolvedValueOnce('Some long agentic work happening...\nProcessing file...');
+    
+    // Container 2: Has tmux session, and Gemini is waiting (has prompt)
+    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'session', stderr: '' });
+    mockProvider.capturePane.mockResolvedValueOnce('Work finished.\n > ');
 
     await runStatus();
     
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('✅ [gcli-123-open] session-123'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('✅ [gcli-456-open] session-456'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('🧠 [THINKING] gcli-1-open'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('✋ [WAITING] gcli-2-open'));
   });
 });

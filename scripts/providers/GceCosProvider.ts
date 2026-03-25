@@ -524,6 +524,14 @@ export class GceCosProvider implements WorkerProvider {
     return this.exec(`sudo docker rm -f ${name} || true`);
   }
 
+  async capturePane(containerName: string): Promise<string> {
+    const res = await this.getExecOutput('tmux capture-pane -pt $(tmux list-sessions -F "#S" | head -n 1) 2>/dev/null', { 
+        wrapContainer: containerName,
+        quiet: true 
+    });
+    return res.stdout;
+  }
+
   private quote(str: string) {
     return `'${str.replace(/'/g, "'\\''")}'`;
   }

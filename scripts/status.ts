@@ -53,7 +53,24 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
     if (containerRes.status === 0 && containerRes.stdout.trim()) {
       const containers = containerRes.stdout.trim().split('\n');
       for (const containerName of containers) {
-          console.log(`     ✅ ${containerName}`);
+          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName, quiet: true });
+          if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+              // HEURISTIC: Capture pane to see what's happening
+              const paneOutput = await provider.capturePane(containerName);
+              const lines = paneOutput.trim().split('\n');
+              const lastLine = lines[lines.length - 1] || '';
+              
+              // If it ends with the prompt, it's waiting
+              const isWaiting = lastLine.includes(' > ') || lastLine.trim().endsWith('>');
+              
+              if (isWaiting) {
+                  console.log(`     ✋ [WAITING] ${containerName} (Needs your input!)`);
+              } else {
+                  console.log(`     🧠 [THINKING] ${containerName} (Agent is active)`);
+              }
+          } else {
+              console.log(`     💤 [IDLE]     ${containerName} (Ready for work)`);
+          }
       }
     } else {
       console.log('     - No workspace environments found');
