@@ -38,10 +38,9 @@ export class GceConnectionManager {
   }
 
   getCommonArgs(): string[] {
-    const knownHostsPath = `${this.repoRoot}/.gemini/workspaces/known_hosts`;
     return [
       '-o', 'StrictHostKeyChecking=no',
-      '-o', `UserKnownHostsFile=${knownHostsPath}`,
+      '-o', 'UserKnownHostsFile=/dev/null',
       '-o', 'GlobalKnownHostsFile=/dev/null',
       '-o', 'CheckHostIP=no',
       '-o', 'LogLevel=ERROR',
@@ -64,11 +63,19 @@ export class GceConnectionManager {
   run(command: string, options: { interactive?: boolean; stdio?: 'pipe' | 'inherit'; quiet?: boolean } = {}): { status: number; stdout: string; stderr: string } {
     const sshCmd = this.getRunCommand(command, options);
     const res = spawnSync(sshCmd, { stdio: options.stdio || 'pipe', shell: true });
+    
     const status = (res.status === null) ? 1 : res.status;
-    if (status !== 0 && options.stdio !== 'inherit' && !options.quiet) {
-        console.error(`   ❌ SSH Command failed (status ${status}): ${sshCmd}`);
-        if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
+
+    // Differentiate between SSH connection errors (255) and command errors (other)
+    if (status === 255) {
+      console.error(`   ❌ SSH Connection Failed: ${this.getMagicRemote()}`);
+      if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
+    } else if (status !== 0 && options.stdio !== 'inherit' && !options.quiet) {
+      // This is a command failure, not an SSH failure
+      console.error(`   ⚠️ Remote Command Failed (Status ${status}): ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`);
+      if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
     }
+
     return { 
       status, 
       stdout: res.stdout?.toString() || '', 

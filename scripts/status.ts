@@ -45,7 +45,7 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   }
 
   if (status.status === 'RUNNING') {
-    console.log(`\n🧵 Active Sessions (Containers):`);
+    console.log(`\n📦 Active Workspace Environments:`);
     
     // Find all containers starting with 'gcli-'
     const containerRes = await provider.getExecOutput("sudo docker ps --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
@@ -53,16 +53,10 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
     if (containerRes.status === 0 && containerRes.stdout.trim()) {
       const containers = containerRes.stdout.trim().split('\n');
       for (const containerName of containers) {
-          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName, quiet: true });
-          if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-              const sessions = tmuxRes.stdout.trim().split('\n');
-              sessions.forEach(s => console.log(`     ✅ [${containerName}] ${s}`));
-          } else {
-              console.log(`     🔹 [${containerName}] (No active tmux sessions)`);
-          }
+          console.log(`     ✅ ${containerName}`);
       }
     } else {
-      console.log('     - No active workspace containers found');
+      console.log('     - No workspace environments found');
     }
   }
 
