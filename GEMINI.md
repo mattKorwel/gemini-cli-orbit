@@ -10,6 +10,12 @@ The system utilizes a **Persistent GCE Worker** (running Container-Optimized OS)
 - **Reference Clones**: Job containers perform a `git clone --reference` against the HostVM's main repo. The main repo is mounted **Read-Only** into containers for security.
 - **Persistence**: TMUX sessions live inside the job containers, allowing you to disconnect and re-attach without losing state.
 
+## 🔗 Shared State Strategy
+To ensure a consistent developer experience across all isolated PR sessions, we utilize a **Shared Configuration** model:
+- **Mount Path**: `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to `/home/node/.gemini` in **every** container.
+- **Benefits**: Linking an extension (like `workspaces`) in one container makes it instantly available to all other PR containers on that worker. It also unifies UI themes and aliases.
+- **Concurrency**: Gemini CLI handles concurrent access to this folder via atomic writes and file locking.
+
 ## ⚙️ Configuration: Profile System
 We support multiple GCP projects and networking environments (Corporate vs. Public) via a **Named Profile** system:
 
