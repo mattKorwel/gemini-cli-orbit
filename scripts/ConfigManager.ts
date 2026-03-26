@@ -13,7 +13,7 @@ import {
     DEFAULT_REPO_NAME,
     GLOBAL_SETTINGS_PATH,
     PROJECT_CONFIG_PATH,
-    LOCAL_SETTINGS_PATH,
+    PROJECT_WORKSPACES_DIR,
     PROFILES_DIR
 } from './Constants.ts';
 
@@ -80,7 +80,6 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
     const targetRepo = repoName || detectRepoName();
     const globalSettings = loadGlobalSettings();
     const projectConfig = loadProjectConfig();
-    const localOverrides = loadJson(LOCAL_SETTINGS_PATH);
 
     // 1. Start with Project Defaults (TRACKED)
     let config: WorkspaceConfig = { ...projectConfig };
@@ -90,7 +89,6 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
     config = { ...config, ...globalDefaults };
 
     // 3. Merge GitHub Team Config (Shared variables)
-    // Mapping: GCLI_PROJECT_ID -> projectId, etc.
     const ghConfig: WorkspaceConfig = {};
     const projectId = getGhVariable('GCLI_PROJECT_ID');
     if (projectId) ghConfig.projectId = projectId;
@@ -108,8 +106,7 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
     config = { ...config, ...ghConfig };
 
     // 4. Resolve Profile
-    const profileName = localOverrides.profile || 
-                      globalSettings.repos?.[targetRepo]?.profile || 
+    const profileName = globalSettings.repos?.[targetRepo]?.profile || 
                       globalSettings.activeProfile ||
                       projectConfig.profile;
 
@@ -119,15 +116,12 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
         config = { ...config, ...profileData };
     }
 
-    // 4. Merge Global Repo Registry (User's project settings)
+    // 5. Merge Global Repo Registry (User's project settings)
     if (globalSettings.repos?.[targetRepo]) {
         config = { ...config, ...globalSettings.repos[targetRepo] };
     }
 
-    // 5. Merge Local Overrides (IGNORED)
-    config = { ...config, ...localOverrides };
-
-    // 6. Merge Environment Variables
+    // 6. Merge Environment Variables (Highest Priority)
     const envConfig: WorkspaceConfig = {};
     if (process.env.GCLI_WORKSPACE_PROJECT_ID) envConfig.projectId = process.env.GCLI_WORKSPACE_PROJECT_ID;
     if (process.env.GCLI_WORKSPACE_ZONE) envConfig.zone = process.env.GCLI_WORKSPACE_ZONE;
@@ -144,11 +138,18 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
 }
 
 /**
- * Legacy support for loadSettings (Project specific migration helper)
+ * Legacy support for loadSettings (Migration helper)
  */
 export function loadSettings(): WorkspaceSettings {
-    const local = loadJson(LOCAL_SETTINGS_PATH);
-    if (local.workspace) return { repos: { [detectRepoName()]: local.workspace } };
-    if (local.repos) return local;
+    const global = loadGlobalSettings();
+    if (Object.keys(global.repos).length > 0) return global;
+    
+    // Check if we have an old project-local one to migrate
+    const projectLocalPath = path.join(PROJECT_WORKSPACES_DIR, 'settings.json');
+    if (fs.existsSync(projectLocalPath)) {
+        const local = loadJson(projectLocalPath);
+        if (local.workspace) return { repos: { [detectRepoName()]: local.workspace } };
+        if (local.repos) return local;
+    }
     return { repos: {} };
 }

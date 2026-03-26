@@ -1,79 +1,60 @@
-# Gemini Workspaces: End-to-End Test Plan (v1.3)
+# Gemini Workspaces: End-to-End Test Plan (v1.4)
 
-This document provides a structured protocol for validating the **Workspaces** platform (v1.3+). It focuses on multi-repository support, the `WorkerProvider` abstraction, and stable policy discovery.
+This document provides a structured protocol for validating the **Workspaces** platform (v1.4+). It focuses on the tiered settings hierarchy, global profiles, and GitHub team variable integration.
 
 ---
 
 ## 🤖 LLM-First Verification Protocol
-When asked to "Run the End-to-End Test Plan," the agent should follow these steps and report the outcome for each.
 
-### 📁 1. Multi-Repo Discovery & Migration
-**Goal**: Verify the system correctly identifies the current repo and migrates legacy settings.
-
-1.  **Input**: Run `npx tsx scripts/ConfigManager.ts` (or use a test helper) in a repo with a legacy `settings.json`.
-2.  **Expected Output**:
-    - [ ] Log message: `🔄 Migrating legacy configuration format...`
-    - [ ] `settings.json` now contains a `repos` map.
-    - [ ] `activeRepo` matches the current `gh repo view` name.
-3.  **Command**: `npx tsx scripts/setup.ts --skip-config`
-    - [ ] Output contains: `✅ Existing configuration found for repo: <REPO_NAME>`
-
-### 🏗️ 2. Provider-Based Provisioning (COS)
-**Goal**: Verify the `GceCosProvider` correctly handles infrastructure lifecycle.
-
-1.  **Input**: `npx tsx scripts/fleet.ts provision`
-2.  **Expected Output**:
-    - [ ] Log: `🚀 Provisioning GCE COS worker: gcli-workspace-<user>...`
-    - [ ] `gcloud compute instances describe` shows status `RUNNING`.
-    - [ ] Internal/External IPs are resolved and stored in the provider state.
-
-### 🛡️ 3. Policy Discovery (Tier 3)
-**Goal**: Ensure `ALLOW` rules are active without `[PolicyConfig]` noise.
-
-1.  **Input**: Start a fresh Gemini session: `gemini`
-2.  **Expected Output**:
-    - [ ] **NO** lines containing `[PolicyConfig] Extension "workspaces" attempted to contribute...`.
-    - [ ] Command `gh auth status` (or any `ALLOW`ed git/npm command) executes without an interactive security prompt.
-
-### 🔗 4. Cross-Repo Isolation
-**Goal**: Verify that PR workspaces for different repos are isolated on the same worker.
+### 📁 1. Tiered Configuration & Migration
+**Goal**: Verify the system merges Project Defaults, Global Registry, Profiles, and Env Vars correctly.
 
 1.  **Input**: 
-    - In Repo A (e.g., `gemini-cli`): `workspace open 101`
-    - In Repo B (e.g., `workspaces-extension`): `workspace open 5`
+    - Create a dummy profile: `~/.gemini/workspaces/profiles/test.json` with `{"projectId": "profile-p"}`.
+    - Set an env var: `export GCLI_WORKSPACE_PROJECT_ID=env-p`.
 2.  **Expected Output**:
-    - [ ] Container A: `gcli-101-open` (Running in `/mnt/disks/data/worktrees/gemini-cli/...`)
-    - [ ] Container B: `gcli-5-open` (Running in `/mnt/disks/data/worktrees/workspaces-extension/...`)
-    - [ ] `workspace status` lists both containers under their respective repo headers.
+    - [ ] `resolveConfig()` returns `env-p` (Env Var has highest priority).
+3.  **Migration Check**:
+    - [ ] Place a legacy `settings.json` in `.gemini/workspaces/`.
+    - [ ] Run `workspace status`.
+    - [ ] Verify settings are moved to `~/.gemini/workspaces/settings.json` and deleted from the local folder.
 
-### 🛰️ 5. Mission Control (Supervisor View)
-**Goal**: Verify the new `listContainers` and `capturePane` logic.
+### 🏗️ 2. Zero-Touch Infrastructure (Profiles)
+**Goal**: Verify automatic profile handling.
 
-1.  **Input**: `npx tsx scripts/status.ts`
+1.  **Input**: Run `workspace setup` with no existing profiles.
 2.  **Expected Output**:
-    - [ ] Header: `🛰️ Workspace Mission Control: <INSTANCE_NAME> (<REPO_NAME>)`
-    - [ ] Section: `📦 Active Workspace Environments:`
-    - [ ] For an active container: `✋ [WAITING]` if a prompt is detected, or `🧠 [THINKING]` if the agent is active.
+    - [ ] Log: `✨ No profiles found. Creating "default" profile...`
+    - [ ] File created: `~/.gemini/workspaces/profiles/default.json`.
+    - [ ] Settings stored: Infrastructure keys (GCP Project, VPC) go into the **Profile**; Repository links go into the **Global Registry**.
 
-### 🧹 6. Surgical Cleanup
-**Goal**: Verify repo-aware cleanup.
+### 🔐 3. GitHub Team Config
+**Goal**: Verify shared team variables are used as a fallback.
 
-1.  **Input**: `npx tsx scripts/clean.ts 101 open` (while in Repo A)
+1.  **Input**: 
+    - Set a GitHub repo variable: `gh variable set GCLI_VPC_NAME --body "shared-vpc"`.
+    - Ensure no VPC is set in local profiles/settings.
 2.  **Expected Output**:
-    - [ ] `gcli-101-open` is removed.
-    - [ ] `/mnt/disks/data/worktrees/gemini-cli/workspace-101-open` is deleted.
-    - [ ] **Repo B's** `gcli-5-open` remains untouched.
+    - [ ] `workspace setup` detects "shared-vpc" as the default.
+    - [ ] `resolveConfig()` includes `vpcName: "shared-vpc"`.
+
+### 🛰️ 4. Mission Control (Supervisor View)
+**Goal**: Verify the new "Thinking/Waiting" agent detection.
+
+1.  **Input**: `workspace status`
+2.  **Expected Output**:
+    - [ ] Correctly identifies the supervisor for the repo.
+    - [ ] For an active PR: Displays `🧠 [THINKING]` if the agent is processing.
 
 ---
 
 ## 🛠️ Automated Verification Script
-You can run this snippet to check the core contract:
 ```bash
-# Verify Config Migration
-node -e "const cm = require('./scripts/ConfigManager'); console.log('Repo:', cm.detectRepoName())"
+# Verify Resolution Hierarchy
+node -e "const cm = require('./scripts/ConfigManager'); console.log('Resolved Config:', cm.getRepoConfig())"
 
-# Verify Provider Interface
-node -e "const pf = require('./scripts/providers/ProviderFactory'); const p = pf.ProviderFactory.getProvider({projectId:'p', zone:'z', instanceName:'i'}); console.log('Provider:', p.constructor.name)"
+# Verify GitHub Variable Access
+gh variable get GCLI_PROJECT_ID || echo "No team variables set on GitHub"
 
 # Run Unit Tests
 npm test
