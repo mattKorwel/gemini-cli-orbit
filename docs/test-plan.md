@@ -1,100 +1,80 @@
-# Gemini Workspaces: End-to-End Test Plan (v1.2)
+# Gemini Workspaces: End-to-End Test Plan (v1.3)
 
-This document provides a structured protocol for validating the Gemini Workspaces system. It ensures that infrastructure, networking, and automated supervisor loops are functioning correctly after refactors.
-
----
-
-## 🏗️ 1. Zero-Touch Infrastructure (Headless & Profiles)
-**Goal**: Verify that the global profile system and headless flags provide a perfectly automated setup.
-
-### Test Scenario: Headless "Day 0" Setup
-1.  **Preparation**: Ensure you have a valid profile saved in `~/.gemini/workspaces/profiles/corp.json`.
-2.  **Reset**: `npx tsx scripts/fleet.ts destroy`
-3.  **Command**: 
-    ```bash
-    npx tsx scripts/setup.ts --profile=corp --yes --reconfigure
-    ```
-4.  **Pass Criteria**:
-    - [ ] Script resolves "corp" to the global path automatically.
-    - [ ] No interactive prompts appear (no hangs on empty defaults).
-    - [ ] VM is provisioned and waits for stabilization loop (~45-60s).
-    - [ ] Returns exit code `0` on completion.
+This document provides a structured protocol for validating the **Workspaces** platform (v1.3+). It focuses on multi-repository support, the `WorkerProvider` abstraction, and stable policy discovery.
 
 ---
 
-## 📡 2. Connectivity Backends (Network Path Validation)
-**Goal**: Verify that all three connectivity modes (`direct-internal`, `iap`, `external`) correctly route traffic.
+## 🤖 LLM-First Verification Protocol
+When asked to "Run the End-to-End Test Plan," the agent should follow these steps and report the outcome for each.
 
-### Test Scenario: IAP Tunneling (VPC-Off)
-1.  **Setup**: Reconfigure a profile to use `backendType: "iap"`.
-2.  **Command**: `/workspace:status`
-3.  **Pass Criteria**:
-    - [ ] Status command succeeds without being on a Corporate VPN.
-    - [ ] Logs show usage of `gcloud compute ssh --tunnel-through-iap`.
+### 📁 1. Multi-Repo Discovery & Migration
+**Goal**: Verify the system correctly identifies the current repo and migrates legacy settings.
 
-### Test Scenario: Magic DNS (VPC-On)
-1.  **Setup**: Reconfigure to `backendType: "direct-internal"` with `dnsSuffix: ".gcpnode.com"`.
-2.  **Pass Criteria**:
-    - [ ] Connection string matches: `user_google_com@nic0.<instance>.<zone>.c.<project>.internal.gcpnode.com`.
+1.  **Input**: Run `npx tsx scripts/ConfigManager.ts` (or use a test helper) in a repo with a legacy `settings.json`.
+2.  **Expected Output**:
+    - [ ] Log message: `🔄 Migrating legacy configuration format...`
+    - [ ] `settings.json` now contains a `repos` map.
+    - [ ] `activeRepo` matches the current `gh repo view` name.
+3.  **Command**: `npx tsx scripts/setup.ts --skip-config`
+    - [ ] Output contains: `✅ Existing configuration found for repo: <REPO_NAME>`
 
----
+### 🏗️ 2. Provider-Based Provisioning (COS)
+**Goal**: Verify the `GceCosProvider` correctly handles infrastructure lifecycle.
 
-## 🔗 3. Remote Environment Integrity (Sync & Link)
-**Goal**: Confirm the supervisor has the latest extension logic and ported skills.
+1.  **Input**: `npx tsx scripts/fleet.ts provision`
+2.  **Expected Output**:
+    - [ ] Log: `🚀 Provisioning GCE COS worker: gcli-workspace-<user>...`
+    - [ ] `gcloud compute instances describe` shows status `RUNNING`.
+    - [ ] Internal/External IPs are resolved and stored in the provider state.
 
-1.  **Command**: Exec into the worker after setup.
-    ```bash
-    # From local machine
-    gcloud compute ssh development-worker --project <ID> --zone <ZONE> --tunnel-through-iap
-    # Inside VM
-    sudo docker exec -it development-worker gemini extensions list
-    ```
-2.  **Pass Criteria**:
-    - [ ] `workspaces@1.1.0` is listed as a linked extension.
-    - [ ] The command `/workspace:review` is available inside the remote container.
+### 🛡️ 3. Policy Discovery (Tier 3)
+**Goal**: Ensure `ALLOW` rules are active without `[PolicyConfig]` noise.
 
----
+1.  **Input**: Start a fresh Gemini session: `gemini`
+2.  **Expected Output**:
+    - [ ] **NO** lines containing `[PolicyConfig] Extension "workspaces" attempted to contribute...`.
+    - [ ] Command `gh auth status` (or any `ALLOW`ed git/npm command) executes without an interactive security prompt.
 
-## 🧵 4. Isolated PR Workspaces (Containers & Worktrees)
-**Goal**: Verify process-level isolation and reference-clone speed.
+### 🔗 4. Cross-Repo Isolation
+**Goal**: Verify that PR workspaces for different repos are isolated on the same worker.
 
-1.  **Command**: `/workspace:open 23176`
-2.  **Pass Criteria**:
-    - [ ] Container `gcli-23176-open` is created using the configured `imageUri`.
-    - [ ] Checkout is instantaneous (< 5s) via `--reference` clone.
-    - [ ] `.env` file inside the container contains the correct `GEMINI_API_KEY` and `GEMINI_HOST`.
+1.  **Input**: 
+    - In Repo A (e.g., `gemini-cli`): `workspace open 101`
+    - In Repo B (e.g., `workspaces-extension`): `workspace open 5`
+2.  **Expected Output**:
+    - [ ] Container A: `gcli-101-open` (Running in `/mnt/disks/data/worktrees/gemini-cli/...`)
+    - [ ] Container B: `gcli-5-open` (Running in `/mnt/disks/data/worktrees/workspaces-extension/...`)
+    - [ ] `workspace status` lists both containers under their respective repo headers.
 
----
+### 🛰️ 5. Mission Control (Supervisor View)
+**Goal**: Verify the new `listContainers` and `capturePane` logic.
 
-## 🛰️ 5. Monitoring & Status
-**Goal**: Verify the Mission Control dashboard and persistence.
+1.  **Input**: `npx tsx scripts/status.ts`
+2.  **Expected Output**:
+    - [ ] Header: `🛰️ Workspace Mission Control: <INSTANCE_NAME> (<REPO_NAME>)`
+    - [ ] Section: `📦 Active Workspace Environments:`
+    - [ ] For an active container: `✋ [WAITING]` if a prompt is detected, or `🧠 [THINKING]` if the agent is active.
 
-1.  **Command**: `/workspace:status`
-2.  **Pass Criteria**:
-    - [ ] Lists the `development-worker` as the supervisor.
-    - [ ] Lists active PR containers.
-    - [ ] Correctly shows if a container has an active `tmux` session.
+### 🧹 6. Surgical Cleanup
+**Goal**: Verify repo-aware cleanup.
 
----
-
-## 🧹 6. Cleanup & Reset
-**Goal**: Verify surgical and bulk cleanup.
-
-1.  **Surgical**: `/workspace:clean 23176 open`
-    - [ ] Container is gone.
-    - [ ] Worktree directory `/mnt/disks/data/worktrees/workspace-23176-open` is deleted.
-2.  **Bulk**: `/workspace:clean --all`
-    - [ ] Every non-root file on the persistent disk is wiped.
-    - [ ] Every `gcli-*` container is removed.
+1.  **Input**: `npx tsx scripts/clean.ts 101 open` (while in Repo A)
+2.  **Expected Output**:
+    - [ ] `gcli-101-open` is removed.
+    - [ ] `/mnt/disks/data/worktrees/gemini-cli/workspace-101-open` is deleted.
+    - [ ] **Repo B's** `gcli-5-open` remains untouched.
 
 ---
 
-## 🛡️ 7. Robustness & Error Codes
-**Goal**: Ensure failures are properly signaled for automation.
+## 🛠️ Automated Verification Script
+You can run this snippet to check the core contract:
+```bash
+# Verify Config Migration
+node -e "const cm = require('./scripts/ConfigManager'); console.log('Repo:', cm.detectRepoName())"
 
-1.  **Failure Test**:
-    - Stop the VM manually via Cloud Console.
-    - Run `/workspace:status`.
-2.  **Pass Criteria**:
-    - [ ] Script prints a clear error message.
-    - [ ] Script returns exit code `1` (verify with `echo $?`).
+# Verify Provider Interface
+node -e "const pf = require('./scripts/providers/ProviderFactory'); const p = pf.ProviderFactory.getProvider({projectId:'p', zone:'z', instanceName:'i'}); console.log('Provider:', p.constructor.name)"
+
+# Run Unit Tests
+npm test
+```
