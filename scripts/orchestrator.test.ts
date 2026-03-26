@@ -38,8 +38,8 @@ describe('runOrchestrator', () => {
   };
 
   beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.clearAllMocks();
+    vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({

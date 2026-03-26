@@ -26,8 +26,8 @@ describe('runStatus', () => {
   };
 
   beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.clearAllMocks();
+    vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-workspaces-extension');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({

@@ -43,9 +43,11 @@ export function loadSettings(): WorkspaceSettings {
             } else if (data.workspace) {
                 // Migration
                 const legacyConfig = data.workspace as WorkspaceConfig;
-                const legacyRepoName = legacyConfig.repoName || 'legacy-repo';
-                settings.repos = { [legacyRepoName]: legacyConfig };
-                settings.activeRepo = legacyRepoName;
+                const repoName = legacyConfig.repoName || detectRepoName() || 'legacy-repo';
+                const instanceName = legacyConfig.instanceName || `gcli-workspace-${process.env.USER || 'gcli-user'}`;
+                
+                settings.repos = { [repoName]: { ...legacyConfig, repoName, instanceName } };
+                settings.activeRepo = repoName;
                 
                 // Save migrated version
                 fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));

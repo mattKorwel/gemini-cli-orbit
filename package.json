@@ -12,10 +12,16 @@
   "author": "Matt Korwel",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
     "@vitest/coverage-v8": "^3.0.0",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^3.0.0"
   }
 }
