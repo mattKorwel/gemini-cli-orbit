@@ -9,15 +9,13 @@ import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.ts';
 import { RemoteProvisioner } from './RemoteProvisioner.ts';
+import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 import { 
   WORKSPACES_ROOT, 
-  MAIN_REPO_PATH, 
   WORKTREES_PATH, 
   POLICIES_PATH, 
   SCRIPTS_PATH, 
   CONFIG_DIR,
-  UPSTREAM_REPO_URL,
-  type WorkspaceConfig 
 } from './Constants.ts';
 
 
@@ -102,21 +100,21 @@ Actions:
   }
 
   // 1. Load Settings
-  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  if (!fs.existsSync(settingsPath)) {
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+
+  if (!config) {
     console.error(
-      '❌ Workspace settings not found. Run "workspace setup" first.',
+      `❌ Workspace settings not found for repo: ${repoName}. Run "workspace setup" first.`,
     );
     return 1;
   }
-  const settings: { workspace: WorkspaceConfig } = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  const config = settings.workspace;
 
-  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
   const provider = ProviderFactory.getProvider({
     projectId: config.projectId,
     zone: config.zone,
-    instanceName: targetVM,
+    instanceName: config.instanceName,
+    repoName: config.repoName,
     dnsSuffix: config.dnsSuffix,
     userSuffix: config.userSuffix,
     backendType: config.backendType
@@ -134,14 +132,21 @@ Actions:
   const timestamp = Date.now();
   const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
   const containerName = `gcli-${prNumber}-${action}`;
-  const hostWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+  const repoWorktreesDir = `${WORKTREES_PATH}/${config.repoName}`;
+  const hostWorktreeDir = `${repoWorktreesDir}/workspace-${prNumber}-${action}`;
+  const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
+
 // 3. Remote Preparation
 const localApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
 
 // 4. Remote Context Setup (Executed INSIDE container for path consistency)
 const provisioner = new RemoteProvisioner(provider);
 // We don't pass ghEnv anymore as we auth inside the container's main command
-const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '');
+const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '', {
+    remoteWorkDir: config.remoteWorkDir,
+    worktreesDir: repoWorktreesDir,
+    upstreamUrl
+});
 if (!remoteWorktreeDir) {
     console.error('❌ Failed to provision remote worktree.');
     return 1;
@@ -150,7 +155,7 @@ if (!remoteWorktreeDir) {
 // AUTH: Inject credentials directly into the worktree .env
 if (localApiKey) {
   console.log('   - Injecting remote authentication context...');
-  const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${targetVM}`;
+  const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName}`;
   const authRes = await provider.exec(
       `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
   );

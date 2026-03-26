@@ -7,29 +7,26 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 
 
 const REPO_ROOT = process.cwd();
 
 export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
-  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  if (!fs.existsSync(settingsPath)) {
-    console.error('❌ Settings not found. Run "workspace setup" first.');
-    return 1;
-  }
-  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  const config = settings.workspace;
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+  
   if (!config) {
-    console.error('❌ Deep Review configuration not found.');
+    console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType } = config;
-  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,
-    instanceName: targetVM,
+    instanceName,
+    repoName,
     dnsSuffix,
     userSuffix,
     backendType
@@ -37,11 +34,11 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
 
   const statusRes = await provider.getStatus();
   if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
-      console.error(`❌ Worker ${targetVM} is in an invalid state: ${statusRes.status}`);
+      console.error(`❌ Worker ${instanceName} is in an invalid state: ${statusRes.status}`);
       return 1;
   }
 
-  console.log(`\n🛰️  Workspace Mission Control: ${targetVM}`);
+  console.log(`\n🛰️  Workspace Mission Control: ${instanceName} (${repoName})`);
   console.log(
     `--------------------------------------------------------------------------------`,
   );
@@ -51,15 +48,15 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   if (statusRes.externalIp) {
     console.log(`   - External IP: ${statusRes.externalIp}`);
   }
+  console.log(`   - Supervisor:  ${provider.workerName}`);
 
   if (statusRes.status === 'RUNNING') {
     console.log(`\n📦 Active Workspace Environments:`);
     
     // Find all containers starting with 'gcli-'
-    const containerRes = await provider.getExecOutput("sudo docker ps --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
+    const containers = await provider.listContainers();
     
-    if (containerRes.status === 0 && containerRes.stdout.trim()) {
-      const containers = containerRes.stdout.trim().split('\n');
+    if (containers.length > 0) {
       for (const containerName of containers) {
           const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName, quiet: true });
           if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {

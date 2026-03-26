@@ -10,6 +10,7 @@ import os from 'node:os';
 
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { detectRepoName } from './ConfigManager.ts';
 import { fileURLToPath } from 'node:url';
 import { 
   WORKSPACES_ROOT, 
@@ -159,17 +160,25 @@ and full builds) to a dedicated, high-performance GCP worker.
   console.log('--------------------------------------------------------------------------------');
 
   const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  let settings: { workspace: WorkspaceConfig } = {
-      workspace: {
-          projectId: '', zone: 'us-west1-a', terminalTarget: 'tab',
-          userFork: '', upstreamRepo: `${UPSTREAM_ORG || 'google-gemini'}/${DEFAULT_REPO_NAME || 'gemini-cli'}`,
-          remoteHost: 'gcli-worker', remoteWorkDir: MAIN_REPO_PATH,
-          useContainer: true,
-          dnsSuffix: typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal',
-          userSuffix: typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '',
-          backendType: 'direct-internal'
-      }
+  let settings: WorkspaceSettings = {
+      repos: {}
   };
+
+  if (fs.existsSync(settingsPath)) {
+      try {
+          const data = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+          if (data.repos) {
+              settings = data;
+          } else if (data.workspace) {
+              // MIGRATION: Convert old workspace key to repos map
+              console.log('🔄 Migrating legacy configuration format...');
+              const legacyConfig = data.workspace as WorkspaceConfig;
+              const legacyRepoName = legacyConfig.repoName || 'legacy-repo';
+              settings.repos = { [legacyRepoName]: legacyConfig };
+              settings.activeRepo = legacyRepoName;
+          }
+      } catch (e) {}
+  }
 
   profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
 
@@ -207,36 +216,40 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   let skipConfig = false;
 
-  if (fs.existsSync(settingsPath)) {
+  // 0. Repository Discovery (Early detection for repo-specific settings)
+  console.log('\n🔍 Detecting repository origins...');
+  let upstreamRepo = `${UPSTREAM_ORG || 'google-gemini'}/${DEFAULT_REPO_NAME || 'gemini-cli'}`;
+  let repoName = detectRepoName();
+  
+  const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'name,nameWithOwner,parent,isFork'], { stdio: 'pipe' });
+  if (repoInfoRes.status === 0) {
       try {
-          const existingSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-          if (existingSettings.workspace) {
-              if (reconfigure) {
-                  // If reconfiguring, we keep the object but clear values to ensure clean priority
-                  settings = { workspace: {} as any };
-              } else {
-                  settings = existingSettings;
-                  if (!profileUrl) {
-                      console.log('   ✅ Existing configuration found.');
-                      skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
-                  }
-              }
-          }
+          const repoInfo = JSON.parse(repoInfoRes.stdout.toString());
+          upstreamRepo = repoInfo.isFork && repoInfo.parent ? repoInfo.parent.nameWithOwner : repoInfo.nameWithOwner;
+          // repoName is already detected via ConfigManager helper
       } catch (e) {}
   }
 
+  const existingRepoConfig = settings.repos[repoName] || settings.workspace || {};
+  if (existingRepoConfig.projectId && !reconfigure) {
+      console.log(`   ✅ Existing configuration found for repo: ${repoName}`);
+      if (!profileUrl) {
+          skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
+      }
+  }
+
   // 1. Project Identity & Networking
-  let projectId = remoteProfile.projectId || settings.workspace?.projectId || '';
-  let zone = remoteProfile.zone || settings.workspace?.zone || 'us-west1-a';
-  let terminalTarget = remoteProfile.terminalTarget || settings.workspace?.terminalTarget || 'tab';
-  let upstreamRepo = remoteProfile.upstreamRepo || settings.workspace?.upstreamRepo || `${(typeof UPSTREAM_ORG !== 'undefined' ? UPSTREAM_ORG : 'google-gemini')}/${(typeof DEFAULT_REPO_NAME !== 'undefined' ? DEFAULT_REPO_NAME : 'gemini-cli')}`;
-  let userFork = remoteProfile.userFork || settings.workspace?.userFork || upstreamRepo;
-  let dnsSuffix = remoteProfile.dnsSuffix || settings.workspace?.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal');
-  let userSuffix = remoteProfile.userSuffix || settings.workspace?.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
-  let backendType = remoteProfile.backendType || settings.workspace?.backendType || 'direct-internal';
-  let imageUri = remoteProfile.imageUri || settings.workspace?.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor');
-  let vpcName = remoteProfile.vpcName || settings.workspace?.vpcName || 'default';
-  let subnetName = remoteProfile.subnetName || settings.workspace?.subnetName || 'default';
+  let projectId = remoteProfile.projectId || existingRepoConfig.projectId || '';
+  let zone = remoteProfile.zone || existingRepoConfig.zone || 'us-west1-a';
+  let instanceName = remoteProfile.instanceName || existingRepoConfig.instanceName || `gcli-workspace-${env.USER || 'gcli-user'}`;
+  let terminalTarget = remoteProfile.terminalTarget || existingRepoConfig.terminalTarget || 'tab';
+  let userFork = remoteProfile.userFork || existingRepoConfig.userFork || upstreamRepo;
+  let dnsSuffix = remoteProfile.dnsSuffix || existingRepoConfig.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : `.c.${projectId}.internal`);
+  let userSuffix = remoteProfile.userSuffix || existingRepoConfig.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
+  let backendType = remoteProfile.backendType || existingRepoConfig.backendType || 'direct-internal';
+  let imageUri = remoteProfile.imageUri || existingRepoConfig.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor');
+  let vpcName = remoteProfile.vpcName || existingRepoConfig.vpcName || 'default';
+  let subnetName = remoteProfile.subnetName || existingRepoConfig.subnetName || 'default';
   let autoSetupNet = false; // Default to NO as per instruction
 
   if (!skipConfigArg || profileUrl) {
@@ -252,6 +265,9 @@ and full builds) to a dedicated, high-performance GCP worker.
 
       zone = await prompt('GCP Zone', env.WORKSPACE_ZONE || zone, 
         'The GCE zone where your worker will be provisioned.');
+
+      instanceName = await prompt('GCE Instance Name', instanceName,
+        'The name of the GCE VM that will act as your worker.');
 
       terminalTarget = await prompt('Terminal Target (foreground, background, tab, window)', env.WORKSPACE_TERM_TARGET || terminalTarget,
         'When you start a job in gemini-cli, should it run as a foreground shell, background shell (no attach), new iterm2 tab, or new iterm2 window?');
@@ -279,12 +295,13 @@ and full builds) to a dedicated, high-performance GCP worker.
       // 2. Repository Discovery (Dynamic)
       console.log('\n🔍 Detecting repository origins...');
       
-      const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'nameWithOwner,parent,isFork'], { stdio: 'pipe' });
+      const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'name,nameWithOwner,parent,isFork'], { stdio: 'pipe' });
 
       if (repoInfoRes.status === 0) {
           try {
               const repoInfo = JSON.parse(repoInfoRes.stdout.toString());
               upstreamRepo = repoInfo.isFork && repoInfo.parent ? repoInfo.parent.nameWithOwner : repoInfo.nameWithOwner;
+              repoName = repoInfo.name;
               
               console.log(`   - Upstream identified: ${upstreamRepo}`);
               console.log(`   - Searching for your forks of ${upstreamRepo}...`);
@@ -403,15 +420,13 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // 5. Save Confirmed State
-  const workspaceUser = env.USER || env.USERNAME || 'gcli-user';
-  const targetVM = `gcli-workspace-${workspaceUser}`;
   if (!fs.existsSync(path.dirname(settingsPath))) fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   
   const workspaceConfig: WorkspaceConfig = { 
-    projectId, zone, terminalTarget: terminalTarget as any, 
-    userFork, upstreamRepo,
+    projectId, zone, instanceName, terminalTarget: terminalTarget as any, 
+    userFork, upstreamRepo, repoName,
     remoteHost: 'gcli-worker',
-    remoteWorkDir: MAIN_REPO_PATH,
+    remoteWorkDir: `${WORKSPACES_ROOT}/main/${repoName}`,
     useContainer: true,
     dnsSuffix,
     userSuffix,
@@ -421,9 +436,11 @@ and full builds) to a dedicated, high-performance GCP worker.
     subnetName
   };
 
-  settings = { workspace: workspaceConfig };
+  settings.repos[repoName] = workspaceConfig;
+  settings.activeRepo = repoName;
+  
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-  console.log(`\n✅ Configuration saved to ${settingsPath}`);
+  console.log(`\n✅ Configuration saved for repo: ${repoName}`);
 
   // Option to save as profile
   if (!skipConfigArg && !profileUrl || reconfigure) {
@@ -433,6 +450,7 @@ and full builds) to a dedicated, high-performance GCP worker.
           if (profileName) {
               if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
               const profilePath = path.join(PROFILES_DIR, `${profileName.toLowerCase()}.json`);
+              // We save the full settings for the profile
               fs.writeFileSync(profilePath, JSON.stringify(settings, null, 2));
               console.log(`✅ Profile saved to ${profilePath}`);
           }
@@ -443,7 +461,8 @@ and full builds) to a dedicated, high-performance GCP worker.
   const provider = ProviderFactory.getProvider({ 
       projectId, 
       zone, 
-      instanceName: targetVM,
+      instanceName,
+      repoName,
       dnsSuffix,
       userSuffix,
       backendType,
@@ -454,11 +473,11 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   console.log('\n🏗️  PHASE 2: INFRASTRUCTURE');
   console.log('--------------------------------------------------------------------------------');
-  console.log(`   - Verifying access and finding worker ${targetVM}...`);
+  console.log(`   - Verifying access and finding worker ${instanceName}...`);
   let status = await provider.getStatus();
   
   if (status.status === 'UNKNOWN' || status.status === 'ERROR') {
-    const shouldProvision = await confirm(`Worker ${targetVM} not found. Provision it now?`);
+    const shouldProvision = await confirm(`Worker ${instanceName} not found. Provision it now?`);
     if (!shouldProvision) return 1;
     
     const provisionRes = await provider.provision({ setupNetwork: autoSetupNet });
@@ -467,7 +486,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (status.status !== 'RUNNING') {
-    console.log('   - Waking up worker...');
+    console.log(`   - Waking up worker ${instanceName}...`);
     await provider.ensureReady();
   }
 
@@ -567,18 +586,19 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // Final Repo Sync
-  // Final Repo Sync
   console.log(`🚀 Finalizing Remote Repository (${userFork})...`);
   const repoUrl = `https://github.com/${userFork}.git`;
-  const repoPath = MAIN_REPO_PATH;
+  const repoPath = workspaceConfig.remoteWorkDir;
+  const upstreamUrl = `https://github.com/${upstreamRepo}.git`;
 
   const setupRepoCmd = `
+    sudo mkdir -p $(dirname ${repoPath}) && \
     if [ ! -d "${repoPath}/.git" ]; then
       sudo rm -rf ${repoPath} && \
       sudo git clone --quiet -c core.filemode=false ${repoUrl} ${repoPath} && \
       sudo git -C ${repoPath} config --local safe.directory ${repoPath} && \
       sudo git -C ${repoPath} config --replace-all core.filemode false && \
-      sudo git -C ${repoPath} remote add upstream ${UPSTREAM_REPO_URL}
+      sudo git -C ${repoPath} remote add upstream ${upstreamUrl}
     fi && \
     sudo git -C ${repoPath} -c safe.directory='*' fetch --quiet upstream && \
     sudo git -C ${repoPath} -c safe.directory='*' worktree prune && \

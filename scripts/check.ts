@@ -8,6 +8,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 
 
 const REPO_ROOT = process.cwd();
@@ -22,27 +23,23 @@ export async function runChecker(
     return 1;
   }
 
-  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  if (!fs.existsSync(settingsPath)) {
-    console.error('❌ Settings not found. Run "workspace setup" first.');
-    return 1;
-  }
-  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  const config = settings.workspace;
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+  
   if (!config) {
-    console.error('❌ Deep Review configuration not found.');
+    console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
     return 1;
   }
-  const { projectId, zone, remoteWorkDir } = config;
-  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
+  const { projectId, zone, remoteWorkDir, instanceName } = config;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,
-    instanceName: targetVM,
+    instanceName,
+    repoName,
   });
 
   console.log(
-    `🔍 Checking remote status for PR #${prNumber} on ${targetVM}...`,
+    `🔍 Checking remote status for PR #${prNumber} on ${instanceName}...`,
   );
 
   const branchView = spawnSync(
@@ -61,7 +58,7 @@ export async function runChecker(
     const exitFile = `${logDir}/${task}.exit`;
     const checkExit = await provider.getExecOutput(
       `[ -f ${exitFile} ] && cat ${exitFile}`,
-      { wrapContainer: 'development-worker' },
+      { wrapContainer: provider.workerName },
     );
 
     if (checkExit.status === 0 && checkExit.stdout.trim()) {
@@ -71,7 +68,7 @@ export async function runChecker(
       );
     } else {
       const checkRunning = await provider.exec(`[ -f ${logDir}/${task}.log ]`, {
-        wrapContainer: 'development-worker',
+        wrapContainer: provider.workerName,
       });
       if (checkRunning === 0) {
         console.log(`  ⏳ ${task.padEnd(10)}: RUNNING`);

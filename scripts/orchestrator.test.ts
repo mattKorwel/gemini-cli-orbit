@@ -8,12 +8,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runOrchestrator } from './orchestrator.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
 import { RemoteProvisioner } from './RemoteProvisioner.ts';
+import * as ConfigManager from './ConfigManager.ts';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('./providers/ProviderFactory.ts');
+vi.mock('./ConfigManager.ts');
 
 const mockProvisionWorktree = vi.fn().mockResolvedValue('/remote/path');
 vi.mock('./RemoteProvisioner.ts', () => {
@@ -39,10 +41,19 @@ describe('runOrchestrator', () => {
     vi.restoreAllMocks();
     vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
     
-    vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-      workspace: { projectId: 'p', zone: 'z' }
-    }));
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+        projectId: 'p',
+        zone: 'z',
+        instanceName: 'i',
+        repoName: 'gemini-cli',
+        terminalTarget: 'tab',
+        userFork: 'u/f',
+        upstreamRepo: 'o/r',
+        remoteHost: 'h',
+        remoteWorkDir: '/w',
+        useContainer: true
+    });
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     mockProvisionWorktree.mockResolvedValue('/remote/path');
   });

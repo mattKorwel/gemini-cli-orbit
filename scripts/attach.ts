@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 
 
 const REPO_ROOT = process.cwd();
@@ -27,31 +28,27 @@ export async function runAttach(
     return 1;
   }
 
-  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  if (!fs.existsSync(settingsPath)) {
-    console.error('❌ Settings not found. Run "workspace setup" first.');
-    return 1;
-  }
-  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  const config = settings.workspace;
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+  
   if (!config) {
-    console.error('❌ Deep Review configuration not found.');
+    console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType } = config;
-  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,
-    instanceName: targetVM,
+    instanceName,
+    repoName,
     dnsSuffix,
     userSuffix,
     backendType
   });
 
   const sessionName = `workspace-${prNumber}-${action}`;
-  const containerAttach = `sudo docker exec -it development-worker sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
+  const containerAttach = `sudo docker exec -it ${provider.workerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
   const finalSSH = provider.getRunCommand(containerAttach, {
     interactive: true,
   });

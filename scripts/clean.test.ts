@@ -7,12 +7,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runCleanup } from './clean.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import * as ConfigManager from './ConfigManager.ts';
 import fs from 'node:fs';
 import readline from 'node:readline';
 
 vi.mock('node:fs');
 vi.mock('node:readline');
 vi.mock('./providers/ProviderFactory.ts');
+vi.mock('./ConfigManager.ts');
 
 describe('runCleanup', () => {
   const mockProvider = {
@@ -25,10 +27,19 @@ describe('runCleanup', () => {
     vi.restoreAllMocks();
     vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
     
-    vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-      workspace: { projectId: 'p', zone: 'z' }
-    }));
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-workspaces-extension');
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+        projectId: 'p',
+        zone: 'z',
+        instanceName: 'i',
+        repoName: 'gemini-workspaces-extension',
+        terminalTarget: 'tab',
+        userFork: 'u/f',
+        upstreamRepo: 'o/r',
+        remoteHost: 'h',
+        remoteWorkDir: '/w',
+        useContainer: true
+    });
 
     vi.mocked(readline.createInterface).mockReturnValue({
       question: vi.fn().mockImplementation((q, cb) => cb('y')),
