@@ -32,8 +32,8 @@ async function main() {
   const action = process.argv[5] || 'review';
   const customPrompt = process.argv[6];
 
-  // 1. Run the Workspace Doctor (Health Check)
-  console.log('🩺 Running Workspace Doctor...');
+  // 1. Run the Orbit Doctor (Health Check)
+  console.log('🩺 Running Orbit Doctor...');
   const healthCheckRes = spawnSync('df', ['-h', targetDir], { stdio: 'pipe' });
   if (healthCheckRes.status === 0) {
       console.log(`   ✅ Disk usage verified for ${targetDir}`);
@@ -63,7 +63,7 @@ async function main() {
   }
 
   // 2. Launch the Interactive Gemini Session (Local Nightly)
-  console.log('\n✨ Workspace ready. Joining interactive session...');
+  console.log('\n✨ Orbit ready. Joining interactive session...');
   
   const geminiArgs = ['--policy', policyPath];
   let initialPrompt = '';
@@ -73,7 +73,7 @@ async function main() {
   } else if (action !== 'open') {
       // For any non-open action (if we re-add them), provide a helper prompt.
       // But if it's 'open' and no prompt was passed, we want it to be clean.
-      initialPrompt = `I've jumped into this workspace for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
+      initialPrompt = `I've jumped into this orbit for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
   }
 
   // Use --prompt-interactive ONLY if we have a prompt to avoid argument errors

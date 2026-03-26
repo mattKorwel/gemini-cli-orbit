@@ -11,18 +11,18 @@ import readline from 'node:readline';
 
 // Mock Constants before importing anything that uses them
 vi.mock('./Constants.ts', () => ({
-    WORKSPACES_ROOT: '/mnt/disks/data',
+    ORBIT_ROOT: '/mnt/disks/data',
     MAIN_REPO_PATH: '/mnt/disks/data/main',
-    WORKTREES_PATH: '/mnt/disks/data/worktrees',
+    SATELLITE_WORKTREES_PATH: '/mnt/disks/data/worktrees',
     POLICIES_PATH: '/mnt/disks/data/policies',
     SCRIPTS_PATH: '/mnt/disks/data/scripts',
     EXTENSION_REMOTE_PATH: '/mnt/disks/data/extension',
     CONFIG_DIR: '/mnt/disks/data/gemini-cli-config/.gemini',
-    PROFILES_DIR: '/Users/mattkorwel/dev/main/.gemini/workspaces/profiles',
-    GLOBAL_WORKSPACES_DIR: '/Users/mattkorwel/dev/main/.gemini/workspaces',
-    GLOBAL_SETTINGS_PATH: '/Users/mattkorwel/dev/main/.gemini/workspaces/settings.json',
-    PROJECT_WORKSPACES_DIR: '/work-dir/.gemini/workspaces',
-    PROJECT_CONFIG_PATH: '/work-dir/.gemini/workspaces/config.json',
+    PROFILES_DIR: '/Users/mattkorwel/dev/main/.gemini/orbits/profiles',
+    GLOBAL_WORKSPACES_DIR: '/Users/mattkorwel/dev/main/.gemini/orbits',
+    GLOBAL_SETTINGS_PATH: '/Users/mattkorwel/dev/main/.gemini/orbits/settings.json',
+    PROJECT_WORKSPACES_DIR: '/work-dir/.gemini/orbits',
+    PROJECT_CONFIG_PATH: '/work-dir/.gemini/orbits/config.json',
     UPSTREAM_REPO_URL: 'https://github.com/google-gemini/gemini-cli.git',
     UPSTREAM_ORG: 'google-gemini',
     DEFAULT_REPO_NAME: 'gemini-cli',
@@ -98,9 +98,9 @@ describe('runSetup', () => {
         })
     );
 
-    // Verify extension linking inside container
+    // Verify extension linking inside capsule
     expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker /usr/local/share/npm-global/bin/gemini extensions link /mnt/disks/data/extension')
+        expect.stringContaining('sudo docker exec -u node -e GEMINI_API_KEY=dummy station-supervisor /usr/local/share/npm-global/bin/gemini extensions link /mnt/disks/data/extension')
     );
   });
 

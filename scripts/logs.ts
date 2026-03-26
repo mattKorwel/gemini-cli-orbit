@@ -9,17 +9,17 @@ import fs from 'node:fs';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
 import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 import { 
-  WORKTREES_PATH, 
+  SATELLITE_WORKTREES_PATH, 
 } from './Constants.ts';
 
 const REPO_ROOT = process.cwd();
 
 export async function runLogs(args: string[]) {
   const prNumber = args[0];
-  const action = args[1] || 'open';
+  const action = args[1] || 'mission';
 
   if (!prNumber) {
-    console.error('Usage: workspace logs <PR_NUMBER> [action]');
+    console.error('Usage: orbit blackbox <PR_NUMBER> [action]');
     return 1;
   }
 
@@ -27,7 +27,7 @@ export async function runLogs(args: string[]) {
   const config = getRepoConfig(repoName);
   
   if (!config) {
-      console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
+      console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`);
       return 1;
   }
 
@@ -42,30 +42,29 @@ export async function runLogs(args: string[]) {
       backendType
   });
 
-  console.log(`📋 Checking remote status for job ${prNumber}-${action}...`);
+  console.log(`📋 Checking blackbox status for mission PR #${prNumber} (${action})...`);
 
   // Check for active tmux sessions
-  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "workspace-${prNumber}-${action}"`, { wrapContainer: provider.workerName });
+  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "mission-${prNumber}-${action}"`, { wrapCapsule: provider.workerName });
   if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-      console.log(`🧵 Found active sessions:\n${tmuxRes.stdout.trim()}`);
-      console.log(`\n💡 To attach, run: npx tsx scripts/attach.ts ${prNumber}`);
+      console.log(`🧵 Found active mission sessions:\n${tmuxRes.stdout.trim()}`);
   } else {
-      console.log('❌ No active tmux session found for this job.');
+      console.log('❌ No active mission sessions found for this satellite.');
   }
 
   // Look for any persistent log files in the worktree
-  const worktreePath = `${WORKTREES_PATH}/${config.repoName}/workspace-${prNumber}-${action}`;
+  const worktreePath = `${SATELLITE_WORKTREES_PATH}/${config.repoName}/mission-${prNumber}-${action}`;
   const logDir = `${worktreePath}/.gemini/logs`;
   
-  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapContainer: provider.workerName });
+  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapCapsule: provider.workerName });
   if (logRes.status === 0 && logRes.stdout.trim()) {
       const latestLog = logRes.stdout.trim();
-      console.log(`📄 Latest log file: ${latestLog}`);
-      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapContainer: provider.workerName });
-      console.log('\n--- LAST 50 LINES ---');
+      console.log(`📄 Latest blackbox log file: ${latestLog}`);
+      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapCapsule: provider.workerName });
+      console.log('\n--- LAST 50 MISSION LOG LINES ---');
       console.log(catRes.stdout);
   } else {
-      console.log('❌ No log files found in the worktree.');
+      console.log('❌ No blackbox log files found in the satellite worktree.');
   }
 
   return 0;

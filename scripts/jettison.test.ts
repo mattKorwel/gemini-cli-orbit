@@ -5,21 +5,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runCleanup } from './clean.ts';
+import { runJettison } from './jettison.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
 import * as ConfigManager from './ConfigManager.ts';
-import fs from 'node:fs';
 import readline from 'node:readline';
 
-vi.mock('node:fs');
 vi.mock('node:readline');
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
 
-describe('runCleanup', () => {
+describe('runJettison', () => {
   const mockProvider = {
     exec: vi.fn().mockResolvedValue(0),
-    removeContainer: vi.fn().mockResolvedValue(0),
+    removeCapsule: vi.fn().mockResolvedValue(0),
     getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'gcli-23176-open', stderr: '' }),
   };
 
@@ -27,12 +25,12 @@ describe('runCleanup', () => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-workspaces-extension');
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbits-extension');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
         projectId: 'p',
         zone: 'z',
         instanceName: 'i',
-        repoName: 'gemini-workspaces-extension',
+        repoName: 'gemini-orbits-extension',
         terminalTarget: 'tab',
         userFork: 'u/f',
         upstreamRepo: 'o/r',
@@ -47,25 +45,17 @@ describe('runCleanup', () => {
     } as any);
   });
 
-  it('should perform surgical cleanup for a specific PR', async () => {
-    const res = await runCleanup(['23176', 'open']);
+  it('should perform surgical jettison for a specific PR', async () => {
+    const res = await runJettison(['23176', 'open']);
     
     expect(res).toBe(0);
-    expect(mockProvider.removeContainer).toHaveBeenCalledWith('gcli-23176-open');
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-23176-open');
     expect(mockProvider.exec).toHaveBeenCalledWith(expect.stringContaining('rm -rf'));
   });
 
-  it('should return non-zero if surgical cleanup fails', async () => {
-    mockProvider.removeContainer.mockResolvedValue(1);
-    const res = await runCleanup(['23176', 'open']);
+  it('should return non-zero if jettison fails', async () => {
+    mockProvider.removeCapsule.mockResolvedValue(1);
+    const res = await runJettison(['23176', 'open']);
     expect(res).toBe(1);
-  });
-
-  it('should perform bulk cleanup when no arguments provided', async () => {
-    await runCleanup([]);
-    
-    expect(readline.createInterface).toHaveBeenCalled();
-    expect(mockProvider.getExecOutput).toHaveBeenCalledWith(expect.stringContaining('docker ps'), expect.any(Object));
-    expect(mockProvider.exec).toHaveBeenCalledWith(expect.stringContaining('docker rm -f'));
   });
 });

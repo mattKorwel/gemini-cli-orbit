@@ -1,6 +1,0 @@
-description = "View the current state of your Workspace Mission Control."
-prompt = """
-Fetching current workspace status...
-
-!{npx tsx scripts/status.ts}
-"""

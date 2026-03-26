@@ -1,7 +1,0 @@
-description = "Autonomously implement a feature or fix based on an issue number."
-prompt = """
-Starting autonomous implementation for Issue #{{args}}...
-I will research the issue, create a reproduction test, and implement the fix.
-
-!{npx tsx scripts/orchestrator.ts {{args}} implement}
-"""

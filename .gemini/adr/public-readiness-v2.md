@@ -19,7 +19,7 @@ Sanitize the repository of Google-internal networking patterns and personal iden
 - [ ] **Backend Selection**: Update `setup.ts` to prompt for the preferred connectivity backend.
 
 ## 3. Configuration & Shared Settings
-- [ ] **Workspace-Specific Settings**: Store `dnsSuffix`, `userSuffix`, and `backendType` in `.gemini/workspaces/settings.json`.
+- [ ] **Orbit-Specific Settings**: Store `dnsSuffix`, `userSuffix`, and `backendType` in `.gemini/orbits/settings.json`.
 - [ ] **Shared Settings Loader**: 
     - Implement a `fetchRemoteSettings(url)` utility in `setup.ts`.
     - Allow users to provide a URL (HTTPS or GCS) during setup to bootstrap team-wide defaults (e.g., standard zone, DNS suffix, and backend).
@@ -30,7 +30,7 @@ Sanitize the repository of Google-internal networking patterns and personal iden
 - [ ] **Archive this Plan**: Copy this finalized plan to `.gemini/adr/public-readiness-v2.md` in the repository.
 - [ ] **Review docs/**:
     - [ ] `NETWORK_RESEARCH.md`: Generalize the explanation of IAP vs Direct SSH.
-    - [ ] `NEXT_MISSION.md`: Remove specific instance names like `gcli-workspace-mattkorwel`.
+    - [ ] `NEXT_MISSION.md`: Remove specific instance names like `gcli-orbit-mattkorwel`.
 - [ ] **Update README.md**: Ensure URLs point to the public repo location.
 
 ## 5. Verification

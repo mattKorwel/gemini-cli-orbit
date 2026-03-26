@@ -1,9 +1,9 @@
 # Network Architecture & Troubleshooting Research
 
-This document captures the empirical research and final configuration settled upon for the Gemini CLI Workspace system, specifically addressing the challenges of connecting from corporate environments to private GCP workers.
+This document captures the empirical research and final configuration settled upon for the Gemini CLI Orbit system, specifically addressing the challenges of connecting from corporate environments to private GCP stations.
 
 ## 🔍 The Challenge
-The goal was to achieve **Direct internal SSH** access to GCE workers that have **no public IP addresses**, allowing for high-performance file synchronization (`rsync`) and interactive sessions without the overhead of `gcloud` wrappers.
+The goal was to achieve **Direct internal SSH** access to GCE stations that have **no public IP addresses**, allowing for high-performance file synchronization (`rsync`) and interactive sessions without the overhead of `gcloud` wrappers.
 
 ## 🧪 What Was Tested
 
@@ -33,8 +33,8 @@ The VPC (e.g., `iap-vpc`) must be a **Custom Mode** network with the following p
 - **Firewall Rule**: An ingress rule allowing `tcp:22` from `0.0.0.0/0`.
     - *Note*: While `0.0.0.0/0` seems broad, in this context it is typically restricted by the corporate-level gateway/peering that provides the `internal.gcpnode.com` route.
 
-### 3. Worker Provider Abstraction
-To manage this complexity, we implemented a `WorkerProvider` architecture:
+### 3. Station Provider Abstraction
+To manage this complexity, we implemented a `StationProvider` architecture:
 - **`BaseProvider`**: Defines a common interface for `exec`, `sync`, and `provision`.
 - **`GceCosProvider`**: Encapsulates the GCE-specific "magic" (hostname construction, IAP fallbacks, COS startup scripts).
 
@@ -45,5 +45,5 @@ This configuration aligns with the **Google Corporate Direct-Access** pattern. B
 - **Network**: `iap-vpc` (Custom)
 - **Subnet**: `iap-subnet` (Private Google Access: Enabled)
 - **Identity**: OS Login (`enable-oslogin=TRUE`)
-- **Image**: Container-Optimized OS (COS)
+- **Image**: Capsule-Optimized OS (COS)
 - **Connectivity**: Direct SSH via `nic0` -> Automatic Fallback to IAP.

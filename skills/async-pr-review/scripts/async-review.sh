@@ -123,7 +123,7 @@ rm -f "$log_dir/npm-test.exit"
            fi
            rel_file=${file#$ws_dir/}
            
-           echo "--- Running $rel_file in workspace $ws_dir ---" >> "$log_dir/npm-test.log"
+           echo "--- Running $rel_file in orbit $ws_dir ---" >> "$log_dir/npm-test.log"
            if ! npm run test:ci -w "$ws_dir" -- "$rel_file" >> "$log_dir/npm-test.log" 2>&1; then
              exit_code=1
            fi

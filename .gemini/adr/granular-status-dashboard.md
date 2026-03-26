@@ -1,4 +1,4 @@
-# Plan: Granular Workspace State Dashboard
+# Plan: Granular Orbit State Dashboard
 
 ## Objective
 Enhance the `status` command to provide "At-a-Glance" intelligence about what exactly is happening inside each isolated container.
@@ -27,6 +27,6 @@ Enhance the `status` command to provide "At-a-Glance" intelligence about what ex
 - Add a "Time Active" indicator using `tmux` metadata if possible.
 
 ## 3. Verification
-- Launch a workspace and ask a long-running question. Run `status` and verify it shows `[THINKING]`.
+- Launch a orbit and ask a long-running question. Run `status` and verify it shows `[THINKING]`.
 - Wait for it to finish. Run `status` and verify it shows `[WAITING]`.
 - Exit the session but keep the container. Verify it shows `[IDLE]`.

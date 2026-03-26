@@ -1,7 +1,7 @@
 {
-  "name": "@google/gemini-workspaces-extension",
+  "name": "@google/gemini-orbit-extension",
   "version": "0.1.0",
-  "description": "High-performance remote development workspaces for Gemini CLI.",
+  "description": "High-performance remote missions for Gemini CLI.",
   "type": "module",
   "scripts": {
     "test": "vitest run",

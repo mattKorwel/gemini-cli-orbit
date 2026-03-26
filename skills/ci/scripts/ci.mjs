@@ -71,29 +71,29 @@ function extractTestFile(failureText) {
 }
 
 function generateTestCommand(failedFilesMap) {
-  const workspaceToFiles = new Map();
+  const orbitToFiles = new Map();
   for (const [file, info] of failedFilesMap.entries()) {
     if (
       ['Job Error', 'Unknown File', 'Build Error', 'Lint Error'].includes(file)
     )
       continue;
-    let workspace = '@google/gemini-cli';
+    let orbit = '@google/gemini-cli';
     let relPath = file;
     if (file.startsWith('packages/core/')) {
-      workspace = '@google/gemini-cli-core';
+      orbit = '@google/gemini-cli-core';
       relPath = file.replace('packages/core/', '');
     } else if (file.startsWith('packages/cli/')) {
-      workspace = '@google/gemini-cli';
+      orbit = '@google/gemini-cli';
       relPath = file.replace('packages/cli/', '');
     }
     relPath = relPath.replace(/^.*packages\/[^\/]+\//, '');
-    if (!workspaceToFiles.has(workspace))
-      workspaceToFiles.set(workspace, new Set());
-    workspaceToFiles.get(workspace).add(relPath);
+    if (!orbitToFiles.has(orbit))
+      orbitToFiles.set(orbit, new Set());
+    orbitToFiles.get(orbit).add(relPath);
   }
   const commands = [];
-  for (const [workspace, files] of workspaceToFiles.entries()) {
-    commands.push(`npm test -w ${workspace} -- ${Array.from(files).join(' ')}`);
+  for (const [orbit, files] of orbitToFiles.entries()) {
+    commands.push(`npm test -w ${orbit} -- ${Array.from(files).join(' ')}`);
   }
   return commands.join(' && ');
 }

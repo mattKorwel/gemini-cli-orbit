@@ -27,7 +27,7 @@ Evaluate and plan the implementation of pre-baking specific PR code into the dev
 - **Naming Convention**:
     - Tag images with `pr-<number>` (e.g., `development:pr-23176`).
 
-### B. `gemini-workspaces-extension`
+### B. `gemini-orbits-extension`
 - **Orchestration Logic**:
     - Update `RemoteProvisioner.ts` to first check if an image with tag `pr-${prNumber}` exists in the registry.
     - **If exists**: Use that image and skip the `git checkout` phase.

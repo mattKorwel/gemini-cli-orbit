@@ -1,6 +1,0 @@
-description = "Clean up active sessions, containers, or the entire remote environment."
-prompt = """
-Starting workspace cleanup...
-
-!{npx tsx scripts/clean.ts {{args}} }
-"""

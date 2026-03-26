@@ -23,18 +23,18 @@ describe('runLogs', () => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-workspaces-extension');
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbits-extension');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
         projectId: 'p',
         zone: 'z',
         instanceName: 'i',
-        repoName: 'gemini-workspaces-extension',
+        repoName: 'gemini-orbits-extension',
         terminalTarget: 'tab',
         userFork: 'u/f',
         upstreamRepo: 'o/r',
         remoteHost: 'h',
         remoteWorkDir: '/w',
-        useContainer: true
+        useCapsule: true
     });
   });
 

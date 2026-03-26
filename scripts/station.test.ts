@@ -5,14 +5,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runWorker } from './worker.ts';
+import { runStation } from './station.ts';
 import { spawnSync } from 'child_process';
 import { runFixPlaybook } from './playbooks/fix.ts';
 
 vi.mock('child_process');
 vi.mock('./playbooks/fix.ts');
 
-describe('runWorker', () => {
+describe('runStation', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
@@ -20,8 +20,8 @@ describe('runWorker', () => {
   it('should dispatch to the correct playbook', async () => {
     vi.mocked(runFixPlaybook).mockResolvedValue(0);
     
-    // Usage: tsx worker.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]
-    const res = await runWorker(['23176', 'my-branch', '/tmp/policy.toml', 'fix']);
+    // Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]
+    const res = await runStation(['23176', 'my-branch', '/tmp/policy.toml', 'fix']);
     
     expect(res).toBe(0);
     expect(runFixPlaybook).toHaveBeenCalled();

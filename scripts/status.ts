@@ -17,7 +17,7 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   const config = getRepoConfig(repoName);
   
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
+    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`);
     return 1;
   }
 
@@ -34,31 +34,31 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
 
   const statusRes = await provider.getStatus();
   if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
-      console.error(`❌ Worker ${instanceName} is in an invalid state: ${statusRes.status}`);
+      console.error(`❌ Station ${instanceName} is in an invalid state: ${statusRes.status}`);
       return 1;
   }
 
-  console.log(`\n🛰️  Workspace Mission Control: ${instanceName} (${repoName})`);
+  console.log(`\n🛰️  ORBIT MISSION CONTROL: ${instanceName} (${repoName})`);
   console.log(
     `--------------------------------------------------------------------------------`,
   );
 
-  console.log(`   - VM State:   ${statusRes.status}`);
-  console.log(`   - Internal IP: ${statusRes.internalIp || 'N/A'}`);
+  console.log(`   - Station State:  ${statusRes.status}`);
+  console.log(`   - Internal IP:    ${statusRes.internalIp || 'N/A'}`);
   if (statusRes.externalIp) {
-    console.log(`   - External IP: ${statusRes.externalIp}`);
+    console.log(`   - External IP:    ${statusRes.externalIp}`);
   }
-  console.log(`   - Supervisor:  ${provider.workerName}`);
+  console.log(`   - Station Name:   ${provider.stationName}`);
 
   if (statusRes.status === 'RUNNING') {
-    console.log(`\n📦 Active Workspace Environments:`);
+    console.log(`\n📦 ACTIVE MISSION CAPSULES:`);
     
     // Find all containers starting with 'gcli-'
-    const containers = await provider.listContainers();
+    const containers = await provider.listCapsules();
     
     if (containers.length > 0) {
       for (const containerName of containers) {
-          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapContainer: containerName, quiet: true });
+          const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapCapsule: containerName, quiet: true });
           if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
               // HEURISTIC: Capture pane to see what's happening
               const paneOutput = await provider.capturePane(containerName);
@@ -84,7 +84,7 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
           }
       }
     } else {
-      console.log('     - No workspace environments found');
+      console.log('     - No mission capsules found');
     }
   }
 

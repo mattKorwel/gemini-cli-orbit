@@ -1,6 +1,0 @@
-description = "Directly manage the remote worker fleet (provision, destroy, stop)."
-prompt = """
-Executing fleet management action...
-
-!{npx tsx scripts/fleet.ts {{args}} }
-"""

@@ -9,27 +9,27 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import {
-  type WorkerProvider,
+  type OrbitProvider,
   type SetupOptions,
   type ExecOptions,
   type SyncOptions,
-  type WorkspaceStatus,
-  type ContainerConfig,
+  type OrbitStatus,
+  type CapsuleConfig,
 } from './BaseProvider.ts';
 import { GceConnectionManager } from './GceConnectionManager.ts';
 
-const WORKSPACES_ROOT = '/mnt/disks/data';
-const MAIN_REPO_PATH = `${WORKSPACES_ROOT}/main`;
-const WORKTREES_PATH = `${WORKSPACES_ROOT}/worktrees`;
-const POLICIES_PATH = `${WORKSPACES_ROOT}/policies`;
-const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
-const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
-const EXTENSION_REMOTE_PATH = `${WORKSPACES_ROOT}/extension`;
+const ORBIT_ROOT = '/mnt/disks/data';
+const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
+const SATELLITE_WORKTREES_PATH = `${ORBIT_ROOT}/worktrees`;
+const POLICIES_PATH = `${ORBIT_ROOT}/policies`;
+const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
+const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
+const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 
-export class GceCosProvider implements WorkerProvider {
+export class GceCosProvider implements OrbitProvider {
   public projectId: string;
   public zone: string;
-  public workerName: string;
+  public stationName: string;
   private instanceName: string;
   private knownHostsPath: string;
   private conn: GceConnectionManager;
@@ -42,16 +42,16 @@ export class GceCosProvider implements WorkerProvider {
     zone: string,
     instanceName: string,
     repoRoot: string,
-    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string, vpcName?: string, subnetName?: string, workerName?: string } = {}
+    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string, vpcName?: string, subnetName?: string, stationName?: string } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
-    this.workerName = config.workerName || 'development-worker';
+    this.stationName = config.stationName || 'station-supervisor';
     this.instanceName = instanceName;
-    const workspacesDir = path.join(repoRoot, '.gemini/workspaces');
-    if (!fs.existsSync(workspacesDir))
-      fs.mkdirSync(workspacesDir, { recursive: true });
-    this.knownHostsPath = path.join(workspacesDir, 'known_hosts');
+    const orbitDir = path.join(repoRoot, '.gemini/orbit');
+    if (!fs.existsSync(orbitDir))
+      fs.mkdirSync(orbitDir, { recursive: true });
+    this.knownHostsPath = path.join(orbitDir, 'known_hosts');
     this.conn = new GceConnectionManager(projectId, zone, instanceName, config, repoRoot);
     this.imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
     this.vpcName = config.vpcName || 'default';
@@ -80,11 +80,11 @@ export class GceCosProvider implements WorkerProvider {
         this.conn.setupNetworkInfrastructure(this.vpcName);
     }
 
-    console.log(`🚀 Provisioning GCE COS worker: ${this.instanceName}...`);
+    console.log(`🚀 Provisioning GCE COS station: ${this.instanceName}...`);
 
     const startupScriptContent = `#!/bin/bash
       set -e
-      echo "🚀 Initializing Unified Workspace..."
+      echo "🚀 Initializing Unified Orbit..."
       mkdir -p /mnt/disks/data
       if ! mountpoint -q /mnt/disks/data; then
         DATA_DISK="/dev/disk/by-id/google-data"
@@ -96,15 +96,15 @@ export class GceCosProvider implements WorkerProvider {
       mkdir -p /mnt/disks/data/main /mnt/disks/data/worktrees /mnt/disks/data/scripts /mnt/disks/data/policies /mnt/disks/data/gemini-cli-config/.gemini
       chmod -R 777 /mnt/disks/data
       mkdir -p /home/node
-      ln -sfn /mnt/disks/data /home/node/.workspaces
+      ln -sfn /mnt/disks/data /home/node/.orbit
       chown -R 1000:1000 /home/node
       until docker info >/dev/null 2>&1; do sleep 2; done
       docker pull ${imageUri}
-      if ! docker ps -a | grep -q "${this.workerName}"; then
-        docker run -d --name ${this.workerName} --restart always --user root \\
+      if ! docker ps -a | grep -q "${this.stationName}"; then
+        docker run -d --name ${this.stationName} --restart always --user root \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
           -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
-          ${imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"
+          ${imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
       fi
     `;
 
@@ -144,7 +144,7 @@ export class GceCosProvider implements WorkerProvider {
   async ensureReady(): Promise<number> {
     const status = await this.getStatus();
     if (status.status !== 'RUNNING') {
-      console.log(`⚠️ Worker ${this.instanceName} is ${status.status}. Waking it up...`);
+      console.log(`⚠️ Station ${this.instanceName} is ${status.status}. Waking it up...`);
       const res = spawnSync('gcloud', ['compute', 'instances', 'start', this.instanceName, '--project', this.projectId, '--zone', this.zone], { stdio: 'inherit' });
       if (res.status !== 0) return res.status ?? 1;
       await new Promise((r) => setTimeout(r, 20000));
@@ -154,31 +154,31 @@ export class GceCosProvider implements WorkerProvider {
     // BEFORE we attempt any docker/remote commands.
     await this.conn.onProvisioned();
 
-    console.log('   - Verifying remote container health...');
-    let check = await this.getContainerStatus('development-worker');
+    console.log('   - Verifying station supervisor health...');
+    let check = await this.getCapsuleStatus(this.stationName);
     
-    // During development/refactor, we often want to force-refresh the container 
+    // During development/refactor, we often want to force-refresh the capsule 
     // to pick up new image layers (like the chunk fix).
-    const isRefactorImage = this.imageUri.includes('mk-worker-refactor');
+    const isRefactorImage = this.imageUri.includes('mk-station-refactor');
     
     if (!check.exists || !check.running || isRefactorImage) {
-        console.log(`   ⚠️ Container stale or refactor image detected. Refreshing ${this.imageUri}...`);
+        console.log(`   ⚠️ Supervisor stale or refactor image detected. Refreshing ${this.imageUri}...`);
         
         // Use the startup script logic but execute it directly via SSH for immediate effect
         const refreshCmd = `
           sudo docker pull ${this.imageUri}
-          sudo docker rm -f development-worker || true
-          sudo docker run -d --name development-worker --restart always --user root \\
+          sudo docker rm -f ${this.stationName} || true
+          sudo docker run -d --name ${this.stationName} --restart always --user root \\
             -v /mnt/disks/data:/mnt/disks/data:rw \\
             -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
-            ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"
+            ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
         `;
         await this.exec(refreshCmd);
     }
 
-    console.log('⏳ Waiting for development-worker to stabilize...');
+    console.log(`⏳ Waiting for ${this.stationName} to stabilize...`);
     for (let i = 0; i < 30; i++) {
-        const status = await this.getContainerStatus('development-worker');
+        const status = await this.getCapsuleStatus(this.stationName);
         if (status.running) return 0;
         await new Promise(r => setTimeout(r, 2000));
     }
@@ -206,8 +206,8 @@ export class GceCosProvider implements WorkerProvider {
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
-    if (options.wrapContainer) {
-      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapContainer} sh -c ${this.quote(command)}`;
+    if (options.wrapCapsule) {
+      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
     }
     return this.conn.getRunCommand(finalCmd, { interactive: options.interactive });
   }
@@ -219,18 +219,18 @@ export class GceCosProvider implements WorkerProvider {
 
   async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
     let finalCmd = command;
-    if (options.wrapContainer) {
-      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapContainer} sh -c ${this.quote(command)}`;
+    if (options.wrapCapsule) {
+      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
     }
     return this.conn.run(finalCmd, { interactive: options.interactive, stdio: options.interactive ? 'inherit' : 'pipe', quiet: options.quiet });
   }
 
   async sync(localPath: string, remotePath: string, options: SyncOptions = {}): Promise<number> {
-    console.log(`📦 Syncing ${localPath} to remote:${remotePath}...`);
+    console.log(`📦 Syncing ${localPath} to station:${remotePath}...`);
     return this.conn.sync(localPath, remotePath, options);
   }
 
-  async getStatus(): Promise<WorkspaceStatus> {
+  async getStatus(): Promise<OrbitStatus> {
     const res = spawnSync('gcloud', ['compute', 'instances', 'describe', this.instanceName, '--project', this.projectId, '--zone', this.zone, '--format', 'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)'], { stdio: 'pipe' });
     if (res.status !== 0) return { name: this.instanceName, status: 'UNKNOWN' };
     try {
@@ -249,33 +249,33 @@ export class GceCosProvider implements WorkerProvider {
     return res.status ?? 1;
   }
 
-  async getContainerStatus(name: string): Promise<{ running: boolean; exists: boolean }> {
+  async getCapsuleStatus(name: string): Promise<{ running: boolean; exists: boolean }> {
     const res = await this.getExecOutput(`sudo docker inspect -f '{{.State.Running}}' ${name}`, { quiet: true });
     if (res.status !== 0) return { running: false, exists: false };
     return { running: res.stdout.trim() === 'true', exists: true };
   }
 
-  async runContainer(config: ContainerConfig): Promise<number> {
-    const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.container}${m.readonly ? ':ro' : ':rw'}`).join(' ');
+  async runCapsule(config: CapsuleConfig): Promise<number> {
+    const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`).join(' ');
     const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
     const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${config.image} ${config.command || ''}`;
     return this.exec(dockerCmd);
   }
 
-  async removeContainer(name: string): Promise<number> {
+  async removeCapsule(name: string): Promise<number> {
     return this.exec(`sudo docker rm -f ${name} || true`);
   }
 
-  async capturePane(containerName: string): Promise<string> {
-    const res = await this.getExecOutput('tmux capture-pane -pt $(tmux list-sessions -F "#S" | head -n 1) 2>/dev/null', { wrapContainer: containerName, quiet: true });
+  async capturePane(capsuleName: string): Promise<string> {
+    const res = await this.getExecOutput('tmux capture-pane -pt $(tmux list-sessions -F "#S" | head -n 1) 2>/dev/null', { wrapCapsule: capsuleName, quiet: true });
     return res.stdout;
   }
 
-  async listWorkers(): Promise<number> {
+  async listStations(): Promise<number> {
     const user = process.env.USER || 'gcli-user';
-    const instancePrefix = `gcli-workspace-${user}`;
-    console.log(`🔍 Listing Workspace Workers for ${user} in ${this.projectId}...`);
+    const instancePrefix = `gcli-station-${user}`;
+    console.log(`🔍 Listing Orbit Stations for ${user} in ${this.projectId}...`);
 
     const res = spawnSync(
       'gcloud',
@@ -291,7 +291,7 @@ export class GceCosProvider implements WorkerProvider {
   }
 
   async destroy(): Promise<number> {
-    console.log(`🔥 DESTROYING worker ${this.instanceName} and its data disk...`);
+    console.log(`🔥 DESTROYING station ${this.instanceName} and its data disk...`);
     
     // Delete instance
     const res1 = spawnSync(
@@ -320,7 +320,7 @@ export class GceCosProvider implements WorkerProvider {
     return (res1.status === 0 || res1.status === null) ? 0 : 1;
   }
 
-  async listContainers(): Promise<string[]> {
+  async listCapsules(): Promise<string[]> {
       const res = await this.getExecOutput("sudo docker ps --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
       if (res.status === 0 && res.stdout.trim()) {
           return res.stdout.trim().split('\n');

@@ -1,7 +1,7 @@
-# Plan: Detailed Review of Gemini Workspaces Extension
+# Plan: Detailed Review of Gemini Orbits Extension
 
 ## Objective
-Perform a deep-dive review of the `gemini-workspaces-extension` focusing on **Accuracy, Isolation, Speed, Security, and Code Quality**.
+Perform a deep-dive review of the `gemini-orbits-extension` focusing on **Accuracy, Isolation, Speed, Security, and Code Quality**.
 
 ## Key Files to Review
 - `scripts/orchestrator.ts`: Local orchestration and auth injection.
@@ -9,14 +9,14 @@ Perform a deep-dive review of the `gemini-workspaces-extension` focusing on **Ac
 - `scripts/clean.ts`: Cleanup and state management.
 - `scripts/entrypoint.ts`: Remote execution and TUI launching.
 - `scripts/providers/GceCosProvider.ts`: Infrastructure and container lifecycle.
-- `policies/workspace-policy.toml`: Security boundaries.
+- `policies/orbit-policy.toml`: Security boundaries.
 
 ## Phased Review Tasks
 
 ### Phase 1: Security Audit
 - [ ] Audit token retrieval in `setup.ts` and `orchestrator.ts`.
 - [ ] Verify `gh auth login` doesn't leak secrets in command history or logs.
-- [ ] Review `workspace-policy.toml` for overly broad permissions (e.g., `git` vs specific `git` subcommands).
+- [ ] Review `orbit-policy.toml` for overly broad permissions (e.g., `git` vs specific `git` subcommands).
 
 ### Phase 2: Isolation & Accuracy
 - [ ] Test path consistency for `.git` worktree metadata.

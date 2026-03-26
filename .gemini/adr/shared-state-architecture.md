@@ -1,7 +1,7 @@
-# ADR: Shared State Architecture (Remote Workspaces)
+# ADR: Shared State Architecture (Remote Orbits)
 
 ## Context
-In our "Branch per Container" architecture, each workspace session runs in an isolated Docker container. However, these containers need access to the same Gemini CLI configuration, linked extensions, and ported skills to function effectively.
+In our "Branch per Container" architecture, each orbit session runs in an isolated Docker container. However, these containers need access to the same Gemini CLI configuration, linked extensions, and ported skills to function effectively.
 
 ## Decision
 We have decided to use a **Shared Configuration** strategy:

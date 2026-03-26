@@ -1,10 +1,10 @@
-# Plan: Worker Provider Abstraction for Workspace System
+# Plan: Station Provider Abstraction for Orbit System
 
 ## Objective
 
 Abstract the remote execution infrastructure (GCE COS, GCE Linux, Cloud
-Workstations) behind a common `WorkerProvider` interface. This eliminates
-infrastructure-specific prompts (like "use container mode") and makes the system
+Workstations) behind a common `StationProvider` interface. This eliminates
+infrastructure-specific prompts (like "use capsule mode") and makes the system
 extensible to new backends.
 
 ## Architectural Changes
@@ -14,12 +14,12 @@ extensible to new backends.
 Create a modular provider system where each infrastructure type implements a
 standard interface.
 
-- **Base Interface**: `WorkerProvider` (methods for `exec`, `sync`, `provision`,
+- **Base Interface**: `StationProvider` (methods for `exec`, `sync`, `provision`,
   `getStatus`).
 - **Implementations**:
   - `GceCosProvider`: Handles COS with Cloud-Init and `docker exec` wrapping.
   - `GceLinuxProvider`: Handles standard Linux VMs with direct execution.
-  - `LocalDockerProvider`: (Future) Runs workspace tasks in a local container.
+  - `LocalDockerProvider`: (Future) Runs orbit tasks in a local capsule.
   - `WorkstationProvider`: (Future) Integrates with Google Cloud Workstations.
 
 ### 2. Auto-Discovery
@@ -29,7 +29,7 @@ Modify `setup.ts` to:
 - Prompt for a high-level "Provider Type" (e.g., "Google Cloud (COS)", "Google
   Cloud (Linux)").
 - Auto-detect environment details where possible (e.g., fetching internal IPs,
-  identifying container names).
+  identifying capsule names).
 
 ### 3. Clean Orchestration
 
@@ -57,13 +57,13 @@ Refactor `orchestrator.ts` to be provider-agnostic:
 
 ### Phase 3: Validation
 
-- Verify that the `gcli-worker` SSH alias and IAP tunneling remain functional.
+- Verify that the `gcli-station` SSH alias and IAP tunneling remain functional.
 - Ensure "Fast-Path SSH" is still the primary interactive gateway.
 
 ## Verification
 
-- Run `workspace:fleet provision` and ensure it creates a COS-native worker.
-- Run `workspace:setup` and verify it no longer asks cryptic infrastructure
+- Run `orbit:fleet provision` and ensure it creates a COS-native station.
+- Run `orbit:setup` and verify it no longer asks cryptic infrastructure
   questions.
 - Launch a review and verify it uses `docker exec internally for the COS
   provider.

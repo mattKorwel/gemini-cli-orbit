@@ -5,7 +5,7 @@
  */
 
 /**
- * Universal Workspace Worker (Remote)
+ * Universal Orbit Station (Remote)
  * 
  * Stateful orchestrator for complex development loops.
  */
@@ -14,14 +14,14 @@ import { runReviewPlaybook } from './playbooks/review.ts';
 import { runFixPlaybook } from './playbooks/fix.ts';
 import { runReadyPlaybook } from './playbooks/ready.ts';
 
-export async function runWorker(args: string[]) {
+export async function runStation(args: string[]) {
   const prNumberOrIssue = args[0];
   const branchName = args[1]; // Unused now as we assume CWD is the worktree
   const policyPath = args[2];
   const action = args[3] || 'review';
 
   if (!prNumberOrIssue || !policyPath) {
-    console.error('Usage: tsx worker.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]');
+    console.error('Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]');
     return 1;
   }
 
@@ -57,5 +57,5 @@ export async function runWorker(args: string[]) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runWorker(process.argv.slice(2)).catch(console.error);
+  runStation(process.argv.slice(2)).catch(console.error);
 }

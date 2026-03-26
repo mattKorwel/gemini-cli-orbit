@@ -5,26 +5,26 @@
  */
 
 /**
- * WorkerProvider interface defines the contract for different remote
- * execution environments (GCE, Workstations, etc.).
+ * OrbitProvider interface defines the contract for different remote
+ * mission environments (GCE Station, Local Docker, etc.).
  */
-export interface WorkerProvider {
+export interface OrbitProvider {
   projectId: string;
   zone: string;
-  workerName: string;
+  stationName: string;
 
   /**
-   * Provisions the underlying infrastructure.
+   * Provisions the underlying infrastructure station.
    */
-  provision(): Promise<number>;
+  provision(options?: { setupNetwork?: boolean }): Promise<number>;
 
   /**
-   * Ensures the workspace is running and accessible.
+   * Ensures the station is running and accessible.
    */
   ensureReady(): Promise<number>;
 
   /**
-   * Performs the initial setup of the workspace (SSH, scripts, auth).
+   * Performs the initial setup of the station (SSH, scripts, auth).
    */
   setup(options: SetupOptions): Promise<number>;
 
@@ -34,12 +34,12 @@ export interface WorkerProvider {
   getRunCommand(command: string, options?: ExecOptions): string;
 
   /**
-   * Executes a command on the workspace.
+   * Executes a command on the station.
    */
   exec(command: string, options?: ExecOptions): Promise<number>;
 
   /**
-   * Executes a command on the workspace and returns the output.
+   * Executes a command on the station and returns the output.
    */
   getExecOutput(
     command: string,
@@ -47,7 +47,7 @@ export interface WorkerProvider {
   ): Promise<{ status: number; stdout: string; stderr: string }>;
 
   /**
-   * Synchronizes local files to the workspace.
+   * Synchronizes local files to the station.
    */
   sync(
     localPath: string,
@@ -56,69 +56,70 @@ export interface WorkerProvider {
   ): Promise<number>;
 
   /**
-   * Returns the status of the workspace.
+   * Returns the status of the station.
    */
-  getStatus(): Promise<WorkspaceStatus>;
+  getStatus(): Promise<OrbitStatus>;
 
   /**
-   * Stops the workspace to save costs.
+   * Stops the station to save costs.
    */
   stop(): Promise<number>;
 
   /**
-   * Returns the status of a specific container in the workspace.
+   * Returns the status of a specific capsule (container) in the station.
    */
-  getContainerStatus(name: string): Promise<{ running: boolean; exists: boolean }>;
+  getCapsuleStatus(name: string): Promise<{ running: boolean; exists: boolean }>;
 
   /**
-   * Runs a container with specific configuration.
+   * Runs a capsule (container) with specific configuration.
    */
-  runContainer(config: ContainerConfig): Promise<number>;
+  runCapsule(config: CapsuleConfig): Promise<number>;
 
   /**
-   * Stops and removes a specific container.
+   * Stops and removes a specific capsule.
    */
-  removeContainer(name: string): Promise<number>;
+  removeCapsule(name: string): Promise<number>;
 
   /**
-   * Captures the contents of the current tmux pane in a container.
+   * Captures the contents of the current tmux pane in a capsule.
    */
-  capturePane(containerName: string): Promise<string>;
+  capturePane(capsuleName: string): Promise<string>;
 
   /**
-   * Lists all workers for the current user/project.
+   * Lists all stations for the current user/project.
    */
-  listWorkers(): Promise<number>;
+  listStations(): Promise<number>;
 
   /**
-   * Destroys the worker and its associated resources.
+   * Destroys the station and its associated resources.
    */
   destroy(): Promise<number>;
 
   /**
-   * Lists active workspace containers.
+   * Lists active mission capsules.
    */
-  listContainers(): Promise<string[]>;
+  listCapsules(): Promise<string[]>;
 }
 
 export interface SetupOptions {
   projectId: string;
   zone: string;
   dnsSuffix?: string;
-  syncAuth?: boolean;
+  userSuffix?: string;
+  backendType?: string;
 }
 
 export interface ExecOptions {
   interactive?: boolean;
   cwd?: string;
-  wrapContainer?: string;
+  wrapCapsule?: string;
   quiet?: boolean;
 }
 
-export interface ContainerConfig {
+export interface CapsuleConfig {
   name: string;
   image: string;
-  mounts: { host: string; container: string; readonly?: boolean }[];
+  mounts: { host: string; capsule: string; readonly?: boolean }[];
   env?: Record<string, string>;
   cpuLimit?: string;
   memoryLimit?: string;
@@ -132,7 +133,7 @@ export interface SyncOptions {
   sudo?: boolean;
 }
 
-export interface WorkspaceStatus {
+export interface OrbitStatus {
   name: string;
   status: string;
   internalIp?: string;

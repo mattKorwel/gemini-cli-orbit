@@ -8,12 +8,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { 
-    type WorkspaceConfig, 
-    type WorkspaceSettings,
+    type OrbitConfig, 
+    type OrbitSettings,
     DEFAULT_REPO_NAME,
     GLOBAL_SETTINGS_PATH,
     PROJECT_CONFIG_PATH,
-    PROJECT_WORKSPACES_DIR,
+    PROJECT_ORBIT_DIR,
     PROFILES_DIR
 } from './Constants.ts';
 
@@ -47,9 +47,9 @@ function loadJson(p: string): any {
 }
 
 /**
- * Loads the global workspace settings.
+ * Loads the global orbit settings.
  */
-export function loadGlobalSettings(): WorkspaceSettings {
+export function loadGlobalSettings(): OrbitSettings {
     const data = loadJson(GLOBAL_SETTINGS_PATH);
     if (!data.repos) return { repos: {}, ...data };
     return data;
@@ -58,7 +58,7 @@ export function loadGlobalSettings(): WorkspaceSettings {
 /**
  * Loads the project-wide defaults.
  */
-export function loadProjectConfig(): WorkspaceConfig {
+export function loadProjectConfig(): OrbitConfig {
     return loadJson(PROJECT_CONFIG_PATH);
 }
 
@@ -76,20 +76,20 @@ function getGhVariable(name: string): string | undefined {
 /**
  * Resolves the final configuration for a repository by merging all layers.
  */
-export function getRepoConfig(repoName?: string): WorkspaceConfig {
+export function getRepoConfig(repoName?: string): OrbitConfig {
     const targetRepo = repoName || detectRepoName();
     const globalSettings = loadGlobalSettings();
     const projectConfig = loadProjectConfig();
 
     // 1. Start with Project Defaults (TRACKED)
-    let config: WorkspaceConfig = { ...projectConfig };
+    let config: OrbitConfig = { ...projectConfig };
 
     // 2. Merge Global General Defaults
     const { repos: _, activeRepo: __, activeProfile: ___, ...globalDefaults } = globalSettings;
     config = { ...config, ...globalDefaults };
 
     // 3. Merge GitHub Team Config (Shared variables)
-    const ghConfig: WorkspaceConfig = {};
+    const ghConfig: OrbitConfig = {};
     const projectId = getGhVariable('GCLI_PROJECT_ID');
     if (projectId) ghConfig.projectId = projectId;
     const zone = getGhVariable('GCLI_ZONE');
@@ -122,12 +122,12 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
     }
 
     // 6. Merge Environment Variables (Highest Priority)
-    const envConfig: WorkspaceConfig = {};
-    if (process.env.GCLI_WORKSPACE_PROJECT_ID) envConfig.projectId = process.env.GCLI_WORKSPACE_PROJECT_ID;
-    if (process.env.GCLI_WORKSPACE_ZONE) envConfig.zone = process.env.GCLI_WORKSPACE_ZONE;
-    if (process.env.GCLI_WORKSPACE_INSTANCE_NAME) envConfig.instanceName = process.env.GCLI_WORKSPACE_INSTANCE_NAME;
-    if (process.env.GCLI_WORKSPACE_BACKEND) envConfig.backendType = process.env.GCLI_WORKSPACE_BACKEND as any;
-    if (process.env.GCLI_WORKSPACE_IMAGE) envConfig.imageUri = process.env.GCLI_WORKSPACE_IMAGE;
+    const envConfig: OrbitConfig = {};
+    if (process.env.GCLI_ORBIT_PROJECT_ID) envConfig.projectId = process.env.GCLI_ORBIT_PROJECT_ID;
+    if (process.env.GCLI_ORBIT_ZONE) envConfig.zone = process.env.GCLI_ORBIT_ZONE;
+    if (process.env.GCLI_ORBIT_INSTANCE_NAME) envConfig.instanceName = process.env.GCLI_ORBIT_INSTANCE_NAME;
+    if (process.env.GCLI_ORBIT_BACKEND) envConfig.backendType = process.env.GCLI_ORBIT_BACKEND as any;
+    if (process.env.GCLI_ORBIT_IMAGE) envConfig.imageUri = process.env.GCLI_ORBIT_IMAGE;
     
     config = { ...config, ...envConfig };
 
@@ -140,15 +140,15 @@ export function getRepoConfig(repoName?: string): WorkspaceConfig {
 /**
  * Legacy support for loadSettings (Migration helper)
  */
-export function loadSettings(): WorkspaceSettings {
+export function loadSettings(): OrbitSettings {
     const global = loadGlobalSettings();
     if (Object.keys(global.repos).length > 0) return global;
     
     // Check if we have an old project-local one to migrate
-    const projectLocalPath = path.join(PROJECT_WORKSPACES_DIR, 'settings.json');
+    const projectLocalPath = path.join(PROJECT_ORBIT_DIR, 'settings.json');
     if (fs.existsSync(projectLocalPath)) {
         const local = loadJson(projectLocalPath);
-        if (local.workspace) return { repos: { [detectRepoName()]: local.workspace } };
+        if (local.orbit) return { repos: { [detectRepoName()]: local.orbit } };
         if (local.repos) return local;
     }
     return { repos: {} };

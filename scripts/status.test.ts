@@ -19,8 +19,8 @@ describe('runStatus', () => {
     getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
     getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: '' }),
     capturePane: vi.fn().mockResolvedValue(''),
-    listContainers: vi.fn().mockResolvedValue([]),
-    workerName: 'gcli-worker-repo',
+    listCapsules: vi.fn().mockResolvedValue([]),
+    stationName: 'gcli-station-repo',
     projectId: 'p',
     zone: 'z'
   };
@@ -29,28 +29,28 @@ describe('runStatus', () => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-workspaces-extension');
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbits-extension');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
         projectId: 'p',
         zone: 'z',
         instanceName: 'i',
-        repoName: 'gemini-workspaces-extension',
+        repoName: 'gemini-orbits-extension',
         terminalTarget: 'tab',
         userFork: 'u/f',
         upstreamRepo: 'o/r',
         remoteHost: 'h',
         remoteWorkDir: '/w',
-        useContainer: true
+        useCapsule: true
     });
   });
 
-  it('should return 0 when worker is running', async () => {
+  it('should return 0 when station is running', async () => {
     const res = await runStatus();
     expect(res).toBe(0);
     expect(mockProvider.getStatus).toHaveBeenCalled();
   });
 
-  it('should return 1 when worker is in invalid state', async () => {
+  it('should return 1 when station is in invalid state', async () => {
     mockProvider.getStatus.mockResolvedValue({ status: 'UNKNOWN' });
     const res = await runStatus();
     expect(res).toBe(1);

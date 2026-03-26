@@ -1,7 +1,0 @@
-description = "Perform a systematic remote review of a Pull Request using the Review Playbook."
-prompt = """
-Starting remote PR review for #{{args}}...
-I will analyze the changes, check for regressions, and extract failure logs.
-
-!{npx tsx scripts/orchestrator.ts {{args}} review}
-"""

@@ -18,9 +18,9 @@ import {
 } from './ConfigManager.ts';
 import { fileURLToPath } from 'node:url';
 import { 
-  WORKSPACES_ROOT, 
+  ORBIT_ROOT, 
   MAIN_REPO_PATH, 
-  WORKTREES_PATH, 
+  SATELLITE_WORKTREES_PATH, 
   POLICIES_PATH, 
   SCRIPTS_PATH, 
   CONFIG_DIR,
@@ -33,8 +33,8 @@ import {
   UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
-  type WorkspaceConfig,
-  type WorkspaceSettings 
+  type OrbitConfig,
+  type OrbitSettings 
 } from './Constants.ts';
 
 
@@ -137,14 +137,14 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
 
   console.log(`
 ================================================================================
-🚀 GEMINI WORKSPACES: HIGH-PERFORMANCE REMOTE DEVELOPMENT
+🚀 GEMINI ORBIT: HIGH-PERFORMANCE REMOTE MISSIONS
 ================================================================================
-Workspaces allow you to delegate heavy tasks (PR reviews, agentic fixes,
-and full builds) to a dedicated, high-performance GCP worker.
+Orbits allow you to delegate heavy tasks (PR reviews, automated corrections,
+and full builds) to a dedicated, high-performance GCE station.
 ================================================================================
   `);
 
-  console.log('📝 PHASE 1: CONFIGURATION');
+  console.log('📝 PHASE 1: MISSION CONFIGURATION');
   console.log('--------------------------------------------------------------------------------');
 
   // 0. Load Hierarchy
@@ -168,7 +168,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (!profileUrl && !skipConfigArg && localProfiles.length > 0) {
-      console.log(`📋 Found ${localProfiles.length} global workspace profiles:`);
+      console.log(`📋 Found ${localProfiles.length} global orbit profiles:`);
       localProfiles.forEach((p, i) => {
           const name = p.replace('.json', '');
           const indicator = name === selectedProfile ? ' (Active)' : '';
@@ -183,7 +183,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // Load selected profile data
-  let profileData: Partial<WorkspaceConfig> = {};
+  let profileData: Partial<OrbitConfig> = {};
   if (selectedProfile) {
       const profilePath = path.join(PROFILES_DIR, selectedProfile.endsWith('.json') ? selectedProfile : `${selectedProfile}.json`);
       if (fs.existsSync(profilePath)) {
@@ -214,7 +214,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   // 1. Project Identity & Networking
   let projectId = config.projectId || '';
   let zone = config.zone || 'us-west1-a';
-  let instanceName = config.instanceName || `gcli-workspace-${env.USER || 'gcli-user'}`;
+  let instanceName = config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`;
   let terminalTarget = config.terminalTarget || 'tab';
   let userFork = config.userFork || upstreamRepo;
   let dnsSuffix = config.dnsSuffix || '';
@@ -227,7 +227,7 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   if (!skipConfig) {
       projectId = await prompt('GCP Project ID', projectId, 
-        'The GCP Project where your workspace worker will live. Your personal project is recommended.');
+        'The GCP Project where your orbit station will live. Your personal project is recommended.');
       
       if (!projectId) {
           console.error('❌ Project ID is required.');
@@ -235,13 +235,13 @@ and full builds) to a dedicated, high-performance GCP worker.
       }
 
       zone = await prompt('GCP Zone', zone, 
-        'The GCE zone where your worker will be provisioned.');
+        'The GCE zone where your station will be provisioned.');
 
-      instanceName = await prompt('GCE Instance Name', instanceName,
-        'The name of the GCE VM that will act as your worker.');
+      instanceName = await prompt('GCE Station Name', instanceName,
+        'The name of the GCE VM that will act as your mission station.');
 
       terminalTarget = await prompt('Terminal Target (foreground, background, tab, window)', terminalTarget,
-        'Default display mode for new workspace jobs.') as any;
+        'Default display mode for new orbit missions.') as any;
 
       console.log('\n🌐 Networking Configuration:');
       backendType = await prompt('Connectivity Backend (direct-internal, external, iap)', backendType,
@@ -253,8 +253,8 @@ and full builds) to a dedicated, high-performance GCP worker.
       userSuffix = await prompt('OS Login User Suffix', userSuffix,
         'Optional suffix for usernames (e.g. _google_com).');
 
-      imageUri = await prompt('Workspace Docker Image', imageUri,
-        'The Docker image used for the supervisor and PR containers.');
+      imageUri = await prompt('Orbit Docker Image', imageUri,
+        'The Docker image used for the station supervisor and satellite capsules.');
 
       autoSetupNet = await confirm('Auto-configure VPC/Subnet?', false);
 
@@ -298,7 +298,7 @@ and full builds) to a dedicated, high-performance GCP worker.
       }
       
       console.log(`   ✅ Upstream:    ${upstreamRepo}`);
-      console.log(`   ✅ Workspace:   ${userFork}`);
+      console.log(`   ✅ Orbit:   ${userFork}`);
   }
 
   // 3. Security & Auth
@@ -363,7 +363,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   // Save CUSTOMIZATION and LINK to Global Registry
-  const repoCustomization: WorkspaceConfig = { 
+  const repoCustomization: OrbitConfig = { 
     instanceName, terminalTarget: terminalTarget as any, 
     userFork, upstreamRepo, imageUri, profile: selectedProfile
   };
@@ -379,13 +379,13 @@ and full builds) to a dedicated, high-performance GCP worker.
   // 6. Transition to Execution
   const provider = ProviderFactory.getProvider(getRepoConfig(repoName));
 
-  console.log('\n🏗️  PHASE 2: INFRASTRUCTURE');
+  console.log('\n🏗️  PHASE 2: STATION LIFTOFF');
   console.log('--------------------------------------------------------------------------------');
-  console.log(`   - Verifying access and finding worker ${instanceName}...`);
+  console.log(`   - Verifying access and finding station ${instanceName}...`);
   let status = await provider.getStatus();
   
   if (status.status === 'UNKNOWN' || status.status === 'ERROR') {
-    const shouldProvision = await confirm(`Worker ${instanceName} not found. Provision it now?`);
+    const shouldProvision = await confirm(`Station ${instanceName} not found. Provision it now?`);
     if (!shouldProvision) return 1;
     
     const provisionRes = await provider.provision({ setupNetwork: autoSetupNet });
@@ -394,7 +394,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (status.status !== 'RUNNING') {
-    console.log(`   - Waking up worker ${instanceName}...`);
+    console.log(`   - Waking up station ${instanceName}...`);
     await provider.ensureReady();
   }
 
@@ -407,18 +407,18 @@ and full builds) to a dedicated, high-performance GCP worker.
   });
   if (setupRes !== 0) return setupRes;
 
-  console.log(`\n📦 Synchronizing Logic & Credentials...`);
-  await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
-  await provider.exec(`sudo chown -R 1000:1000 ${WORKSPACES_ROOT} && sudo chmod -R 777 ${WORKSPACES_ROOT}`);
+  console.log(`\n📦 Synchronizing Mission Logic & Credentials...`);
+  await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${SATELLITE_WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
+  await provider.exec(`sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 777 ${ORBIT_ROOT}`);
   
   console.log('📦 Syncing extension source and skills...');
   await provider.sync(EXTENSION_ROOT + '/', `${EXTENSION_REMOTE_PATH}/`, { 
-      delete: true, sudo: true, exclude: ['node_modules', '.git', '.gemini/workspaces/profiles'] 
+      delete: true, sudo: true, exclude: ['node_modules', '.git', '.gemini/orbit/profiles'] 
   });
-  await provider.sync(path.join(EXTENSION_ROOT, '.gemini/policies/workspace-policy.toml'), `${POLICIES_PATH}/workspace-policy.toml`, { sudo: true });
+  await provider.sync(path.join(EXTENSION_ROOT, '.gemini/policies/orbit-policy.toml'), `${POLICIES_PATH}/orbit-policy.toml`, { sudo: true });
 
-  console.log('🔗 Linking extension in remote container...');
-  await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker /usr/local/share/npm-global/bin/gemini extensions link ${EXTENSION_REMOTE_PATH}`);
+  console.log('🔗 Linking extension in remote capsule...');
+  await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy station-supervisor /usr/local/share/npm-global/bin/gemini extensions link ${EXTENSION_REMOTE_PATH}`);
 
   console.log('⚙️  Initializing remote Gemini configuration...');
   const remoteSettings = {
@@ -441,13 +441,13 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (githubToken) {
-    await provider.exec(`echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null`);
-    console.log('   ✅ Uploaded GitHub PAT to remote worker.');
+    await provider.exec(`echo ${githubToken} | sudo tee ${ORBIT_ROOT}/.gh_token > /dev/null`);
+    console.log('   ✅ Uploaded GitHub PAT to remote station.');
   }
 
-  console.log(`🚀 Finalizing Remote Repository (${userFork})...`);
+  console.log(`🚀 Finalizing Remote Mission Repository (${userFork})...`);
   const repoUrl = `https://github.com/${userFork}.git`;
-  const remoteWorkDir = `${WORKSPACES_ROOT}/main/${repoName}`;
+  const remoteWorkDir = `${ORBIT_ROOT}/main/${repoName}`;
   const upstreamUrl = `https://github.com/${upstreamRepo}.git`;
 
   const setupRepoCmd = `
@@ -458,11 +458,11 @@ and full builds) to a dedicated, high-performance GCP worker.
       sudo git -C ${remoteWorkDir} remote add upstream ${upstreamUrl}
     fi && \
     sudo git -C ${remoteWorkDir} -c safe.directory='*' fetch --quiet upstream && \
-    sudo chown -R 1000:1000 ${WORKSPACES_ROOT}
+    sudo chown -R 1000:1000 ${ORBIT_ROOT}
   `;
   await provider.exec(setupRepoCmd);
 
-  console.log('\n✨ ALL SYSTEMS GO! Your Gemini Workspace is ready.');
+  console.log('\n✨ ALL SYSTEMS GO! Your Gemini Orbit is ready.');
   return 0;
 }
 
