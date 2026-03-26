@@ -1,54 +1,69 @@
 # Gemini Workspaces Extension
 
-High-performance remote development workspaces for Gemini CLI. This extension allows you to delegate heavy tasks (agentic fixes, long builds, complex reviews) to an isolated, high-performance GCP worker.
+![CI](https://github.com/mattKorwel/gemini-workspaces-extension/actions/workflows/test.yml/badge.svg)
+![Coverage](https://img.shields.io/badge/coverage-65%25-yellow)
 
-## Features
-- **Process-Level Isolation**: Each session runs in its own dedicated, persistent container.
-- **Security-First**: Read-only main repository access for job containers via Git Reference Clones.
-- **Persistence**: Sessions live in `tmux` on the remote worker; your work survives local disconnects.
-- **Fast Startup**: Optimized polling and SSH multiplexing ensure your workspace is ready in seconds.
+High-performance remote development workspaces for Gemini CLI. This extension allows you to delegate heavy tasks (autonomous fixes, long builds, complex reviews) to an isolated, high-performance GCE worker.
 
-## Installation
+## 🚀 Quick Start
 
-```bash
-gemini extensions install https://github.com/google-gemini/gemini-workspaces-extension.git
-```
+1. **Installation**:
+   ```bash
+   gemini extensions install https://github.com/mattKorwel/gemini-workspaces-extension.git
+   ```
 
-## Quick Start
-
-1. **Setup**: Initialize your remote environment and configure credentials.
+2. **Setup**: Initialize your remote environment. This will prompt you to create a **Profile** (e.g., `corp` or `sandbox`).
    ```bash
    /workspace:setup
    ```
 
-2. **Open**: Launch an isolated workspace for a specific PR.
+3. **Open a PR**: Launch an isolated workspace for a specific PR.
    ```bash
    /workspace:open 23176
    ```
 
-3. **Status**: Check your active jobs and container health.
-   ```bash
-   /workspace:status
-   ```
+---
 
-## Commands
-- `/workspace:setup`: Interactive environment configuration.
-- `/workspace:open <pr>`: Launch/attach to a PR workspace.
-- `/workspace:review <pr>`: Autonomous PR analysis and regression checking.
-- `/workspace:fix <pr>`: Automated self-healing loop for CI failures.
-- `/workspace:implement <issue>`: Research -> Test -> Fix loop for new features.
-- `/workspace:status`: View Mission Control dashboard.
-- `/workspace:clean <pr> <action>`: Surgically remove a job.
-- `/workspace:clean --all`: Full remote reset.
-- `/workspace:fleet <action>`: Manage the GCE worker (stop, destroy, provision).
-- `/workspace:logs <pr>`: View remote job logs.
+## 🏗️ Architecture: Deep Dive
 
-## Ported Skills
-This extension includes specialized skills for automated development:
-- **`ci`**: High-performance GitHub Actions monitoring.
-- **`async-pr-review`**: Background triggers for PR reviews.
-- **`fix-pr`**: Remote self-healing logic.
-- **`review-pr`**: Systematic PR analysis.
+### Multi-Container Isolation
+The system utilizes a "Hub and Spoke" container model running on a GCE Container-Optimized OS (COS) host:
 
-## License
-Apache-2.0
+- **Supervisor (`development-worker`)**: A persistent container that acts as the "Home Base." It manages global extension linking, shared configuration, and persistent tmux sessions.
+- **PR Containers (`gcli-<pr>-<action>`)**: Ephemeral, isolated containers created for every PR workspace. These are isolated at the process level and run your code in a dedicated environment.
+
+### Shared State Strategy
+To maintain performance and consistency:
+- **Persistent Disk**: A 200GB+ disk is mounted at `/mnt/disks/data`.
+- **Unified Config**: The host directory `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to `/home/node/.gemini` in **every** container. This ensures that a linked extension or a UI theme is instantly available across all your workspaces.
+- **Reference Clones**: PR containers perform a `git clone --reference` against a read-only master clone on the host disk, making "checkouts" nearly instantaneous.
+
+### Advanced Profile System
+Profiles are stored globally in `~/.gemini/workspaces/profiles/*.json`. This allows you to switch between entirely different GCP projects, VPCs, and networking modes (IAP vs Direct) with a single command.
+
+---
+
+## 🛠️ Advanced Usage
+
+### Headless Automation
+For CI/CD or automated scripts, use the `--profile` and `--yes` flags:
+```bash
+npx tsx scripts/setup.ts --profile=corp --yes --reconfigure
+```
+
+### Connectivity Backends
+- `direct-internal`: Fastest. Uses VPC-internal DNS hostnames. Requires corporate VPN/Network.
+- `iap`: Most secure. Tunnels SSH through GCP Identity-Aware Proxy. No public IPs or VPNs needed.
+- `external`: Uses the instance's Public IP (if enabled).
+
+---
+
+## 🛡️ Security Mandates
+- **Read-Only Master**: The main host repository clone is mounted **Read-Only** into PR containers.
+- **Secret Injection**: GitHub tokens are injected via standard input/pipes to the remote disk, never stored in command history or environment variables on the host.
+
+## ✅ Verification & CI
+We run automated tests on every commit to ensure the orchestration logic remains stable.
+```bash
+npm test
+```

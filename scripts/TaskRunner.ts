@@ -1,9 +1,10 @@
 /**
- * Shared Task Runner Utility
- * Handles parallel process execution, log streaming, and dashboard rendering.
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
-import { spawn } from 'child_process';
-import path from 'path';
+
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 
 export interface Task {
@@ -11,85 +12,44 @@ export interface Task {
   name: string;
   cmd: string;
   dep?: string;
-  condition?: 'success' | 'fail';
 }
 
-export class TaskRunner {
-  private state: Record<string, { status: string; exitCode?: number }> = {};
-  private tasks: Task[] = [];
-  private logDir: string;
-  private header: string;
+export function createTaskRunner(logDir: string, header: string) {
+  const tasks: Task[] = [];
 
-  constructor(logDir: string, header: string) {
-    this.logDir = logDir;
-    this.header = header;
-    try { fs.mkdirSync(logDir, { recursive: true }); } catch (e) { console.error(`❌ Failed to create log directory: ${logDir}`); throw e; }
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+  } catch (e) {
+    // Ignore if exists
   }
 
-  register(tasks: Task[]) {
-    this.tasks = tasks;
-    tasks.forEach(t => this.state[t.id] = { status: 'PENDING' });
-  }
+  return {
+    register(newTasks: Task[]) {
+      tasks.push(...newTasks);
+    },
 
-  async run() {
-    const runQueue = this.tasks.filter(t => !t.dep);
-    runQueue.forEach(t => this.execute(t));
+    async run(cmd: string): Promise<number> {
+      console.log(`\n🏃 Running: ${cmd}`);
+      const res = spawnSync('sh', ['-c', cmd], { stdio: 'inherit' });
+      return res.status ?? 0;
+    },
 
-    return new Promise((resolve) => {
-      const checkInterval = setInterval(() => {
-        const allDone = this.tasks.every(t => 
-          ['SUCCESS', 'FAILED', 'SKIPPED'].includes(this.state[t.id].status)
-        );
-
-        if (allDone) {
-          clearInterval(checkInterval);
-          console.log('\n✨ All tasks complete.');
-          resolve(this.state);
+    async runAll(): Promise<number> {
+      console.log(`\n${header}`);
+      console.log('='.repeat(50));
+      
+      for (const task of tasks) {
+        console.log(`\n▶️  Task: ${task.name}`);
+        const res = spawnSync('sh', ['-c', task.cmd], { stdio: 'inherit' });
+        if (res.status !== 0) {
+            console.error(`\n❌ Task Failed: ${task.name}`);
+            return res.status ?? 1;
         }
+      }
 
-        // Check for dependencies
-        this.tasks.filter(t => t.dep && this.state[t.id].status === 'PENDING').forEach(t => {
-          const parent = this.state[t.dep!];
-          if (parent.status === 'SUCCESS' && (!t.condition || t.condition === 'success')) {
-            this.execute(t);
-          } else if (parent.status === 'FAILED' && t.condition === 'fail') {
-            this.execute(t);
-          } else if (['SUCCESS', 'FAILED'].includes(parent.status)) {
-            this.state[t.id].status = 'SKIPPED';
-          }
-        });
-
-        this.render();
-      }, 1500);
-    });
-  }
-
-  private execute(task: Task) {
-    this.state[task.id].status = 'RUNNING';
-    const proc = spawn(task.cmd, { shell: true, env: { ...process.env, FORCE_COLOR: '1' } });
-    
-    const logStream = fs.createWriteStream(path.join(this.logDir, `${task.id}.log`));
-    proc.stdout.pipe(logStream);
-    proc.stderr.pipe(logStream);
-
-    proc.on('close', (code) => {
-      const exitCode = code ?? 0;
-      this.state[task.id].status = exitCode === 0 ? 'SUCCESS' : 'FAILED';
-      this.state[task.id].exitCode = exitCode;
-      fs.writeFileSync(path.join(this.logDir, `${task.id}.exit`), exitCode.toString());
-    });
-  }
-
-  private render() {
-    console.clear();
-    console.log('==================================================');
-    console.log(this.header);
-    console.log('==================================================\n');
-    
-    this.tasks.forEach(t => {
-      const s = this.state[t.id];
-      const icon = s.status === 'SUCCESS' ? '✅' : s.status === 'FAILED' ? '❌' : s.status === 'RUNNING' ? '⏳' : s.status === 'SKIPPED' ? '⏭️ ' : '💤';
-      console.log(`  ${icon} ${t.name.padEnd(20)}: ${s.status}`);
-    });
-  }
+      console.log('\n✨ All tasks complete.');
+      console.log('='.repeat(50));
+      return 0;
+    }
+  };
 }

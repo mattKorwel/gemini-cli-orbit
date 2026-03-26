@@ -1,8 +1,8 @@
-import { TaskRunner } from '../TaskRunner.ts';
+import { createTaskRunner } from '../TaskRunner.ts';
 import path from 'path';
 
 export async function runReviewPlaybook(prNumber: string, targetDir: string, policyPath: string, geminiBin: string) {
-  const runner = new TaskRunner(
+  const runner = createTaskRunner(
     path.join(targetDir, `.gemini/logs/workspace-${prNumber}`),
     `🚀 Workspace | REVIEW | PR #${prNumber}`
   );
@@ -13,5 +13,6 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
     { id: 'review', name: 'Workspaceed Review', cmd: `cd ${targetDir} && ${geminiBin} --policy ${policyPath} -p "Please activate the 'review-pr' skill and use it to conduct a behavioral review of PR #${prNumber}."` }
   ]);
 
-  return runner.run();
+  const status = await runner.runAll();
+  return status;
 }

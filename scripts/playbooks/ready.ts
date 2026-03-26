@@ -1,8 +1,8 @@
-import { TaskRunner } from '../TaskRunner.ts';
+import { createTaskRunner } from '../TaskRunner.ts';
 import path from 'path';
 
 export async function runReadyPlaybook(prNumber: string, targetDir: string, policyPath: string, geminiBin: string) {
-  const runner = new TaskRunner(
+  const runner = createTaskRunner(
     path.join(targetDir, `.gemini/logs/workspace-${prNumber}`),
     `🚀 Workspace | READY | PR #${prNumber}`
   );
@@ -13,5 +13,6 @@ export async function runReadyPlaybook(prNumber: string, targetDir: string, poli
     { id: 'conflicts', name: 'Main Conflict Check', cmd: `git fetch origin main && git merge-base --is-ancestor origin/main HEAD` }
   ]);
 
-  return runner.run();
+  const status = await runner.runAll();
+  return status;
 }

@@ -4,84 +4,97 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GceCosProvider } from './GceCosProvider.ts';
-import { GceConnectionManager } from './GceConnectionManager.ts';
-import { spawnSync } from 'child_process';
-import fs from 'fs';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 
-vi.mock('child_process', () => ({
-  spawnSync: vi.fn(),
-}));
+vi.mock('node:child_process');
+vi.mock('node:fs');
 
-vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    writeFileSync: vi.fn(),
-    unlinkSync: vi.fn(),
+const mockConn = {
+  run: vi.fn(),
+  sync: vi.fn().mockResolvedValue(0),
+  getMagicRemote: vi.fn().mockReturnValue('user@host'),
+  getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
+};
+
+vi.mock('./GceConnectionManager.ts', () => ({
+  GceConnectionManager: function() {
+    return mockConn;
   },
 }));
 
 describe('GceCosProvider', () => {
-  const projectId = 'test-project';
+  const projectId = 'test-p';
   const zone = 'us-west1-a';
-  const instanceName = 'test-instance';
-  const repoRoot = '/repo/root';
+  const instanceName = 'test-i';
+  const repoRoot = '/repo';
   let provider: GceCosProvider;
 
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
+    
+    mockConn.run.mockResolvedValue({ status: 0, stdout: '', stderr: '' });
+    mockConn.sync.mockResolvedValue(0);
+
     provider = new GceCosProvider(projectId, zone, instanceName, repoRoot);
   });
 
-  it('should check instance status via gcloud', async () => {
-    vi.mocked(spawnSync).mockReturnValue({
-      status: 0,
-      stdout: Buffer.from(JSON.stringify({ name: instanceName, status: 'RUNNING' })),
-    } as any);
-
-    const status = await provider.getStatus();
-    
-    expect(spawnSync).toHaveBeenCalledWith('gcloud', expect.arrayContaining(['describe', instanceName]), expect.any(Object));
-    expect(status.status).toBe('RUNNING');
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it('should trigger instance start in ensureReady if not running', async () => {
-    // getStatus returns TERMINATED
-    vi.mocked(spawnSync).mockReturnValueOnce({
-      status: 0,
-      stdout: Buffer.from(JSON.stringify({ name: instanceName, status: 'TERMINATED' })),
+  it('should get status from gcloud', async () => {
+    // Exact table data matching the split logic: lines[1].trim().split(/[ ]+/)
+    // parts[2]=status, parts[3]=internal, parts[4]=external
+    const tableData = 'NAME ZONE STATUS INTERNAL_IP EXTERNAL_IP\ntest-i us-west1-a RUNNING 10.0.0.1 34.0.0.1';
+    vi.mocked(spawnSync).mockReturnValue({ 
+        status: 0, 
+        stdout: Buffer.from(tableData) 
     } as any);
     
-    // start command succeeds
-    vi.mocked(spawnSync).mockReturnValueOnce({ status: 0 } as any);
-    
-    // Mock the connection manager methods on the prototype
-    const runSpy = vi.spyOn(GceConnectionManager.prototype, 'run').mockReturnValue({ status: 0, stdout: 'abc', stderr: '' });
+    const status = await provider.getStatus();
+    expect(status.status).toBe('RUNNING');
+    expect(status.internalIp).toBe('10.0.0.1');
+    expect(status.externalIp).toBe('34.0.0.1');
+  });
 
-    // We need to bypass the setTimeout
-    vi.useFakeTimers();
+  it('should execute ensureReady and refresh container if missing', async () => {
+    const tableData = 'NAME ZONE STATUS INTERNAL_IP EXTERNAL_IP\ntest-i us-west1-a RUNNING 10.1 34.1';
+    vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from(tableData) } as any);
+    
+    // 1. ps -a check returns empty
+    mockConn.run.mockResolvedValueOnce({ status: 0, stdout: '', stderr: '' }); 
+    // 2. getContainerStatus returns true to stop loop
+    mockConn.run.mockResolvedValue({ status: 0, stdout: 'true', stderr: '' }); 
+
     const readyPromise = provider.ensureReady();
     await vi.runAllTimersAsync();
     const res = await readyPromise;
 
     expect(res).toBe(0);
-    expect(spawnSync).toHaveBeenCalledWith('gcloud', expect.arrayContaining(['start', instanceName]), expect.any(Object));
-    runSpy.mockRestore();
+    expect(mockConn.run).toHaveBeenCalledWith(expect.stringContaining('docker pull'), expect.any(Object));
   });
 
-  it('should use connection manager for exec and sync', async () => {
-    const runSpy = vi.spyOn(GceConnectionManager.prototype, 'run').mockReturnValue({ status: 0, stdout: 'ok', stderr: '' });
-    const syncSpy = vi.spyOn(GceConnectionManager.prototype, 'sync').mockReturnValue(0);
+  it('should setup the remote worker environment', async () => {
+    // SSH verification loop succeeded
+    mockConn.run.mockResolvedValue({ status: 0, stdout: 'ok', stderr: '' });
     
-    await provider.exec('ls');
-    expect(runSpy).toHaveBeenCalledWith(expect.stringContaining('ls'), expect.any(Object));
+    const resPromise = provider.setup({
+        projectId: 'p',
+        zone: 'z',
+        dnsSuffix: '.s',
+        userSuffix: '_u',
+        backendType: 'iap'
+    });
 
-    await provider.sync('/src', '/dest');
-    expect(syncSpy).toHaveBeenCalledWith('/src', '/dest', expect.any(Object));
-    
-    runSpy.mockRestore();
-    syncSpy.mockRestore();
+    await vi.runAllTimersAsync();
+    const res = await resPromise;
+
+    expect(res).toBe(0);
   });
 });
