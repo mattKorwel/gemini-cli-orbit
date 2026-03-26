@@ -9,6 +9,10 @@
  * execution environments (GCE, Workstations, etc.).
  */
 export interface WorkerProvider {
+  projectId: string;
+  zone: string;
+  workerName: string;
+
   /**
    * Provisions the underlying infrastructure.
    */
@@ -80,6 +84,21 @@ export interface WorkerProvider {
    * Captures the contents of the current tmux pane in a container.
    */
   capturePane(containerName: string): Promise<string>;
+
+  /**
+   * Lists all workers for the current user/project.
+   */
+  listWorkers(): Promise<number>;
+
+  /**
+   * Destroys the worker and its associated resources.
+   */
+  destroy(): Promise<number>;
+
+  /**
+   * Lists active workspace containers.
+   */
+  listContainers(): Promise<string[]>;
 }
 
 export interface SetupOptions {

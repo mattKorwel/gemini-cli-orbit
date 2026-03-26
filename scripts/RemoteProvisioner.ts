@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WorkerProvider } from './providers/BaseProvider.ts';
+import type { WorkerProvider } from './providers/BaseProvider.ts';
 import { 
   MAIN_REPO_PATH, 
   WORKTREES_PATH, 
@@ -20,8 +20,8 @@ function q(str: string) {
 export class RemoteProvisioner {
   constructor(private provider: WorkerProvider) {}
 
-  async provisionWorktree(prNumber: string, action: string, isShellMode: boolean, ghEnv: string): Promise<string> {
-    const remoteWorktreeDir = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+  async provisionWorktree(prNumber: string, action: string, isShellMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string }): Promise<string> {
+    const remoteWorktreeDir = `${config.worktreesDir}/workspace-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
     const imageUri = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
@@ -43,7 +43,7 @@ export class RemoteProvisioner {
         cpuLimit: '2',
         memoryLimit: '8g',
         mounts: [
-          { host: MAIN_REPO_PATH, container: MAIN_REPO_PATH, readonly: true }, // MOUNT READ-ONLY
+          { host: config.remoteWorkDir, container: config.remoteWorkDir, readonly: true }, // MOUNT READ-ONLY
           { host: remoteWorktreeDir, container: remoteWorktreeDir, readonly: false }, // Specific Worktree RW
           { host: WORKSPACES_ROOT, container: WORKSPACES_ROOT, readonly: true }, // Broad mount as RO for shared assets
           { host: `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini', readonly: false }
@@ -66,7 +66,8 @@ export class RemoteProvisioner {
       await this.provider.exec(clearHistoryCmd, { wrapContainer: containerName });
 
       console.log(`   - Provisioning isolated git repo for ${prNumber} (inside container via reference)...`);
-      // 3.1 Ensure WORKTREES_PATH is owned by node on the HOST first
+      // 3.1 Ensure remoteWorktreeDir parent is owned by node on the HOST first
+      await this.provider.exec(`sudo mkdir -p ${config.worktreesDir} && sudo chown -R 1000:1000 ${config.worktreesDir}`);
       await this.provider.exec(`sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
 
       // 3.2 Perform Reference Clone inside the container
@@ -75,10 +76,10 @@ export class RemoteProvisioner {
         (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) && \
         git config --global --add safe.directory '*' && \
         (rm -rf ${remoteWorktreeDir} || true) && \
-        git clone --reference ${MAIN_REPO_PATH} --quiet -c core.filemode=false ${UPSTREAM_REPO_URL} ${remoteWorktreeDir} && \
+        git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
         cd ${remoteWorktreeDir} && \
         git config --replace-all core.filemode false && \
-        git remote add upstream ${UPSTREAM_REPO_URL} && \
+        git remote add upstream ${config.upstreamUrl} && \
         gh pr checkout ${prNumber}
       `;
 

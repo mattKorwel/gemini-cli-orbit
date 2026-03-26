@@ -17,6 +17,7 @@ export class ProviderFactory {
     projectId: string;
     zone: string;
     instanceName: string;
+    repoName?: string;
     providerType?: string;
     dnsSuffix?: string;
     userSuffix?: string;
@@ -27,6 +28,8 @@ export class ProviderFactory {
         throw new Error('Local Docker provider not yet implemented.');
     }
     
+    const workerName = config.repoName ? `gcli-worker-${config.repoName}` : 'development-worker';
+
     // Default to GCE
     return new GceCosProvider(
       config.projectId,
@@ -37,7 +40,8 @@ export class ProviderFactory {
         dnsSuffix: config.dnsSuffix, 
         userSuffix: config.userSuffix,
         backendType: config.backendType,
-        imageUri: config.imageUri
+        imageUri: config.imageUri,
+        workerName
       }
     );
   }

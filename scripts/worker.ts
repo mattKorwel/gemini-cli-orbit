@@ -41,9 +41,10 @@ export async function runWorker(args: string[]) {
     case 'ready':
       return runReadyPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
     
-    case 'implement':
+    case 'implement': {
       const { runImplementPlaybook } = await import('./playbooks/implement.ts');
       return runImplementPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
+    }
       
     case 'open':
       console.log(`🚀 Dropping into manual session...`);

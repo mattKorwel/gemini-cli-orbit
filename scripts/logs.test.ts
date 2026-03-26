@@ -7,10 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runLogs } from './logs.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import * as ConfigManager from './ConfigManager.ts';
 import fs from 'node:fs';
 
 vi.mock('node:fs');
 vi.mock('./providers/ProviderFactory.ts');
+vi.mock('./ConfigManager.ts');
 
 describe('runLogs', () => {
   const mockProvider = {
@@ -18,13 +20,22 @@ describe('runLogs', () => {
   };
 
   beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.clearAllMocks();
+    vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
-    vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-      workspace: { projectId: 'p', zone: 'z' }
-    }));
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-workspaces-extension');
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+        projectId: 'p',
+        zone: 'z',
+        instanceName: 'i',
+        repoName: 'gemini-workspaces-extension',
+        terminalTarget: 'tab',
+        userFork: 'u/f',
+        upstreamRepo: 'o/r',
+        remoteHost: 'h',
+        remoteWorkDir: '/w',
+        useContainer: true
+    });
   });
 
   it('should fetch and display logs for a PR', async () => {

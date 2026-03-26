@@ -8,12 +8,11 @@ import fs from 'node:fs';
 
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 import { 
   WORKSPACES_ROOT, 
-  MAIN_REPO_PATH, 
   WORKTREES_PATH, 
   CONFIG_DIR,
-  type WorkspaceConfig 
 } from './Constants.ts';
 
 
@@ -39,36 +38,32 @@ export async function runCleanup(
   const prNumber = args[0];
   const action = args[1];
 
-  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  if (!fs.existsSync(settingsPath)) {
-    console.error('❌ Settings not found. Run "workspace setup" first.');
-    return 1;
-  }
-
-  const settings: { workspace: WorkspaceConfig } = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  const config = settings.workspace;
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+  
   if (!config) {
-    console.error('❌ Workspace configuration not found.');
+    console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType } = config;
-  const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,
-    instanceName: targetVM,
+    instanceName,
+    repoName,
     dnsSuffix,
     userSuffix,
     backendType
   });
 
   if (prNumber && action) {
-    const worktreePath = `${WORKTREES_PATH}/workspace-${prNumber}-${action}`;
+    const repoWorktreesDir = `${WORKTREES_PATH}/${config.repoName}`;
+    const worktreePath = `${repoWorktreesDir}/workspace-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
 
     console.log(
-      `🧹 Surgically removing session, container, and worktree for ${prNumber}-${action}...`,
+      `🧹 Surgically removing session, container, and worktree for ${prNumber}-${action} in ${config.repoName}...`,
     );
 
     // 1. Remove the specific container
@@ -85,48 +80,60 @@ export async function runCleanup(
         return 1;
     }
 
-    console.log(`✅ Cleaned up ${prNumber}-${action}.`);
+    console.log(`✅ Cleaned up ${prNumber}-${action} in ${config.repoName}.`);
     return 0;
   }
 
   // --- Bulk Cleanup ---
+  const isGlobal = args.includes('--all');
   console.log(
-    `⚠️  DANGER: You are about to perform a BULK cleanup on ${targetVM}.`,
+    `⚠️  DANGER: You are about to perform a ${isGlobal ? 'GLOBAL' : 'REPOSITORY'} cleanup on ${instanceName}.`,
   );
   const confirmed = await confirm(
-    '   Are you sure you want to kill ALL sessions and worktrees?',
+    `   Are you sure you want to kill ALL sessions and worktrees for ${isGlobal ? 'THE ENTIRE WORKER' : config.repoName}?`,
   );
   if (!confirmed) {
     console.log('❌ Cleanup cancelled.');
     return 0;
   }
 
-  console.log(`🧹 Starting BULK cleanup...`);
+  console.log(`🧹 Starting ${isGlobal ? 'GLOBAL' : 'REPOSITORY'} cleanup...`);
 
   // 1. Standard Cleanup
-  console.log('   - Killing ALL remote tmux sessions and containers...');
+  console.log('   - Killing remote containers...');
   const containerRes = await provider.getExecOutput("sudo docker ps -a --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
   if (containerRes.status === 0 && containerRes.stdout.trim()) {
     const names = containerRes.stdout.trim().split('\n').join(' ');
     await provider.exec(`sudo docker rm -f ${names}`);
   }
-  // Also remove the old global worker if it exists
-  await provider.exec(`sudo docker rm -f development-worker || true`);
 
-  console.log('   - Cleaning up ALL Git Worktrees...');
-  await provider.exec(`sudo rm -rf ${WORKTREES_PATH}/*`);
+  if (isGlobal) {
+    console.log('   - Killing global supervisor container...');
+    await provider.exec(`sudo docker rm -f development-worker || true`);
+  }
+
+  console.log(`   - Cleaning up Git Worktrees for ${isGlobal ? 'ALL repos' : config.repoName}...`);
+  if (isGlobal) {
+    await provider.exec(`sudo rm -rf ${WORKTREES_PATH}/*`);
+  } else {
+    await provider.exec(`sudo rm -rf ${WORKTREES_PATH}/${config.repoName}/*`);
+  }
 
   console.log('   - Clearing Gemini session history and state...');
   await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/*`);
   await provider.exec(`sudo rm -f ${CONFIG_DIR}/state.json`);
 
-  console.log('   - Wiping main repository clone...');
-  await provider.exec(`sudo rm -rf ${MAIN_REPO_PATH}`);
+  console.log(`   - Wiping ${isGlobal ? 'ALL' : 'current'} repository main clone...`);
+  if (isGlobal) {
+    await provider.exec(`sudo rm -rf ${WORKSPACES_ROOT}/main/*`);
+  } else {
+    await provider.exec(`sudo rm -rf ${config.remoteWorkDir}`);
+  }
 
   console.log('   - Cleaning up Docker resources...');
   await provider.exec(`sudo docker system prune -af --volumes`);
 
-  console.log('✅ Remote environment cleared. You will need to run workspace setup again.');
+  console.log(`✅ ${isGlobal ? 'Global worker' : 'Repository ' + config.repoName} cleared.`);
   return 0;
 }
 

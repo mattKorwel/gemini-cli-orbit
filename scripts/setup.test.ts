@@ -24,16 +24,19 @@ vi.mock('./Constants.ts', () => ({
     DEFAULT_REPO_NAME: 'gemini-cli',
     DEFAULT_DNS_SUFFIX: '',
     DEFAULT_USER_SUFFIX: '',
+    DEFAULT_IMAGE_URI: 'mock-image'
 }));
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('node:readline');
 vi.mock('./providers/ProviderFactory.ts');
+vi.mock('./ConfigManager.ts');
 
 // Import runSetup after mocks
 import { runSetup } from './setup.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import * as ConfigManager from './ConfigManager.ts';
 
 describe('runSetup', () => {
   const mockProvider = {
@@ -46,9 +49,11 @@ describe('runSetup', () => {
   };
 
   beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.clearAllMocks();
+    vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
+
     // Default mock for readline
     vi.mocked(readline.createInterface).mockReturnValue({
       question: vi.fn().mockImplementation((q, cb) => cb('')),
@@ -57,7 +62,7 @@ describe('runSetup', () => {
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.readdirSync).mockReturnValue([] as any);
-    vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{}') } as any);
+    vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{"name": "gemini-cli", "nameWithOwner": "google-gemini/gemini-cli"}') } as any);
   });
 
   it('should run setup flow and sync the full extension', async () => {
@@ -84,14 +89,17 @@ describe('runSetup', () => {
 
     // Verify extension linking inside container
     expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker gemini extensions link')
+        expect.stringContaining('sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker /usr/local/share/npm-global/bin/gemini extensions link /mnt/disks/data/extension')
     );
   });
 
   it('should detect existing configuration', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-      workspace: { projectId: 'p', zone: 'z' }
+      repos: {
+        'gemini-cli': { projectId: 'p', zone: 'z', instanceName: 'i', repoName: 'gemini-cli' }
+      },
+      activeRepo: 'gemini-cli'
     }));
 
     // Mock confirm to say yes to using existing config

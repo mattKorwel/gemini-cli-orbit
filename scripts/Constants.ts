@@ -42,9 +42,11 @@ export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/d
 export interface WorkspaceConfig {
   projectId: string;
   zone: string;
+  instanceName: string; // The GCE instance name
   terminalTarget: 'foreground' | 'background' | 'tab' | 'window';
   userFork: string;
   upstreamRepo: string;
+  repoName: string;
   remoteHost: string;
   remoteWorkDir: string;
   useContainer: boolean;
@@ -55,4 +57,14 @@ export interface WorkspaceConfig {
   imageUri?: string;
   vpcName?: string;
   subnetName?: string;
+}
+
+/**
+ * Global Settings File Structure
+ */
+export interface WorkspaceSettings {
+  repos: Record<string, WorkspaceConfig>;
+  activeRepo?: string;
+  // Legacy support
+  workspace?: WorkspaceConfig;
 }

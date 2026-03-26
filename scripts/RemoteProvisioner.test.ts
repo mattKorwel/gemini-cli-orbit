@@ -29,8 +29,14 @@ describe('RemoteProvisioner', () => {
     // 3. getExecOutput (the git clone / setup command) -> returns status 0 (success)
     mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'clone success' }); 
 
-    const path = await provisioner.provisionWorktree('23176', 'open', false, 'TOKEN');
-    expect(path).toBe('/mnt/disks/data/worktrees/workspace-23176-open');
+    const config = {
+      remoteWorkDir: '/mnt/disks/data/main/gemini-cli',
+      worktreesDir: '/mnt/disks/data/worktrees/gemini-cli',
+      upstreamUrl: 'https://github.com/google-gemini/gemini-cli.git',
+      instanceName: 'test-instance'
+    };
+    const path = await provisioner.provisionWorktree('23176', 'open', false, 'TOKEN', config);
+    expect(path).toBe('/mnt/disks/data/worktrees/gemini-cli/workspace-23176-open');
     
     // Verify the .git check was called
     expect(mockProvider.getExecOutput).toHaveBeenCalledWith(expect.stringContaining('.git'), expect.any(Object));
