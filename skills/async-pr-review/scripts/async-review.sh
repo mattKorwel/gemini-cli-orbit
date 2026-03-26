@@ -76,7 +76,7 @@ rm -f "$log_dir/build-and-lint.exit"
 
 # Dynamically resolve gemini binary (fallback to your nightly path)
 GEMINI_CMD=$(which gemini || echo "$HOME/.gcli/nightly/node_modules/.bin/gemini")
-POLICY_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/policy.toml"
+POLICY_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/async-review.policy.toml"
 
 echo "  ↳ [3/5] Starting Gemini code review..."
 rm -f "$log_dir/review.exit"

@@ -518,7 +518,7 @@ and full builds) to a dedicated, high-performance GCP worker.
       sudo: true,
       exclude: ['node_modules', '.git', '.gemini/workspaces/profiles'] 
   });
-  await provider.sync(path.join(EXTENSION_ROOT, 'policies/workspace-policy.toml'), `${POLICIES_PATH}/workspace-policy.toml`, { sudo: true });
+  await provider.sync(path.join(EXTENSION_ROOT, '.gemini/policies/workspace-policy.toml'), `${POLICIES_PATH}/workspace-policy.toml`, { sudo: true });
 
   // 2. Link Extension inside the shared container
   console.log('🔗 Linking extension in remote container...');
