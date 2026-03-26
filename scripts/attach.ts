@@ -39,12 +39,15 @@ export async function runAttach(
     return 1;
   }
 
-  const { projectId, zone } = config;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType } = config;
   const targetVM = `gcli-workspace-${env.USER || 'gcli-user'}`;
   const provider = ProviderFactory.getProvider({
     projectId,
     zone,
     instanceName: targetVM,
+    dnsSuffix,
+    userSuffix,
+    backendType
   });
 
   const sessionName = `workspace-${prNumber}-${action}`;
@@ -79,15 +82,21 @@ export async function runAttach(
         end tell
       end run
     `;
-    spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
-    console.log(`✅ iTerm2 tab opened for ${sessionName}.`);
-    return 0;
+    const res = spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
+    if (res.status === 0) {
+        console.log(`✅ iTerm2 tab opened for ${sessionName}.`);
+        return 0;
+    }
+    console.warn('⚠️  AppleScript failed to open new tab. Falling back to current terminal.');
   }
 
-  spawnSync(finalSSH, { stdio: 'inherit', shell: true });
-  return 0;
+  const finalRes = spawnSync(finalSSH, { stdio: 'inherit', shell: true });
+  return finalRes.status ?? 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runAttach(process.argv.slice(2)).catch(console.error);
+  runAttach(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+      console.error(err);
+      process.exit(1);
+  });
 }

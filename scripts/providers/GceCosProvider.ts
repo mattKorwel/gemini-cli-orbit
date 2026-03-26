@@ -40,7 +40,7 @@ export class GceCosProvider implements WorkerProvider {
       fs.mkdirSync(workspacesDir, { recursive: true });
     this.knownHostsPath = path.join(workspacesDir, 'known_hosts');
     this.conn = new GceConnectionManager(projectId, zone, instanceName, config, repoRoot);
-    this.imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+    this.imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
   }
 
   async provision(): Promise<number> {

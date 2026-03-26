@@ -169,10 +169,11 @@ and full builds) to a dedicated, high-performance GCP worker.
   profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
 
   // Resolve local profile names provided via --profile=NAME
+  // We check both the current directory and the global PROFILES_DIR
   if (profileUrl && !profileUrl.startsWith('http') && !fs.existsSync(profileUrl)) {
-      const potentialPath = path.join(PROFILES_DIR, profileUrl.endsWith('.json') ? profileUrl : `${profileUrl}.json`);
-      if (fs.existsSync(potentialPath)) {
-          profileUrl = potentialPath;
+      const globalPath = path.join(PROFILES_DIR, profileUrl.endsWith('.json') ? profileUrl : `${profileUrl}.json`);
+      if (fs.existsSync(globalPath)) {
+          profileUrl = globalPath;
       }
   }
 
@@ -180,7 +181,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   if (!profileUrl && !skipConfigArg && fs.existsSync(PROFILES_DIR)) {
       const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
       if (localProfiles.length > 0) {
-          console.log(`📋 Found ${localProfiles.length} local workspace profiles:`);
+          console.log(`📋 Found ${localProfiles.length} global workspace profiles:`);
           localProfiles.forEach((p, i) => console.log(`   ${i + 1}. ${p.replace('.json', '')}`));
           console.log(`   0. Create New / Use Current`);
           
@@ -223,7 +224,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   let dnsSuffix = remoteProfile.dnsSuffix || settings.workspace?.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal');
   let userSuffix = remoteProfile.userSuffix || settings.workspace?.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
   let backendType = remoteProfile.backendType || settings.workspace?.backendType || 'direct-internal';
-  let imageUri = remoteProfile.imageUri || settings.workspace?.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest');
+  let imageUri = remoteProfile.imageUri || settings.workspace?.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest');
 
   if (!skipConfigArg || profileUrl) {
       const defaultProject = env.GOOGLE_CLOUD_PROJECT || env.WORKSPACE_PROJECT || projectId || '';

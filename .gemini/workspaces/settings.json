@@ -1,0 +1,16 @@
+{
+  "workspace": {
+    "projectId": "korwel-gcli-02-sandbox-676005",
+    "zone": "us-west1-a",
+    "terminalTarget": "tab",
+    "userFork": "mattKorwel/gemini-workspaces-extension",
+    "upstreamRepo": "mattKorwel/gemini-workspaces-extension",
+    "remoteHost": "gcli-worker",
+    "remoteWorkDir": "/mnt/disks/data/main",
+    "useContainer": true,
+    "dnsSuffix": ".c.${projectId}.internal",
+    "userSuffix": "",
+    "backendType": "direct-internal",
+    "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest"
+  }
+}

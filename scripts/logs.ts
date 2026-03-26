@@ -37,9 +37,16 @@ export async function runLogs(args: string[]) {
       return 1;
   }
 
-  const { projectId, zone } = config;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType } = config;
   const targetVM = `gcli-workspace-${process.env.USER || 'gcli-user'}`;
-  const provider = ProviderFactory.getProvider({ projectId, zone, instanceName: targetVM });
+  const provider = ProviderFactory.getProvider({ 
+      projectId, 
+      zone, 
+      instanceName: targetVM,
+      dnsSuffix,
+      userSuffix,
+      backendType
+  });
 
   console.log(`📋 Checking remote status for job ${prNumber}-${action}...`);
 
@@ -71,5 +78,8 @@ export async function runLogs(args: string[]) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runLogs(process.argv.slice(2)).catch(console.error);
+  runLogs(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+      console.error(err);
+      process.exit(1);
+  });
 }

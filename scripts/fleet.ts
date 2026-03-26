@@ -29,16 +29,16 @@ function getProjectId(): string {
   return process.env.GOOGLE_CLOUD_PROJECT || '';
 }
 
-async function listWorkers() {
+async function listWorkers(): Promise<number> {
   const projectId = getProjectId();
   if (!projectId) {
     console.error('❌ Project ID not found. Run "workspace setup" first.');
-    return;
+    return 1;
   }
 
   console.log(`🔍 Listing Workspace Workers for ${USER} in ${projectId}...`);
 
-  spawnSync(
+  const res = spawnSync(
     'gcloud',
     [
       'compute',
@@ -53,13 +53,14 @@ async function listWorkers() {
     ],
     { stdio: 'inherit' },
   );
+  return res.status ?? 0;
 }
 
-async function provisionWorker() {
+async function provisionWorker(): Promise<number> {
   const projectId = getProjectId();
   if (!projectId) {
     console.error('❌ Project ID not found. Run "workspace setup" first.');
-    return;
+    return 1;
   }
 
   const provider = ProviderFactory.getProvider({
@@ -73,13 +74,13 @@ async function provisionWorker() {
     console.log(
       `✅ Worker ${INSTANCE_PREFIX} already exists and is ${status.status}.`,
     );
-    return;
+    return 0;
   }
 
-  await provider.provision();
+  return await provider.provision();
 }
 
-async function stopWorker() {
+async function stopWorker(): Promise<number> {
   const projectId = getProjectId();
   const provider = ProviderFactory.getProvider({
     projectId: projectId,
@@ -88,7 +89,7 @@ async function stopWorker() {
   });
 
   console.log(`🛑 Stopping workspace worker: ${INSTANCE_PREFIX}...`);
-  await provider.stop();
+  return await provider.stop();
 }
 
 function getZone(): string {
@@ -104,7 +105,7 @@ function getZone(): string {
   return DEFAULT_ZONE;
 }
 
-async function destroyWorker() {
+async function destroyWorker(): Promise<number> {
   const projectId = getProjectId();
   const zone = getZone();
   console.log(`🔥 DESTROYING worker ${INSTANCE_PREFIX} and its data disk...`);
@@ -116,7 +117,7 @@ async function destroyWorker() {
   }
 
   // Delete instance
-  spawnSync(
+  const res1 = spawnSync(
     'gcloud',
     [
       'compute',
@@ -133,7 +134,7 @@ async function destroyWorker() {
   );
 
   // Delete static IP if it exists
-  spawnSync(
+  const res2 = spawnSync(
     'gcloud',
     [
       'compute',
@@ -148,36 +149,38 @@ async function destroyWorker() {
     ],
     { stdio: 'pipe' },
   );
+  return (res1.status === 0 && res2.status === 0) ? 0 : 1;
 }
 
-async function rebuildWorker() {
-  await destroyWorker();
-  await provisionWorker();
+async function rebuildWorker(): Promise<number> {
+  const res1 = await destroyWorker();
+  const res2 = await provisionWorker();
+  return (res1 === 0 && res2 === 0) ? 0 : 1;
 }
 
-async function main() {
+async function main(): Promise<number> {
   const action = process.argv[2] || 'list';
 
   switch (action) {
     case 'list':
-      await listWorkers();
-      break;
+      return await listWorkers();
     case 'provision':
-      await provisionWorker();
-      break;
+      return await provisionWorker();
     case 'rebuild':
-      await rebuildWorker();
-      break;
+      return await rebuildWorker();
     case 'destroy':
-      await destroyWorker();
-      break;
+      return await destroyWorker();
     case 'stop':
-      await stopWorker();
-      break;
+      return await stopWorker();
     default:
       console.error(`❌ Unknown fleet action: ${action}`);
-      process.exit(1);
+      return 1;
   }
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().then(code => process.exit(code || 0)).catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
+}

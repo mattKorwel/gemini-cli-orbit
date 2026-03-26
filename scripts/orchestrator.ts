@@ -123,7 +123,8 @@ Actions:
   });
 
   // 2. Wake Worker & Verify Container
-  await provider.ensureReady();
+  const readyRes = await provider.ensureReady();
+  if (readyRes !== 0) return readyRes;
 
   // Retrieve the remote user to ensure we run git commands correctly
   await provider.getExecOutput('whoami');
@@ -141,14 +142,19 @@ const localApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
 const provisioner = new RemoteProvisioner(provider);
 // We don't pass ghEnv anymore as we auth inside the container's main command
 const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '');
+if (!remoteWorktreeDir) {
+    console.error('❌ Failed to provision remote worktree.');
+    return 1;
+}
 
 // AUTH: Inject credentials directly into the worktree .env
 if (localApiKey) {
   console.log('   - Injecting remote authentication context...');
   const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${targetVM}`;
-  await provider.exec(
+  const authRes = await provider.exec(
       `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
   );
+  if (authRes !== 0) return authRes;
 }
 
 // 5. Execution Logic
@@ -175,7 +181,9 @@ if (localApiKey) {
     tmux set -g status off;
   `.replace(/\n/g, '');
 
-  const tmuxCmd = `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Command Failed' && sleep 30); exec $SHELL`)}`;
+  const tmuxCmd = isShellMode
+    ? `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`)}`
+    : `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Command Failed' && sleep 30)`)}`;
 
   // GH AUTH: Ensure the containerized GH CLI is authorized for the node user
   const ghLoginCmd = `(gh auth status >/dev/null 2>&1 || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < ${WORKSPACES_ROOT}/.gh_token)) && `;
@@ -235,11 +243,14 @@ if (localApiKey) {
 
   // Fallback: Run in current terminal
   console.log(`📡 Connecting to session ${sessionName}...`);
-  spawnSync(finalSSH, { stdio: 'inherit', shell: true });
+  const finalRes = spawnSync(finalSSH, { stdio: 'inherit', shell: true });
 
-  return 0;
+  return finalRes.status ?? 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runOrchestrator(process.argv.slice(2)).catch(console.error);
+  runOrchestrator(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
 }

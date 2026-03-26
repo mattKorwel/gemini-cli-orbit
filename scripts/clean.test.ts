@@ -37,10 +37,17 @@ describe('runCleanup', () => {
   });
 
   it('should perform surgical cleanup for a specific PR', async () => {
-    await runCleanup(['23176', 'open']);
+    const res = await runCleanup(['23176', 'open']);
     
+    expect(res).toBe(0);
     expect(mockProvider.removeContainer).toHaveBeenCalledWith('gcli-23176-open');
     expect(mockProvider.exec).toHaveBeenCalledWith(expect.stringContaining('rm -rf'));
+  });
+
+  it('should return non-zero if surgical cleanup fails', async () => {
+    mockProvider.removeContainer.mockResolvedValue(1);
+    const res = await runCleanup(['23176', 'open']);
+    expect(res).toBe(1);
   });
 
   it('should perform bulk cleanup when no arguments provided', async () => {

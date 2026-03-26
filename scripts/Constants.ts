@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import os from 'node:os';
 
 const REPO_ROOT = process.cwd();
 
@@ -19,7 +20,7 @@ export const POLICIES_PATH = `${WORKSPACES_ROOT}/policies`;
 export const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
 export const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${WORKSPACES_ROOT}/extension`;
-export const PROFILES_DIR = path.join(REPO_ROOT, '.gemini/workspaces/profiles');
+export const PROFILES_DIR = path.join(os.homedir(), '.gemini/workspaces/profiles');
 
 /**
  * Repository Metadata
@@ -33,7 +34,7 @@ export const UPSTREAM_ORG = 'google-gemini';
  */
 export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
-export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
 
 /**
  * Workspace Configuration Interface

@@ -72,13 +72,18 @@ export async function runCleanup(
     );
 
     // 1. Remove the specific container
-    await provider.removeContainer(containerName);
+    const res1 = await provider.removeContainer(containerName);
 
     // 2. Remove specific worktree directory on host
-    await provider.exec(`sudo rm -rf ${worktreePath}`);
+    const res2 = await provider.exec(`sudo rm -rf ${worktreePath}`);
 
     // 3. Clear history files for this PR and action on host
-    await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`);
+    const res3 = await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/workspace-${prNumber}-${action}*`);
+
+    if (res1 !== 0 || res2 !== 0 || res3 !== 0) {
+        console.error('❌ Surgical cleanup failed.');
+        return 1;
+    }
 
     console.log(`✅ Cleaned up ${prNumber}-${action}.`);
     return 0;
@@ -126,5 +131,8 @@ export async function runCleanup(
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runCleanup(process.argv.slice(2)).catch(console.error);
+  runCleanup(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+      console.error(err);
+      process.exit(1);
+  });
 }

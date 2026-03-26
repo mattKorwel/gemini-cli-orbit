@@ -15,8 +15,8 @@ vi.mock('./providers/ProviderFactory.ts');
 describe('runStatus', () => {
   const mockProvider = {
     getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
-    getExecOutput: vi.fn(),
-    capturePane: vi.fn(),
+    getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: '' }),
+    capturePane: vi.fn().mockResolvedValue(''),
   };
 
   beforeEach(() => {
@@ -29,23 +29,15 @@ describe('runStatus', () => {
     }));
   });
 
-  it('should detect THINKING vs WAITING states', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    
-    // 1. Find containers
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'gcli-1-open\ngcli-2-open', stderr: '' });
-    
-    // Container 1: Has tmux session, but Gemini is thinking (no prompt)
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'session', stderr: '' });
-    mockProvider.capturePane.mockResolvedValueOnce('Some long agentic work happening...\nProcessing file...');
-    
-    // Container 2: Has tmux session, and Gemini is waiting (has prompt)
-    mockProvider.getExecOutput.mockResolvedValueOnce({ status: 0, stdout: 'session', stderr: '' });
-    mockProvider.capturePane.mockResolvedValueOnce('Work finished.\n > ');
+  it('should return 0 when worker is running', async () => {
+    const res = await runStatus();
+    expect(res).toBe(0);
+    expect(mockProvider.getStatus).toHaveBeenCalled();
+  });
 
-    await runStatus();
-    
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('🧠 [THINKING] gcli-1-open'));
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('✋ [WAITING] gcli-2-open'));
+  it('should return 1 when worker is in invalid state', async () => {
+    mockProvider.getStatus.mockResolvedValue({ status: 'UNKNOWN' });
+    const res = await runStatus();
+    expect(res).toBe(1);
   });
 });

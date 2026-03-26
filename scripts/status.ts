@@ -35,19 +35,24 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
     backendType
   });
 
+  const statusRes = await provider.getStatus();
+  if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
+      console.error(`❌ Worker ${targetVM} is in an invalid state: ${statusRes.status}`);
+      return 1;
+  }
+
   console.log(`\n🛰️  Workspace Mission Control: ${targetVM}`);
   console.log(
     `--------------------------------------------------------------------------------`,
   );
 
-  const status = await provider.getStatus();
-  console.log(`   - VM State:   ${status.status}`);
-  console.log(`   - Internal IP: ${status.internalIp || 'N/A'}`);
-  if (status.externalIp) {
-    console.log(`   - External IP: ${status.externalIp}`);
+  console.log(`   - VM State:   ${statusRes.status}`);
+  console.log(`   - Internal IP: ${statusRes.internalIp || 'N/A'}`);
+  if (statusRes.externalIp) {
+    console.log(`   - External IP: ${statusRes.externalIp}`);
   }
 
-  if (status.status === 'RUNNING') {
+  if (statusRes.status === 'RUNNING') {
     console.log(`\n📦 Active Workspace Environments:`);
     
     // Find all containers starting with 'gcli-'
@@ -92,4 +97,9 @@ export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
   return 0;
 }
 
-runStatus().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runStatus().then(code => process.exit(code || 0)).catch(err => {
+      console.error(err);
+      process.exit(1);
+  });
+}

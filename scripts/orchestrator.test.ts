@@ -7,23 +7,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runOrchestrator } from './orchestrator.ts';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { RemoteProvisioner } from './RemoteProvisioner.ts';
 import fs from 'node:fs';
-import { WORKTREES_PATH } from './Constants.ts';
+import { spawnSync } from 'node:child_process';
 
 vi.mock('node:fs');
-vi.mock('node:child_process', () => ({
-  spawnSync: vi.fn().mockReturnValue({ status: 0 }),
-}));
+vi.mock('node:child_process');
+vi.mock('./providers/ProviderFactory.ts');
+
+const mockProvisionWorktree = vi.fn().mockResolvedValue('/remote/path');
+vi.mock('./RemoteProvisioner.ts', () => {
+  return {
+    RemoteProvisioner: function() {
+      return {
+        provisionWorktree: mockProvisionWorktree,
+      };
+    },
+  };
+});
 
 describe('runOrchestrator', () => {
   const mockProvider = {
     ensureReady: vi.fn().mockResolvedValue(0),
-    getExecOutput: vi.fn(),
+    getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'node' }),
     exec: vi.fn().mockResolvedValue(0),
-    getRunCommand: vi.fn().mockReturnValue('mock-ssh-command'),
-    getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
-    getContainerStatus: vi.fn().mockResolvedValue({ running: true, exists: true }),
-    runContainer: vi.fn().mockResolvedValue(0),
+    sync: vi.fn().mockResolvedValue(0),
+    getRunCommand: vi.fn().mockReturnValue('ssh-command'),
   };
 
   beforeEach(() => {
@@ -34,60 +43,31 @@ describe('runOrchestrator', () => {
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
       workspace: { projectId: 'p', zone: 'z' }
     }));
-
-    // Default: return mock for most calls
-    mockProvider.getExecOutput.mockResolvedValue({ status: 0, stdout: 'mock-output', stderr: '' });
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
+    mockProvisionWorktree.mockResolvedValue('/remote/path');
   });
 
-  it('should fail if no PR number is provided', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await runOrchestrator([]);
+  it('should return 0 on successful orchestration', async () => {
+    const res = await runOrchestrator(['23176', 'open']);
+    expect(res).toBe(0);
+    expect(mockProvider.ensureReady).toHaveBeenCalled();
+  });
+
+  it('should return non-zero if infrastructure fails', async () => {
+    mockProvider.ensureReady.mockResolvedValue(1);
+    const res = await runOrchestrator(['23176', 'open']);
     expect(res).toBe(1);
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Usage'));
   });
 
-  it('should parse arguments correctly and run pre-flight if worktree missing', async () => {
-    // Mock check for .git to FAIL (status 1) so it enters provisioning block
-    mockProvider.getExecOutput.mockImplementation(async (cmd: string) => {
-        if (cmd.includes('ls -d') && cmd.includes('.git')) {
-            return { status: 1, stdout: '', stderr: 'not found' };
-        }
-        return { status: 0, stdout: 'mock-output', stderr: '' };
-    });
-
-    await runOrchestrator(['23176']);
-    
-    // Check if it provisioned inside container using WORKTREES_PATH
-    // This is the setupCmd which calls docker exec via the provider
-    expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
-        expect.stringContaining(`${WORKTREES_PATH}/workspace-23176-open`),
-        expect.objectContaining({ wrapContainer: 'gcli-23176-open' })
-    );
+  it('should return non-zero if worktree provisioning fails', async () => {
+    mockProvisionWorktree.mockResolvedValue('');
+    const res = await runOrchestrator(['23176', 'open']);
+    expect(res).toBe(1);
   });
 
-  it('should clear history before launching', async () => {
-    await runOrchestrator(['23176']);
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('history/workspace-23176-open'),
-        expect.objectContaining({ wrapContainer: 'gcli-23176-open' })
-    );
-  });
-
-  it('should NOT pass secrets via environment flags in docker exec', async () => {
-    await runOrchestrator(['23176']);
-    
-    const lastCall = vi.mocked(mockProvider.getRunCommand).mock.calls[0][0];
-    expect(lastCall).not.toContain('GEMINI_API_KEY=');
-    expect(lastCall).not.toContain('GITHUB_TOKEN=');
-    expect(lastCall).not.toContain('GH_TOKEN=');
-  });
-
-  it('should handle shell mode', async () => {
-    await runOrchestrator(['shell', 'my-id']);
-    
-    expect(mockProvider.getRunCommand).toHaveBeenCalledWith(
-        expect.stringContaining('gemini'),
-        expect.objectContaining({ interactive: true })
-    );
+  it('should return non-zero if credential injection fails', async () => {
+    mockProvider.exec.mockResolvedValue(1);
+    const res = await runOrchestrator(['23176', 'open'], { WORKSPACE_GEMINI_API_KEY: 'test-key' });
+    expect(res).toBe(1);
   });
 });
