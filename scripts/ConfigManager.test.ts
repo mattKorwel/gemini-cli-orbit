@@ -58,14 +58,15 @@ describe('ConfigManager', () => {
   });
 
   it('should override with environment variables', () => {
-    process.env.GCLI_WORKSPACE_PROJECT_ID = 'env-p';
+    process.env.GCLI_ORBIT_PROJECT_ID = 'env-p';
     
     vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.readFileSync).mockReturnValue('{}');
 
     const config = getRepoConfig();
     expect(config.projectId).toBe('env-p');
 
-    delete process.env.GCLI_WORKSPACE_PROJECT_ID;
+    delete process.env.GCLI_ORBIT_PROJECT_ID;
   });
 
   it('should fetch GitHub variables as fallback', () => {

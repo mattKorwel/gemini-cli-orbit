@@ -11,11 +11,10 @@ import { ProviderFactory } from './providers/ProviderFactory.ts';
 import { RemoteProvisioner } from './RemoteProvisioner.ts';
 import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
 import { 
-  WORKSPACES_ROOT, 
-  WORKTREES_PATH, 
+  ORBIT_ROOT, 
+  SATELLITE_WORKTREES_PATH, 
   POLICIES_PATH, 
   SCRIPTS_PATH, 
-  CONFIG_DIR,
 } from './Constants.ts';
 
 
@@ -67,34 +66,33 @@ export async function runOrchestrator(
   }
 
   let prNumber = promptArgs[0];
-  let actionArg = promptArgs[1] || 'open';
-  let action = 'open';
+  let actionArg = promptArgs[1] || 'mission';
+  let action = 'mission';
   let customPrompt = '';
 
-  const validActions = ['shell', 'open'];
+  const validActions = ['eva', 'mission', 'fix', 'review', 'implement'];
   if (validActions.includes(actionArg)) {
     action = actionArg;
     customPrompt = promptArgs.slice(2).join(' ');
-  } else if (prNumber && prNumber !== 'shell') {
-    action = 'open';
+  } else if (prNumber && prNumber !== 'eva') {
+    action = 'mission';
     customPrompt = promptArgs.slice(1).join(' ');
   }
 
-  // Handle "shell" mode: workspace shell [identifier]
-  const isShellMode = prNumber === 'shell';
-  if (isShellMode) {
-    prNumber = args[1] || `adhoc-${Math.floor(Math.random() * 10000)}`;
-    action = 'shell';
-  }
+  // Handle "shell" mode: orbit mission eva [identifier]
+  const isEvaMode = action === 'eva';
 
   if (!prNumber) {
     console.error(`
-❌ Usage: workspace <PR_NUMBER> [prompt...]
-   OR:    workspace shell [identifier]
+❌ Usage: orbit mission <PR_NUMBER> [action] [prompt...]
+   OR:    orbit mission eva [identifier]
 
 Actions:
-  (default)  - Drop into an interactive Gemini session. Supports optional prompt.
-  shell      - Drop into a raw bash shell (no agent).
+  (default)  - Launch interactive agent mission.
+  shell      - Extra-Vehicular Activity: Ingress into raw bash capsule.
+  fix        - Execute automated orbital correction.
+  review     - Execute mission observation.
+  implement  - Execute mission execution.
     `);
     return 1;
   }
@@ -105,7 +103,7 @@ Actions:
 
   if (!config) {
     console.error(
-      `❌ Workspace settings not found for repo: ${repoName}. Run "workspace setup" first.`,
+      `❌ Orbit settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
     );
     return 1;
   }
@@ -120,41 +118,36 @@ Actions:
     backendType: config.backendType
   });
 
-  // 2. Wake Worker & Verify Container
+  // 2. Wake Station & Verify Capsule
   const readyRes = await provider.ensureReady();
   if (readyRes !== 0) return readyRes;
 
-  // Retrieve the remote user to ensure we run git commands correctly
-  await provider.getExecOutput('whoami');
-
-  // Paths - Unified across host and container
-  const remotePolicyPath = `${POLICIES_PATH}/workspace-policy.toml`;
+  // Paths - Unified across station and capsule
+  const remotePolicyPath = `${POLICIES_PATH}/orbit-policy.toml`;
   const timestamp = Date.now();
-  const sessionName = `workspace-${prNumber}-${action}-${timestamp}`;
+  const sessionName = `mission-${prNumber}-${action}-${timestamp}`;
   const containerName = `gcli-${prNumber}-${action}`;
-  const repoWorktreesDir = `${WORKTREES_PATH}/${config.repoName}`;
-  const hostWorktreeDir = `${repoWorktreesDir}/workspace-${prNumber}-${action}`;
+  const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
 // 3. Remote Preparation
-const localApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
+const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
 
-// 4. Remote Context Setup (Executed INSIDE container for path consistency)
+// 4. Remote Context Setup (Executed INSIDE capsule for path consistency)
 const provisioner = new RemoteProvisioner(provider);
-// We don't pass ghEnv anymore as we auth inside the container's main command
-const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isShellMode, '', {
+const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isEvaMode, '', {
     remoteWorkDir: config.remoteWorkDir,
     worktreesDir: repoWorktreesDir,
     upstreamUrl
 });
 if (!remoteWorktreeDir) {
-    console.error('❌ Failed to provision remote worktree.');
+    console.error('❌ Failed to provision satellite worktree.');
     return 1;
 }
 
 // AUTH: Inject credentials directly into the worktree .env
 if (localApiKey) {
-  console.log('   - Injecting remote authentication context...');
+  console.log('   - Injecting mission authentication context...');
   const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName}`;
   const authRes = await provider.exec(
       `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
@@ -177,28 +170,25 @@ if (localApiKey) {
   const forceMainTerminal = terminalTarget === 'foreground';
 
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
-  const remoteWorker = isShellMode
+  const remoteWorker = isEvaMode
     ? `gemini`
     : `tsx ${SCRIPTS_PATH}/entrypoint.ts ${prNumber} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
 
-  // PERSISTENCE: Wrap the entire execution in a tmux session inside the container
+  // PERSISTENCE: Wrap the entire execution in a tmux session inside the capsule
   const tmuxStyle = `
     tmux set -g status off;
   `.replace(/\n/g, '');
 
-  const tmuxCmd = isShellMode
+  const tmuxCmd = isEvaMode
     ? `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`)}`
-    : `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Command Failed' && sleep 30)`)}`;
-
-  // GH AUTH: Ensure the containerized GH CLI is authorized for the node user
-  const ghLoginCmd = `(gh auth status >/dev/null 2>&1 || (unset GITHUB_TOKEN GH_TOKEN && gh auth login --with-token < ${WORKSPACES_ROOT}/.gh_token)) && `;
+    : `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Mission Failed' && sleep 30)`)}`;
 
   const containerWrap = `sudo docker exec -it -u node \
     -e COLORTERM=truecolor \
     -e TERM=xterm-256color \
     -e GEMINI_AUTO_UPDATE=0 \
     -e GEMINI_CLI_HOME=/home/node \
-    ${containerName} sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
+    ${containerName} sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
 
   const finalSSH = provider.getRunCommand(containerWrap, { interactive: true });
 
@@ -209,7 +199,7 @@ if (localApiKey) {
   ) {
     const tempCmdPath = path.join(
       process.env.TMPDIR || '/tmp',
-      `workspace-ssh-${prNumber}.sh`,
+      `mission-ssh-${prNumber}.sh`,
     );
     fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
       mode: 0o755,
@@ -242,12 +232,12 @@ if (localApiKey) {
                 end run
             `;
     spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
-    console.log(`✅ iTerm2 ${terminalTarget} opened for job ${prNumber}.`);
+    console.log(`✅ iTerm2 ${terminalTarget} opened for mission ${prNumber}.`);
     return 0;
   }
 
   // Fallback: Run in current terminal
-  console.log(`📡 Connecting to session ${sessionName}...`);
+  console.log(`📡 Uplinking to session ${sessionName}...`);
   const finalRes = spawnSync(finalSSH, { stdio: 'inherit', shell: true });
 
   return finalRes.status ?? 0;

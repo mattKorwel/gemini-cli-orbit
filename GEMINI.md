@@ -1,25 +1,25 @@
-# Gemini Workspaces Development Guide 🚀
+# Gemini Orbits Development Guide 🚀
 
 This extension provides high-performance, isolated remote development environments for Gemini CLI.
 
-## 🏗️ Architecture: Multi-Container Isolation
-The system utilizes a **Persistent GCE Worker** (running Container-Optimized OS) as the host. Every workspace session is isolated at the **process level** using Docker:
+## 🏗️ Architecture: Multi-Capsule Isolation
+The system utilizes a **Persistent GCE Station** (running Capsule-Optimized OS) as the host. Every orbit session is isolated at the **process level** using Docker:
 
 - **HostVM**: Maintains the persistent data disk (`/mnt/disks/data`) and a read-write "Source of Truth" clone of the main repository.
-- **Isolated Containers**: Each Pull Request session runs in a dedicated container (`gcli-<pr>-<action>`).
-- **Reference Clones**: Job containers perform a `git clone --reference` against the HostVM's main repo. The main repo is mounted **Read-Only** into containers for security.
-- **Persistence**: TMUX sessions live inside the job containers, allowing you to disconnect and re-attach without losing state.
+- **Isolated Capsules**: Each Pull Request session runs in a dedicated capsule (`gcli-<pr>-<action>`).
+- **Reference Clones**: Job capsules perform a `git clone --reference` against the HostVM's main repo. The main repo is mounted **Read-Only** into capsules for security.
+- **Persistence**: TMUX sessions live inside the job capsules, allowing you to disconnect and re-attach without losing state.
 
 ## 🔗 Shared State Strategy
 To ensure a consistent developer experience across all isolated PR sessions, we utilize a **Shared Configuration** model:
-- **Mount Path**: `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to `/home/node/.gemini` in **every** container.
-- **Benefits**: Linking an extension (like `workspaces`) in one container makes it instantly available to all other PR containers on that worker. It also unifies UI themes and aliases.
+- **Mount Path**: `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to `/home/node/.gemini` in **every** capsule.
+- **Benefits**: Linking an extension (like `orbits`) in one capsule makes it instantly available to all other PR capsules on that station. It also unifies UI themes and aliases.
 - **Concurrency**: Gemini CLI handles concurrent access to this folder via atomic writes and file locking.
 
 ## ⚙️ Configuration: Profile System
 We support multiple GCP projects and networking environments (Corporate vs. Public) via a **Named Profile** system:
 
-- **Profiles**: Stored in `.gemini/workspaces/profiles/*.json`.
+- **Profiles**: Stored in `.gemini/orbits/profiles/*.json`.
 - **Backend Types**:
     - `direct-internal`: VPC-internal magic hostname routing (Fastest).
     - `external`: Public IP routing.
@@ -38,12 +38,12 @@ npm test
 *Note: Always run tests before committing to ensure the multi-backend logic remains stable.*
 
 ### Adding Commands
-Custom slash commands are registered via TOML files in `commands/workspace/`. These wrap the TypeScript scripts in `scripts/` using `npx tsx`.
+Custom slash commands are registered via TOML files in `commands/orbit/`. These wrap the TypeScript scripts in `scripts/` using `npx tsx`.
 
 ### Provisioning Logic
 If you modify the remote environment setup, you must update `scripts/setup.ts` and potentially the `development` Docker image used in `GceCosProvider.ts`.
 
 ## 🛡️ Security Mandates
-1.  **Read-Only Source**: Never mount the main host repository as Read-Write into job containers.
+1.  **Read-Only Source**: Never mount the main host repository as Read-Write into job capsules.
 2.  **Secret Injection**: Use standard input pipes or temporary `.env` files for token injection. Avoid `docker exec -e` for sensitive credentials.
-3.  **Path Parity**: Maintain absolute path parity between Host and Container (`/mnt/disks/data`) to prevent Git metadata corruption.
+3.  **Path Parity**: Maintain absolute path parity between Host and Capsule (`/mnt/disks/data`) to prevent Git metadata corruption.

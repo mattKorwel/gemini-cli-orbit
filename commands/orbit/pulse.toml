@@ -1,0 +1,6 @@
+description = "Check the health and telemetry of the mission constellation and active satellites."
+prompt = """
+Retrieving mission pulse...
+
+!{npx tsx scripts/status.ts {{args}} }
+"""

@@ -23,7 +23,7 @@ Sanitize the repository of Google-internal networking patterns and personal iden
 ## 3. Documentation Sanitization
 - [ ] **Review docs/**:
     - [ ] `NETWORK_RESEARCH.md`: Generalize the explanation of IAP vs Direct SSH.
-    - [ ] `NEXT_MISSION.md`: Remove specific instance names like `gcli-workspace-mattkorwel`.
+    - [ ] `NEXT_MISSION.md`: Remove specific instance names like `gcli-orbit-mattkorwel`.
 - [ ] **Update README.md**: Ensure URLs point to the public repo location.
 
 ## 4. Verification

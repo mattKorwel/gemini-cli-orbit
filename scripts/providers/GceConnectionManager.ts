@@ -11,7 +11,7 @@ import { ExternalStrategy } from './strategies/ExternalStrategy.ts';
 import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.ts';
 
 /**
- * Centralized SSH/RSYNC management for GCE Workers.
+ * Centralized SSH/RSYNC management for GCE Stations.
  * Delegates to backend-specific strategies.
  */
 export class GceConnectionManager {

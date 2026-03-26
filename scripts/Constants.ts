@@ -10,27 +10,27 @@ import os from 'node:os';
 const REPO_ROOT = process.cwd();
 
 /**
- * Canonical paths for the Workspace system.
- * Standardized across Host and Container.
+ * Canonical paths for the Gemini Orbit system.
+ * Standardized across Host Station and Satellite Capsules.
  */
-export const WORKSPACES_ROOT = '/mnt/disks/data';
-export const MAIN_REPO_PATH = `${WORKSPACES_ROOT}/main`;
-export const WORKTREES_PATH = `${WORKSPACES_ROOT}/worktrees`;
-export const POLICIES_PATH = `${WORKSPACES_ROOT}/policies`;
-export const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
-export const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
-export const EXTENSION_REMOTE_PATH = `${WORKSPACES_ROOT}/extension`;
+export const ORBIT_ROOT = '/mnt/disks/data';
+export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
+export const SATELLITE_WORKTREES_PATH = `${ORBIT_ROOT}/worktrees`;
+export const POLICIES_PATH = `${ORBIT_ROOT}/policies`;
+export const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
+export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
+export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 
 /**
  * Configuration Paths
  */
-export const GLOBAL_WORKSPACES_DIR = path.join(os.homedir(), '.gemini/workspaces');
-export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_WORKSPACES_DIR, 'settings.json');
-export const PROFILES_DIR = path.join(GLOBAL_WORKSPACES_DIR, 'profiles');
+export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
+export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_ORBIT_DIR, 'settings.json');
+export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
 
-export const PROJECT_WORKSPACES_DIR = path.join(REPO_ROOT, '.gemini/workspaces');
-export const PROJECT_CONFIG_PATH = path.join(PROJECT_WORKSPACES_DIR, 'config.json');
-export const LOCAL_SETTINGS_PATH = path.join(PROJECT_WORKSPACES_DIR, 'settings.json');
+export const PROJECT_ORBIT_DIR = path.join(REPO_ROOT, '.gemini/orbit');
+export const PROJECT_CONFIG_PATH = path.join(PROJECT_ORBIT_DIR, 'config.json');
+export const LOCAL_SETTINGS_PATH = path.join(PROJECT_ORBIT_DIR, 'settings.json');
 
 /**
  * Repository Metadata
@@ -47,13 +47,13 @@ export const DEFAULT_USER_SUFFIX = '';
 export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor';
 
 /**
- * Workspace Configuration Interface
+ * Orbit Configuration Interface
  * Used for both Profiles and Repository-specific settings.
  */
-export interface WorkspaceConfig {
+export interface OrbitConfig {
   projectId?: string;
   zone?: string;
-  instanceName?: string; // The GCE instance name
+  instanceName?: string; // The GCE station name
   terminalTarget?: 'foreground' | 'background' | 'tab' | 'window';
   userFork?: string;
   upstreamRepo?: string;
@@ -72,12 +72,12 @@ export interface WorkspaceConfig {
 }
 
 /**
- * Global Settings File Structure (~/.gemini/workspaces/settings.json)
+ * Global Settings File Structure (~/.gemini/orbit/settings.json)
  */
-export interface WorkspaceSettings {
-  repos: Record<string, WorkspaceConfig>;
+export interface OrbitSettings {
+  repos: Record<string, OrbitConfig>;
   activeRepo?: string;
   activeProfile?: string; // Global default profile
   // Legacy support
-  workspace?: WorkspaceConfig;
+  orbit?: OrbitConfig;
 }

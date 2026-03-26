@@ -4,14 +4,14 @@
 Support managing multiple GCP projects and networking modes via a robust "Named Profile" system.
 
 ## 1. Profile Storage
-- Create a `profiles/` directory in `.gemini/workspaces/`.
+- Create a `profiles/` directory in `.gemini/orbits/`.
 - Support two types of profiles:
     - **Local**: Named JSON files in the `profiles/` directory.
     - **Remote**: HTTPS/GCS URLs.
 
 ## 2. Setup Enhancements (`setup.ts`)
 - **Profile Selection**:
-    - At startup, scan `.gemini/workspaces/profiles/`.
+    - At startup, scan `.gemini/orbits/profiles/`.
     - If profiles exist, present a selection menu: `[Use Existing Profile, Create New, Provide Profile URL]`.
 - **Project Switching**:
     - If a profile is selected, pre-fill all defaults (Project, Zone, Backend).

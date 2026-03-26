@@ -74,21 +74,21 @@ describe('GceCosProvider', () => {
   it('should have public projectId and zone', () => {
     expect(provider.projectId).toBe(projectId);
     expect(provider.zone).toBe(zone);
-    expect(provider.workerName).toBe('development-worker');
+    expect(provider.stationName).toBe('station-supervisor');
   });
 
-  it('should list workers for the user', async () => {
+  it('should list stations for the user', async () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
-    const res = await provider.listWorkers();
+    const res = await provider.listStations();
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
         'gcloud',
-        expect.arrayContaining(['compute', 'instances', 'list', '--filter', expect.stringContaining('gcli-workspace-')]),
+        expect.arrayContaining(['compute', 'instances', 'list', '--filter', expect.stringContaining('gcli-station-')]),
         expect.any(Object)
     );
   });
 
-  it('should destroy the worker and its resources', async () => {
+  it('should destroy the station and its resources', async () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     const res = await provider.destroy();
     expect(res).toBe(0);
@@ -104,7 +104,7 @@ describe('GceCosProvider', () => {
     );
   });
 
-  it('should list active workspace containers', async () => {
+  it('should list active orbit capsules', async () => {
     // Mock getExecOutput behavior via mockConn.run
     mockConn.run.mockResolvedValue({ 
         status: 0, 
@@ -112,11 +112,11 @@ describe('GceCosProvider', () => {
         stderr: '' 
     });
     
-    const containers = await provider.listContainers();
-    expect(containers).toEqual(['gcli-pr-123', 'gcli-pr-456']);
+    const capsules = await provider.listCapsules();
+    expect(capsules).toEqual(['gcli-pr-123', 'gcli-pr-456']);
   });
 
-  it('should execute ensureReady and refresh container if missing', async () => {
+  it('should execute ensureReady and refresh capsule if missing', async () => {
     const mockData = {
       name: 'test-i',
       status: 'RUNNING',
@@ -127,7 +127,7 @@ describe('GceCosProvider', () => {
     };
     vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from(JSON.stringify(mockData)) } as any);
     
-    // 1. inspect check returns status 1 (container missing)
+    // 1. inspect check returns status 1 (capsule missing)
     mockConn.run.mockResolvedValueOnce({ status: 1, stdout: '', stderr: 'Error: No such object' }); 
     // 2. Refresh commands (pull, rm, run) - we'll just mock them all succeeding
     mockConn.run.mockResolvedValue({ status: 0, stdout: 'true', stderr: '' }); 
@@ -138,6 +138,6 @@ describe('GceCosProvider', () => {
 
     expect(res).toBe(0);
     expect(mockConn.run).toHaveBeenCalledWith(expect.stringContaining('docker pull'), expect.any(Object));
-    expect(mockConn.run).toHaveBeenCalledWith(expect.stringContaining('docker run -d --name development-worker'), expect.any(Object));
+    expect(mockConn.run).toHaveBeenCalledWith(expect.stringContaining('docker run -d --name station-supervisor'), expect.any(Object));
   });
 });

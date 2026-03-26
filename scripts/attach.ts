@@ -24,7 +24,7 @@ export async function runAttach(
   const isLocal = args.includes('--local');
 
   if (!prNumber) {
-    console.error('Usage: workspace attach <PR_NUMBER> [action] [--local]');
+    console.error('Usage: orbit attach <PR_NUMBER> [action] [--local]');
     return 1;
   }
 
@@ -32,7 +32,7 @@ export async function runAttach(
   const config = getRepoConfig(repoName);
   
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "workspace setup" first.`);
+    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit setup" first.`);
     return 1;
   }
 
@@ -47,7 +47,7 @@ export async function runAttach(
     backendType
   });
 
-  const sessionName = `workspace-${prNumber}-${action}`;
+  const sessionName = `orbit-${prNumber}-${action}`;
   const containerAttach = `sudo docker exec -it ${provider.workerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
   const finalSSH = provider.getRunCommand(containerAttach, {
     interactive: true,
@@ -60,7 +60,7 @@ export async function runAttach(
   if (isWithinGemini && !isLocal) {
     const tempCmdPath = path.join(
       process.env.TMPDIR || '/tmp',
-      `workspace-attach-${prNumber}.sh`,
+      `orbit-attach-${prNumber}.sh`,
     );
     fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
       mode: 0o755,

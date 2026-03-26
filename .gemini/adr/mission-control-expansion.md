@@ -1,7 +1,7 @@
 # Plan: Mission Control Expansion (Skill Porting)
 
 ## Objective
-Port high-value automated workflows from the `mk-offload` branch into the Gemini Workspaces Extension.
+Port high-value automated workflows from the `mk-offload` branch into the Gemini Orbits Extension.
 
 ## 1. Ported Skills
 - **`ci`**: Monitor GitHub Actions and automatically extract failure logs.
@@ -17,9 +17,9 @@ Integrate the "Supervisor" loops that run inside the `development` worker:
 
 ## 3. Extension Integration
 - Register new namespaced commands:
-    - `/workspace:review <pr>`
-    - `/workspace:fix <pr>`
-    - `/workspace:implement <issue>`
+    - `/orbit:review <pr>`
+    - `/orbit:fix <pr>`
+    - `/orbit:implement <issue>`
 - Update `scripts/orchestrator.ts` to support these new entry points.
 
 ## 4. Documentation

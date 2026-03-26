@@ -7,10 +7,10 @@
 import type { WorkerProvider } from './providers/BaseProvider.ts';
 import { 
   MAIN_REPO_PATH, 
-  WORKTREES_PATH, 
+  SATELLITE_WORKTREES_PATH, 
   UPSTREAM_REPO_URL,
   CONFIG_DIR,
-  WORKSPACES_ROOT
+  ORBIT_ROOT
 } from './Constants.ts';
 
 function q(str: string) {
@@ -20,23 +20,23 @@ function q(str: string) {
 export class RemoteProvisioner {
   constructor(private provider: WorkerProvider) {}
 
-  async provisionWorktree(prNumber: string, action: string, isShellMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string }): Promise<string> {
-    const remoteWorktreeDir = `${config.worktreesDir}/workspace-${prNumber}-${action}`;
+  async provisionWorktree(prNumber: string, action: string, isEvaMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string }): Promise<string> {
+    const remoteWorktreeDir = `${config.worktreesDir}/mission-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
     const imageUri = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
-    // 1. Ensure the specific job container is running
-    const containerStatus = await this.provider.getContainerStatus(containerName);
+    // 1. Ensure the specific mission capsule is running
+    const containerStatus = await this.provider.getCapsuleStatus(containerName);
 
     if (!containerStatus.running) {
       if (containerStatus.exists) {
-        console.log(`   - Reviving isolated container ${containerName}...`);
+        console.log(`   - Reviving isolated capsule ${containerName}...`);
         await this.provider.removeContainer(containerName);
       } else {
-        console.log(`   - Provisioning isolated container ${containerName}...`);
+        console.log(`   - Provisioning isolated capsule ${containerName}...`);
       }
 
-      await this.provider.runContainer({
+      await this.provider.runCapsule({
         name: containerName,
         image: imageUri,
         user: 'root',
@@ -44,36 +44,36 @@ export class RemoteProvisioner {
         memoryLimit: '8g',
         mounts: [
           { host: config.remoteWorkDir, container: config.remoteWorkDir, readonly: true }, // MOUNT READ-ONLY
-          { host: remoteWorktreeDir, container: remoteWorktreeDir, readonly: false }, // Specific Worktree RW
-          { host: WORKSPACES_ROOT, container: WORKSPACES_ROOT, readonly: true }, // Broad mount as RO for shared assets
-          { host: `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini', readonly: false }
+          { host: remoteWorktreeDir, container: remoteWorktreeDir, readonly: false }, // Specific Satellite Worktree RW
+          { host: ORBIT_ROOT, container: ORBIT_ROOT, readonly: true }, // Broad mount as RO for shared assets
+          { host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini', readonly: false }
         ],
-        command: `/bin/bash -c "ln -sfn ${WORKSPACES_ROOT} /home/node/.workspaces && while true; do sleep 1000; done"`
+        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbits && while true; do sleep 1000; done"`
       });
 
-      // Wait for container to stabilize
+      // Wait for capsule to stabilize
       await this.waitForContainer(containerName, 10000);
     } else {
-        console.log(`   ✅ Isolated container ${containerName} is already active.`);
+        console.log(`   ✅ Isolated capsule ${containerName} is already active.`);
     }
 
     // 2. Provision the repository using a reference clone for speed and isolation
-    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapContainer: containerName, quiet: true });
+    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapCapsule: containerName, quiet: true });
 
     if (check.status !== 0) {
       // Clear previous history for this session only if we are doing a fresh provision
-      const clearHistoryCmd = `rm -rf /home/node/.gemini/history/workspace-${prNumber}-${action}*`;
-      await this.provider.exec(clearHistoryCmd, { wrapContainer: containerName });
+      const clearHistoryCmd = `rm -rf /home/node/.gemini/history/mission-${prNumber}-${action}*`;
+      await this.provider.exec(clearHistoryCmd, { wrapCapsule: containerName });
 
-      console.log(`   - Provisioning isolated git repo for ${prNumber} (inside container via reference)...`);
+      console.log(`   - Provisioning isolated git repo for PR #${prNumber} (inside capsule via reference)...`);
       // 3.1 Ensure remoteWorktreeDir parent is owned by node on the HOST first
       await this.provider.exec(`sudo mkdir -p ${config.worktreesDir} && sudo chown -R 1000:1000 ${config.worktreesDir}`);
       await this.provider.exec(`sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`);
 
-      // 3.2 Perform Reference Clone inside the container
+      // 3.2 Perform Reference Clone inside the capsule
       // We point to the RO main repo as the reference
       const cloneCmd = `
-        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${WORKSPACES_ROOT}/.gh_token | gh auth login --with-token) && \
+        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) && \
         git config --global --add safe.directory '*' && \
         (rm -rf ${remoteWorktreeDir} || true) && \
         git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
@@ -83,7 +83,7 @@ export class RemoteProvisioner {
         gh pr checkout ${prNumber}
       `;
 
-      const setupRes = await this.provider.getExecOutput(cloneCmd.replace(/\n/g, ''), { wrapContainer: containerName });
+      const setupRes = await this.provider.getExecOutput(cloneCmd.replace(/\n/g, ''), { wrapCapsule: containerName });
       if (setupRes.status !== 0) {
         throw new Error(`Failed to provision isolated repo: ${setupRes.stderr}`);
       }
@@ -92,16 +92,16 @@ export class RemoteProvisioner {
       console.log('   ✅ Remote repository ready.');
     }
 
-    await this.provider.exec(`chown -R 1000:1000 ${remoteWorktreeDir}`, { wrapContainer: containerName });
+    await this.provider.exec(`chown -R 1000:1000 ${remoteWorktreeDir}`, { wrapCapsule: containerName });
     return remoteWorktreeDir;
     }
 
     async waitForContainer(name: string, timeoutMs: number): Promise<void> {
     const start = Date.now();
-    process.stdout.write(`   - Waiting for container ${name} to stabilize...`);
+    process.stdout.write(`   - Waiting for capsule ${name} to stabilize...`);
 
     while (Date.now() - start < timeoutMs) {
-      const res = await this.provider.getExecOutput('echo 1', { wrapContainer: name, quiet: true });
+      const res = await this.provider.getExecOutput('echo 1', { wrapCapsule: name, quiet: true });
       if (res.status === 0) {
         process.stdout.write(' ✅ Ready.\n');
         return;

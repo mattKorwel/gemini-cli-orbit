@@ -1,7 +1,0 @@
-description = "Automatically attempt to fix failing CI checks for a specific PR."
-prompt = """
-Starting remote self-healing loop for PR #{{args}}...
-I will wait for CI to fail, extract the error, and attempt a fix.
-
-!{npx tsx scripts/orchestrator.ts {{args}} fix}
-"""

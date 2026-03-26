@@ -1,16 +1,16 @@
 ---
-name: workspaces
+name: orbits
 description: Expertise in managing and utilizing Gemini Workspaces for high-performance remote development tasks.
 ---
 
 # Gemini Workspaces Skill
 
-This skill enables the agent to utilize **Gemini Workspaces**—a high-performance, persistent remote development platform. It allows the agent to move intensive tasks (PR reviews, complex repairs, full builds) from the local environment to a dedicated cloud worker.
+This skill enables the agent to utilize **Gemini Workspaces**—a high-performance, persistent remote development platform. It allows the agent to move intensive tasks (PR reviews, complex repairs, full builds) from the local environment to a dedicated cloud station.
 
 ## 🛠️ Key Capabilities
 1. **Persistent Execution**: Jobs run in remote `tmux` sessions. Disconnecting or crashing the local terminal does not stop the remote work.
-2. **Parallel Infrastructure**: The agent can launch a heavy task (like a full build or CI run) in a workspace while continuing to assist the user locally.
-3. **Behavioral Fidelity**: Remote workers have full tool access (Git, Node, Docker, etc.) and high-performance compute, allowing the agent to provide behavioral proofs of its work.
+2. **Parallel Infrastructure**: The agent can launch a heavy task (like a full build or CI run) in a orbit while continuing to assist the user locally.
+3. **Behavioral Fidelity**: Remote stations have full tool access (Git, Node, Docker, etc.) and high-performance compute, allowing the agent to provide behavioral proofs of its work.
 
 ## 📋 Instructions for the Agent
 
@@ -57,6 +57,6 @@ This skill enables the agent to utilize **Gemini Workspaces**—a high-performan
    ```
 
 ## ⚠️ Important Constraints
-- **NO NPM**: Do NOT attempt to use `npm run` or `npm workspace`. Those commands are deprecated in favor of running the extension scripts directly.
+- **NO NPM**: Do NOT attempt to use `npm run` or `npm orbit`. Those commands are deprecated in favor of running the extension scripts directly.
 - **npx tsx**: Always use `npx tsx` followed by the absolute path provided in `${extensionPath}`.
 - **Absolute Paths**: Always use absolute paths (e.g., `/mnt/disks/data/...`) when orchestrating remote commands.

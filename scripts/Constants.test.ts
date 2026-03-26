@@ -14,7 +14,7 @@ describe('Constants', () => {
   });
 
   it('should have a valid profiles directory path', () => {
-    expect(PROFILES_DIR).toContain('.gemini/workspaces/profiles');
-    expect(PROFILES_DIR).not.toContain('.gemini/workspaces/profiles/.gemini'); // Should be top-level in home
+    expect(PROFILES_DIR).toContain('.gemini/orbit/profiles');
+    expect(PROFILES_DIR).not.toContain('.gemini/orbit/profiles/.gemini'); // Should be top-level in home
   });
 });

@@ -1,0 +1,6 @@
+description = "Manage the entire mission constellation of stations across projects and zones."
+prompt = """
+Managing constellation...
+
+!{npx tsx scripts/fleet.ts {{args}} }
+"""

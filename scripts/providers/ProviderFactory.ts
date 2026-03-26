@@ -5,7 +5,7 @@
  */
 
 import { GceCosProvider } from './GceCosProvider.ts';
-import type { WorkerProvider } from './BaseProvider.ts';
+import type { OrbitProvider } from './BaseProvider.ts';
 
 
 
@@ -23,12 +23,12 @@ export class ProviderFactory {
     userSuffix?: string;
     backendType?: string;
     imageUri?: string;
-  }): WorkerProvider {
+  }): OrbitProvider {
     if (config.providerType === 'local-docker') {
         throw new Error('Local Docker provider not yet implemented.');
     }
     
-    const workerName = config.repoName ? `gcli-worker-${config.repoName}` : 'development-worker';
+    const stationName = config.repoName ? `gcli-station-${config.repoName}` : 'station-supervisor';
 
     // Default to GCE
     return new GceCosProvider(
@@ -41,7 +41,7 @@ export class ProviderFactory {
         userSuffix: config.userSuffix,
         backendType: config.backendType,
         imageUri: config.imageUri,
-        workerName
+        stationName
       }
     );
   }

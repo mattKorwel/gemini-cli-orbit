@@ -1,6 +1,6 @@
-# Master Plan: Hardening & Maturing Gemini Workspaces
+# Master Plan: Hardening & Maturing Gemini Orbits
 
-This document outlines the detailed sub-plans for improving the Gemini Workspaces extension based on the recent architectural audit.
+This document outlines the detailed sub-plans for improving the Gemini Orbits extension based on the recent architectural audit.
 
 ---
 
@@ -12,7 +12,7 @@ This document outlines the detailed sub-plans for improving the Gemini Workspace
     - Modify `orchestrator.ts` to pass `GITHUB_TOKEN` and `GEMINI_API_KEY` via a temporary file inside the container (e.g., `/dev/shm/secrets.env`) instead of `-e` environment flags in `docker exec`.
     - Ensure the temporary file is deleted immediately after the session starts.
 2.  **Granular Policy Enforcement**:
-    - Audit `workspace-policy.toml`.
+    - Audit `orbit-policy.toml`.
     - Remove broad `git ` and `gh ` prefixes from the "Core Utilities" section.
     - Ensure every allowed command is explicitly whitelisted (e.g., `git log`, `git status`, `gh pr view`).
 3.  **Auth Failure Circuit Breaker**:
@@ -28,7 +28,7 @@ This document outlines the detailed sub-plans for improving the Gemini Workspace
     - Update `orchestrator.ts` to run `git worktree prune` and `git submodule foreach --recursive git clean -ffdx` inside the container before attempting to create a new worktree.
 2.  **Metadata Validation**:
     - Add a check to verify that the `main` repository's `.git/worktrees` directory is in sync with the actual directories on disk before provisioning.
-3.  **Workspace Doctor Skill**:
+3.  **Orbit Doctor Skill**:
     - Introduce a hidden "doctor" check in `entrypoint.ts` that verifies path consistency and disk space before dropping the user into the TUI.
 
 ---
@@ -41,7 +41,7 @@ This document outlines the detailed sub-plans for improving the Gemini Workspace
     - Create `scripts/Constants.ts` to store canonical paths like `WORKSPACES_ROOT` (`/mnt/disks/data`), `MAIN_REPO_PATH`, and `CONFIG_DIR`.
     - Update all scripts to import from this central source.
 2.  **Settings Type Safety**:
-    - Define a formal `WorkspaceConfig` TypeScript interface.
+    - Define a formal `OrbitConfig` TypeScript interface.
     - Replace all `any` usages in `setup.ts` and `orchestrator.ts` with typed config objects.
 3.  **Orchestrator Modularization**:
     - Break the 300+ line `orchestrator.ts` into smaller modules: `ArgumentRegistry`, `RemoteProvisioner`, and `ItermDriver`.

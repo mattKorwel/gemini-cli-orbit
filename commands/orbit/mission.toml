@@ -1,0 +1,13 @@
+description = "Unified mission command to start, resume, or perform maneuvers (fix, review, implement) on a PR."
+prompt = """
+I am preparing the mission for PR #{{args}}.
+
+Actions available:
+- (default) Launch/Resume interactive agent session.
+- eva        - Extra-Vehicular Activity: Ingress into a raw bash capsule.
+- fix        - Execute automated orbital correction (fix playbook).
+- review     - Execute mission observation (review playbook).
+- implement  - Execute mission execution (implement playbook).
+
+!{npx tsx scripts/orchestrator.ts {{args}} }
+"""

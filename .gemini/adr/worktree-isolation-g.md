@@ -14,7 +14,7 @@ Implement process-level security isolation using job-specific containers and **G
 - Logic flow:
   1. **Host**: Run `git fetch` on the main repo to update objects.
   2. **Orchestrator**: Start job-specific container with RO main repo and RW worktree path.
-  3. **Container**: Run `git clone --reference /mnt/disks/data/main https://github.com/google-gemini/gemini-cli.git /mnt/disks/data/worktrees/workspace-A`.
+  3. **Container**: Run `git clone --reference /mnt/disks/data/main https://github.com/google-gemini/gemini-cli.git /mnt/disks/data/worktrees/orbit-A`.
   4. **Container**: Run `gh pr checkout` or `git checkout FETCH_HEAD`.
 
 ### Monitoring (`status.ts`)

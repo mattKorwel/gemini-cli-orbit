@@ -52,7 +52,7 @@ describe('runOrchestrator', () => {
         upstreamRepo: 'o/r',
         remoteHost: 'h',
         remoteWorkDir: '/w',
-        useContainer: true
+        useCapsule: true
     });
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     mockProvisionWorktree.mockResolvedValue('/remote/path');
@@ -78,7 +78,7 @@ describe('runOrchestrator', () => {
 
   it('should return non-zero if credential injection fails', async () => {
     mockProvider.exec.mockResolvedValue(1);
-    const res = await runOrchestrator(['23176', 'open'], { WORKSPACE_GEMINI_API_KEY: 'test-key' });
+    const res = await runOrchestrator(['23176', 'open'], { GCLI_ORBIT_GEMINI_API_KEY: 'test-key' });
     expect(res).toBe(1);
   });
 });
