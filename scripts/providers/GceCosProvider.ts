@@ -27,8 +27,9 @@ const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
 const EXTENSION_REMOTE_PATH = `${WORKSPACES_ROOT}/extension`;
 
 export class GceCosProvider implements WorkerProvider {
-  private projectId: string;
-  private zone: string;
+  public projectId: string;
+  public zone: string;
+  public workerName: string;
   private instanceName: string;
   private knownHostsPath: string;
   private conn: GceConnectionManager;
@@ -41,10 +42,11 @@ export class GceCosProvider implements WorkerProvider {
     zone: string,
     instanceName: string,
     repoRoot: string,
-    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string, vpcName?: string, subnetName?: string } = {}
+    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string, vpcName?: string, subnetName?: string, workerName?: string } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
+    this.workerName = config.workerName || 'development-worker';
     this.instanceName = instanceName;
     const workspacesDir = path.join(repoRoot, '.gemini/workspaces');
     if (!fs.existsSync(workspacesDir))
@@ -98,8 +100,8 @@ export class GceCosProvider implements WorkerProvider {
       chown -R 1000:1000 /home/node
       until docker info >/dev/null 2>&1; do sleep 2; done
       docker pull ${imageUri}
-      if ! docker ps -a | grep -q "development-worker"; then
-        docker run -d --name development-worker --restart always --user root \\
+      if ! docker ps -a | grep -q "${this.workerName}"; then
+        docker run -d --name ${this.workerName} --restart always --user root \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
           -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
           ${imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.workspaces && while true; do sleep 1000; done"
@@ -268,6 +270,62 @@ export class GceCosProvider implements WorkerProvider {
   async capturePane(containerName: string): Promise<string> {
     const res = await this.getExecOutput('tmux capture-pane -pt $(tmux list-sessions -F "#S" | head -n 1) 2>/dev/null', { wrapContainer: containerName, quiet: true });
     return res.stdout;
+  }
+
+  async listWorkers(): Promise<number> {
+    const user = process.env.USER || 'gcli-user';
+    const instancePrefix = `gcli-workspace-${user}`;
+    console.log(`🔍 Listing Workspace Workers for ${user} in ${this.projectId}...`);
+
+    const res = spawnSync(
+      'gcloud',
+      [
+        'compute', 'instances', 'list',
+        '--project', this.projectId,
+        '--filter', `name~^${instancePrefix}`,
+        '--format', 'table(name,zone,status,networkInterfaces[0].networkIP:label=INTERNAL_IP,creationTimestamp)',
+      ],
+      { stdio: 'inherit' },
+    );
+    return res.status ?? 0;
+  }
+
+  async destroy(): Promise<number> {
+    console.log(`🔥 DESTROYING worker ${this.instanceName} and its data disk...`);
+    
+    // Delete instance
+    const res1 = spawnSync(
+      'gcloud',
+      [
+        'compute', 'instances', 'delete', this.instanceName,
+        '--project', this.projectId,
+        '--zone', this.zone,
+        '--quiet',
+      ],
+      { stdio: 'inherit' },
+    );
+
+    // Delete static IP if it exists
+    const region = this.zone.split('-').slice(0, 2).join('-');
+    const res2 = spawnSync(
+      'gcloud',
+      [
+        'compute', 'addresses', 'delete', `${this.instanceName}-ip`,
+        '--project', this.projectId,
+        '--region', region,
+        '--quiet',
+      ],
+      { stdio: 'pipe' },
+    );
+    return (res1.status === 0 || res1.status === null) ? 0 : 1;
+  }
+
+  async listContainers(): Promise<string[]> {
+      const res = await this.getExecOutput("sudo docker ps --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
+      if (res.status === 0 && res.stdout.trim()) {
+          return res.stdout.trim().split('\n');
+      }
+      return [];
   }
 
   private quote(str: string) { return `'${str.replace(/'/g, "'\\''")}'`; }

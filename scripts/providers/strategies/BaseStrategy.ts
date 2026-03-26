@@ -5,7 +5,7 @@
  */
 
 import os from 'os';
-import { ConnectivityStrategy } from './ConnectivityStrategy.ts';
+import type { ConnectivityStrategy } from './ConnectivityStrategy.ts';
 import { spawnSync } from 'node:child_process';
 
 export abstract class BaseStrategy implements ConnectivityStrategy {

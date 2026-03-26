@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'child_process';
-import { ConnectivityStrategy } from './strategies/ConnectivityStrategy.ts';
+import type { ConnectivityStrategy } from './strategies/ConnectivityStrategy.ts';
 import { IapStrategy } from './strategies/IapStrategy.ts';
 import { ExternalStrategy } from './strategies/ExternalStrategy.ts';
 import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.ts';

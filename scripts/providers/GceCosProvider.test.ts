@@ -17,6 +17,9 @@ const mockConn = {
   sync: vi.fn().mockResolvedValue(0),
   getMagicRemote: vi.fn().mockReturnValue('user@host'),
   getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
+  onProvisioned: vi.fn().mockResolvedValue(undefined),
+  setupNetworkInfrastructure: vi.fn(),
+  getNetworkInterfaceConfig: vi.fn().mockReturnValue('network=default,no-address'),
 };
 
 vi.mock('./GceConnectionManager.ts', () => ({
@@ -58,6 +61,11 @@ describe('GceCosProvider', () => {
     
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
+  });
+
+  it('should have public projectId and zone', () => {
+    expect(provider.projectId).toBe(projectId);
+    expect(provider.zone).toBe(zone);
   });
 
   it('should execute ensureReady and refresh container if missing', async () => {
