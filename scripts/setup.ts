@@ -505,7 +505,7 @@ and full builds) to a dedicated, high-performance GCP worker.
   console.log('🔗 Linking extension in remote container...');
   // We run this inside the development-worker as the 'node' user so it updates the shared /home/node/.gemini/extension-enablement.json
   // We provide a dummy GEMINI_API_KEY because the CLI checks for it even for non-API commands like 'extensions link'
-  await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker gemini extensions link ${EXTENSION_REMOTE_PATH}`);
+  await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker /usr/local/share/npm-global/bin/gemini extensions link ${EXTENSION_REMOTE_PATH}`);
 
   // 3. Initialize Remote Gemini Config with Auth
   console.log('⚙️  Initializing remote Gemini configuration...');
