@@ -56,6 +56,12 @@ npx tsx scripts/setup.ts --profile=corp --yes --reconfigure
 - `iap`: Most secure. Tunnels SSH through GCP Identity-Aware Proxy. No public IPs or VPNs needed.
 - `external`: Uses the instance's Public IP (if enabled).
 
+### Maintaining Worker Linters
+The worker image includes pre-baked linters (`actionlint`, `shellcheck`, `yamllint`) to ensure fast execution. To update these:
+1. Update the `ARG` versions in `.gcp/Dockerfile.development` in the `gemini-cli` repository.
+2. Trigger a new build via `gcloud builds submit`.
+3. The extension's `ensureReady` logic will automatically detect and pull the new image on next setup/open.
+
 ---
 
 ## 🛡️ Security Mandates

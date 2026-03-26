@@ -5,18 +5,17 @@
  */
 
 import { spawnSync } from 'child_process';
-import os from 'os';
+import { ConnectivityStrategy } from './strategies/ConnectivityStrategy.ts';
+import { IapStrategy } from './strategies/IapStrategy.ts';
+import { ExternalStrategy } from './strategies/ExternalStrategy.ts';
+import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.ts';
 
 /**
  * Centralized SSH/RSYNC management for GCE Workers.
- * Handles Magic Hostname routing with Zero-Knowledge security.
- * STRICTLY uses Direct Internal connection (Corporate Magic).
+ * Delegates to backend-specific strategies.
  */
 export class GceConnectionManager {
-  private projectId: string;
-  private zone: string;
-  private instanceName: string;
-  private overrideHost: string | null = null;
+  private strategy: ConnectivityStrategy;
 
   constructor(
     projectId: string, 
@@ -25,84 +24,47 @@ export class GceConnectionManager {
     private config: { dnsSuffix?: string, userSuffix?: string, backendType?: string } = {},
     private repoRoot: string = process.cwd()
   ) {
-    this.projectId = projectId;
-    this.zone = zone;
-    this.instanceName = instanceName;
+    const backend = config.backendType || 'direct-internal';
+    
+    if (backend === 'iap') {
+        this.strategy = new IapStrategy(projectId, zone, instanceName, config);
+    } else if (backend === 'external') {
+        this.strategy = new ExternalStrategy(projectId, zone, instanceName, config);
+    } else {
+        this.strategy = new DirectInternalStrategy(projectId, zone, instanceName, config);
+    }
   }
 
   setOverrideHost(host: string | null) {
-    this.overrideHost = host;
+    this.strategy.setOverrideHost(host);
+  }
+
+  getBackendType(): string {
+    return this.strategy.getBackendType();
   }
 
   getMagicRemote(): string {
-    const rawUser = process.env.USER || 'node';
-    const userSuffix = this.config.userSuffix ?? '';
-    const user = `${rawUser}${userSuffix}`;
-
-    if (this.overrideHost) {
-      return `${user}@${this.overrideHost}`;
-    }
-
-    const backend = this.config.backendType || 'direct-internal';
-    
-    if (backend === 'iap') {
-        // IAP uses the instance name directly in gcloud
-        return this.instanceName;
-    }
-
-    if (backend === 'external') {
-        // External mode relies on overrideHost (set during setup) or falls back to magic
-        return this.overrideHost ? `${user}@${this.overrideHost}` : `${user}@nic0.${this.instanceName}.${this.zone}.c.${this.projectId}.internal`;
-    }
-
-    // Direct Internal: nic0.<name>.<zone>.c.<project>.internal[.<custom-suffix>]
-    const customSuffix = this.config.dnsSuffix || '';
-    const baseSuffix = `.c.${this.projectId}.internal`;
-    const fullSuffix = baseSuffix + (customSuffix.startsWith('.') ? customSuffix : (customSuffix ? '.' + customSuffix : ''));
-    
-    return `${user}@nic0.${this.instanceName}.${this.zone}${fullSuffix}`;
+    return this.strategy.getMagicRemote();
   }
 
   getCommonArgs(): string[] {
-    const backend = this.config.backendType || 'direct-internal';
-    const args = [
-      '-o', 'StrictHostKeyChecking=no',
-      '-o', 'UserKnownHostsFile=/dev/null',
-      '-o', 'GlobalKnownHostsFile=/dev/null',
-      '-o', 'CheckHostIP=no',
-      '-o', 'LogLevel=ERROR',
-      '-o', 'ConnectTimeout=60',
-      '-o', 'ServerAliveInterval=30',
-      '-o', 'ServerAliveCountMax=3',
-    ];
-
-    if (backend !== 'iap') {
-        args.push('-o', 'ControlMaster=auto');
-        args.push('-o', 'ControlPath=~/.ssh/gcli-%C');
-        args.push('-o', 'ControlPersist=10m');
-        args.push('-o', 'SendEnv=USER');
-        args.push('-i', `${os.homedir()}/.ssh/google_compute_engine`);
-    }
-
-    return args;
+    return this.strategy.getCommonArgs();
   }
 
   getRunCommand(command: string, options: { interactive?: boolean } = {}): string {
-    const fullRemote = this.getMagicRemote();
-    const backend = this.config.backendType || 'direct-internal';
+    return this.strategy.getRunCommand(command, options);
+  }
 
-    if (backend === 'iap') {
-        const iapArgs = [
-            'gcloud', 'compute', 'ssh', fullRemote,
-            '--project', this.projectId,
-            '--zone', this.zone,
-            '--tunnel-through-iap',
-            '--command', this.quote(command)
-        ];
-        return iapArgs.join(' ');
-    }
+  setupNetworkInfrastructure(vpcName: string): void {
+    this.strategy.setupNetworkInfrastructure(vpcName);
+  }
 
-    return `ssh ${this.getCommonArgs().join(' ')} ${options.interactive ? '-t' : ''} ${fullRemote} ${this.quote(command)}`;
+  getNetworkInterfaceConfig(vpcName: string, subnetName: string): string {
+    return this.strategy.getNetworkInterfaceConfig(vpcName, subnetName);
+  }
+
+  async onProvisioned(): Promise<void> {
+    await this.strategy.onProvisioned();
   }
 
   run(command: string, options: { interactive?: boolean; stdio?: 'pipe' | 'inherit'; quiet?: boolean } = {}): { status: number; stdout: string; stderr: string } {
@@ -116,7 +78,6 @@ export class GceConnectionManager {
       console.error(`   ❌ SSH Connection Failed: ${this.getMagicRemote()}`);
       if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
     } else if (status !== 0 && options.stdio !== 'inherit' && !options.quiet) {
-      // This is a command failure, not an SSH failure
       console.error(`   ⚠️ Remote Command Failed (Status ${status}): ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`);
       if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
     }
@@ -130,40 +91,24 @@ export class GceConnectionManager {
 
   sync(localPath: string, remotePath: string, options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {}): number {
     const fullRemote = this.getMagicRemote();
-    const backend = this.config.backendType || 'direct-internal';
+    const backend = this.getBackendType();
 
-    // We use --no-t and --no-perms to avoid "Operation not permitted" errors 
-    // when syncing to volumes that might have UID mismatches with the container.
-    // We use --checksum to ensure we only sync files that have actually changed in content.
     const rsyncArgs = ['-rvz', '--quiet', '--checksum', '--no-t', '--no-perms', '--no-owner', '--no-group'];
     if (options.delete) rsyncArgs.push('--delete');
     if (options.exclude) options.exclude.forEach(ex => rsyncArgs.push(`--exclude="${ex}"`));
-    
-    // Use sudo on the remote side if requested to bypass permission errors
-    if (options.sudo) {
-        rsyncArgs.push('--rsync-path="sudo rsync"');
-    }
+    if (options.sudo) rsyncArgs.push('--rsync-path="sudo rsync"');
 
-    let sshBase = 'ssh';
-    let sshArgs = this.getCommonArgs();
-
+    let sshCmd: string;
     if (backend === 'iap') {
-        sshBase = 'gcloud compute ssh';
-        sshArgs = [
-            '--project', this.projectId,
-            '--zone', this.zone,
-            '--tunnel-through-iap'
-        ];
+        const strat = this.strategy as BaseStrategy;
+        sshCmd = `gcloud compute ssh --project ${strat.projectId} --zone ${strat.zone} --tunnel-through-iap`;
+    } else {
+        sshCmd = `ssh ${this.getCommonArgs().join(' ')}`;
     }
 
-    const sshCmd = `${sshBase} ${sshArgs.join(' ')}`;
-    const directRsync = `rsync ${rsyncArgs.join(' ')} -e ${this.quote(sshCmd)} ${localPath} ${fullRemote}:${remotePath}`;
+    const directRsync = `rsync ${rsyncArgs.join(' ')} -e '${sshCmd}' ${localPath} ${fullRemote}:${remotePath}`;
     
     const res = spawnSync(directRsync, { stdio: 'inherit', shell: true });
     return res.status ?? 1;
-  }
-
-  private quote(str: string) {
-    return `'${str.replace(/'/g, "'\\''")}'`;
   }
 }

@@ -8,9 +8,9 @@
     "remoteHost": "gcli-worker",
     "remoteWorkDir": "/mnt/disks/data/main",
     "useContainer": true,
-    "dnsSuffix": ".c.${projectId}.internal",
-    "userSuffix": "",
+    "dnsSuffix": ".gcpnode.com",
+    "userSuffix": "_google_com",
     "backendType": "direct-internal",
-    "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest"
+    "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor"
   }
 }

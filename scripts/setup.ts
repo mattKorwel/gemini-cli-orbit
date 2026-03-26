@@ -88,15 +88,20 @@ async function prompt(question: string, defaultValue: string, explanation?: stri
   });
 }
 
-async function confirm(question: string): Promise<boolean> {
+async function confirm(question: string, defaultValue: boolean = true): Promise<boolean> {
   const autoAccept = process.argv.includes('--yes') || process.argv.includes('-y');
-  if (autoAccept) return true;
+  if (autoAccept) return defaultValue;
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
-    rl.question(`❓ ${question} (y/n): `, (answer) => {
+    const promptMsg = `❓ ${question} (${defaultValue ? 'Y/n' : 'y/N'}): `;
+    rl.question(promptMsg, (answer) => {
       rl.close();
-      resolve(answer.trim().toLowerCase() === 'y');
+      if (!answer.trim()) {
+        resolve(defaultValue);
+      } else {
+        resolve(answer.trim().toLowerCase() === 'y');
+      }
     });
   });
 }
@@ -206,10 +211,15 @@ and full builds) to a dedicated, high-performance GCP worker.
       try {
           const existingSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
           if (existingSettings.workspace) {
-              settings = existingSettings;
-              if (!reconfigure && !profileUrl) {
-                  console.log('   ✅ Existing configuration found.');
-                  skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
+              if (reconfigure) {
+                  // If reconfiguring, we keep the object but clear values to ensure clean priority
+                  settings = { workspace: {} as any };
+              } else {
+                  settings = existingSettings;
+                  if (!profileUrl) {
+                      console.log('   ✅ Existing configuration found.');
+                      skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
+                  }
               }
           }
       } catch (e) {}
@@ -224,10 +234,14 @@ and full builds) to a dedicated, high-performance GCP worker.
   let dnsSuffix = remoteProfile.dnsSuffix || settings.workspace?.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : '.c.${projectId}.internal');
   let userSuffix = remoteProfile.userSuffix || settings.workspace?.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
   let backendType = remoteProfile.backendType || settings.workspace?.backendType || 'direct-internal';
-  let imageUri = remoteProfile.imageUri || settings.workspace?.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest');
+  let imageUri = remoteProfile.imageUri || settings.workspace?.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor');
+  let vpcName = remoteProfile.vpcName || settings.workspace?.vpcName || 'default';
+  let subnetName = remoteProfile.subnetName || settings.workspace?.subnetName || 'default';
+  let autoSetupNet = false; // Default to NO as per instruction
 
   if (!skipConfigArg || profileUrl) {
-      const defaultProject = env.GOOGLE_CLOUD_PROJECT || env.WORKSPACE_PROJECT || projectId || '';
+      // Prioritize profile/existing settings over environment variables
+      const defaultProject = projectId || env.GOOGLE_CLOUD_PROJECT || env.WORKSPACE_PROJECT || '';
       projectId = await prompt('GCP Project ID', defaultProject, 
         'The GCP Project where your workspace worker will live. Your personal project is recommended.');
       
@@ -254,6 +268,13 @@ and full builds) to a dedicated, high-performance GCP worker.
 
       imageUri = await prompt('Workspace Docker Image', env.WORKSPACE_IMAGE_URI || imageUri,
         'The Docker image used for the supervisor and PR containers.');
+
+      autoSetupNet = await confirm('Auto-configure VPC/Subnet?', false);
+
+      if (!autoSetupNet) {
+          vpcName = await prompt('VPC Name', vpcName, 'The existing VPC to use.');
+          subnetName = await prompt('Subnet Name', subnetName, 'The existing Subnet to use.');
+      }
 
       // 2. Repository Discovery (Dynamic)
       console.log('\n🔍 Detecting repository origins...');
@@ -395,7 +416,9 @@ and full builds) to a dedicated, high-performance GCP worker.
     dnsSuffix,
     userSuffix,
     backendType: backendType as any,
-    imageUri
+    imageUri,
+    vpcName,
+    subnetName
   };
 
   settings = { workspace: workspaceConfig };
@@ -424,7 +447,9 @@ and full builds) to a dedicated, high-performance GCP worker.
       dnsSuffix,
       userSuffix,
       backendType,
-      imageUri
+      imageUri,
+      vpcName,
+      subnetName
   });
 
   console.log('\n🏗️  PHASE 2: INFRASTRUCTURE');
@@ -436,7 +461,7 @@ and full builds) to a dedicated, high-performance GCP worker.
     const shouldProvision = await confirm(`Worker ${targetVM} not found. Provision it now?`);
     if (!shouldProvision) return 1;
     
-    const provisionRes = await provider.provision();
+    const provisionRes = await provider.provision({ setupNetwork: autoSetupNet });
     if (provisionRes !== 0) return 1;
     status = await provider.getStatus();
   }
