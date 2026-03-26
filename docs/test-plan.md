@@ -1,77 +1,100 @@
-# Gemini Workspaces: End-to-End Test Plan
+# Gemini Workspaces: End-to-End Test Plan (v1.2)
 
-This document provides a structured protocol for validating the Gemini Workspaces system after architectural changes.
-
----
-
-## 🏗️ 1. Infrastructure & Setup
-**Goal**: Verify that a "from zero" setup correctly provisions networking, storage, and the worker VM.
-
-1.  **Full Reset**:
-    - Run: `npx tsx scripts/fleet.ts destroy`
-    - Verify: Instance and static IP are removed from GCP console.
-2.  **Fresh Setup**:
-    - Run: `npx tsx scripts/setup.ts --reconfigure`
-    - Verify:
-        - [ ] Prompts for Project ID and Zone.
-        - [ ] Prompts for GitHub PAT (if not in `.env`).
-        - [ ] Creates `.gemini/workspaces/ssh_config` and `known_hosts`.
-        - [ ] Syncs `scripts/` and `policies/` to remote.
-        - [ ] Performs full clone of `main` repo on host disk.
+This document provides a structured protocol for validating the Gemini Workspaces system. It ensures that infrastructure, networking, and automated supervisor loops are functioning correctly after refactors.
 
 ---
 
-## 🧵 2. Session Isolation (Multi-Container)
-**Goal**: Verify that multiple PR sessions are physically isolated into separate containers.
+## 🏗️ 1. Zero-Touch Infrastructure (Headless & Profiles)
+**Goal**: Verify that the global profile system and headless flags provide a perfectly automated setup.
 
-1.  **Launch Session A**:
-    - Run: `npx tsx scripts/orchestrator.ts 23176 --open tab`
-    - Verify: iTerm2 tab opens, container `gcli-23176-open` is created.
-2.  **Launch Session B**:
-    - Run: `npx tsx scripts/orchestrator.ts 12345 --open tab`
-    - Verify: Second iTerm2 tab opens, container `gcli-12345-open` is created.
-3.  **Validate Isolation**:
-    - Inside Session A: `touch /mnt/disks/data/worktrees/workspace-23176-open/isolation_test`
-    - Inside Session B: `ls /mnt/disks/data/worktrees/workspace-23176-open/isolation_test`
-    - **Pass criteria**: Session B should see "No such file or directory" (unless broad mounts are accidentally restored).
-4.  **Validate Read-Only Source**:
-    - Inside any session: `rm -rf /mnt/disks/data/main`
-    - **Pass criteria**: Command fails with "Read-only file system".
-
----
-
-## 📡 3. Persistence & Connectivity
-**Goal**: Verify that tmux persistence and SSH multiplexing are working.
-
-1.  **TMUX Survival**:
-    - Open a session, start a long-running command (e.g., `sleep 100`).
-    - Close the iTerm2 tab.
-    - Run: `npx tsx scripts/orchestrator.ts <PR> --open foreground`
-    - **Pass criteria**: You are dropped back into the *same* running session with the `sleep` command still visible.
-2.  **Startup Speed**:
-    - Run `workspace` for a PR that is **already running**.
-    - **Pass criteria**: Connection should be nearly instant (< 2s) via SSH multiplexing and the "already active" container bypass.
+### Test Scenario: Headless "Day 0" Setup
+1.  **Preparation**: Ensure you have a valid profile saved in `~/.gemini/workspaces/profiles/corp.json`.
+2.  **Reset**: `npx tsx scripts/fleet.ts destroy`
+3.  **Command**: 
+    ```bash
+    npx tsx scripts/setup.ts --profile=corp --yes --reconfigure
+    ```
+4.  **Pass Criteria**:
+    - [ ] Script resolves "corp" to the global path automatically.
+    - [ ] No interactive prompts appear (no hangs on empty defaults).
+    - [ ] VM is provisioned and waits for stabilization loop (~45-60s).
+    - [ ] Returns exit code `0` on completion.
 
 ---
 
-## 🛰️ 4. Monitoring & Status
-**Goal**: Verify the Mission Control dashboard.
+## 📡 2. Connectivity Backends (Network Path Validation)
+**Goal**: Verify that all three connectivity modes (`direct-internal`, `iap`, `external`) correctly route traffic.
 
-1.  **Status Check**:
-    - Run: `npx tsx scripts/status.ts`
-    - **Pass criteria**:
-        - Shows VM as `RUNNING`.
-        - Lists all active `gcli-*` containers.
-        - Correctly displays active `tmux` sessions for each container.
+### Test Scenario: IAP Tunneling (VPC-Off)
+1.  **Setup**: Reconfigure a profile to use `backendType: "iap"`.
+2.  **Command**: `/workspace:status`
+3.  **Pass Criteria**:
+    - [ ] Status command succeeds without being on a Corporate VPN.
+    - [ ] Logs show usage of `gcloud compute ssh --tunnel-through-iap`.
+
+### Test Scenario: Magic DNS (VPC-On)
+1.  **Setup**: Reconfigure to `backendType: "direct-internal"` with `dnsSuffix: ".gcpnode.com"`.
+2.  **Pass Criteria**:
+    - [ ] Connection string matches: `user_google_com@nic0.<instance>.<zone>.c.<project>.internal.gcpnode.com`.
 
 ---
 
-## 🧹 5. Cleanup
+## 🔗 3. Remote Environment Integrity (Sync & Link)
+**Goal**: Confirm the supervisor has the latest extension logic and ported skills.
+
+1.  **Command**: Exec into the worker after setup.
+    ```bash
+    # From local machine
+    gcloud compute ssh development-worker --project <ID> --zone <ZONE> --tunnel-through-iap
+    # Inside VM
+    sudo docker exec -it development-worker gemini extensions list
+    ```
+2.  **Pass Criteria**:
+    - [ ] `workspaces@1.1.0` is listed as a linked extension.
+    - [ ] The command `/workspace:review` is available inside the remote container.
+
+---
+
+## 🧵 4. Isolated PR Workspaces (Containers & Worktrees)
+**Goal**: Verify process-level isolation and reference-clone speed.
+
+1.  **Command**: `/workspace:open 23176`
+2.  **Pass Criteria**:
+    - [ ] Container `gcli-23176-open` is created using the configured `imageUri`.
+    - [ ] Checkout is instantaneous (< 5s) via `--reference` clone.
+    - [ ] `.env` file inside the container contains the correct `GEMINI_API_KEY` and `GEMINI_HOST`.
+
+---
+
+## 🛰️ 5. Monitoring & Status
+**Goal**: Verify the Mission Control dashboard and persistence.
+
+1.  **Command**: `/workspace:status`
+2.  **Pass Criteria**:
+    - [ ] Lists the `development-worker` as the supervisor.
+    - [ ] Lists active PR containers.
+    - [ ] Correctly shows if a container has an active `tmux` session.
+
+---
+
+## 🧹 6. Cleanup & Reset
 **Goal**: Verify surgical and bulk cleanup.
 
-1.  **Surgical Cleanup**:
-    - Run: `npx tsx scripts/clean.ts 23176 open`
-    - Verify: Container `gcli-23176-open` is removed, worktree directory is deleted.
-2.  **Bulk Cleanup**:
-    - Run: `npx tsx scripts/clean.ts --all`
-    - Verify: **ALL** worktrees, history, and containers are wiped. VM stays running but empty.
+1.  **Surgical**: `/workspace:clean 23176 open`
+    - [ ] Container is gone.
+    - [ ] Worktree directory `/mnt/disks/data/worktrees/workspace-23176-open` is deleted.
+2.  **Bulk**: `/workspace:clean --all`
+    - [ ] Every non-root file on the persistent disk is wiped.
+    - [ ] Every `gcli-*` container is removed.
+
+---
+
+## 🛡️ 7. Robustness & Error Codes
+**Goal**: Ensure failures are properly signaled for automation.
+
+1.  **Failure Test**:
+    - Stop the VM manually via Cloud Console.
+    - Run `/workspace:status`.
+2.  **Pass Criteria**:
+    - [ ] Script prints a clear error message.
+    - [ ] Script returns exit code `1` (verify with `echo $?`).
