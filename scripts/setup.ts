@@ -10,7 +10,12 @@ import os from 'node:os';
 
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { detectRepoName } from './ConfigManager.ts';
+import { 
+  loadGlobalSettings, 
+  loadProjectConfig, 
+  getRepoConfig, 
+  detectRepoName 
+} from './ConfigManager.ts';
 import { fileURLToPath } from 'node:url';
 import { 
   WORKSPACES_ROOT, 
@@ -21,10 +26,15 @@ import {
   CONFIG_DIR,
   EXTENSION_REMOTE_PATH,
   PROFILES_DIR,
+  GLOBAL_SETTINGS_PATH,
+  PROJECT_CONFIG_PATH,
+  PROJECT_WORKSPACES_DIR,
+  GLOBAL_WORKSPACES_DIR,
   UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
-  type WorkspaceConfig 
+  type WorkspaceConfig,
+  type WorkspaceSettings 
 } from './Constants.ts';
 
 
@@ -117,28 +127,6 @@ async function createFork(upstream: string): Promise<string> {
     }
     return upstream;
 }
-async function fetchRemoteSettings(url: string): Promise<Partial<WorkspaceConfig>> {
-  console.log(`🌐 Loading workspace profile: ${url}...`);
-  try {
-    let data: any;
-    if (url.startsWith('http')) {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
-        data = await res.json();
-    } else if (fs.existsSync(url)) {
-        data = JSON.parse(fs.readFileSync(url, 'utf8'));
-    } else {
-        throw new Error(`Profile source not found: ${url}`);
-    }
-
-    const profile = data.workspace || data;
-    console.log(`   ✅ Loaded profile for project: ${profile.projectId || 'unknown'}`);
-    return profile;
-  } catch (e) {
-    console.error(`   ❌ Failed to load profile: ${e instanceof Error ? e.message : String(e)}`);
-    return {};
-  }
-}
 
 export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   loadDotEnv();
@@ -159,130 +147,113 @@ and full builds) to a dedicated, high-performance GCP worker.
   console.log('📝 PHASE 1: CONFIGURATION');
   console.log('--------------------------------------------------------------------------------');
 
-  const settingsPath = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
-  let settings: WorkspaceSettings = {
-      repos: {}
-  };
+  // 0. Load Hierarchy
+  const globalSettings = loadGlobalSettings();
+  const repoName = detectRepoName();
+  
+  // Resolve current effective config
+  let config = getRepoConfig(repoName);
 
-  if (fs.existsSync(settingsPath)) {
-      try {
-          const data = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-          if (data.repos) {
-              settings = data;
-          } else if (data.workspace) {
-              // MIGRATION: Convert old workspace key to repos map
-              console.log('🔄 Migrating legacy configuration format...');
-              const legacyConfig = data.workspace as WorkspaceConfig;
-              const legacyRepoName = legacyConfig.repoName || 'legacy-repo';
-              settings.repos = { [legacyRepoName]: legacyConfig };
-              settings.activeRepo = legacyRepoName;
-          }
-      } catch (e) {}
+  // Profile Selection / Creation
+  if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
+  const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
+  
+  let selectedProfile = config.profile || globalSettings.activeProfile;
+
+  if (!selectedProfile && localProfiles.length === 0 && !skipConfigArg) {
+      console.log('✨ No profiles found. Creating "default" profile for your infrastructure...');
+      selectedProfile = 'default';
+      const defaultProfilePath = path.join(PROFILES_DIR, 'default.json');
+      fs.writeFileSync(defaultProfilePath, JSON.stringify({}, null, 2));
   }
 
-  profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
-
-  // Resolve local profile names provided via --profile=NAME
-  // We check both the current directory and the global PROFILES_DIR
-  if (profileUrl && !profileUrl.startsWith('http') && !fs.existsSync(profileUrl)) {
-      const globalPath = path.join(PROFILES_DIR, profileUrl.endsWith('.json') ? profileUrl : `${profileUrl}.json`);
-      if (fs.existsSync(globalPath)) {
-          profileUrl = globalPath;
+  if (!profileUrl && !skipConfigArg && localProfiles.length > 0) {
+      console.log(`📋 Found ${localProfiles.length} global workspace profiles:`);
+      localProfiles.forEach((p, i) => {
+          const name = p.replace('.json', '');
+          const indicator = name === selectedProfile ? ' (Active)' : '';
+          console.log(`   ${i + 1}. ${name}${indicator}`);
+      });
+      console.log(`   0. Use Current / Create New`);
+      
+      const choice = await prompt('Select a profile number or 0', '0');
+      if (choice !== '0') {
+          selectedProfile = localProfiles[parseInt(choice) - 1]?.replace('.json', '');
       }
   }
 
-  // Profile Discovery (interactive)
-  if (!profileUrl && !skipConfigArg && fs.existsSync(PROFILES_DIR)) {
-      const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
-      if (localProfiles.length > 0) {
-          console.log(`📋 Found ${localProfiles.length} global workspace profiles:`);
-          localProfiles.forEach((p, i) => console.log(`   ${i + 1}. ${p.replace('.json', '')}`));
-          console.log(`   0. Create New / Use Current`);
-          
-          const choice = await prompt('Select a profile number or 0', '0');
-          if (choice !== '0') {
-              const selectedFile = localProfiles[parseInt(choice) - 1];
-              if (selectedFile) {
-                  profileUrl = path.join(PROFILES_DIR, selectedFile);
-              }
-          }
+  // Load selected profile data
+  let profileData: Partial<WorkspaceConfig> = {};
+  if (selectedProfile) {
+      const profilePath = path.join(PROFILES_DIR, selectedProfile.endsWith('.json') ? selectedProfile : `${selectedProfile}.json`);
+      if (fs.existsSync(profilePath)) {
+          profileData = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
       }
   }
 
-  let remoteProfile: Partial<WorkspaceConfig> = {};
-  if (profileUrl) {
-    remoteProfile = await fetchRemoteSettings(profileUrl);
-  }
+  // Reload config with the potentially new profile
+  config = { ...config, ...profileData, profile: selectedProfile };
 
-  let skipConfig = false;
-
-  // 0. Repository Discovery (Early detection for repo-specific settings)
   console.log('\n🔍 Detecting repository origins...');
-  let upstreamRepo = `${UPSTREAM_ORG || 'google-gemini'}/${DEFAULT_REPO_NAME || 'gemini-cli'}`;
-  let repoName = detectRepoName();
+  let upstreamRepo = config.upstreamRepo || `${UPSTREAM_ORG}/${DEFAULT_REPO_NAME}`;
   
   const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'name,nameWithOwner,parent,isFork'], { stdio: 'pipe' });
   if (repoInfoRes.status === 0) {
       try {
           const repoInfo = JSON.parse(repoInfoRes.stdout.toString());
           upstreamRepo = repoInfo.isFork && repoInfo.parent ? repoInfo.parent.nameWithOwner : repoInfo.nameWithOwner;
-          // repoName is already detected via ConfigManager helper
       } catch (e) {}
   }
 
-  const existingRepoConfig = settings.repos[repoName] || settings.workspace || {};
-  if (existingRepoConfig.projectId && !reconfigure) {
+  let skipConfig = false;
+  if (config.projectId && !reconfigure) {
       console.log(`   ✅ Existing configuration found for repo: ${repoName}`);
-      if (!profileUrl) {
-          skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
-      }
+      skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
   }
 
   // 1. Project Identity & Networking
-  let projectId = remoteProfile.projectId || existingRepoConfig.projectId || '';
-  let zone = remoteProfile.zone || existingRepoConfig.zone || 'us-west1-a';
-  let instanceName = remoteProfile.instanceName || existingRepoConfig.instanceName || `gcli-workspace-${env.USER || 'gcli-user'}`;
-  let terminalTarget = remoteProfile.terminalTarget || existingRepoConfig.terminalTarget || 'tab';
-  let userFork = remoteProfile.userFork || existingRepoConfig.userFork || upstreamRepo;
-  let dnsSuffix = remoteProfile.dnsSuffix || existingRepoConfig.dnsSuffix || (typeof DEFAULT_DNS_SUFFIX !== 'undefined' ? DEFAULT_DNS_SUFFIX : `.c.${projectId}.internal`);
-  let userSuffix = remoteProfile.userSuffix || existingRepoConfig.userSuffix || (typeof DEFAULT_USER_SUFFIX !== 'undefined' ? DEFAULT_USER_SUFFIX : '');
-  let backendType = remoteProfile.backendType || existingRepoConfig.backendType || 'direct-internal';
-  let imageUri = remoteProfile.imageUri || existingRepoConfig.imageUri || (typeof DEFAULT_IMAGE_URI !== 'undefined' ? DEFAULT_IMAGE_URI : 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor');
-  let vpcName = remoteProfile.vpcName || existingRepoConfig.vpcName || 'default';
-  let subnetName = remoteProfile.subnetName || existingRepoConfig.subnetName || 'default';
-  let autoSetupNet = false; // Default to NO as per instruction
+  let projectId = config.projectId || '';
+  let zone = config.zone || 'us-west1-a';
+  let instanceName = config.instanceName || `gcli-workspace-${env.USER || 'gcli-user'}`;
+  let terminalTarget = config.terminalTarget || 'tab';
+  let userFork = config.userFork || upstreamRepo;
+  let dnsSuffix = config.dnsSuffix || '';
+  let userSuffix = config.userSuffix || '';
+  let backendType = config.backendType || 'direct-internal';
+  let imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+  let vpcName = config.vpcName || 'default';
+  let subnetName = config.subnetName || 'default';
+  let autoSetupNet = false;
 
-  if (!skipConfigArg || profileUrl) {
-      // Prioritize profile/existing settings over environment variables
-      const defaultProject = projectId || env.GOOGLE_CLOUD_PROJECT || env.WORKSPACE_PROJECT || '';
-      projectId = await prompt('GCP Project ID', defaultProject, 
+  if (!skipConfig) {
+      projectId = await prompt('GCP Project ID', projectId, 
         'The GCP Project where your workspace worker will live. Your personal project is recommended.');
       
       if (!projectId) {
-          console.error('❌ Project ID is required. Set GOOGLE_CLOUD_PROJECT or enter it manually.');
+          console.error('❌ Project ID is required.');
           return 1;
       }
 
-      zone = await prompt('GCP Zone', env.WORKSPACE_ZONE || zone, 
+      zone = await prompt('GCP Zone', zone, 
         'The GCE zone where your worker will be provisioned.');
 
       instanceName = await prompt('GCE Instance Name', instanceName,
         'The name of the GCE VM that will act as your worker.');
 
-      terminalTarget = await prompt('Terminal Target (foreground, background, tab, window)', env.WORKSPACE_TERM_TARGET || terminalTarget,
-        'When you start a job in gemini-cli, should it run as a foreground shell, background shell (no attach), new iterm2 tab, or new iterm2 window?');
+      terminalTarget = await prompt('Terminal Target (foreground, background, tab, window)', terminalTarget,
+        'Default display mode for new workspace jobs.') as any;
 
       console.log('\n🌐 Networking Configuration:');
-      backendType = await prompt('Connectivity Backend (direct-internal, external, iap)', env.WORKSPACE_BACKEND_TYPE || backendType,
-        'direct-internal: Use magic hostname (Fastest, VPC-internal)\nexternal: Use Public IP (if enabled)\niap: Use gcloud IAP tunnel (Secure off-VPC fallback)') as any;
+      backendType = await prompt('Connectivity Backend (direct-internal, external, iap)', backendType,
+        'direct-internal: VPC-internal DNS\nexternal: Public IP\niap: GCP IAP tunnel') as any;
 
-      dnsSuffix = await prompt('Regional DNS Suffix', env.WORKSPACE_DNS_SUFFIX || dnsSuffix,
-        'Optional suffix that follows ".internal" for your specific network (e.g. ".gcpnode.com" or enter for none).');
+      dnsSuffix = await prompt('Regional DNS Suffix', dnsSuffix,
+        'Optional suffix for internal DNS (e.g. .gcpnode.com).');
 
-      userSuffix = await prompt('OS Login User Suffix', env.WORKSPACE_USER_SUFFIX || userSuffix,
-        'Optional suffix for OS Login usernames (e.g. "_google_com" for corporate environments).');
+      userSuffix = await prompt('OS Login User Suffix', userSuffix,
+        'Optional suffix for usernames (e.g. _google_com).');
 
-      imageUri = await prompt('Workspace Docker Image', env.WORKSPACE_IMAGE_URI || imageUri,
+      imageUri = await prompt('Workspace Docker Image', imageUri,
         'The Docker image used for the supervisor and PR containers.');
 
       autoSetupNet = await confirm('Auto-configure VPC/Subnet?', false);
@@ -293,22 +264,11 @@ and full builds) to a dedicated, high-performance GCP worker.
       }
 
       // 2. Repository Discovery (Dynamic)
-      console.log('\n🔍 Detecting repository origins...');
-      
-      const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'name,nameWithOwner,parent,isFork'], { stdio: 'pipe' });
-
       if (repoInfoRes.status === 0) {
           try {
               const repoInfo = JSON.parse(repoInfoRes.stdout.toString());
-              upstreamRepo = repoInfo.isFork && repoInfo.parent ? repoInfo.parent.nameWithOwner : repoInfo.nameWithOwner;
-              repoName = repoInfo.name;
-              
-              console.log(`   - Upstream identified: ${upstreamRepo}`);
               console.log(`   - Searching for your forks of ${upstreamRepo}...`);
               
-              const upstreamOwner = upstreamRepo.split('/')[0];
-              const upstreamName = upstreamRepo.split('/')[1];
-
               const gqlQuery = `query { viewer { repositories(first: 100, isFork: true, affiliations: OWNER) { nodes { nameWithOwner parent { nameWithOwner } } } } }`;
               const forksRes = spawnSync('gh', ['api', 'graphql', '-f', `query=${gqlQuery}`, '--jq', `.data.viewer.repositories.nodes[] | select(.parent.nameWithOwner == "${upstreamRepo}") | .nameWithOwner`], { stdio: 'pipe' });
               const myForks = forksRes.stdout.toString().trim().split('\n').filter(Boolean);
@@ -341,8 +301,8 @@ and full builds) to a dedicated, high-performance GCP worker.
       console.log(`   ✅ Workspace:   ${userFork}`);
   }
 
-  // 3. Security & Auth (Always check for token, force prompt if missing)
-  const localGhTokenPath = path.join(REPO_ROOT, '.gemini/workspaces/gh_token');
+  // 3. Security & Auth
+  const localGhTokenPath = path.join(PROJECT_WORKSPACES_DIR, 'gh_token');
   let githubToken = env.WORKSPACE_GH_TOKEN || '';
   
   if (!githubToken && fs.existsSync(localGhTokenPath)) {
@@ -350,47 +310,23 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (githubToken) {
-      console.log('🔐 Found GitHub PAT in environment or settings.');
       if (!skipConfig) {
-          githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access and PR operations.', true);
+          githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access.', true);
       }
   } else {
-      console.log('\n🔑 GitHub PAT is missing. A token with "Contents" and "Pull Request" access is required.');
-      const hasToken = await confirm('Do you already have a GitHub Personal Access Token (PAT)?');
-      if (hasToken) {
-          githubToken = await prompt('Paste Scoped Token', '');
-      } else {
-          const shouldGenToken = await confirm('Would you like to generate a new scoped token now? (Highly Recommended)');
-          if (shouldGenToken) {
-              const baseUrl = 'https://github.com/settings/personal-access-tokens/new';
-              const name = `Workspace-${env.USER}`;
-              const repoParams = userFork !== upstreamRepo 
-                  ? `&repositories[]=${encodeURIComponent(upstreamRepo)}&repositories[]=${encodeURIComponent(userFork)}`
-                  : `&repositories[]=${encodeURIComponent(upstreamRepo)}`;
-
-              const magicLink = `${baseUrl}?name=${encodeURIComponent(name)}&description=Gemini+Workspaces+Worker${repoParams}&contents=write&pull_requests=write&metadata=read`;
-              const terminalLink = `\u001b]8;;${magicLink}\u0007${magicLink}\u001b]8;;\u0007`;
-
-              console.log(`\n🔐 ACTION REQUIRED: Create a token with the required permissions:`);
-              console.log(`\n${terminalLink}\n`);
-              
-              githubToken = await prompt('Paste Scoped Token', '');
-          }
-      }
+      console.log('\n🔑 GitHub PAT is missing.');
+      githubToken = await prompt('Paste Scoped Token', '');
   }
 
   if (!githubToken) {
-      console.error('❌ GitHub Token is required to provision the workspace.');
+      console.error('❌ GitHub Token is required.');
       return 1;
   }
 
-  // Persist the token locally for future runs
-  if (githubToken) {
-      if (!fs.existsSync(path.dirname(localGhTokenPath))) fs.mkdirSync(path.dirname(localGhTokenPath), { recursive: true });
-      fs.writeFileSync(localGhTokenPath, githubToken, { mode: 0o600 });
-  }
+  if (!fs.existsSync(PROJECT_WORKSPACES_DIR)) fs.mkdirSync(PROJECT_WORKSPACES_DIR, { recursive: true });
+  fs.writeFileSync(localGhTokenPath, githubToken, { mode: 0o600 });
 
-  // 4. Gemini API Auth Strategy
+  // 4. Gemini API Auth
   const localSettingsPath = path.join(env.HOME || '', '.gemini/settings.json');
   let authStrategy = 'google_accounts';
   let geminiApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
@@ -406,70 +342,42 @@ and full builds) to a dedicated, high-performance GCP worker.
   }
 
   if (authStrategy === 'gemini-api-key') {
-      if (geminiApiKey) {
-          console.log('🔐 Found Gemini API Key in environment or settings.');
-          if (!skipConfig) {
-              geminiApiKey = await prompt('Gemini API Key', geminiApiKey, 'Enter to use? Or paste a new one', true);
-          }
-      } else {
-          console.log('\n📖 In API Key mode, the remote worker needs your Gemini API Key to authenticate.');
-          geminiApiKey = await prompt('Gemini API Key', '', 'Paste your Gemini API Key', true);
+      if (!skipConfig) {
+          geminiApiKey = await prompt('Gemini API Key', geminiApiKey, 'Enter to use? Or paste a new one', true);
       }
   } else {
       console.log(`🔐 Using current auth strategy: ${authStrategy}`);
   }
 
-  // 5. Save Confirmed State
-  if (!fs.existsSync(path.dirname(settingsPath))) fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  // 5. Save Partitioned Configuration
+  if (!fs.existsSync(GLOBAL_WORKSPACES_DIR)) fs.mkdirSync(GLOBAL_WORKSPACES_DIR, { recursive: true });
   
-  const workspaceConfig: WorkspaceConfig = { 
-    projectId, zone, instanceName, terminalTarget: terminalTarget as any, 
-    userFork, upstreamRepo, repoName,
-    remoteHost: 'gcli-worker',
-    remoteWorkDir: `${WORKSPACES_ROOT}/main/${repoName}`,
-    useContainer: true,
-    dnsSuffix,
-    userSuffix,
-    backendType: backendType as any,
-    imageUri,
-    vpcName,
-    subnetName
-  };
-
-  settings.repos[repoName] = workspaceConfig;
-  settings.activeRepo = repoName;
-  
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-  console.log(`\n✅ Configuration saved for repo: ${repoName}`);
-
-  // Option to save as profile
-  if (!skipConfigArg && !profileUrl || reconfigure) {
-      const shouldSaveProfile = await confirm('Save this configuration as a named profile?');
-      if (shouldSaveProfile) {
-          const profileName = await prompt('Profile Name (e.g. sandbox, corp)', '');
-          if (profileName) {
-              if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
-              const profilePath = path.join(PROFILES_DIR, `${profileName.toLowerCase()}.json`);
-              // We save the full settings for the profile
-              fs.writeFileSync(profilePath, JSON.stringify(settings, null, 2));
-              console.log(`✅ Profile saved to ${profilePath}`);
-          }
-      }
+  // Save INFRASTRUCTURE to Profile
+  if (selectedProfile) {
+      const profilePath = path.join(PROFILES_DIR, `${selectedProfile.toLowerCase()}.json`);
+      const profileToSave = {
+          projectId, zone, vpcName, subnetName, dnsSuffix, userSuffix, backendType
+      };
+      fs.writeFileSync(profilePath, JSON.stringify(profileToSave, null, 2));
+      console.log(`✅ Infrastructure saved to profile: ${selectedProfile}`);
   }
 
-  // Transition to Execution
-  const provider = ProviderFactory.getProvider({ 
-      projectId, 
-      zone, 
-      instanceName,
-      repoName,
-      dnsSuffix,
-      userSuffix,
-      backendType,
-      imageUri,
-      vpcName,
-      subnetName
-  });
+  // Save CUSTOMIZATION and LINK to Global Registry
+  const repoCustomization: WorkspaceConfig = { 
+    instanceName, terminalTarget: terminalTarget as any, 
+    userFork, upstreamRepo, imageUri, profile: selectedProfile
+  };
+
+  const updatedGlobalSettings = loadGlobalSettings();
+  updatedGlobalSettings.repos[repoName] = repoCustomization;
+  updatedGlobalSettings.activeRepo = repoName;
+  if (selectedProfile) updatedGlobalSettings.activeProfile = selectedProfile;
+  
+  fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(updatedGlobalSettings, null, 2));
+  console.log(`✅ Repository link saved to global registry.`);
+
+  // 6. Transition to Execution
+  const provider = ProviderFactory.getProvider(getRepoConfig(repoName));
 
   console.log('\n🏗️  PHASE 2: INFRASTRUCTURE');
   console.log('--------------------------------------------------------------------------------');
@@ -492,116 +400,64 @@ and full builds) to a dedicated, high-performance GCP worker.
 
   console.log('\n🚀 PHASE 3: REMOTE INITIALIZATION');
   console.log('--------------------------------------------------------------------------------');
-  
-  // Ensure container is running and stabilized before any remote commands
   await provider.ensureReady();
 
   const setupRes = await provider.setup({ 
-      projectId, 
-      zone, 
-      dnsSuffix,
-      userSuffix,
-      backendType: backendType as any
+      projectId, zone, dnsSuffix, userSuffix, backendType: backendType as any
   });
   if (setupRes !== 0) return setupRes;
 
   console.log(`\n📦 Synchronizing Logic & Credentials...`);
-  // Ensure the directory structure exists on the host
   await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
-  await provider.exec(`sudo chown -R 1000:1000 ${WORKSPACES_ROOT}`);
-  await provider.exec(`sudo chmod -R 777 ${WORKSPACES_ROOT}`);
+  await provider.exec(`sudo chown -R 1000:1000 ${WORKSPACES_ROOT} && sudo chmod -R 777 ${WORKSPACES_ROOT}`);
   
-  // 1. Sync Full Extension & Policies
   console.log('📦 Syncing extension source and skills...');
   await provider.sync(EXTENSION_ROOT + '/', `${EXTENSION_REMOTE_PATH}/`, { 
-      delete: true, 
-      sudo: true,
-      exclude: ['node_modules', '.git', '.gemini/workspaces/profiles'] 
+      delete: true, sudo: true, exclude: ['node_modules', '.git', '.gemini/workspaces/profiles'] 
   });
   await provider.sync(path.join(EXTENSION_ROOT, '.gemini/policies/workspace-policy.toml'), `${POLICIES_PATH}/workspace-policy.toml`, { sudo: true });
 
-  // 2. Link Extension inside the shared container
   console.log('🔗 Linking extension in remote container...');
-  // We run this inside the development-worker as the 'node' user so it updates the shared /home/node/.gemini/extension-enablement.json
-  // We provide a dummy GEMINI_API_KEY because the CLI checks for it even for non-API commands like 'extensions link'
   await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy development-worker /usr/local/share/npm-global/bin/gemini extensions link ${EXTENSION_REMOTE_PATH}`);
 
-  // 3. Initialize Remote Gemini Config with Auth
   console.log('⚙️  Initializing remote Gemini configuration...');
-  
-  // NEW: Sync local theme and UI preferences
-  let localTheme = 'Shades Of Purple';
-  let useAlternateBuffer = true;
-  let useBackgroundColor = true;
-
-  if (fs.existsSync(localSettingsPath)) {
-      try {
-          const localSettings = JSON.parse(fs.readFileSync(localSettingsPath, 'utf8'));
-          localTheme = localSettings.ui?.theme || localTheme;
-          useAlternateBuffer = localSettings.ui?.useAlternateBuffer ?? useAlternateBuffer;
-          useBackgroundColor = localSettings.ui?.useBackgroundColor ?? useBackgroundColor;
-      } catch (e) {}
-  }
-
-  const remoteSettings: any = {
-    security: {
-      auth: {
-        selectedType: authStrategy
-      },
-      folderTrust: {
-        enabled: false
-      }
-    },
-    ui: {
-      theme: localTheme,
-      useAlternateBuffer,
-      useBackgroundColor,
-    },
-    general: {
-      enableAutoUpdate: false
-    }
+  const remoteSettings = {
+    security: { auth: { selectedType: authStrategy }, folderTrust: { enabled: false } },
+    ui: { theme: 'Shades Of Purple', useAlternateBuffer: true, useBackgroundColor: true },
+    general: { enableAutoUpdate: false }
   };
   
   const tmpSettingsPath = path.join(os.tmpdir(), `remote-settings-${Date.now()}.json`);
   fs.writeFileSync(tmpSettingsPath, JSON.stringify(remoteSettings, null, 2));
-  
-  // Ensure the remote config dir exists before syncing
-  await provider.exec(`sudo mkdir -p ${CONFIG_DIR} && sudo chmod 777 ${CONFIG_DIR}`);
   await provider.sync(tmpSettingsPath, `${CONFIG_DIR}/settings.json`, { sudo: true });
-  await provider.exec(`sudo chown -R 1000:1000 ${CONFIG_DIR}`);
   fs.unlinkSync(tmpSettingsPath);
 
-  // 3. Sync credentials for Google Accounts if needed
   if (authStrategy !== 'gemini-api-key' && (authStrategy === 'google_accounts' || authStrategy === 'oauth-personal')) {
-      if (fs.existsSync(path.join(env.HOME || '', '.gemini/google_accounts.json'))) {
-        await provider.sync(path.join(env.HOME || '', '.gemini/google_accounts.json'), `${CONFIG_DIR}/google_accounts.json`, { sudo: true });
+      const localCreds = path.join(os.homedir(), '.gemini/google_accounts.json');
+      if (fs.existsSync(localCreds)) {
+        await provider.sync(localCreds, `${CONFIG_DIR}/google_accounts.json`, { sudo: true });
         console.log('   ✅ Synchronized Google Accounts credentials.');
       }
   }
 
   if (githubToken) {
-    // Ensure we remove any directory that might have been accidentally created with this name
-    await provider.exec(`sudo rm -rf ${WORKSPACES_ROOT}/.gh_token && echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null && sudo chmod 644 ${WORKSPACES_ROOT}/.gh_token && sudo chown 1000:1000 ${WORKSPACES_ROOT}/.gh_token`);
+    await provider.exec(`echo ${githubToken} | sudo tee ${WORKSPACES_ROOT}/.gh_token > /dev/null`);
     console.log('   ✅ Uploaded GitHub PAT to remote worker.');
   }
 
-  // Final Repo Sync
   console.log(`🚀 Finalizing Remote Repository (${userFork})...`);
   const repoUrl = `https://github.com/${userFork}.git`;
-  const repoPath = workspaceConfig.remoteWorkDir;
+  const remoteWorkDir = `${WORKSPACES_ROOT}/main/${repoName}`;
   const upstreamUrl = `https://github.com/${upstreamRepo}.git`;
 
   const setupRepoCmd = `
-    sudo mkdir -p $(dirname ${repoPath}) && \
-    if [ ! -d "${repoPath}/.git" ]; then
-      sudo rm -rf ${repoPath} && \
-      sudo git clone --quiet -c core.filemode=false ${repoUrl} ${repoPath} && \
-      sudo git -C ${repoPath} config --local safe.directory ${repoPath} && \
-      sudo git -C ${repoPath} config --replace-all core.filemode false && \
-      sudo git -C ${repoPath} remote add upstream ${upstreamUrl}
+    sudo mkdir -p $(dirname ${remoteWorkDir}) && \
+    if [ ! -d "${remoteWorkDir}/.git" ]; then
+      sudo rm -rf ${remoteWorkDir} && \
+      sudo git clone --quiet -c core.filemode=false ${repoUrl} ${remoteWorkDir} && \
+      sudo git -C ${remoteWorkDir} remote add upstream ${upstreamUrl}
     fi && \
-    sudo git -C ${repoPath} -c safe.directory='*' fetch --quiet upstream && \
-    sudo git -C ${repoPath} -c safe.directory='*' worktree prune && \
+    sudo git -C ${remoteWorkDir} -c safe.directory='*' fetch --quiet upstream && \
     sudo chown -R 1000:1000 ${WORKSPACES_ROOT}
   `;
   await provider.exec(setupRepoCmd);

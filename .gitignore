@@ -12,7 +12,8 @@
 !.gemini/config.yaml
 !.gemini/commands/
 !.gemini/skills/
-!.gemini/settings.json
+.gemini/workspaces/settings.json
+!.gemini/workspaces/config.json
 
 # Note: .gemini-clipboard/ is NOT in gitignore so Gemini can access pasted images
 

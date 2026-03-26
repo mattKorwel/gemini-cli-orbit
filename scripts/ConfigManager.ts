@@ -10,11 +10,14 @@ import { spawnSync } from 'node:child_process';
 import { 
     type WorkspaceConfig, 
     type WorkspaceSettings,
-    DEFAULT_REPO_NAME
+    DEFAULT_REPO_NAME,
+    GLOBAL_SETTINGS_PATH,
+    PROJECT_CONFIG_PATH,
+    LOCAL_SETTINGS_PATH,
+    PROFILES_DIR
 } from './Constants.ts';
 
 const REPO_ROOT = process.cwd();
-const SETTINGS_PATH = path.join(REPO_ROOT, '.gemini/workspaces/settings.json');
 
 /**
  * Detects the current repository name using gh cli.
@@ -26,47 +29,126 @@ export function detectRepoName(): string {
             return JSON.parse(res.stdout.toString()).name;
         } catch (e) {}
     }
-    return DEFAULT_REPO_NAME || 'gemini-cli';
+    return path.basename(REPO_ROOT) || DEFAULT_REPO_NAME || 'gemini-cli';
 }
 
 /**
- * Loads the workspace settings and handles migration.
+ * Loads settings from a specific path.
  */
-export function loadSettings(): WorkspaceSettings {
-    let settings: WorkspaceSettings = { repos: {} };
-    
-    if (fs.existsSync(SETTINGS_PATH)) {
+function loadJson(p: string): any {
+    if (fs.existsSync(p)) {
         try {
-            const data = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
-            if (data.repos) {
-                settings = data;
-            } else if (data.workspace) {
-                // Migration
-                const legacyConfig = data.workspace as WorkspaceConfig;
-                const repoName = legacyConfig.repoName || detectRepoName() || 'legacy-repo';
-                const instanceName = legacyConfig.instanceName || `gcli-workspace-${process.env.USER || 'gcli-user'}`;
-                
-                settings.repos = { [repoName]: { ...legacyConfig, repoName, instanceName } };
-                settings.activeRepo = repoName;
-                
-                // Save migrated version
-                fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
-            }
+            return JSON.parse(fs.readFileSync(p, 'utf8'));
         } catch (e) {
-            console.error('⚠️ Failed to parse settings.json:', e);
+            console.error(`⚠️ Failed to parse ${p}:`, e);
         }
     }
-    return settings;
+    return {};
 }
 
 /**
- * Gets the configuration for a specific repo or the active repo.
+ * Loads the global workspace settings.
  */
-export function getRepoConfig(repoName?: string): WorkspaceConfig | undefined {
-    const settings = loadSettings();
-    const targetRepo = repoName || detectRepoName() || settings.activeRepo;
+export function loadGlobalSettings(): WorkspaceSettings {
+    const data = loadJson(GLOBAL_SETTINGS_PATH);
+    if (!data.repos) return { repos: {}, ...data };
+    return data;
+}
+
+/**
+ * Loads the project-wide defaults.
+ */
+export function loadProjectConfig(): WorkspaceConfig {
+    return loadJson(PROJECT_CONFIG_PATH);
+}
+
+/**
+ * Fetches a GitHub repository variable using gh cli.
+ */
+function getGhVariable(name: string): string | undefined {
+    const res = spawnSync('gh', ['variable', 'get', name], { stdio: 'pipe' });
+    if (res.status === 0) {
+        return res.stdout.toString().trim();
+    }
+    return undefined;
+}
+
+/**
+ * Resolves the final configuration for a repository by merging all layers.
+ */
+export function getRepoConfig(repoName?: string): WorkspaceConfig {
+    const targetRepo = repoName || detectRepoName();
+    const globalSettings = loadGlobalSettings();
+    const projectConfig = loadProjectConfig();
+    const localOverrides = loadJson(LOCAL_SETTINGS_PATH);
+
+    // 1. Start with Project Defaults (TRACKED)
+    let config: WorkspaceConfig = { ...projectConfig };
+
+    // 2. Merge Global General Defaults
+    const { repos: _, activeRepo: __, activeProfile: ___, ...globalDefaults } = globalSettings;
+    config = { ...config, ...globalDefaults };
+
+    // 3. Merge GitHub Team Config (Shared variables)
+    // Mapping: GCLI_PROJECT_ID -> projectId, etc.
+    const ghConfig: WorkspaceConfig = {};
+    const projectId = getGhVariable('GCLI_PROJECT_ID');
+    if (projectId) ghConfig.projectId = projectId;
+    const zone = getGhVariable('GCLI_ZONE');
+    if (zone) ghConfig.zone = zone;
+    const vpcName = getGhVariable('GCLI_VPC_NAME');
+    if (vpcName) ghConfig.vpcName = vpcName;
+    const subnetName = getGhVariable('GCLI_SUBNET_NAME');
+    if (subnetName) ghConfig.subnetName = subnetName;
+    const dnsSuffix = getGhVariable('GCLI_DNS_SUFFIX');
+    if (dnsSuffix) ghConfig.dnsSuffix = dnsSuffix;
+    const userSuffix = getGhVariable('GCLI_USER_SUFFIX');
+    if (userSuffix) ghConfig.userSuffix = userSuffix;
+
+    config = { ...config, ...ghConfig };
+
+    // 4. Resolve Profile
+    const profileName = localOverrides.profile || 
+                      globalSettings.repos?.[targetRepo]?.profile || 
+                      globalSettings.activeProfile ||
+                      projectConfig.profile;
+
+    if (profileName) {
+        const profilePath = path.join(PROFILES_DIR, profileName.endsWith('.json') ? profileName : `${profileName}.json`);
+        const profileData = loadJson(profilePath);
+        config = { ...config, ...profileData };
+    }
+
+    // 4. Merge Global Repo Registry (User's project settings)
+    if (globalSettings.repos?.[targetRepo]) {
+        config = { ...config, ...globalSettings.repos[targetRepo] };
+    }
+
+    // 5. Merge Local Overrides (IGNORED)
+    config = { ...config, ...localOverrides };
+
+    // 6. Merge Environment Variables
+    const envConfig: WorkspaceConfig = {};
+    if (process.env.GCLI_WORKSPACE_PROJECT_ID) envConfig.projectId = process.env.GCLI_WORKSPACE_PROJECT_ID;
+    if (process.env.GCLI_WORKSPACE_ZONE) envConfig.zone = process.env.GCLI_WORKSPACE_ZONE;
+    if (process.env.GCLI_WORKSPACE_INSTANCE_NAME) envConfig.instanceName = process.env.GCLI_WORKSPACE_INSTANCE_NAME;
+    if (process.env.GCLI_WORKSPACE_BACKEND) envConfig.backendType = process.env.GCLI_WORKSPACE_BACKEND as any;
+    if (process.env.GCLI_WORKSPACE_IMAGE) envConfig.imageUri = process.env.GCLI_WORKSPACE_IMAGE;
     
-    if (!targetRepo) return undefined;
-    
-    return settings.repos[targetRepo];
+    config = { ...config, ...envConfig };
+
+    // Ensure repoName is set
+    config.repoName = targetRepo;
+
+    return config;
+}
+
+/**
+ * Legacy support for loadSettings (Project specific migration helper)
+ */
+export function loadSettings(): WorkspaceSettings {
+    const local = loadJson(LOCAL_SETTINGS_PATH);
+    if (local.workspace) return { repos: { [detectRepoName()]: local.workspace } };
+    if (local.repos) return local;
+    return { repos: {} };
 }

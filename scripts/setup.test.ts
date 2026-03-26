@@ -19,6 +19,10 @@ vi.mock('./Constants.ts', () => ({
     EXTENSION_REMOTE_PATH: '/mnt/disks/data/extension',
     CONFIG_DIR: '/mnt/disks/data/gemini-cli-config/.gemini',
     PROFILES_DIR: '/Users/mattkorwel/dev/main/.gemini/workspaces/profiles',
+    GLOBAL_WORKSPACES_DIR: '/Users/mattkorwel/dev/main/.gemini/workspaces',
+    GLOBAL_SETTINGS_PATH: '/Users/mattkorwel/dev/main/.gemini/workspaces/settings.json',
+    PROJECT_WORKSPACES_DIR: '/work-dir/.gemini/workspaces',
+    PROJECT_CONFIG_PATH: '/work-dir/.gemini/workspaces/config.json',
     UPSTREAM_REPO_URL: 'https://github.com/google-gemini/gemini-cli.git',
     UPSTREAM_ORG: 'google-gemini',
     DEFAULT_REPO_NAME: 'gemini-cli',
@@ -53,6 +57,13 @@ describe('runSetup', () => {
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
+    vi.mocked(ConfigManager.loadGlobalSettings).mockReturnValue({ repos: {} });
+    vi.mocked(ConfigManager.loadProjectConfig).mockReturnValue({ upstreamRepo: 'google-gemini/gemini-cli' });
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({ 
+        projectId: 'test-p', 
+        zone: 'test-z',
+        repoName: 'gemini-cli'
+    });
 
     // Default mock for readline
     vi.mocked(readline.createInterface).mockReturnValue({

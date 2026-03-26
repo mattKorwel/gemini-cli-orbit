@@ -20,7 +20,17 @@ export const POLICIES_PATH = `${WORKSPACES_ROOT}/policies`;
 export const SCRIPTS_PATH = `${WORKSPACES_ROOT}/scripts`;
 export const CONFIG_DIR = `${WORKSPACES_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${WORKSPACES_ROOT}/extension`;
-export const PROFILES_DIR = path.join(os.homedir(), '.gemini/workspaces/profiles');
+
+/**
+ * Configuration Paths
+ */
+export const GLOBAL_WORKSPACES_DIR = path.join(os.homedir(), '.gemini/workspaces');
+export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_WORKSPACES_DIR, 'settings.json');
+export const PROFILES_DIR = path.join(GLOBAL_WORKSPACES_DIR, 'profiles');
+
+export const PROJECT_WORKSPACES_DIR = path.join(REPO_ROOT, '.gemini/workspaces');
+export const PROJECT_CONFIG_PATH = path.join(PROJECT_WORKSPACES_DIR, 'config.json');
+export const LOCAL_SETTINGS_PATH = path.join(PROJECT_WORKSPACES_DIR, 'settings.json');
 
 /**
  * Repository Metadata
@@ -38,18 +48,19 @@ export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/d
 
 /**
  * Workspace Configuration Interface
+ * Used for both Profiles and Repository-specific settings.
  */
 export interface WorkspaceConfig {
-  projectId: string;
-  zone: string;
-  instanceName: string; // The GCE instance name
-  terminalTarget: 'foreground' | 'background' | 'tab' | 'window';
-  userFork: string;
-  upstreamRepo: string;
-  repoName: string;
-  remoteHost: string;
-  remoteWorkDir: string;
-  useContainer: boolean;
+  projectId?: string;
+  zone?: string;
+  instanceName?: string; // The GCE instance name
+  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window';
+  userFork?: string;
+  upstreamRepo?: string;
+  repoName?: string;
+  remoteHost?: string;
+  remoteWorkDir?: string;
+  useContainer?: boolean;
   providerType?: 'gce' | 'local-docker';
   dnsSuffix?: string;
   userSuffix?: string;
@@ -57,14 +68,16 @@ export interface WorkspaceConfig {
   imageUri?: string;
   vpcName?: string;
   subnetName?: string;
+  profile?: string; // Link to a named profile in PROFILES_DIR
 }
 
 /**
- * Global Settings File Structure
+ * Global Settings File Structure (~/.gemini/workspaces/settings.json)
  */
 export interface WorkspaceSettings {
   repos: Record<string, WorkspaceConfig>;
   activeRepo?: string;
+  activeProfile?: string; // Global default profile
   // Legacy support
   workspace?: WorkspaceConfig;
 }
