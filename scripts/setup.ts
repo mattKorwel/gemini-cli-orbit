@@ -139,8 +139,8 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
 ================================================================================
 🚀 GEMINI ORBIT: HIGH-PERFORMANCE REMOTE MISSIONS
 ================================================================================
-Orbits allow you to delegate heavy tasks (PR reviews, automated corrections,
-and full builds) to a dedicated, high-performance GCE station.
+Orbit allows you to delegate heavy tasks (PR reviews, automated corrections,
+and full builds) to a dedicated, high-performance host station.
 ================================================================================
   `);
 

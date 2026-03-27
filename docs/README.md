@@ -1,141 +1,33 @@
-# Orbit development skill
+# Orbit Documentation 🚀
 
-The `orbit` skill provides a high-performance, parallelized workflow for
-orbiting intensive developer tasks to a remote workstation. It leverages a
-Node.js orchestrator to run complex validation playbooks concurrently in a
-dedicated terminal window.
+Welcome to the **Gemini Orbit** documentation. Orbit allows you to launch your development presence into a persistent, high-performance environment, escaping the physical constraints of terrestrial hardware.
 
-## Why use orbit?
+## 🚀 User Guides
 
-As a development, you eventually reach the limits of how much work you can manage
-at once on a single local machine. Heavy builds, concurrent test suites, and
-multiple PRs in flight can quickly overload local resources, leading to
-performance degradation and developer friction.
+### 1. [Mission: Liftoff](./LIFTOFF.md)
+Learn how to provision your Host Station, configure your networking backend, and synchronize your digital identity.
 
-While manual remote management is a common workaround, it is often cumbersome
-and context-heavy. The `orbit` skill addresses these challenges by
-providing:
+### 2. [Mission: Launch](./MISSION.md)
+Explore the different mission modes, including interactive agent sessions, autonomous maneuvers (fix, review, implement), and raw bash access (EVA).
 
-- **Elastic compute**: Orbit resource-intensive build and lint suites to a
-  beefy remote workstation, keeping your local machine responsive.
-- **Context preservation**: The main Gemini session remains interactive and
-  focused on high-level reasoning while automated tasks provide real-time
-  feedback in a separate window.
-- **Automated orchestration**: The skill handles worktree provisioning, script
-  synchronization, and environment isolation automatically.
-- **True parallelism**: Infrastructure validation, CI checks, and behavioral
-  proofs run simultaneously, compressing a 15-minute process into 3 minutes.
+### 3. [Mission: Pulse](./PULSE.md)
+Monitor the health and telemetry of your orbital environment and track the intelligence state of active agents.
 
-## Agentic skills: Sync or Orbit
+### 4. [Mission: Attach](./ATTACH.md)
+How to jump directly into a running Mission Capsule and take manual control of an ongoing workstream.
 
-The `orbit` system is designed to work in synergy with specialized agentic
-skills. These skills can be run **synchronously** in your current terminal for
-quick tasks, or **orbited** to a remote session for complex, iterative
-loops.
+### 5. [Mission: Jettison](./JETTISON.md)
+Surgically clean up mission capsules, isolated worktrees, and ephemeral history files once a mission is complete.
 
-- **`review-pr`**: Conducts high-fidelity, behavioral code reviews. It assumes
-  the infrastructure is already validated and focuses on physical proof of
-  functionality.
-- **`fix-pr`**: An autonomous "Fix-to-Green" loop. It iteratively addresses CI
-  failures, merge conflicts, and review comments until the PR is mergeable.
+---
 
-When you run `orbit <PR> fix`, the orchestrator provisions the remote
-environment and then launches a Gemini CLI session specifically powered by the
-`fix-pr` skill.
+## 🏗️ Deep Dives
 
-## Architecture: The Hybrid Powerhouse
+### [Orbit Architecture](./ARCHITECTURE.md)
+A high-level overview of the Hub & Spoke model, persistent stations, and isolated capsules.
 
-The orbit system uses a **Hybrid VM + Docker** architecture designed for
-maximum performance and reliability:
+### [Configuration Hierarchy](./CONFIGURATION.md)
+Understand how settings are merged across project defaults, global registries, named profiles, and environment variables.
 
-1.  **The GCE VM (Raw Power)**: By running on high-performance Google Compute
-    Engine instances, we orbit heavy CPU and RAM tasks (like full project
-    builds and massive test suites) from your local machine, keeping your
-    primary workstation responsive.
-2.  **The Docker Capsule (Consistency & Resilience)**:
-    - **Source of Truth**: The `.gcp/Dockerfile.development` defines the exact
-      environment. If a tool is added there, every development gets it instantly.
-    - **Zero Drift**: Capsules are immutable. Every job starts in a fresh
-      state, preventing the "OS rot" that typically affects persistent VMs.
-    - **Local-to-Remote Parity**: The same image can be run locally on your Mac
-      or remotely in GCP, ensuring that "it works on my machine" translates 100%
-      to the remote station.
-    - **Safe Multi-tenancy**: Using Git Worktrees inside an isolated capsule
-      environment allows multiple jobs to run in parallel without sharing state
-      or polluting the host system.
-
-## Playbooks
-
-- **`review`** (default): Build, CI check, static analysis, and behavioral
-  proofs.
-- **`fix`**: Iterative fixing of CI failures and review comments.
-- **`ready`**: Final full validation (clean install + preflight) before merge.
-- **`open`**: Provision a worktree and drop directly into a remote tmux session.
-
-## Scenario and workflows
-
-### Getting Started (Onboarding)
-
-For a complete guide on setting up your remote environment, see the
-[Development Onboarding Guide](../../../MAINTAINER_ONBOARDING.md).
-
-### Persistence and Job Recovery
-
-The orbit system is designed for high reliability and persistence. Jobs use
-a nested execution model to ensure they continue running even if your local
-terminal is closed or the connection is lost.
-
-### How it Works
-
-1.  **Host-Level Persistence**: The orchestrator launches each job in a named
-    **`tmux`** session on the remote VM.
-2.  **Capsule Isolation**: The actual work is performed inside the persistent
-    `development-station` Docker capsule.
-
-### Re-attaching to a Job
-
-If you lose your connection, you can easily resume your session:
-
-- **Automatic**: Simply run the exact same command you started with (e.g.,
-  `orbit 123 review`). The system will automatically detect the existing
-  session and re-attach you.
-- **Manual**: Use `orbit:status` to find the session name, then use
-  `ssh gcli-station` to jump into the VM and `tmux attach -t <session>` to
-  resume.
-
-## Technical details
-
-This skill uses a **Station Provider** abstraction (`GceCosProvider`) to manage
-the remote lifecycle. It uses an isolated Gemini profile on the remote host
-(`~/.orbit/gemini-cli-config`) to ensure that verification tasks do not
-interfere with your primary configuration.
-
-### Directory structure
-
-- `scripts/providers/`: Modular station implementations (GCE, etc.).
-- `scripts/orchestrator.ts`: Local orchestrator (syncs scripts and pops
-  terminal).
-- `scripts/station.ts`: Remote engine (provisions worktree and runs playbooks).
-- `scripts/check.ts`: Local status poller.
-- `scripts/clean.ts`: Remote cleanup utility.
-- `SKILL.md`: Instructional body used by the Gemini CLI agent.
-
-## Contributing
-
-If you want to improve this skill:
-
-1. Modify the TypeScript scripts in `scripts/`.
-2. Update `SKILL.md` if the agent's instructions need to change.
-3. Test your changes locally using `orbit <PR>`.
-
-## Testing
-
-The orchestration logic for this skill is fully tested. To run the tests:
-
-```bash
-npx vitest .gemini/skills/orbit/tests/orchestration.test.ts
-```
-
-These tests mock the external environment (SSH, GitHub CLI, and the file system)
-to ensure that the orchestration scripts generate the correct commands and
-handle environment isolation accurately.
+### [Test Plan](./test-plan.md)
+The structured protocol for validating the Orbit platform.

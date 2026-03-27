@@ -24,12 +24,12 @@ describe('runSplashdown', () => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbits-extension');
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbit-extension');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
         projectId: 'p',
         zone: 'z',
         instanceName: 'i',
-        repoName: 'gemini-orbits-extension',
+        repoName: 'gemini-orbit-extension',
     });
 
     vi.mocked(readline.createInterface).mockReturnValue({

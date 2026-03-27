@@ -1,21 +1,21 @@
-# Future State: Gemini Orbits Platform
+# Future State: Gemini Orbit Platform
 
-This document outlines the long-term architectural evolution of the Orbits feature (formerly "Orbit").
+This document outlines the long-term architectural evolution of the Orbit feature.
 
 ## 🎯 Vision
-Transform Orbits into a first-class platform capability that allows developers to seamlessly move intensive workloads (AI reasoning, complex builds, parallel testing) to any compute environment (Cloud or Local).
+Transform Orbit into a first-class platform capability that allows developers to seamlessly move intensive workloads (AI reasoning, complex builds, parallel testing) to any compute environment (Cloud or Local).
 
 ## 🗺️ Evolutionary Roadmap
 
-### Phase 1: Generalization & Renaming (Current)
+### Phase 1: Generalization & Consolidation (Current)
 - **Goal**: Make the feature useful for any repository, not just Gemini CLI.
-- **Action**: Rename to "Orbits."
+- **Action**: Standardize naming to "Orbit" (Singular).
 - **Action**: Implement dynamic repository detection via Git.
-- **Action**: Isolate all state into `.gemini/orbits/`.
+- **Action**: Isolate all state into `.gemini/orbit/`.
 
 ### Phase 2: Pluggable Compute Extensions
 - **Goal**: Decouple the infrastructure logic from the core CLI.
-- **Action**: Move `StationProviders` into a dedicated **Orbits Extension**.
+- **Action**: Move `StationProviders` into a dedicated **Orbit Extension**.
 - **Action**: Support multiple providers (GCP, AWS, Local Docker).
 - **Action**: Define a standard API for Orbit Providers.
 

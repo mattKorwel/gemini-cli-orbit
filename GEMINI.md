@@ -1,9 +1,9 @@
-# Gemini Orbits Development Guide 🚀
+# Gemini Orbit Development Guide 🚀
 
 This extension provides high-performance, isolated remote development environments for Gemini CLI.
 
 ## 🏗️ Architecture: Multi-Capsule Isolation
-The system utilizes a **Persistent GCE Station** (running Capsule-Optimized OS) as the host. Every orbit session is isolated at the **process level** using Docker:
+The system utilizes a **Persistent Host Station** (running Capsule-Optimized OS) as the host. Every orbit session is isolated at the **process level** using Docker:
 
 - **HostVM**: Maintains the persistent data disk (`/mnt/disks/data`) and a read-write "Source of Truth" clone of the main repository.
 - **Isolated Capsules**: Each Pull Request session runs in a dedicated capsule (`gcli-<pr>-<action>`).
@@ -13,17 +13,17 @@ The system utilizes a **Persistent GCE Station** (running Capsule-Optimized OS) 
 ## 🔗 Shared State Strategy
 To ensure a consistent developer experience across all isolated PR sessions, we utilize a **Shared Configuration** model:
 - **Mount Path**: `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to `/home/node/.gemini` in **every** capsule.
-- **Benefits**: Linking an extension (like `orbits`) in one capsule makes it instantly available to all other PR capsules on that station. It also unifies UI themes and aliases.
+- **Benefits**: Linking an extension (like `orbit`) in one capsule makes it instantly available to all other PR capsules on that station. It also unifies UI themes and aliases.
 - **Concurrency**: Gemini CLI handles concurrent access to this folder via atomic writes and file locking.
 
 ## ⚙️ Configuration: Profile System
-We support multiple GCP projects and networking environments (Corporate vs. Public) via a **Named Profile** system:
+We support multiple Cloud projects and networking environments (Corporate vs. Public) via a **Named Profile** system:
 
-- **Profiles**: Stored in `.gemini/orbits/profiles/*.json`.
+- **Profiles**: Stored in `.gemini/orbit/profiles/*.json`.
 - **Backend Types**:
     - `direct-internal`: VPC-internal magic hostname routing (Fastest).
     - `external`: Public IP routing.
-    - `iap`: GCP Identity-Aware Proxy tunneling (Secure fallback).
+    - `iap`: Secure tunnel access (Secure fallback).
 - **Networking Suffixes**:
     - `userSuffix`: Appended to OS Login username (e.g., `_google_com`).
     - `dnsSuffix`: Appended to the standard `.internal` DNS zone (e.g., `.gcpnode.com`).

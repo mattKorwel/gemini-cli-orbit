@@ -12,6 +12,9 @@
 !.gemini/config.yaml
 !.gemini/commands/
 !.gemini/skills/
+!.gemini/adr/
+!.gemini/policies/
+!.gemini/orbit/config.json
 .gemini/workspaces/settings.json
 !.gemini/workspaces/config.json
 

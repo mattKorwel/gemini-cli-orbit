@@ -48,7 +48,7 @@ export class RemoteProvisioner {
           { host: ORBIT_ROOT, container: ORBIT_ROOT, readonly: true }, // Broad mount as RO for shared assets
           { host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`, container: '/home/node/.gemini', readonly: false }
         ],
-        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbits && while true; do sleep 1000; done"`
+        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`
       });
 
       // Wait for capsule to stabilize
