@@ -207,7 +207,8 @@ export class GceCosProvider implements OrbitProvider {
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
     if (options.wrapCapsule) {
-      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
+      const envFlags = options.env ? Object.entries(options.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
     }
     return this.conn.getRunCommand(finalCmd, { interactive: options.interactive });
   }

@@ -48,6 +48,41 @@ This document provides a structured protocol for validating the **Orbit** platfo
 
 ---
 
+## 🏠 5. Local Orbit Missions (v1.5)
+**Goal**: Verify local worktree and docker/podman provider isolation.
+
+### 🌿 5.1 Local Worktree Isolation
+1.  **Input**:
+    - Create `~/.gemini/orbit/profiles/local.json` with `{"providerType": "local-worktree", "worktreesDir": "~/dev/orbit-test"}`.
+    - Run `orbit mission 123 --profile=local`.
+2.  **Expected Output**:
+    - [ ] Log: `🏠 Ensuring local worktrees directory: /Users/.../dev/orbit-test`.
+    - [ ] `git worktree list` shows a new worktree created in that directory.
+    - [ ] Gemini agent starts inside the new worktree.
+
+### 🐳 5.2 Local Docker/Podman
+1.  **Input**: 
+    - Set `providerType: "local-docker"` in a profile.
+    - Run `orbit mission 123`.
+2.  **Expected Output**:
+    - [ ] `docker ps` shows a new `gcli-123-mission` container.
+    - [ ] Agent runs inside the container with local volume mounts.
+
+### 📟 5.3 Tmux Resilience & Fallback
+1.  **Input (Resilience)**:
+    - Launch `orbit mission 123`.
+    - Close the terminal tab while the agent is "Thinking."
+    - Run `orbit mission 123` again.
+2.  **Expected Output (Resilience)**:
+    - [ ] Agent resumes exactly where it left off (no restart).
+3.  **Input (Fallback)**:
+    - Set `useTmux: false` in `config.json` OR run in an environment without `tmux`.
+4.  **Expected Output (Fallback)**:
+    - [ ] Log: `⚠️ tmux not detected... Falling back to raw execution.`
+    - [ ] Mission starts directly in the foreground.
+
+---
+
 ## 🛠️ Automated Verification Script
 ```bash
 # Verify Resolution Hierarchy

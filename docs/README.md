@@ -26,6 +26,9 @@ Surgically clean up mission capsules, isolated worktrees, and ephemeral history 
 ### [Orbit Architecture](./ARCHITECTURE.md)
 A high-level overview of the Hub & Spoke model, persistent stations, and isolated capsules.
 
+### [Mission Providers](./PROVIDERS.md)
+Deep dive into Local vs Remote providers (GCE, Worktrees, Docker, Podman).
+
 ### [Configuration Hierarchy](./CONFIGURATION.md)
 Understand how settings are merged across project defaults, global registries, named profiles, and environment variables.
 

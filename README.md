@@ -28,48 +28,70 @@ gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start: Choose Your Mission Profile
 
-> **Note**: This is the "happy path" for developers to quickly evaluate Orbit. For detailed enterprise configurations, see the [Documentation Hub](docs/README.md).
+Orbit supports two primary mission modes: **Local** (for maximum speed and low latency) and **Remote** (for massive scale and persistent persistence).
 
-1.  **Liftoff**: Initialize your persistent **Orbital Station** and define your mission profile.
+### 🏠 The Local Path (Multithreaded Development)
+Launch isolated worktrees on your own machine. Perfect for juggling multiple PRs without the overhead of the cloud.
+
+1.  **Configure Local Profile**:
+    ```bash
+    # Create a local profile using worktrees
+    mkdir -p ~/.gemini/orbit/profiles
+    echo '{"providerType": "local-worktree", "worktreesDir": "~/dev/orbit-worktrees"}' > ~/.gemini/orbit/profiles/local.json
+    ```
+
+2.  **Launch Local Mission**:
+    ```bash
+    /orbit:mission <pr-number> --profile=local
+    ```
+
+### 🛰️ The Remote Path (High-Performance Persistence)
+Delegate heavy tasks to a persistent, high-performance GCE station. Your mission continues even if you close your laptop.
+
+1.  **Liftoff**: Initialize your persistent **Orbital Station**.
     ```bash
     /orbit:liftoff
     ```
 
-2.  **Mission Control**: Launch an isolated, high-performance environment for a specific PR or task.
+2.  **Launch Remote Mission**:
     ```bash
     /orbit:mission <pr-number>
     ```
 
-3.  **Pulse**: Monitor your **Orbital Presence**. See which missions are active (both manual and autonomous) and check station health.
+---
+
+## 📡 Mission Control Commands
+
+*   **Pulse**: Monitor your **Orbital Presence**. See which missions (Local & Remote) are active and check station health.
     ```bash
     /orbit:pulse
     ```
 
-4.  **Attach**: Jump directly into a running mission capsule to take manual control.
+*   **Attach**: Jump directly into a running mission capsule or worktree to take manual control.
     ```bash
     /orbit:attach <pr-number>
+    ```
+
+*   **Blackbox**: Stream live logs and monitor autonomous progress for a specific PR.
+    ```bash
+    /orbit:blackbox <pr-number>
     ```
 
 ---
 
 ## 🏗️ The Architecture of Orbit: Sovereign & Agnostic
 
-Orbit is built on a **Hub & Spoke** model designed for speed, isolation, and total developer control. Unlike managed services, you are the commander of your own constellation. Your Orbital Station lives in your own infrastructure—giving you absolute authority over your security, performance, and costs.
+Orbit is built on a **Hub & Spoke** model designed for speed, isolation, and total developer control.
 
-While we provide a first-class implementation for GCE, the Orbit architecture is **Cloud-Agnostic** by design. Users can implement their own **Station Providers** to launch into any environment.
+### Supported Providers
+Orbit is **Provider-Agnostic** by design. You can choose the environment that fits your current mission:
 
-*   **The Station (The Hub)**: A persistent, high-performance host instance that acts as your home base. Because you own the infrastructure, you decide the machine type, the region, and the security boundaries.
-*   **Mission Capsules (The Spokes)**: Process-isolated containers spawned for specific tasks or PRs. They use **Reference Clones** to make new checkouts nearly instantaneous while keeping your environment clean and predictable.
-*   **Shared State**: Your UI themes, shell aliases, and Gemini extensions are synchronized from your terrestrial environment to your Orbit via a shared configuration mount.
-
-## 🛠️ Connectivity
-
-Stay connected regardless of your terrestrial network:
-- **`direct-internal`**: Maximum speed via VPC-internal DNS.
-- **`secure-tunnel`**: Secure, zero-config access through Identity-Aware Tunnels (no public IP required).
-- **`external`**: Standard public routing for maximum compatibility.
+- **`local-worktree`**: (Default Local) Uses `git worktree` to create isolated, zero-overhead environments on your local disk. Compatible with the popular `go` worktree management workflow.
+- **`gce`**: (Default Remote) Launches a persistent "Station" in Google Compute Engine using Capsule-Optimized OS.
+- **`local-docker` / `podman`**: Runs isolated containers directly on your local machine.
+- **`iap` / `direct-internal` / `external`**: Multiple connectivity strategies to reach your remote station across any network.
 
 ---
 
