@@ -27,7 +27,7 @@ async function confirm(question: string): Promise<boolean> {
 
 export async function runSplashdown(
   args: string[],
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
 ) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);

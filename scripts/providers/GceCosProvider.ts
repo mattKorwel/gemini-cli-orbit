@@ -17,14 +17,8 @@ import {
   type CapsuleConfig,
 } from './BaseProvider.js';
 import { GceConnectionManager } from './GceConnectionManager.js';
+import { DEFAULT_IMAGE_URI } from '../Constants.js';
 
-const ORBIT_ROOT = '/mnt/disks/data';
-const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
-const SATELLITE_WORKTREES_PATH = `${ORBIT_ROOT}/worktrees`;
-const POLICIES_PATH = `${ORBIT_ROOT}/policies`;
-const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
-const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
-const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 
 export class GceCosProvider implements OrbitProvider {
   public projectId: string;
@@ -53,7 +47,7 @@ export class GceCosProvider implements OrbitProvider {
       fs.mkdirSync(orbitDir, { recursive: true });
     this.knownHostsPath = path.join(orbitDir, 'known_hosts');
     this.conn = new GceConnectionManager(projectId, zone, instanceName, config, repoRoot);
-    this.imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
+    this.imageUri = config.imageUri || DEFAULT_IMAGE_URI;
     this.vpcName = config.vpcName || 'default';
     this.subnetName = config.subnetName || 'default';
   }
@@ -185,7 +179,7 @@ export class GceCosProvider implements OrbitProvider {
     return 1;
   }
 
-  async setup(options: SetupOptions): Promise<number> {
+  async setup(_options: SetupOptions): Promise<number> {
     console.log(`   - Verifying connection...`);
     // ensure strategy has current IP if needed
     await this.conn.onProvisioned();
@@ -308,7 +302,7 @@ export class GceCosProvider implements OrbitProvider {
 
     // Delete static IP if it exists
     const region = this.zone.split('-').slice(0, 2).join('-');
-    const res2 = spawnSync(
+    const _res2 = spawnSync(
       'gcloud',
       [
         'compute', 'addresses', 'delete', `${this.instanceName}-ip`,

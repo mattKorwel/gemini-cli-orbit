@@ -20,7 +20,7 @@ export class IapStrategy extends BaseStrategy {
     return [];
   }
 
-  getRunCommand(command: string, options: { interactive?: boolean }): string {
+  getRunCommand(command: string, _options: { interactive?: boolean }): string {
     const iapArgs = [
       'gcloud', 'compute', 'ssh', this.getMagicRemote(),
       '--project', this.projectId,

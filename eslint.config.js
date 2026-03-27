@@ -9,11 +9,16 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         ...globals.node,
+        NodeJS: 'readonly',
       },
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['warn', { 
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_'
+      }],
       'no-empty': 'off',
       'prefer-const': 'warn',
       'no-useless-escape': 'off',
@@ -22,6 +27,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['node_modules/', 'dist/'],
+    ignores: ['node_modules/', 'dist/', 'bundle/'],
   }
 );

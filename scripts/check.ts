@@ -4,18 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-
-const REPO_ROOT = process.cwd();
-
 export async function runChecker(
   args: string[],
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
 ) {
   const prNumber = args[0];
   if (!prNumber) {

@@ -19,7 +19,7 @@ export function createTaskRunner(logDir: string, header: string) {
 
   try {
     fs.mkdirSync(logDir, { recursive: true });
-  } catch (e) {
+  } catch {
     // Ignore if exists
   }
 

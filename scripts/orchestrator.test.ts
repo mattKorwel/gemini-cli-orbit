@@ -7,9 +7,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runOrchestrator } from './orchestrator.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { RemoteProvisioner } from './RemoteProvisioner.js';
+
 import * as ConfigManager from './ConfigManager.js';
-import fs from 'node:fs';
+
 import { spawnSync } from 'node:child_process';
 
 vi.mock('node:fs');

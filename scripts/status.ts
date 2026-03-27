@@ -3,16 +3,10 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import path from 'node:path';
-import fs from 'node:fs';
-
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-
-const REPO_ROOT = process.cwd();
-
-export async function runStatus(env: NodeJS.ProcessEnv = process.env) {
+export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
   

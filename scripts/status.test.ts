@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runStatus } from './status.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
-import fs from 'node:fs';
+
 
 vi.mock('node:fs');
 vi.mock('./providers/ProviderFactory.ts');

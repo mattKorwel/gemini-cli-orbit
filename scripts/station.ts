@@ -9,14 +9,14 @@
  * 
  * Stateful orchestrator for complex development loops.
  */
-import { spawnSync } from 'child_process';
+
 import { runReviewPlaybook } from './playbooks/review.js';
 import { runFixPlaybook } from './playbooks/fix.js';
 import { runReadyPlaybook } from './playbooks/ready.js';
 
 export async function runStation(args: string[]) {
   const prNumberOrIssue = args[0];
-  const branchName = args[1]; // Unused now as we assume CWD is the worktree
+  const _branchName = args[1]; // Unused now as we assume CWD is the worktree
   const policyPath = args[2];
   const action = args[3] || 'review';
 

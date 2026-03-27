@@ -10,9 +10,6 @@ import { spawnSync } from 'node:child_process';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-
-const REPO_ROOT = process.cwd();
-
 const q = (str: string) => `'${str.replace(/'/g, "'\\''")}'`;
 
 export async function runAttach(

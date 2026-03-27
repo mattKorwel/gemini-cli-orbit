@@ -1,14 +1,11 @@
-import { createTaskRunner } from '../TaskRunner.js';
-import path from 'path';
 import { spawnSync } from 'child_process';
-import fs from 'fs';
 
 export async function runImplementPlaybook(issueNumber: string, workDir: string, policyPath: string, geminiBin: string) {
   console.log(`🚀 Orbit | IMPLEMENT (Supervisor Loop) | Issue #${issueNumber}`);
   
   const ghView = spawnSync('gh', ['issue', 'view', issueNumber, '--json', 'title,body', '-q', '{title:.title,body:.body}'], { shell: true });
   const meta = JSON.parse(ghView.stdout.toString());
-  const branchName = `impl/${issueNumber}-${meta.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`.slice(0, 50);
+  const _branchName = `impl/${issueNumber}-${meta.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`.slice(0, 50);
 
   // 1. Initial Research & Test Creation
   console.log('\n🧠 Phase 1: Research & Reproduction...');

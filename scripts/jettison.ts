@@ -12,7 +12,7 @@ import {
 
 export async function runJettison(
   args: string[],
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
 ) {
   const prNumber = args[0];
   const actionArg = args[1] || 'open';

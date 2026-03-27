@@ -49,7 +49,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
-  async setup(options: SetupOptions): Promise<number> {
+  async setup(_options: SetupOptions): Promise<number> {
     return 0;
   }
 
@@ -98,7 +98,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     };
   }
 
-  async sync(localPath: string, remotePath: string, options: SyncOptions = {}): Promise<number> {
+  async sync(localPath: string, remotePath: string, _options: SyncOptions = {}): Promise<number> {
     // For local worktree, this is essentially a no-op if paths are same, 
     // or a copy if they are different.
     if (path.resolve(localPath) === path.resolve(remotePath)) return 0;

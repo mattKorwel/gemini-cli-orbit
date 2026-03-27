@@ -17,12 +17,19 @@ Settings are resolved in the following order (highest priority first):
 
 ### 1. Project Defaults (`.gemini/orbit/config.json`)
 These settings are shared by all developers working on the repository. They define the "Sovereign Target" for the mission.
+
+The default Docker image is defined in the source code:
+<!-- @include ../scripts/Constants.ts:DEFAULT_IMAGE_URI -->
+```ts
+export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+```
+
 ```json
 {
   "upstreamRepo": "google-gemini/gemini-cli",
   "remoteWorkDir": "/mnt/disks/data/main",
   "useContainer": true,
-  "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest",
+  "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest", // Default resolved from Constants.ts
   "terminalTarget": "tab"
 }
 ```

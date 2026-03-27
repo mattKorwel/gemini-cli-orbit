@@ -3,16 +3,16 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import fs from 'node:fs';
+
+
+
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { 
   SATELLITE_WORKTREES_PATH, 
 } from './Constants.js';
 
-const REPO_ROOT = process.cwd();
+
 
 export async function runLogs(args: string[]) {
   const prNumber = args[0];

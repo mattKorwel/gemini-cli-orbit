@@ -8,12 +8,9 @@ import {
   type OrbitProvider,
 } from './providers/BaseProvider.js';
 import { 
-  ORBIT_ROOT
+  ORBIT_ROOT,
+  DEFAULT_IMAGE_URI
 } from './Constants.js';
-
-function q(str: string) {
-  return `'${str.replace(/'/g, "'\\''")}'`;
-}
 
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
@@ -21,7 +18,7 @@ export class RemoteProvisioner {
   async provisionWorktree(prNumber: string, action: string, isEvaMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string }): Promise<string> {
     const remoteWorktreeDir = `${config.worktreesDir}/mission-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
-    const imageUri = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+    const imageUri = DEFAULT_IMAGE_URI;
 
     // 1. Ensure the specific mission capsule is active
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);

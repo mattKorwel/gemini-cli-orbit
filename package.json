@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
-    "bundle": "esbuild scripts/*.ts --bundle --platform=node --format=esm --outdir=bundle --minify --sourcemap --target=node20 --external:vitest --external:node:*",
+    "sync-docs": "tsx scripts/sync-docs.ts",
+    "bundle": "esbuild $(find scripts -maxdepth 1 -name \"*.ts\" ! -name \"*.test.ts\") --bundle --platform=node --format=esm --outdir=bundle --minify --sourcemap --target=node20 --external:vitest --external:node:*",
     "build": "npm run typecheck && npm run bundle"
   },
   "lint-staged": {
@@ -22,6 +23,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/glob": "^8.1.0",
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
@@ -35,5 +37,8 @@
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.57.2",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "glob": "^13.0.6"
   }
 }

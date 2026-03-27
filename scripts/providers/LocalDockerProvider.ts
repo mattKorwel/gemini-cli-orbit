@@ -6,8 +6,6 @@
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import fs from 'node:fs';
-import os from 'node:os';
 import {
   type OrbitProvider,
   type SetupOptions,
@@ -43,7 +41,7 @@ export class LocalDockerProvider implements OrbitProvider {
     return this.provision();
   }
 
-  async setup(options: SetupOptions): Promise<number> {
+  async setup(_options: SetupOptions): Promise<number> {
     return 0;
   }
 
@@ -78,7 +76,7 @@ export class LocalDockerProvider implements OrbitProvider {
     };
   }
 
-  async sync(localPath: string, remotePath: string, options: SyncOptions = {}): Promise<number> {
+  async sync(localPath: string, remotePath: string, _options: SyncOptions = {}): Promise<number> {
     // For local docker, this is 'docker cp' if remotePath is inside a container, 
     // but here we are syncing between local host and... well, for local it's often a mount.
     if (path.resolve(localPath) === path.resolve(remotePath)) return 0;

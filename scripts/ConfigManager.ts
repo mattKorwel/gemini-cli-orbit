@@ -27,7 +27,7 @@ export function detectRepoName(): string {
     if (res.status === 0) {
         try {
             return JSON.parse(res.stdout.toString()).name;
-        } catch (e) {}
+        } catch {}
     }
     return path.basename(REPO_ROOT) || DEFAULT_REPO_NAME || 'gemini-cli';
 }

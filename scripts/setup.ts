@@ -12,7 +12,6 @@ import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { 
   loadGlobalSettings, 
-  loadProjectConfig, 
   getRepoConfig, 
   detectRepoName 
 } from './ConfigManager.js';
@@ -27,14 +26,12 @@ import {
   EXTENSION_REMOTE_PATH,
   PROFILES_DIR,
   GLOBAL_SETTINGS_PATH,
-  PROJECT_CONFIG_PATH,
   PROJECT_ORBIT_DIR,
   GLOBAL_ORBIT_DIR,
-  UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
+  DEFAULT_IMAGE_URI,
   type OrbitConfig,
-  type OrbitSettings 
 } from './Constants.js';
 
 
@@ -200,9 +197,9 @@ and full builds) to a dedicated, high-performance host station.
   const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'name,nameWithOwner,parent,isFork'], { stdio: 'pipe' });
   if (repoInfoRes.status === 0) {
       try {
-          const repoInfo = JSON.parse(repoInfoRes.stdout.toString());
-          upstreamRepo = repoInfo.isFork && repoInfo.parent ? repoInfo.parent.nameWithOwner : repoInfo.nameWithOwner;
-      } catch (e) {}
+          const _repoInfo = JSON.parse(repoInfoRes.stdout.toString());
+          upstreamRepo = _repoInfo.isFork && _repoInfo.parent ? _repoInfo.parent.nameWithOwner : _repoInfo.nameWithOwner;
+      } catch (_e) {}
   }
 
   let skipConfig = false;
@@ -220,7 +217,7 @@ and full builds) to a dedicated, high-performance host station.
   let dnsSuffix = config.dnsSuffix || '';
   let userSuffix = config.userSuffix || '';
   let backendType = config.backendType || 'direct-internal';
-  let imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+  let imageUri = config.imageUri || DEFAULT_IMAGE_URI;
   let vpcName = config.vpcName || 'default';
   let subnetName = config.subnetName || 'default';
   let autoSetupNet = false;
@@ -266,7 +263,7 @@ and full builds) to a dedicated, high-performance host station.
       // 2. Repository Discovery (Dynamic)
       if (repoInfoRes.status === 0) {
           try {
-              const repoInfo = JSON.parse(repoInfoRes.stdout.toString());
+              const _repoInfo = JSON.parse(repoInfoRes.stdout.toString());
               console.log(`   - Searching for your forks of ${upstreamRepo}...`);
               
               const gqlQuery = `query { viewer { repositories(first: 100, isFork: true, affiliations: OWNER) { nodes { nameWithOwner parent { nameWithOwner } } } } }`;
@@ -292,7 +289,7 @@ and full builds) to a dedicated, high-performance host station.
                   const shouldFork = await confirm('No fork detected. Create a personal fork for sandboxed implementations?');
                   userFork = shouldFork ? await createFork(upstreamRepo) : upstreamRepo;
               }
-          } catch (e) {
+          } catch (_e) {
               userFork = upstreamRepo;
           }
       }
@@ -338,7 +335,7 @@ and full builds) to a dedicated, high-performance host station.
           if (!geminiApiKey && localSettings.security?.auth?.apiKey) {
               geminiApiKey = localSettings.security.auth.apiKey;
           }
-      } catch (e) {}
+      } catch (_e) {}
   }
 
   if (authStrategy === 'gemini-api-key') {
@@ -377,7 +374,15 @@ and full builds) to a dedicated, high-performance host station.
   console.log(`✅ Repository link saved to global registry.`);
 
   // 6. Transition to Execution
-  const repoConfig = getRepoConfig(repoName);
+  let repoConfig = getRepoConfig(repoName);
+  
+  // Merge locally collected variables to ensure they are available even if not persisted correctly yet
+  repoConfig = {
+    ...repoConfig,
+    projectId, zone, vpcName, subnetName, dnsSuffix, userSuffix, backendType,
+    instanceName, imageUri, userFork, upstreamRepo
+  };
+
   const cleanProviderConfig: any = {
       projectId: repoConfig.projectId!,
       zone: repoConfig.zone!,
@@ -390,11 +395,11 @@ and full builds) to a dedicated, high-performance host station.
 
   console.log('\n🏗️  PHASE 2: STATION LIFTOFF');
   console.log('--------------------------------------------------------------------------------');
-  console.log(`   - Verifying access and finding station ${instanceName}...`);
+  console.log(`   - Verifying access and finding station ${repoConfig.instanceName}...`);
   let status = await provider.getStatus();
   
   if (status.status === 'UNKNOWN' || status.status === 'ERROR') {
-    const shouldProvision = await confirm(`Station ${instanceName} not found. Provision it now?`);
+    const shouldProvision = await confirm(`Station ${repoConfig.instanceName} not found. Provision it now?`);
     if (!shouldProvision) return 1;
     
     const provisionRes = await provider.provision({ setupNetwork: autoSetupNet });
@@ -403,7 +408,7 @@ and full builds) to a dedicated, high-performance host station.
   }
 
   if (status.status !== 'RUNNING') {
-    console.log(`   - Waking up station ${instanceName}...`);
+    console.log(`   - Waking up station ${repoConfig.instanceName}...`);
     await provider.ensureReady();
   }
 
@@ -412,7 +417,11 @@ and full builds) to a dedicated, high-performance host station.
   await provider.ensureReady();
 
   const setupRes = await provider.setup({ 
-      projectId, zone, dnsSuffix, userSuffix, backendType: backendType as any
+      projectId: repoConfig.projectId!, 
+      zone: repoConfig.zone!, 
+      dnsSuffix: repoConfig.dnsSuffix!, 
+      userSuffix: repoConfig.userSuffix!, 
+      backendType: repoConfig.backendType as any
   });
   if (setupRes !== 0) return setupRes;
 
