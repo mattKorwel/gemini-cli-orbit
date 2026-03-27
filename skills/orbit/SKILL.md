@@ -1,5 +1,5 @@
 ---
-name: orbits
+name: orbit
 description: Expertise in managing and utilizing Gemini Workspaces for high-performance remote development tasks.
 ---
 
