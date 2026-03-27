@@ -1,5 +1,8 @@
 # Gemini Orbit 🚀
 
+![CI](https://github.com/mattKorwel/gemini-cli-orbit/actions/workflows/test.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-38%20passed-green)
+
 **Escape the gravity of terrestrial constraints.**
 
 Gemini Orbit launches your development presence into high orbit—a persistent, high-performance environment that transcends the physical limits of your laptop's CPU, battery life, and sleep cycles. Your work should never stop just because your terrestrial machine did.
@@ -15,9 +18,21 @@ Orbit provides a **Persistent Orbital Presence**—a high-performance digital ou
 
 ---
 
-## 🚀 Liftoff
+## 📦 Installation
 
-1.  **Initialize**: Setup your persistent **Orbital Station** and define your mission profile.
+Install the Orbit extension directly via the Gemini CLI:
+
+```bash
+gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
+```
+
+---
+
+## 🚀 Quick Start
+
+> **Note**: This is the "happy path" for developers to quickly evaluate Orbit. For detailed enterprise configurations, see the [Documentation Hub](docs/README.md).
+
+1.  **Liftoff**: Initialize your persistent **Orbital Station** and define your mission profile.
     ```bash
     /orbit:liftoff
     ```
@@ -55,6 +70,12 @@ Stay connected regardless of your terrestrial network:
 - **`direct-internal`**: Maximum speed via VPC-internal DNS.
 - **`secure-tunnel`**: Secure, zero-config access through Identity-Aware Tunnels (no public IP required).
 - **`external`**: Standard public routing for maximum compatibility.
+
+---
+
+## 📖 Documentation
+
+For in-depth guides, architectural diagrams, and detailed configuration, visit our **[Documentation Hub](docs/README.md)**.
 
 ---
 
