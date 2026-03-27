@@ -7,8 +7,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
 
 const REPO_ROOT = process.cwd();
@@ -38,17 +38,18 @@ export async function runAttach(
 
   const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({
-    projectId,
-    zone,
-    instanceName,
+    projectId: projectId!,
+    zone: zone!,
+    instanceName: instanceName!,
     repoName,
     dnsSuffix,
     userSuffix,
     backendType
   });
 
+  const containerName = `gcli-${prNumber}-${action}`;
   const sessionName = `orbit-${prNumber}-${action}`;
-  const containerAttach = `sudo docker exec -it ${provider.workerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
+  const containerAttach = `sudo docker exec -it ${containerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
   const finalSSH = provider.getRunCommand(containerAttach, {
     interactive: true,
   });

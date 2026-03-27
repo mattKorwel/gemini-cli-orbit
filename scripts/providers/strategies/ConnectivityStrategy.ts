@@ -18,7 +18,7 @@ export interface ConnectivityStrategy {
   /**
    * Returns the full shell command to execute a remote command.
    */
-  getRunCommand(command: string, options: { interactive?: boolean }): string;
+  getRunCommand(command: string, options: { interactive?: boolean | undefined }): string;
 
   /**
    * Sets an override host (e.g. after resolving IP).

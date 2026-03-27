@@ -7,5 +7,5 @@ This will:
 2. Permanently delete the persistent data disk.
 3. Remove all constellation-wide settings.
 
-!{npx tsx scripts/splashdown.ts --all }
+!{node bundle/splashdown.js --all }
 """

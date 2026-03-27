@@ -5,9 +5,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runLogs } from './logs.ts';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import * as ConfigManager from './ConfigManager.ts';
+import { runLogs } from './logs.js';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import * as ConfigManager from './ConfigManager.js';
 import fs from 'node:fs';
 
 vi.mock('node:fs');
@@ -34,7 +34,6 @@ describe('runLogs', () => {
         upstreamRepo: 'o/r',
         remoteHost: 'h',
         remoteWorkDir: '/w',
-        useCapsule: true
     });
   });
 

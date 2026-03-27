@@ -15,7 +15,7 @@ import {
     PROJECT_CONFIG_PATH,
     PROJECT_ORBIT_DIR,
     PROFILES_DIR
-} from './Constants.ts';
+} from './Constants.js';
 
 const REPO_ROOT = process.cwd();
 

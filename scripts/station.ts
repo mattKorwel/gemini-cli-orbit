@@ -10,9 +10,9 @@
  * Stateful orchestrator for complex development loops.
  */
 import { spawnSync } from 'child_process';
-import { runReviewPlaybook } from './playbooks/review.ts';
-import { runFixPlaybook } from './playbooks/fix.ts';
-import { runReadyPlaybook } from './playbooks/ready.ts';
+import { runReviewPlaybook } from './playbooks/review.js';
+import { runFixPlaybook } from './playbooks/fix.js';
+import { runReadyPlaybook } from './playbooks/ready.js';
 
 export async function runStation(args: string[]) {
   const prNumberOrIssue = args[0];
@@ -42,7 +42,7 @@ export async function runStation(args: string[]) {
       return runReadyPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
     
     case 'implement': {
-      const { runImplementPlaybook } = await import('./playbooks/implement.ts');
+      const { runImplementPlaybook } = await import('./playbooks/implement.js');
       return runImplementPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
     }
       

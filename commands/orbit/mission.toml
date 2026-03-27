@@ -9,5 +9,5 @@ Actions available:
 - review     - Execute mission observation (review playbook).
 - implement  - Execute mission execution (implement playbook).
 
-!{npx tsx scripts/orchestrator.ts {{args}} }
+!{node bundle/orchestrator.js {{args}} }
 """

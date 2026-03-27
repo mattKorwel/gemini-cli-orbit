@@ -1,8 +1,4 @@
-import { TaskRunner } from '../TaskRunner.js';
-import path from 'path';
-import { spawnSync } from 'child_process';
-
-import { TaskRunner } from '../TaskRunner.js';
+import { createTaskRunner } from '../TaskRunner.js';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import fs from 'fs';

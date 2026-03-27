@@ -51,26 +51,26 @@ export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/d
  * Used for both Profiles and Repository-specific settings.
  */
 export interface OrbitConfig {
-  projectId?: string;
-  zone?: string;
-  instanceName?: string; // The GCE station name
-  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window';
-  userFork?: string;
-  upstreamRepo?: string;
-  repoName?: string;
-  remoteHost?: string;
-  remoteWorkDir?: string;
-  useContainer?: boolean;
-  providerType?: 'gce' | 'local-docker' | 'local-worktree' | 'podman';
-  dnsSuffix?: string;
-  userSuffix?: string;
-  backendType?: 'direct-internal' | 'external' | 'iap';
-  imageUri?: string;
-  vpcName?: string;
-  subnetName?: string;
-  profile?: string; // Link to a named profile in PROFILES_DIR
-  worktreesDir?: string; // Local worktrees base path
-  useTmux?: boolean; // Whether to wrap execution in tmux
+  projectId?: string | undefined;
+  zone?: string | undefined;
+  instanceName?: string | undefined; // The GCE station name
+  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
+  userFork?: string | undefined;
+  upstreamRepo?: string | undefined;
+  repoName?: string | undefined;
+  remoteHost?: string | undefined;
+  remoteWorkDir?: string | undefined;
+  useContainer?: boolean | undefined;
+  providerType?: 'gce' | 'local-docker' | 'local-worktree' | 'podman' | undefined;
+  dnsSuffix?: string | undefined;
+  userSuffix?: string | undefined;
+  backendType?: 'direct-internal' | 'external' | 'iap' | undefined;
+  imageUri?: string | undefined;
+  vpcName?: string | undefined;
+  subnetName?: string | undefined;
+  profile?: string | undefined; // Link to a named profile in PROFILES_DIR
+  worktreesDir?: string | undefined; // Local worktrees base path
+  useTmux?: boolean | undefined; // Whether to wrap execution in tmux
 }
 
 /**

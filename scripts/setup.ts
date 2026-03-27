@@ -9,13 +9,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 import readline from 'node:readline';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
+import { ProviderFactory } from './providers/ProviderFactory.js';
 import { 
   loadGlobalSettings, 
   loadProjectConfig, 
   getRepoConfig, 
   detectRepoName 
-} from './ConfigManager.ts';
+} from './ConfigManager.js';
 import { fileURLToPath } from 'node:url';
 import { 
   ORBIT_ROOT, 
@@ -28,14 +28,14 @@ import {
   PROFILES_DIR,
   GLOBAL_SETTINGS_PATH,
   PROJECT_CONFIG_PATH,
-  PROJECT_WORKSPACES_DIR,
-  GLOBAL_WORKSPACES_DIR,
+  PROJECT_ORBIT_DIR,
+  GLOBAL_ORBIT_DIR,
   UPSTREAM_REPO_URL,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
   type OrbitConfig,
   type OrbitSettings 
-} from './Constants.ts';
+} from './Constants.js';
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,8 +60,8 @@ function loadDotEnv() {
         
         const match = trimmed.match(/^([^=]+)=(.*)$/);
         if (match) {
-          const key = match[1].trim();
-          const val = match[2].trim().replace(/^["'](.*)["']$/, '$1');
+          const key = match[1]!.trim();
+          const val = match[2]!.trim().replace(/^["'](.*)["']$/, '$1');
           if (!process.env[key]) process.env[key] = val;
         }
       });
@@ -133,7 +133,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   const args = process.argv.slice(2);
   const reconfigure = args.includes('--reconfigure');
   const skipConfigArg = args.includes('--yes') || args.includes('-y');
-  let profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
+  const profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
 
   console.log(`
 ================================================================================
@@ -286,7 +286,7 @@ and full builds) to a dedicated, high-performance host station.
                       userFork = upstreamRepo;
                   } else {
                       const idx = parseInt(choice) - 1;
-                      userFork = myForks[idx] || myForks[0];
+                      userFork = (myForks[idx] || myForks[0])!;
                   }
               } else {
                   const shouldFork = await confirm('No fork detected. Create a personal fork for sandboxed implementations?');
@@ -302,7 +302,7 @@ and full builds) to a dedicated, high-performance host station.
   }
 
   // 3. Security & Auth
-  const localGhTokenPath = path.join(PROJECT_WORKSPACES_DIR, 'gh_token');
+  const localGhTokenPath = path.join(PROJECT_ORBIT_DIR, 'gh_token');
   let githubToken = env.WORKSPACE_GH_TOKEN || '';
   
   if (!githubToken && fs.existsSync(localGhTokenPath)) {
@@ -323,7 +323,7 @@ and full builds) to a dedicated, high-performance host station.
       return 1;
   }
 
-  if (!fs.existsSync(PROJECT_WORKSPACES_DIR)) fs.mkdirSync(PROJECT_WORKSPACES_DIR, { recursive: true });
+  if (!fs.existsSync(PROJECT_ORBIT_DIR)) fs.mkdirSync(PROJECT_ORBIT_DIR, { recursive: true });
   fs.writeFileSync(localGhTokenPath, githubToken, { mode: 0o600 });
 
   // 4. Gemini API Auth
@@ -350,7 +350,7 @@ and full builds) to a dedicated, high-performance host station.
   }
 
   // 5. Save Partitioned Configuration
-  if (!fs.existsSync(GLOBAL_WORKSPACES_DIR)) fs.mkdirSync(GLOBAL_WORKSPACES_DIR, { recursive: true });
+  if (!fs.existsSync(GLOBAL_ORBIT_DIR)) fs.mkdirSync(GLOBAL_ORBIT_DIR, { recursive: true });
   
   // Save INFRASTRUCTURE to Profile
   if (selectedProfile) {
@@ -377,7 +377,16 @@ and full builds) to a dedicated, high-performance host station.
   console.log(`✅ Repository link saved to global registry.`);
 
   // 6. Transition to Execution
-  const provider = ProviderFactory.getProvider(getRepoConfig(repoName));
+  const repoConfig = getRepoConfig(repoName);
+  const cleanProviderConfig: any = {
+      projectId: repoConfig.projectId!,
+      zone: repoConfig.zone!,
+      instanceName: repoConfig.instanceName!,
+  };
+  Object.keys(repoConfig).forEach(k => {
+      if ((repoConfig as any)[k] !== undefined) cleanProviderConfig[k] = (repoConfig as any)[k];
+  });
+  const provider = ProviderFactory.getProvider(cleanProviderConfig);
 
   console.log('\n🏗️  PHASE 2: STATION LIFTOFF');
   console.log('--------------------------------------------------------------------------------');
@@ -469,3 +478,4 @@ and full builds) to a dedicated, high-performance host station.
 if (import.meta.url === `file://${process.argv[1]}`) {
   runSetup().catch(console.error);
 }
+

@@ -15,7 +15,7 @@ import {
   type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
-} from './BaseProvider.ts';
+} from './BaseProvider.js';
 
 /**
  * LocalWorktreeProvider manages local git worktrees as isolated "capsules".
@@ -53,6 +53,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
+  private quote(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
+  }
+
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
     const envPrefix = options.env ? Object.entries(options.env).map(([k, v]) => `${k}=${this.quote(v)}`).join(' ') + ' ' : '';
@@ -73,7 +77,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
-    let finalCmd = command;
+    const finalCmd = command;
     let cwd = options.cwd || process.cwd();
 
     if (options.wrapCapsule) {

@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runOrchestrator } from './orchestrator.ts';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { RemoteProvisioner } from './RemoteProvisioner.ts';
-import * as ConfigManager from './ConfigManager.ts';
+import { runOrchestrator } from './orchestrator.js';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { RemoteProvisioner } from './RemoteProvisioner.js';
+import * as ConfigManager from './ConfigManager.js';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
@@ -55,7 +55,6 @@ describe('runOrchestrator', () => {
         upstreamRepo: 'o/r',
         remoteHost: 'h',
         remoteWorkDir: '/w',
-        useCapsule: true
     });
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     mockProvisionWorktree.mockResolvedValue('/remote/path');
@@ -95,7 +94,7 @@ describe('runOrchestrator', () => {
         remoteWorkDir: '/w',
     } as any);
 
-    mockProvider.getExecOutput.mockImplementation(async (cmd) => {
+    mockProvider.getExecOutput.mockImplementation(async (cmd: string) => {
         if (cmd === 'tmux -V') return { status: 1, stdout: '', stderr: 'not found' };
         return { status: 0, stdout: 'node' };
     });

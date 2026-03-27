@@ -3,12 +3,12 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { 
   SATELLITE_WORKTREES_PATH, 
   CONFIG_DIR,
-} from './Constants.ts';
+} from './Constants.js';
 
 export async function runJettison(
   args: string[],
@@ -32,9 +32,9 @@ export async function runJettison(
 
   const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({
-    projectId,
-    zone,
-    instanceName,
+    projectId: projectId!,
+    zone: zone!,
+    instanceName: instanceName!,
     repoName,
     dnsSuffix,
     userSuffix,

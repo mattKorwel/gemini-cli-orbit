@@ -15,8 +15,8 @@ import {
   type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
-} from './BaseProvider.ts';
-import { GceConnectionManager } from './GceConnectionManager.ts';
+} from './BaseProvider.js';
+import { GceConnectionManager } from './GceConnectionManager.js';
 
 const ORBIT_ROOT = '/mnt/disks/data';
 const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
@@ -42,7 +42,7 @@ export class GceCosProvider implements OrbitProvider {
     zone: string,
     instanceName: string,
     repoRoot: string,
-    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string, vpcName?: string, subnetName?: string, stationName?: string } = {}
+    config: { dnsSuffix?: string | undefined, userSuffix?: string | undefined, backendType?: string | undefined, imageUri?: string | undefined, vpcName?: string | undefined, subnetName?: string | undefined, stationName?: string | undefined } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
@@ -155,7 +155,7 @@ export class GceCosProvider implements OrbitProvider {
     await this.conn.onProvisioned();
 
     console.log('   - Verifying station supervisor health...');
-    let check = await this.getCapsuleStatus(this.stationName);
+    const check = await this.getCapsuleStatus(this.stationName);
     
     // During development/refactor, we often want to force-refresh the capsule 
     // to pick up new image layers (like the chunk fix).

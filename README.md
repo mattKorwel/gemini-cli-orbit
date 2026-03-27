@@ -111,3 +111,12 @@ For in-depth guides, architectural diagrams, and detailed configuration, visit o
 # Keep the station healthy
 npm test
 ```
+
+---
+
+## ⚖️ Legal Disclaimer & Cost Warning
+
+**Cloud Costs:** Orbit provisions and maintains real infrastructure (e.g., Google Compute Engine instances). Running persistent instances will incur hourly or monthly costs on your connected GCP billing account. You are responsible for monitoring and managing your cloud usage.
+
+**Security & Liability:** This software connects to remote virtual machines via SSH/IAP and manages Docker environments. You are responsible for ensuring that your network boundaries (VPC, firewall rules) and IAM permissions meet your organization's security standards. As per the Apache 2.0 License, this software is provided "AS IS" without warranties of any kind.
+

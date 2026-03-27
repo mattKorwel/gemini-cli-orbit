@@ -38,9 +38,9 @@ vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
 
 // Import runSetup after mocks
-import { runSetup } from './setup.ts';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import * as ConfigManager from './ConfigManager.ts';
+import { runSetup } from './setup.js';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import * as ConfigManager from './ConfigManager.js';
 
 describe('runSetup', () => {
   const mockProvider = {

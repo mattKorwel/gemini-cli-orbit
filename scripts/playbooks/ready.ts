@@ -1,4 +1,4 @@
-import { createTaskRunner } from '../TaskRunner.ts';
+import { createTaskRunner } from '../TaskRunner.js';
 import path from 'path';
 
 export async function runReadyPlaybook(prNumber: string, targetDir: string, policyPath: string, geminiBin: string) {

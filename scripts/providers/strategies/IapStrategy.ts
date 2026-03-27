@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BaseStrategy } from './BaseStrategy.ts';
+import { BaseStrategy } from './BaseStrategy.js';
 import { spawnSync } from 'node:child_process';
 
 export class IapStrategy extends BaseStrategy {

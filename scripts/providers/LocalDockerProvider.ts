@@ -15,7 +15,7 @@ import {
   type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
-} from './BaseProvider.ts';
+} from './BaseProvider.js';
 
 /**
  * LocalDockerProvider manages local Docker containers as isolated capsules.

@@ -6,10 +6,10 @@
 
 import { 
   type OrbitProvider,
-} from './providers/BaseProvider.ts';
+} from './providers/BaseProvider.js';
 import { 
   ORBIT_ROOT
-} from './Constants.ts';
+} from './Constants.js';
 
 function q(str: string) {
   return `'${str.replace(/'/g, "'\\''")}'`;

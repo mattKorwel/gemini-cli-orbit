@@ -2,5 +2,5 @@ description = "Manage the entire mission constellation of stations across projec
 prompt = """
 Managing constellation...
 
-!{npx tsx scripts/fleet.ts {{args}} }
+!{node bundle/fleet.js {{args}} }
 """

@@ -7,5 +7,5 @@ This will:
 2. Configure the persistent data disk.
 3. Pull the base 'capsule' image.
 
-!{npx tsx scripts/setup.ts {{args}} }
+!{node bundle/setup.js {{args}} }
 """

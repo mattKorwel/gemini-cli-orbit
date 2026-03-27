@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GceConnectionManager } from './GceConnectionManager.ts';
+import { GceConnectionManager } from './GceConnectionManager.js';
 import { spawnSync } from 'child_process';
 
 vi.mock('child_process', () => ({
@@ -58,7 +58,7 @@ describe('GceConnectionManager', () => {
     });
     
     manager.sync('/local', '/remote');
-    const lastCall = vi.mocked(spawnSync).mock.calls[0][0] as string;
+    const lastCall = vi.mocked(spawnSync).mock.calls[0]![0] as string;
     expect(lastCall).toContain('gcloud compute ssh');
     expect(lastCall).toContain('--tunnel-through-iap');
   });
