@@ -61,7 +61,7 @@ export interface OrbitConfig {
   remoteHost?: string;
   remoteWorkDir?: string;
   useContainer?: boolean;
-  providerType?: 'gce' | 'local-docker';
+  providerType?: 'gce' | 'local-docker' | 'local-worktree' | 'podman';
   dnsSuffix?: string;
   userSuffix?: string;
   backendType?: 'direct-internal' | 'external' | 'iap';
@@ -69,6 +69,8 @@ export interface OrbitConfig {
   vpcName?: string;
   subnetName?: string;
   profile?: string; // Link to a named profile in PROFILES_DIR
+  worktreesDir?: string; // Local worktrees base path
+  useTmux?: boolean; // Whether to wrap execution in tmux
 }
 
 /**

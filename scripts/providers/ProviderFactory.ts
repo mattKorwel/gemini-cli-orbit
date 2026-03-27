@@ -5,10 +5,9 @@
  */
 
 import { GceCosProvider } from './GceCosProvider.ts';
+import { LocalWorktreeProvider } from './LocalWorktreeProvider.ts';
+import { LocalDockerProvider } from './LocalDockerProvider.ts';
 import type { OrbitProvider } from './BaseProvider.ts';
-
-
-
 
 const REPO_ROOT = process.cwd();
 
@@ -23,13 +22,18 @@ export class ProviderFactory {
     userSuffix?: string;
     backendType?: string;
     imageUri?: string;
+    worktreesDir?: string;
   }): OrbitProvider {
-    if (config.providerType === 'local-docker') {
-        throw new Error('Local Docker provider not yet implemented.');
-    }
-    
     const stationName = config.repoName ? `gcli-station-${config.repoName}` : 'station-supervisor';
 
+    if (config.providerType === 'local-worktree') {
+        return new LocalWorktreeProvider(stationName, config.worktreesDir);
+    }
+
+    if (config.providerType === 'local-docker' || config.providerType === 'podman') {
+        return new LocalDockerProvider(stationName);
+    }
+    
     // Default to GCE
     return new GceCosProvider(
       config.projectId,

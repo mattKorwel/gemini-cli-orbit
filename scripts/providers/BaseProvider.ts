@@ -114,6 +114,7 @@ export interface ExecOptions {
   cwd?: string;
   wrapCapsule?: string;
   quiet?: boolean;
+  env?: Record<string, string>;
 }
 
 export interface CapsuleConfig {

@@ -29,16 +29,19 @@ vi.mock('./RemoteProvisioner.ts', () => {
 });
 
 describe('runOrchestrator', () => {
-  const mockProvider = {
-    ensureReady: vi.fn().mockResolvedValue(0),
-    getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'node' }),
-    exec: vi.fn().mockResolvedValue(0),
-    sync: vi.fn().mockResolvedValue(0),
-    getRunCommand: vi.fn().mockReturnValue('ssh-command'),
-  };
+  let mockProvider: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    mockProvider = {
+      ensureReady: vi.fn().mockResolvedValue(0),
+      getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'node' }),
+      exec: vi.fn().mockResolvedValue(0),
+      sync: vi.fn().mockResolvedValue(0),
+      getRunCommand: vi.fn().mockReturnValue('ssh-command'),
+    };
+
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
@@ -80,5 +83,48 @@ describe('runOrchestrator', () => {
     mockProvider.exec.mockResolvedValue(1);
     const res = await runOrchestrator(['23176', 'open'], { GCLI_ORBIT_GEMINI_API_KEY: 'test-key' });
     expect(res).toBe(1);
+  });
+
+  it('should fallback to raw execution if tmux is missing', async () => {
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+        projectId: 'p',
+        zone: 'z',
+        instanceName: 'i',
+        repoName: 'gemini-cli',
+        upstreamRepo: 'o/r',
+        remoteWorkDir: '/w',
+    } as any);
+
+    mockProvider.getExecOutput.mockImplementation(async (cmd) => {
+        if (cmd === 'tmux -V') return { status: 1, stdout: '', stderr: 'not found' };
+        return { status: 0, stdout: 'node' };
+    });
+
+    await runOrchestrator(['23176']);
+    
+    expect(mockProvider.getRunCommand).toHaveBeenCalled();
+    const lastCall = mockProvider.getRunCommand.mock.calls[0][0];
+    expect(lastCall).not.toContain('tmux new-session');
+    expect(lastCall).toContain('tsx /mnt/disks/data/scripts/entrypoint.ts');
+  });
+
+  it('should use raw execution if useTmux is disabled in config', async () => {
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+        projectId: 'p',
+        zone: 'z',
+        instanceName: 'i',
+        repoName: 'gemini-cli',
+        upstreamRepo: 'o/r',
+        remoteWorkDir: '/w',
+        terminalTarget: 'tab',
+        useTmux: false
+    } as any);
+
+    await runOrchestrator(['23176']);
+    
+    expect(mockProvider.getRunCommand).toHaveBeenCalled();
+    const lastCall = mockProvider.getRunCommand.mock.calls[0][0];
+    expect(lastCall).not.toContain('tmux new-session');
+    expect(mockProvider.getExecOutput).not.toHaveBeenCalledWith('tmux -V', expect.anything());
   });
 });

@@ -109,9 +109,9 @@ Actions:
   }
 
   const provider = ProviderFactory.getProvider({
-    projectId: config.projectId,
-    zone: config.zone,
-    instanceName: config.instanceName,
+    projectId: config.projectId!,
+    zone: config.zone!,
+    instanceName: config.instanceName!,
     repoName: config.repoName,
     dnsSuffix: config.dnsSuffix,
     userSuffix: config.userSuffix,
@@ -136,7 +136,7 @@ const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
 // 4. Remote Context Setup (Executed INSIDE capsule for path consistency)
 const provisioner = new RemoteProvisioner(provider);
 const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isEvaMode, '', {
-    remoteWorkDir: config.remoteWorkDir,
+    remoteWorkDir: config.remoteWorkDir!,
     worktreesDir: repoWorktreesDir,
     upstreamUrl
 });
@@ -174,7 +174,17 @@ if (localApiKey) {
     ? `gemini`
     : `tsx ${SCRIPTS_PATH}/entrypoint.ts ${prNumber} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
 
-  // PERSISTENCE: Wrap the entire execution in a tmux session inside the capsule
+  // 6. Persistence vs Raw Execution
+  let useTmux = config.useTmux !== false;
+  if (useTmux) {
+      // Verify tmux presence on the provider
+      const tmuxCheck = await provider.getExecOutput('tmux -V', { wrapCapsule: containerName, quiet: true });
+      if (tmuxCheck.status !== 0) {
+          console.log('   ⚠️ tmux not detected in environment. Falling back to raw execution.');
+          useTmux = false;
+      }
+  }
+
   const tmuxStyle = `
     tmux set -g status off;
   `.replace(/\n/g, '');
@@ -183,14 +193,30 @@ if (localApiKey) {
     ? `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`)}`
     : `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Mission Failed' && sleep 30)`)}`;
 
-  const containerWrap = `sudo docker exec -it -u node \
-    -e COLORTERM=truecolor \
-    -e TERM=xterm-256color \
-    -e GEMINI_AUTO_UPDATE=0 \
-    -e GEMINI_CLI_HOME=/home/node \
-    ${containerName} sh -c ${q(`(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1) && ${tmuxCmd}`)}`;
+  const rawCmd = isEvaMode
+    ? `cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`
+    : `cd ${remoteWorktreeDir} && ${remoteWorker}`;
 
-  const finalSSH = provider.getRunCommand(containerWrap, { interactive: true });
+  const missionCmd = useTmux ? tmuxCmd : rawCmd;
+
+  const execOptions: ExecOptions = {
+    interactive: true,
+    wrapCapsule: containerName,
+    env: {
+        COLORTERM: 'truecolor',
+        TERM: 'xterm-256color',
+        GEMINI_AUTO_UPDATE: '0',
+        GEMINI_CLI_HOME: '/home/node'
+    }
+  };
+
+  const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
+  
+  // If local, we likely don't need the gh token cat thing if we are already authed
+  const isLocal = config.providerType === 'local-worktree';
+  const fullCommand = isLocal ? missionCmd : `${ghAuthCmd} && ${missionCmd}`;
+
+  const finalSSH = provider.getRunCommand(fullCommand, execOptions);
 
   if (
     !forceMainTerminal &&
