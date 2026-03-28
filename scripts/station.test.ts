@@ -5,9 +5,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runStation } from './station.ts';
-import { spawnSync } from 'child_process';
-import { runFixPlaybook } from './playbooks/fix.ts';
+import { runStation } from './station.js';
+
+import { runFixPlaybook } from './playbooks/fix.js';
 
 vi.mock('child_process');
 vi.mock('./playbooks/fix.ts');

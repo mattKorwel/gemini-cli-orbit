@@ -15,7 +15,7 @@ import {
     PROJECT_CONFIG_PATH,
     PROJECT_ORBIT_DIR,
     PROFILES_DIR
-} from './Constants.ts';
+} from './Constants.js';
 
 const REPO_ROOT = process.cwd();
 
@@ -27,7 +27,7 @@ export function detectRepoName(): string {
     if (res.status === 0) {
         try {
             return JSON.parse(res.stdout.toString()).name;
-        } catch (e) {}
+        } catch {}
     }
     return path.basename(REPO_ROOT) || DEFAULT_REPO_NAME || 'gemini-cli';
 }

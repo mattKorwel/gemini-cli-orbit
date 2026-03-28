@@ -7,21 +7,38 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky",
+    "sync-docs": "tsx scripts/sync-docs.ts",
+    "bundle": "esbuild $(find scripts -maxdepth 1 -name \"*.ts\" ! -name \"*.test.ts\") --bundle --platform=node --format=esm --outdir=bundle --minify --sourcemap --target=node20 --external:vitest --external:node:*",
+    "build": "npm run typecheck && npm run bundle"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "npm run build"
+    ]
   },
   "author": "Matt Korwel",
   "license": "Apache-2.0",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/glob": "^8.1.0",
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
     "@vitest/coverage-v8": "^3.0.0",
+    "esbuild": "^0.27.4",
     "eslint": "^10.1.0",
     "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.57.2",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "glob": "^13.0.6"
   }
 }

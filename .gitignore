@@ -68,3 +68,5 @@ gemini-debug.log
 evals/logs/
 
 temp_agents/
+bundle/
+dist/

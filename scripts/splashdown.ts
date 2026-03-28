@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import readline from 'node:readline';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { 
   ORBIT_ROOT, 
   SATELLITE_WORKTREES_PATH, 
   CONFIG_DIR,
-} from './Constants.ts';
+} from './Constants.js';
 
 async function confirm(question: string): Promise<boolean> {
   const rl = readline.createInterface({
@@ -27,7 +27,7 @@ async function confirm(question: string): Promise<boolean> {
 
 export async function runSplashdown(
   args: string[],
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
 ) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
@@ -39,9 +39,9 @@ export async function runSplashdown(
 
   const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({
-    projectId,
-    zone,
-    instanceName,
+    projectId: projectId!,
+    zone: zone!,
+    instanceName: instanceName!,
     repoName,
     dnsSuffix,
     userSuffix,

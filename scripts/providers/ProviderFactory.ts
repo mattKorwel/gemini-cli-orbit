@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GceCosProvider } from './GceCosProvider.ts';
-import { LocalWorktreeProvider } from './LocalWorktreeProvider.ts';
-import { LocalDockerProvider } from './LocalDockerProvider.ts';
-import type { OrbitProvider } from './BaseProvider.ts';
+import { GceCosProvider } from './GceCosProvider.js';
+import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
+import { LocalDockerProvider } from './LocalDockerProvider.js';
+import type { OrbitProvider } from './BaseProvider.js';
 
 const REPO_ROOT = process.cwd();
 
@@ -16,13 +16,16 @@ export class ProviderFactory {
     projectId: string;
     zone: string;
     instanceName: string;
-    repoName?: string;
-    providerType?: string;
-    dnsSuffix?: string;
-    userSuffix?: string;
-    backendType?: string;
-    imageUri?: string;
-    worktreesDir?: string;
+    repoName?: string | undefined;
+    providerType?: string | undefined;
+    dnsSuffix?: string | undefined;
+    userSuffix?: string | undefined;
+    backendType?: string | undefined;
+    imageUri?: string | undefined;
+    worktreesDir?: string | undefined;
+    vpcName?: string | undefined;
+    subnetName?: string | undefined;
+    machineType?: string | undefined;
   }): OrbitProvider {
     const stationName = config.repoName ? `gcli-station-${config.repoName}` : 'station-supervisor';
 
@@ -45,6 +48,9 @@ export class ProviderFactory {
         userSuffix: config.userSuffix,
         backendType: config.backendType,
         imageUri: config.imageUri,
+        vpcName: config.vpcName,
+        subnetName: config.subnetName,
+        machineType: config.machineType,
         stationName
       }
     );

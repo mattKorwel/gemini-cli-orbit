@@ -19,18 +19,18 @@ try {
     .replace(/.*github\.com[\/:]/, '')
     .replace(/\.git$/, '')
     .trim();
-} catch (e) {
+} catch (_e) {
   REPO = 'google-gemini/gemini-cli';
 }
 
-const FAILED_FILES = new Set();
+const _FAILED_FILES = new Set();
 
 function runGh(args) {
   try {
     return execSync(`gh ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).toString();
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }
@@ -42,7 +42,7 @@ function fetchFailuresViaApi(jobId) {
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 10 * 1024 * 1024,
     }).toString();
-  } catch (e) {
+  } catch (_e) {
     return '';
   }
 }
@@ -72,7 +72,7 @@ function extractTestFile(failureText) {
 
 function generateTestCommand(failedFilesMap) {
   const orbitToFiles = new Map();
-  for (const [file, info] of failedFilesMap.entries()) {
+  for (const [file, _info] of failedFilesMap.entries()) {
     if (
       ['Job Error', 'Unknown File', 'Build Error', 'Lint Error'].includes(file)
     )
@@ -142,7 +142,7 @@ async function monitor() {
           }
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore if branch/SHA not found or API fails
     }
 

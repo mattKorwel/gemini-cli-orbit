@@ -3,12 +3,11 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { getRepoConfig, detectRepoName, loadSettings } from './ConfigManager.ts';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
 
 const REPO_ROOT = process.cwd();
@@ -29,15 +28,15 @@ async function listStations(): Promise<number> {
   const instancePrefix = `gcli-station-${USER}`;
   console.log(`🔍 Listing Orbit Stations for ${USER} in ${projectId}...`);
 
-  // We use a dummy provider just to trigger the listWorkers method which is static-ish in implementation
+  // We use a dummy provider just to trigger the listStations method which is static-ish in implementation
   const provider = ProviderFactory.getProvider({
-    projectId: projectId,
+    projectId: projectId!,
     zone: config?.zone || DEFAULT_ZONE,
     instanceName: instancePrefix,
     repoName
   });
 
-  return await provider.listWorkers();
+  return await provider.listStations();
 }
 
 async function launchStation(): Promise<number> {
@@ -50,10 +49,10 @@ async function launchStation(): Promise<number> {
   }
 
   const provider = ProviderFactory.getProvider({
-    projectId: config.projectId,
-    zone: config.zone,
+    projectId: config.projectId!,
+    zone: config.zone!,
     repoName: config.repoName,
-    instanceName: config.instanceName,
+    instanceName: config.instanceName!,
   });
 
   const status = await provider.getStatus();
@@ -73,10 +72,10 @@ async function stopStation(): Promise<number> {
   if (!config) return 1;
 
   const provider = ProviderFactory.getProvider({
-    projectId: config.projectId,
-    zone: config.zone,
+    projectId: config.projectId!,
+    zone: config.zone!,
     repoName: config.repoName,
-    instanceName: config.instanceName,
+    instanceName: config.instanceName!,
   });
 
   console.log(`🛑 Stopping orbit station: ${config.instanceName}...`);
@@ -89,10 +88,10 @@ async function destroyStation(): Promise<number> {
   if (!config) return 1;
   
   const provider = ProviderFactory.getProvider({
-    projectId: config.projectId,
-    zone: config.zone,
+    projectId: config.projectId!,
+    zone: config.zone!,
     repoName: config.repoName,
-    instanceName: config.instanceName,
+    instanceName: config.instanceName!,
   });
 
   const knownHostsPath = path.join(REPO_ROOT, '.gemini/orbit/known_hosts');

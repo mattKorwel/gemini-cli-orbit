@@ -5,10 +5,11 @@
  */
 
 import { spawnSync } from 'child_process';
-import type { ConnectivityStrategy } from './strategies/ConnectivityStrategy.ts';
-import { IapStrategy } from './strategies/IapStrategy.ts';
-import { ExternalStrategy } from './strategies/ExternalStrategy.ts';
-import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.ts';
+import type { ConnectivityStrategy } from './strategies/ConnectivityStrategy.js';
+import { IapStrategy } from './strategies/IapStrategy.js';
+import { ExternalStrategy } from './strategies/ExternalStrategy.js';
+import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.js';
+import { BaseStrategy } from './strategies/BaseStrategy.js';
 
 /**
  * Centralized SSH/RSYNC management for GCE Stations.
@@ -21,17 +22,21 @@ export class GceConnectionManager {
     projectId: string, 
     zone: string, 
     instanceName: string, 
-    private config: { dnsSuffix?: string, userSuffix?: string, backendType?: string } = {},
+    private config: { dnsSuffix?: string | undefined, userSuffix?: string | undefined, backendType?: string | undefined } = {},
     private repoRoot: string = process.cwd()
   ) {
     const backend = config.backendType || 'direct-internal';
+    const cleanConfig: { dnsSuffix?: string, userSuffix?: string, backendType?: string } = {};
+    if (config.dnsSuffix !== undefined) cleanConfig.dnsSuffix = config.dnsSuffix;
+    if (config.userSuffix !== undefined) cleanConfig.userSuffix = config.userSuffix;
+    if (config.backendType !== undefined) cleanConfig.backendType = config.backendType;
     
     if (backend === 'iap') {
-        this.strategy = new IapStrategy(projectId, zone, instanceName, config);
+        this.strategy = new IapStrategy(projectId, zone, instanceName, cleanConfig);
     } else if (backend === 'external') {
-        this.strategy = new ExternalStrategy(projectId, zone, instanceName, config);
+        this.strategy = new ExternalStrategy(projectId, zone, instanceName, cleanConfig);
     } else {
-        this.strategy = new DirectInternalStrategy(projectId, zone, instanceName, config);
+        this.strategy = new DirectInternalStrategy(projectId, zone, instanceName, cleanConfig);
     }
   }
 
@@ -51,7 +56,7 @@ export class GceConnectionManager {
     return this.strategy.getCommonArgs();
   }
 
-  getRunCommand(command: string, options: { interactive?: boolean } = {}): string {
+  getRunCommand(command: string, options: { interactive?: boolean | undefined } = {}): string {
     return this.strategy.getRunCommand(command, options);
   }
 
@@ -67,7 +72,7 @@ export class GceConnectionManager {
     await this.strategy.onProvisioned();
   }
 
-  run(command: string, options: { interactive?: boolean; stdio?: 'pipe' | 'inherit'; quiet?: boolean } = {}): { status: number; stdout: string; stderr: string } {
+  run(command: string, options: { interactive?: boolean | undefined; stdio?: 'pipe' | 'inherit' | undefined; quiet?: boolean | undefined } = {}): { status: number; stdout: string; stderr: string } {
     const sshCmd = this.getRunCommand(command, options);
     const res = spawnSync(sshCmd, { stdio: options.stdio || 'pipe', shell: true });
     

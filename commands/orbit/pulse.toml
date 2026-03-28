@@ -2,5 +2,5 @@ description = "Check the health and telemetry of the mission constellation and a
 prompt = """
 Retrieving mission pulse...
 
-!{npx tsx scripts/status.ts {{args}} }
+!{node bundle/status.js {{args}} }
 """

@@ -7,15 +7,16 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { RemoteProvisioner } from './RemoteProvisioner.ts';
-import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { RemoteProvisioner } from './RemoteProvisioner.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import type { ExecOptions } from './providers/BaseProvider.js';
 import { 
   ORBIT_ROOT, 
   SATELLITE_WORKTREES_PATH, 
   POLICIES_PATH, 
   SCRIPTS_PATH, 
-} from './Constants.ts';
+} from './Constants.js';
 
 
 const REPO_ROOT = process.cwd();
@@ -37,7 +38,7 @@ function loadDotEnv(env: NodeJS.ProcessEnv) {
         if (!trimmed || trimmed.startsWith('#')) return;
         
         const match = trimmed.match(/^([^=]+)=(.*)$/);
-        if (match) {
+        if (match && match[1] && match[2]) {
           const key = match[1].trim();
           const value = match[2].trim().replace(/^["'](.*)["']$/, '$1');
           if (!env[key]) env[key] = value;
@@ -58,15 +59,17 @@ export async function runOrchestrator(
   loadDotEnv(env);
   const promptArgs: string[] = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--open') {
+    const arg = args[i];
+    if (arg === undefined) continue;
+    if (arg === '--open') {
       i++; // Skip flag and value
       continue;
     }
-    promptArgs.push(args[i]);
+    promptArgs.push(arg);
   }
 
-  let prNumber = promptArgs[0];
-  let actionArg = promptArgs[1] || 'mission';
+  const prNumber = promptArgs[0];
+  const actionArg = promptArgs[1] || 'mission';
   let action = 'mission';
   let customPrompt = '';
 
@@ -161,9 +164,9 @@ if (localApiKey) {
 
   // Handle --open override
   const openIdx = args.indexOf('--open');
-  let terminalTarget = config.terminalTarget || 'tab';
+  let terminalTarget: 'foreground' | 'background' | 'tab' | 'window' = config.terminalTarget || 'tab';
   if (openIdx !== -1 && args[openIdx + 1]) {
-    terminalTarget = args[openIdx + 1];
+    terminalTarget = args[openIdx + 1] as 'foreground' | 'background' | 'tab' | 'window';
   }
 
   // FORCE FOREGROUND if requested or if not in a supported terminal

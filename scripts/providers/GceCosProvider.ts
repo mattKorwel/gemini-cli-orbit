@@ -15,16 +15,11 @@ import {
   type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
-} from './BaseProvider.ts';
-import { GceConnectionManager } from './GceConnectionManager.ts';
+} from './BaseProvider.js';
+import { GceConnectionManager } from './GceConnectionManager.js';
+import { DEFAULT_IMAGE_URI } from '../Constants.js';
+import { logger } from '../Logger.js';
 
-const ORBIT_ROOT = '/mnt/disks/data';
-const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
-const SATELLITE_WORKTREES_PATH = `${ORBIT_ROOT}/worktrees`;
-const POLICIES_PATH = `${ORBIT_ROOT}/policies`;
-const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
-const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
-const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 
 export class GceCosProvider implements OrbitProvider {
   public projectId: string;
@@ -36,13 +31,14 @@ export class GceCosProvider implements OrbitProvider {
   private imageUri: string;
   private vpcName: string;
   private subnetName: string;
+  private machineType: string;
 
   constructor(
     projectId: string,
     zone: string,
     instanceName: string,
     repoRoot: string,
-    config: { dnsSuffix?: string, userSuffix?: string, backendType?: string, imageUri?: string, vpcName?: string, subnetName?: string, stationName?: string } = {}
+    config: { dnsSuffix?: string | undefined, userSuffix?: string | undefined, backendType?: string | undefined, imageUri?: string | undefined, vpcName?: string | undefined, subnetName?: string | undefined, stationName?: string | undefined, machineType?: string | undefined } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
@@ -53,34 +49,44 @@ export class GceCosProvider implements OrbitProvider {
       fs.mkdirSync(orbitDir, { recursive: true });
     this.knownHostsPath = path.join(orbitDir, 'known_hosts');
     this.conn = new GceConnectionManager(projectId, zone, instanceName, config, repoRoot);
-    this.imageUri = config.imageUri || 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/maintainer:latest';
+    this.imageUri = config.imageUri || DEFAULT_IMAGE_URI;
     this.vpcName = config.vpcName || 'default';
     this.subnetName = config.subnetName || 'default';
+    this.machineType = config.machineType || 'n2-standard-8';
   }
 
-  async provision(options: { setupNetwork?: boolean } = {}): Promise<number> {
+  async provision(options: { setupNetwork?: boolean, skipInstanceCreation?: boolean } = {}): Promise<number> {
     const imageUri = this.imageUri;
     const region = this.zone.split('-').slice(0, 2).join('-');
 
-    console.log(`🚀 Preparing infrastructure in ${this.projectId}...`);
+    logger.info(`🚀 Preparing infrastructure in ${this.projectId}...`);
 
     if (options.setupNetwork) {
-        console.log(`🏗️  Ensuring Network Infrastructure (${this.vpcName})...`);
-        const vpcCheck = spawnSync('gcloud', ['compute', 'networks', 'describe', this.vpcName, '--project', this.projectId], { stdio: 'pipe' });
+        logger.info(`🏗️  Ensuring Network Infrastructure (${this.vpcName})...`);
+        const vpcCheck = spawnSync('gcloud', ['compute', 'networks', 'describe', this.vpcName, '--project', this.projectId], { stdio: 'inherit' });
+        logger.logOutput(vpcCheck.stdout, vpcCheck.stderr);
         if (vpcCheck.status !== 0) {
           spawnSync('gcloud', ['compute', 'networks', 'create', this.vpcName, '--project', this.projectId, '--subnet-mode=custom'], { stdio: 'inherit' });
         }
 
-        const subnetCheck = spawnSync('gcloud', ['compute', 'networks', 'subnets', 'describe', this.subnetName, '--project', this.projectId, '--region', region], { stdio: 'pipe' });
+        const subnetCheck = spawnSync('gcloud', ['compute', 'networks', 'subnets', 'describe', this.subnetName, '--project', this.projectId, '--region', region], { stdio: 'inherit' });
+        logger.logOutput(subnetCheck.stdout, subnetCheck.stderr);
         if (subnetCheck.status !== 0) {
           spawnSync('gcloud', ['compute', 'networks', 'subnets', 'create', this.subnetName, '--project', this.projectId, '--network', this.vpcName, '--region', region, '--range=10.0.0.0/24', '--enable-private-ip-google-access'], { stdio: 'inherit' });
         }
 
         // Delegate backend-specific firewall rules to the strategy
         this.conn.setupNetworkInfrastructure(this.vpcName);
+
+        logger.info('   - Waiting for network propagation (Cloud NAT, etc)...');
+        spawnSync('sleep', ['30']);
     }
 
-    console.log(`🚀 Provisioning GCE COS station: ${this.instanceName}...`);
+    if (options.skipInstanceCreation) {
+        return 0;
+    }
+
+    logger.info(`🚀 Provisioning GCE COS station: ${this.instanceName}...`);
 
     const startupScriptContent = `#!/bin/bash
       set -e
@@ -118,10 +124,10 @@ export class GceCosProvider implements OrbitProvider {
         'compute', 'instances', 'create', this.instanceName,
         '--project', this.projectId,
         '--zone', this.zone,
-        '--machine-type', 'n2-standard-8',
+        '--machine-type', this.machineType,
         '--image-family', 'cos-stable',
         '--image-project', 'cos-cloud',
-        '--boot-disk-size', '200GB',
+        '--boot-disk-size', '20GB',
         '--boot-disk-type', 'pd-balanced',
         '--create-disk', `name=${this.instanceName}-data,size=200,type=pd-balanced,device-name=google-data,auto-delete=yes`,
         '--metadata-from-file', `startup-script=${tmpScriptPath}`,
@@ -130,10 +136,11 @@ export class GceCosProvider implements OrbitProvider {
         '--scopes', 'https://www.googleapis.com/auth/cloud-platform',
         '--quiet',
     ], { stdio: 'inherit' });
+    logger.logOutput(result.stdout, result.stderr);
 
     fs.unlinkSync(tmpScriptPath);
     if (result.status === 0) {
-      console.log('⏳ Waiting for OS Login and SSH to initialize (this takes ~45s)...');
+      logger.info('⏳ Waiting for OS Login and SSH to initialize (this takes ~45s)...');
       await new Promise((r) => setTimeout(r, 45000));
       // Give strategy a chance to update overrideHost (e.g. for external IP)
       await this.conn.onProvisioned();
@@ -144,8 +151,9 @@ export class GceCosProvider implements OrbitProvider {
   async ensureReady(): Promise<number> {
     const status = await this.getStatus();
     if (status.status !== 'RUNNING') {
-      console.log(`⚠️ Station ${this.instanceName} is ${status.status}. Waking it up...`);
+      logger.info(`⚠️ Station ${this.instanceName} is ${status.status}. Waking it up...`);
       const res = spawnSync('gcloud', ['compute', 'instances', 'start', this.instanceName, '--project', this.projectId, '--zone', this.zone], { stdio: 'inherit' });
+      logger.logOutput(res.stdout, res.stderr);
       if (res.status !== 0) return res.status ?? 1;
       await new Promise((r) => setTimeout(r, 20000));
     }
@@ -154,15 +162,15 @@ export class GceCosProvider implements OrbitProvider {
     // BEFORE we attempt any docker/remote commands.
     await this.conn.onProvisioned();
 
-    console.log('   - Verifying station supervisor health...');
-    let check = await this.getCapsuleStatus(this.stationName);
+    logger.info('   - Verifying station supervisor health...');
+    const check = await this.getCapsuleStatus(this.stationName);
     
     // During development/refactor, we often want to force-refresh the capsule 
     // to pick up new image layers (like the chunk fix).
     const isRefactorImage = this.imageUri.includes('mk-station-refactor');
     
     if (!check.exists || !check.running || isRefactorImage) {
-        console.log(`   ⚠️ Supervisor stale or refactor image detected. Refreshing ${this.imageUri}...`);
+        logger.info(`   ⚠️ Supervisor stale or refactor image detected. Refreshing ${this.imageUri}...`);
         
         // Use the startup script logic but execute it directly via SSH for immediate effect
         const refreshCmd = `
@@ -176,7 +184,7 @@ export class GceCosProvider implements OrbitProvider {
         await this.exec(refreshCmd);
     }
 
-    console.log(`⏳ Waiting for ${this.stationName} to stabilize...`);
+    logger.info(`⏳ Waiting for ${this.stationName} to stabilize...`);
     for (let i = 0; i < 30; i++) {
         const status = await this.getCapsuleStatus(this.stationName);
         if (status.running) return 0;
@@ -185,8 +193,8 @@ export class GceCosProvider implements OrbitProvider {
     return 1;
   }
 
-  async setup(options: SetupOptions): Promise<number> {
-    console.log(`   - Verifying connection...`);
+  async setup(_options: SetupOptions): Promise<number> {
+    logger.info(`   - Verifying connection...`);
     // ensure strategy has current IP if needed
     await this.conn.onProvisioned();
 
@@ -194,13 +202,13 @@ export class GceCosProvider implements OrbitProvider {
     if (res.status !== 0) {
       const status = await this.getStatus();
       if (status.internalIp) {
-          console.log(`   ⚠️ Direct connection failed. Falling back to internal IP: ${status.internalIp}`);
+          logger.info(`   ⚠️ Direct connection failed. Falling back to internal IP: ${status.internalIp}`);
           this.conn.setOverrideHost(status.internalIp);
           res = this.conn.run('echo 1');
       }
     }
     if (res.status !== 0) return 1;
-    console.log('   ✅ Connection verified.');
+    logger.info('   ✅ Connection verified.');
     return 0;
   }
 
@@ -227,13 +235,14 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async sync(localPath: string, remotePath: string, options: SyncOptions = {}): Promise<number> {
-    console.log(`📦 Syncing ${localPath} to station:${remotePath}...`);
+    logger.info(`📦 Syncing ${localPath} to station:${remotePath}...`);
     return this.conn.sync(localPath, remotePath, options);
   }
 
   async getStatus(): Promise<OrbitStatus> {
     const res = spawnSync('gcloud', ['compute', 'instances', 'describe', this.instanceName, '--project', this.projectId, '--zone', this.zone, '--format', 'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)'], { stdio: 'pipe' });
-    if (res.status !== 0) return { name: this.instanceName, status: 'UNKNOWN' };
+    logger.logOutput(res.stdout, res.stderr);
+    if (res.status !== 0) return { name: this.instanceName, status: 'NOT_FOUND' };
     try {
       const data = JSON.parse(res.stdout.toString());
       return { 
@@ -242,11 +251,12 @@ export class GceCosProvider implements OrbitProvider {
         internalIp: data.networkInterfaces?.[0]?.networkIP, 
         externalIp: data.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP 
       };
-    } catch { return { name: this.instanceName, status: 'UNKNOWN' }; }
+    } catch { return { name: this.instanceName, status: 'NOT_FOUND' }; }
   }
 
   async stop(): Promise<number> {
     const res = spawnSync('gcloud', ['compute', 'instances', 'stop', this.instanceName, '--project', this.projectId, '--zone', this.zone], { stdio: 'inherit' });
+    logger.logOutput(res.stdout, res.stderr);
     return res.status ?? 1;
   }
 
@@ -276,7 +286,7 @@ export class GceCosProvider implements OrbitProvider {
   async listStations(): Promise<number> {
     const user = process.env.USER || 'gcli-user';
     const instancePrefix = `gcli-station-${user}`;
-    console.log(`🔍 Listing Orbit Stations for ${user} in ${this.projectId}...`);
+    logger.info(`🔍 Listing Orbit Stations for ${user} in ${this.projectId}...`);
 
     const res = spawnSync(
       'gcloud',
@@ -288,11 +298,12 @@ export class GceCosProvider implements OrbitProvider {
       ],
       { stdio: 'inherit' },
     );
+    logger.logOutput(res.stdout, res.stderr);
     return res.status ?? 0;
   }
 
   async destroy(): Promise<number> {
-    console.log(`🔥 DESTROYING station ${this.instanceName} and its data disk...`);
+    logger.info(`🔥 DESTROYING station ${this.instanceName} and its data disk...`);
     
     // Delete instance
     const res1 = spawnSync(
@@ -305,10 +316,11 @@ export class GceCosProvider implements OrbitProvider {
       ],
       { stdio: 'inherit' },
     );
+    logger.logOutput(res1.stdout, res1.stderr);
 
     // Delete static IP if it exists
     const region = this.zone.split('-').slice(0, 2).join('-');
-    const res2 = spawnSync(
+    const _res2 = spawnSync(
       'gcloud',
       [
         'compute', 'addresses', 'delete', `${this.instanceName}-ip`,
@@ -318,6 +330,7 @@ export class GceCosProvider implements OrbitProvider {
       ],
       { stdio: 'pipe' },
     );
+    logger.logOutput(_res2.stdout, _res2.stderr);
     return (res1.status === 0 || res1.status === null) ? 0 : 1;
   }
 

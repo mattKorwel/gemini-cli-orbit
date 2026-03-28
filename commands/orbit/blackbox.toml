@@ -2,5 +2,5 @@ description = "Review mission data and logs from the remote worker/capsules."
 prompt = """
 Opening mission blackbox...
 
-!{npx tsx scripts/logs.ts {{args}} }
+!{node bundle/logs.js {{args}} }
 """

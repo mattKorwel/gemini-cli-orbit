@@ -5,9 +5,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runJettison } from './jettison.ts';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import * as ConfigManager from './ConfigManager.ts';
+import { runJettison } from './jettison.js';
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import * as ConfigManager from './ConfigManager.js';
 import readline from 'node:readline';
 
 vi.mock('node:readline');

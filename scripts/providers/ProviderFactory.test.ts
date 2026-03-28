@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { ProviderFactory } from './ProviderFactory.ts';
-import { GceCosProvider } from './GceCosProvider.ts';
+import { describe, it, expect } from 'vitest';
+import { ProviderFactory } from './ProviderFactory.js';
+import { GceCosProvider } from './GceCosProvider.js';
 
 describe('ProviderFactory', () => {
   it('should return a GceCosProvider instance', () => {

@@ -5,9 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createTaskRunner } from './TaskRunner.ts';
+import { createTaskRunner } from './TaskRunner.js';
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 
 vi.mock('node:child_process');
 vi.mock('node:fs');

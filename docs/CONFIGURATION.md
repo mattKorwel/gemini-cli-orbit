@@ -2,14 +2,12 @@
 
 Orbit utilizes a sophisticated configuration system designed for flexibility and security. Settings are merged from multiple sources to determine the final mission parameters.
 
-## 🎚️ Resolution Hierarchy
-Settings are resolved in the following order (highest priority first):
+## 🏗️ Configuration Split: Design vs. Station
 
-1.  **Environment Variables**: `GCLI_ORBIT_*` (Overrides everything).
-2.  **Global Repository Registry**: Personal user settings for a specific repo in `~/.gemini/orbit/settings.json`.
-3.  **Named Profiles**: Infrastructure-specific templates stored in `~/.gemini/orbit/profiles/*.json`.
-4.  **Global Default Profile**: The `activeProfile` defined in global settings.
-5.  **Project Defaults**: Tracked in the repository at `.gemini/orbit/config.json`.
+To ensure reusable infrastructure and maintainable repository settings, Orbit separates configuration into two distinct layers:
+
+1.  **Orbit Design (Environment)**: Global infrastructure templates (e.g., `corp`, `sandbox`) that define *where* missions run.
+2.  **Station Design (Repository)**: Repository-specific links and overrides that define *how* a specific repo interacts with a Design.
 
 ---
 
@@ -17,62 +15,67 @@ Settings are resolved in the following order (highest priority first):
 
 ### 1. Project Defaults (`.gemini/orbit/config.json`)
 These settings are shared by all developers working on the repository. They define the "Sovereign Target" for the mission.
+
+The default Docker image is defined in the source code:
+<!-- @include ../scripts/Constants.ts:DEFAULT_IMAGE_URI -->
+```ts
+export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+```
+
 ```json
 {
   "upstreamRepo": "google-gemini/gemini-cli",
   "remoteWorkDir": "/mnt/disks/data/main",
   "useContainer": true,
-  "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest",
+  "imageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest", // Default resolved from Constants.ts
   "terminalTarget": "tab"
 }
 ```
 
-### 2. Global Settings (`~/.gemini/orbit/settings.json`)
-This file stores your personal repository links and global preferences.
+### 2. Global Registry (`~/.gemini/orbit/settings.json`)
+This file tracks your personal stations across all repositories and manages your active Design.
+
 ```json
 {
+  "activeRepo": "gemini-cli",
   "activeProfile": "corp",
   "repos": {
     "gemini-cli": {
-      "profile": "sandbox",
-      "userFork": "my-user/gemini-cli"
+      "instanceName": "gcli-station-mattkorwel",
+      "design": "corp"
     }
   }
 }
 ```
 
-### 3. Named Profiles (`~/.gemini/orbit/profiles/`)
-Profiles allow you to switch between different infrastructure environments (e.g., `corp`, `sandbox`, `local-lab`).
-```json
-{
-  "projectId": "my-personal-project",
-  "zone": "us-west1-a",
-  "vpcName": "default",
-  "subnetName": "default",
-  "backendType": "direct-internal"
-}
-```
+### 3. Orbit Designs (`~/.gemini/orbit/profiles/*.json`)
+Designs allow you to switch between different infrastructure environments (e.g., `corp`, `sandbox`, `local-lab`).
+
+**Key Attributes**:
+- `projectId`: The GCP Project ID.
+- `zone`: The GCE Zone (e.g., `us-west1-a`).
+- `machineType`: The GCE Machine Type (e.g., `n2-standard-8`).
+- `backendType`: Connectivity method (`direct-internal`, `external`, `iap`).
+- `vpcName`: The target VPC.
+- `subnetName`: The target Subnet.
+
+### 4. Environment Variables
+Highest priority overrides for the current session.
+- `GCLI_ORBIT_PROJECT_ID`
+- `GCLI_ORBIT_ZONE`
+- `GCLI_ORBIT_INSTANCE_NAME`
+- `GCLI_ORBIT_BACKEND`
+- `GCLI_ORBIT_IMAGE`
 
 ---
 
-## 🚀 Environment Variable Overrides
+## 🚀 Advanced: Custom Providers
 
-For temporary overrides, use the following environment variables:
-- `GCLI_ORBIT_PROJECT_ID`: Override the cloud project ID.
-- `GCLI_ORBIT_ZONE`: Override the infrastructure zone.
-- `GCLI_ORBIT_INSTANCE_NAME`: Override the name of the Host Station.
-- `GCLI_ORBIT_BACKEND`: Override connectivity type (`direct-internal`, `external`, `iap`).
-- `GCLI_ORBIT_IMAGE`: Override the capsule Docker image.
+You can create custom providers by extending the `OrbitProvider` interface:
 
----
-
-## 🏗️ Cloud-Agnostic Extension
-
-Orbit is built to be provider-independent. To support a new infrastructure (e.g., AWS, Azure, Local Docker), you can implement a custom **Station Provider**.
-
-1.  Create a new class implementing the `OrbitProvider` interface in `scripts/providers/`.
-2.  Register your provider in the `ProviderFactory.ts`.
-3.  Specify your provider type in your profile:
+1.  Create a new provider class in `scripts/providers/`.
+2.  Register it in `ProviderFactory.ts`.
+3.  Specify your provider type in your Design:
     ```json
     {
       "providerType": "my-custom-provider"

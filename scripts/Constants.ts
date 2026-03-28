@@ -27,10 +27,12 @@ export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
 export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_ORBIT_DIR, 'settings.json');
 export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
+export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 
 export const PROJECT_ORBIT_DIR = path.join(REPO_ROOT, '.gemini/orbit');
 export const PROJECT_CONFIG_PATH = path.join(PROJECT_ORBIT_DIR, 'config.json');
 export const LOCAL_SETTINGS_PATH = path.join(PROJECT_ORBIT_DIR, 'settings.json');
+export const ORBIT_LOG_PATH = path.join(PROJECT_ORBIT_DIR, 'orbit.log');
 
 /**
  * Repository Metadata
@@ -44,33 +46,35 @@ export const UPSTREAM_ORG = 'google-gemini';
  */
 export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
-export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:mk-worker-refactor';
+export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
 /**
  * Orbit Configuration Interface
  * Used for both Profiles and Repository-specific settings.
  */
 export interface OrbitConfig {
-  projectId?: string;
-  zone?: string;
-  instanceName?: string; // The GCE station name
-  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window';
-  userFork?: string;
-  upstreamRepo?: string;
-  repoName?: string;
-  remoteHost?: string;
-  remoteWorkDir?: string;
-  useContainer?: boolean;
-  providerType?: 'gce' | 'local-docker' | 'local-worktree' | 'podman';
-  dnsSuffix?: string;
-  userSuffix?: string;
-  backendType?: 'direct-internal' | 'external' | 'iap';
-  imageUri?: string;
-  vpcName?: string;
-  subnetName?: string;
-  profile?: string; // Link to a named profile in PROFILES_DIR
-  worktreesDir?: string; // Local worktrees base path
-  useTmux?: boolean; // Whether to wrap execution in tmux
+  projectId?: string | undefined;
+  zone?: string | undefined;
+  instanceName?: string | undefined; // The GCE station name
+  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
+  userFork?: string | undefined;
+  upstreamRepo?: string | undefined;
+  repoName?: string | undefined;
+  remoteHost?: string | undefined;
+  remoteWorkDir?: string | undefined;
+  useContainer?: boolean | undefined;
+  providerType?: 'gce' | 'local-docker' | 'local-worktree' | 'podman' | undefined;
+  dnsSuffix?: string | undefined;
+  userSuffix?: string | undefined;
+  backendType?: 'direct-internal' | 'external' | 'iap' | undefined;
+  imageUri?: string | undefined;
+  vpcName?: string | undefined;
+  subnetName?: string | undefined;
+  profile?: string | undefined; // Link to a named profile in PROFILES_DIR
+  worktreesDir?: string | undefined; // Local worktrees base path
+  useTmux?: boolean | undefined; // Whether to wrap execution in tmux
+  autoSetupNet?: boolean | undefined; // Whether to auto-configure networking
+  machineType?: string | undefined; // GCE Machine type (e.g. n2-standard-8)
 }
 
 /**

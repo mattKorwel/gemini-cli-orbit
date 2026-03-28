@@ -3,16 +3,16 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import fs from 'node:fs';
-import { ProviderFactory } from './providers/ProviderFactory.ts';
-import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
+
+
+
+import { ProviderFactory } from './providers/ProviderFactory.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { 
   SATELLITE_WORKTREES_PATH, 
-} from './Constants.ts';
+} from './Constants.js';
 
-const REPO_ROOT = process.cwd();
+
 
 export async function runLogs(args: string[]) {
   const prNumber = args[0];
@@ -33,19 +33,21 @@ export async function runLogs(args: string[]) {
 
   const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
   const provider = ProviderFactory.getProvider({ 
-      projectId, 
-      zone, 
-      instanceName,
+      projectId: projectId!, 
+      zone: zone!, 
+      instanceName: instanceName!,
       repoName,
       dnsSuffix,
       userSuffix,
       backendType
   });
 
+  const containerName = `gcli-${prNumber}-${action}`;
+
   console.log(`📋 Checking blackbox status for mission PR #${prNumber} (${action})...`);
 
   // Check for active tmux sessions
-  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "mission-${prNumber}-${action}"`, { wrapCapsule: provider.workerName });
+  const tmuxRes = await provider.getExecOutput(`tmux list-sessions -F "#S" | grep "mission-${prNumber}-${action}"`, { wrapCapsule: containerName });
   if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
       console.log(`🧵 Found active mission sessions:\n${tmuxRes.stdout.trim()}`);
   } else {
@@ -56,11 +58,11 @@ export async function runLogs(args: string[]) {
   const worktreePath = `${SATELLITE_WORKTREES_PATH}/${config.repoName}/mission-${prNumber}-${action}`;
   const logDir = `${worktreePath}/.gemini/logs`;
   
-  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapCapsule: provider.workerName });
+  const logRes = await provider.getExecOutput(`ls -t ${logDir}/*.log | head -n 1`, { wrapCapsule: containerName });
   if (logRes.status === 0 && logRes.stdout.trim()) {
       const latestLog = logRes.stdout.trim();
       console.log(`📄 Latest blackbox log file: ${latestLog}`);
-      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapCapsule: provider.workerName });
+      const catRes = await provider.getExecOutput(`tail -n 50 ${latestLog}`, { wrapCapsule: containerName });
       console.log('\n--- LAST 50 MISSION LOG LINES ---');
       console.log(catRes.stdout);
   } else {

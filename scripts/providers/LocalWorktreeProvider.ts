@@ -15,7 +15,7 @@ import {
   type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
-} from './BaseProvider.ts';
+} from './BaseProvider.js';
 
 /**
  * LocalWorktreeProvider manages local git worktrees as isolated "capsules".
@@ -49,8 +49,12 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
-  async setup(options: SetupOptions): Promise<number> {
+  async setup(_options: SetupOptions): Promise<number> {
     return 0;
+  }
+
+  private quote(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
@@ -73,7 +77,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
-    let finalCmd = command;
+    const finalCmd = command;
     let cwd = options.cwd || process.cwd();
 
     if (options.wrapCapsule) {
@@ -94,7 +98,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     };
   }
 
-  async sync(localPath: string, remotePath: string, options: SyncOptions = {}): Promise<number> {
+  async sync(localPath: string, remotePath: string, _options: SyncOptions = {}): Promise<number> {
     // For local worktree, this is essentially a no-op if paths are same, 
     // or a copy if they are different.
     if (path.resolve(localPath) === path.resolve(remotePath)) return 0;

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { UPSTREAM_REPO_URL, DEFAULT_REPO_NAME, PROFILES_DIR } from './Constants.ts';
+import { UPSTREAM_REPO_URL, DEFAULT_REPO_NAME, PROFILES_DIR } from './Constants.js';
 
 describe('Constants', () => {
   it('should have correct repository metadata', () => {

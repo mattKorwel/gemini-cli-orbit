@@ -35,14 +35,14 @@ describe('Playbooks', () => {
   });
 
   it('should run fix playbook', async () => {
-    const { runFixPlaybook } = await import('./fix.ts');
+    const { runFixPlaybook } = await import('./fix.js');
     const res = await runFixPlaybook(dir, pr, policy, bin);
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalled();
   });
 
   it('should run ready playbook', async () => {
-    const { runReadyPlaybook } = await import('./ready.ts');
+    const { runReadyPlaybook } = await import('./ready.js');
     const res = await runReadyPlaybook(pr, dir, policy, bin);
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();
@@ -50,7 +50,7 @@ describe('Playbooks', () => {
   });
 
   it('should run review playbook', async () => {
-    const { runReviewPlaybook } = await import('./review.ts');
+    const { runReviewPlaybook } = await import('./review.js');
     const res = await runReviewPlaybook(pr, dir, policy, bin);
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RemoteProvisioner } from './RemoteProvisioner.ts';
+import { RemoteProvisioner } from './RemoteProvisioner.js';
 
 describe('RemoteProvisioner', () => {
   let mockProvider: any;

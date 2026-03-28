@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GceCosProvider } from './GceCosProvider.ts';
+import { GceCosProvider } from './GceCosProvider.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 

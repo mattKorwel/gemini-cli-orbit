@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'node:fs';
-import { getRepoConfig, detectRepoName } from './ConfigManager.ts';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { spawnSync } from 'node:child_process';
 
 vi.mock('node:fs');
