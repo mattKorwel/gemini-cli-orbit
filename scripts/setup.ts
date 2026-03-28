@@ -15,7 +15,6 @@ import {
   loadGlobalSettings, 
   getRepoConfig, 
   detectRepoName,
-  loadProjectConfig,
   sanitizeName
 } from './ConfigManager.js';
 import { fileURLToPath } from 'node:url';
@@ -29,8 +28,6 @@ import {
   EXTENSION_REMOTE_PATH,
   PROFILES_DIR,
   GLOBAL_SETTINGS_PATH,
-  PROJECT_ORBIT_DIR,
-  GLOBAL_ORBIT_DIR,
   GLOBAL_TOKENS_DIR,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
