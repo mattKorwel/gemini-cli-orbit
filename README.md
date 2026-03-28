@@ -5,7 +5,7 @@
 
 **Escape the gravity of terrestrial constraints.**
 
-Gemini Orbit launches your development presence into high orbit—a persistent, high-performance environment that transcends the physical limits of your laptop's CPU, battery life, and sleep cycles. Your work should never stop just because your terrestrial machine did.
+Gemini Orbit launches your development presence into orbit around you — a persistent, high-performance environment that transcends the physical limits of your laptop's CPU, battery life, and sleep cycles. Your work should never stop just because your terrestrial machine did.
 
 Orbit provides a **Persistent Orbital Presence**—a high-performance digital outpost that maintains its mission trajectory even when your terrestrial keyboard is powered down.
 
@@ -15,6 +15,10 @@ Orbit provides a **Persistent Orbital Presence**—a high-performance digital ou
 *   **Persistent Orbital Presence**: Your environment stays alive in orbit. Disconnect from your terrestrial machine, close your laptop, and re-attach later from any device. Your shells, state, and progress remain in safe orbit exactly where you left them.
 *   **Autonomous Missions**: Launch high-intelligence, autonomous missions that work for you while you're offline. Whether it's a multi-file refactor or a deep PR review, your Orbit executes independently and notifies you upon completion.
 *   **Parallel Productivity**: Launch multiple "Mission Capsules" for different workstreams. Work on three things at once without your terrestrial machine slowing to a crawl.
+
+## Goals
+
+Orbit is first and foremost a developer-centric, hands-on command line power-up. Intended to allow persistent remote shell connections, Orbit does not try to solve the connectivity issues of remote agents and autonomous processes. It can, depending on what you do with your shell, be those things for you, but at its heart, it's infrastructure management, compute processing power, and persistent configuration. 
 
 ---
 
