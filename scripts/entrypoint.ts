@@ -55,10 +55,10 @@ async function main() {
 
   // 2. Run the Parallel Reviewer
   logger.info('\n🚀 Launching Parallel Review Worker...');
-  logger.info(`   - Script: ${path.join(__dirname, 'worker.ts')}`);
+  logger.info(`   - Script: ${path.join(__dirname, 'station.ts')}`);
   logger.info(`   - Action: ${action}`);
 
-  const workerResult = spawnSync(tsxBin, [path.join(__dirname, 'worker.ts'), prNumber, branchName, policyPath, action], {
+  const workerResult = spawnSync(tsxBin, [path.join(__dirname, 'station.ts'), prNumber, branchName, policyPath, action], {
     stdio: 'inherit',
     env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG }
   });

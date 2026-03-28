@@ -12,12 +12,14 @@ vi.mock('node:child_process');
 const mockRun = vi.fn().mockResolvedValue(0);
 const mockRegister = vi.fn();
 const mockRunAll = vi.fn().mockResolvedValue(0);
+const mockRunParallel = vi.fn().mockResolvedValue(0);
 
 vi.mock('../TaskRunner.ts', () => ({
   createTaskRunner: vi.fn().mockImplementation(() => ({
     run: mockRun,
     register: mockRegister,
     runAll: mockRunAll,
+    runParallel: mockRunParallel,
   })),
 }));
 
@@ -31,6 +33,7 @@ describe('Playbooks', () => {
     vi.clearAllMocks();
     mockRun.mockResolvedValue(0);
     mockRunAll.mockResolvedValue(0);
+    mockRunParallel.mockResolvedValue(0);
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
   });
 
@@ -54,6 +57,6 @@ describe('Playbooks', () => {
     const res = await runReviewPlaybook(pr, dir, policy, bin);
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();
-    expect(mockRunAll).toHaveBeenCalled();
+    expect(mockRunParallel).toHaveBeenCalled();
   });
 });
