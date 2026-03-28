@@ -48,6 +48,14 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     return `ssh ${this.getCommonArgs().join(' ')} ${options.interactive ? '-t' : ''} ${this.getMagicRemote()} ${this.quote(command)}`;
   }
 
+  getRunArgs(command: string, options: { interactive?: boolean }): string[] {
+    const args = ['ssh', ...this.getCommonArgs()];
+    if (options.interactive) args.push('-t');
+    args.push(this.getMagicRemote());
+    args.push(command);
+    return args;
+  }
+
   // Default: Ensure broad corporate SSH rule exists
   setupNetworkInfrastructure(vpcName: string): void {
     const region = this.zone.split('-').slice(0, 2).join('-');
@@ -55,12 +63,13 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     const fwCheck = spawnSync('gcloud', ['compute', 'firewall-rules', 'describe', 'allow-corporate-ssh', '--project', this.projectId], { stdio: 'pipe' });
     logger.logOutput(fwCheck.stdout, fwCheck.stderr);
     if (fwCheck.status !== 0) {
+        const sourceRanges = (this.config as any).sshSourceRanges?.join(',') || '0.0.0.0/0';
         spawnSync('gcloud', [
             'compute', 'firewall-rules', 'create', 'allow-corporate-ssh',
             '--project', this.projectId,
             '--network', vpcName,
             '--allow=tcp:22',
-            '--source-ranges=0.0.0.0/0'
+            `--source-ranges=${sourceRanges}`
         ], { stdio: 'inherit' });
     }
 

@@ -61,6 +61,7 @@ describe('runSetup', () => {
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
     vi.mocked(ConfigManager.loadGlobalSettings).mockReturnValue({ repos: {} });
     vi.mocked(ConfigManager.loadProjectConfig).mockReturnValue({ upstreamRepo: 'google-gemini/gemini-cli' });
+    vi.mocked(ConfigManager.sanitizeName).mockImplementation((n) => n.replace(/[^a-zA-Z0-9\-_]/g, ''));
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({ 
         projectId: 'test-p', 
         zone: 'test-z',

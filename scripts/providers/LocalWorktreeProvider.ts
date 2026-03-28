@@ -60,13 +60,14 @@ export class LocalWorktreeProvider implements OrbitProvider {
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
     const envPrefix = options.env ? Object.entries(options.env).map(([k, v]) => `${k}=${this.quote(v)}`).join(' ') + ' ' : '';
+    const sensitivePrefix = options.sensitiveEnv ? Object.entries(options.sensitiveEnv).map(([k, v]) => `${k}=${this.quote(v)}`).join(' ') + ' ' : '';
     
     if (options.wrapCapsule) {
        // Capsule is the worktree directory name
        const capsulePath = path.join(this.worktreesDir, options.wrapCapsule);
-       finalCmd = `cd ${capsulePath} && ${envPrefix}${command}`;
+       finalCmd = `cd ${capsulePath} && ${envPrefix}${sensitivePrefix}${command}`;
     } else {
-       finalCmd = `${envPrefix}${command}`;
+       finalCmd = `${envPrefix}${sensitivePrefix}${command}`;
     }
     return finalCmd;
   }
@@ -138,9 +139,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
     // We expect the 'image' field to be the source repository path for local-worktree
     const sourceRepo = config.image; 
     
+    // Note: LocalWorktree doesn't currently use config.env or config.sensitiveEnv 
+    // for the creation process, but they are available for getRunCommand.
+    
     // git worktree add <path> <branch>
-    // Note: This assumes we want a specific branch. 
-    // In orbit, we usually do this via 'gh pr checkout' later, but worktree add needs a start point.
     const res = spawnSync(`git -C ${sourceRepo} worktree add ${capsulePath} -b ${config.name} main`, { shell: true, stdio: 'inherit' });
     
     return res.status ?? 0;

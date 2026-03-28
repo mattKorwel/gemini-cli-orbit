@@ -32,6 +32,18 @@ export class IapStrategy extends BaseStrategy {
     return iapArgs.join(' ');
   }
 
+  getRunArgs(command: string, options: { interactive?: boolean }): string[] {
+    const args = [
+      'gcloud', 'compute', 'ssh', this.getMagicRemote(),
+      '--project', this.projectId,
+      '--zone', this.zone,
+      '--tunnel-through-iap',
+      '--command', command
+    ];
+    // gcloud doesn't need the -t flag as it manages it via tty presence
+    return args;
+  }
+
   setupNetworkInfrastructure(vpcName: string): void {
     // IAP requires the scoped rule
     const iapFwCheck = spawnSync('gcloud', ['compute', 'firewall-rules', 'describe', 'allow-ssh-iap', '--project', this.projectId], { stdio: 'pipe' });
