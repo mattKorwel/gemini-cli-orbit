@@ -21,6 +21,13 @@ Surgically clean up mission capsules, isolated worktrees, and ephemeral history 
 
 ---
 
+## 🛸 Maneuvers
+
+### 1. [Maneuver: Review](./REVIEW.md)
+The consolidated review mission provides high-fidelity, parallelized PR review with mandatory behavioral proof.
+
+---
+
 ## 🏗️ Deep Dives
 
 ### [Orbit Architecture](./ARCHITECTURE.md)
