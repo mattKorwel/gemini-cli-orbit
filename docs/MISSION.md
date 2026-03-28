@@ -17,7 +17,7 @@ Orbit will create a persistent mission capsule, clone your repository (via Git R
 ### 2. Autonomous Mission Maneuvers
 Execute specialized autonomous tasks on your mission:
 - `/orbit:mission 123 fix`: Execute an automated fix playbook. The agent will attempt to identify and correct issues within the PR.
-- `/orbit:mission 123 review`: Launch a deep PR review. The agent will analyze the changes and provide technical feedback.
+- `/orbit:mission 123 review`: Launch a deep PR review. [Learn more about the Review maneuver](./REVIEW.md).
 - `/orbit:mission 123 implement`: Direct the agent to implement a specific feature or change request based on PR descriptions.
 
 ### 3. Extra-Vehicular Activity (EVA)

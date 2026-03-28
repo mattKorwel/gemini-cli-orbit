@@ -87,6 +87,44 @@ Delegate heavy tasks to a persistent, high-performance GCE station. Your mission
 
 ---
 
+## 🛸 Mission Maneuvers: Autonomous Intelligence
+
+Orbit doesn't just provide infrastructure; it executes high-fidelity autonomous tasks.
+
+*   **Review**: Launch a deep, parallelized PR review. Orbit fetches context, detects conflicts, and performs a mandatory "Mustard Test" (behavioral proof) to ensure code actually works before you even look at it.
+    ```bash
+    /orbit:mission <pr-number> review
+    ```
+*   **Fix**: Direct the agent to autonomously identify and correct issues within a PR.
+    ```bash
+    /orbit:mission <pr-number> fix
+    ```
+*   **Implement**: Have Orbit implement features or change requests based on PR descriptions and linked issues.
+    ```bash
+    /orbit:mission <pr-number> implement
+    ```
+
+---
+
+## 🛰️ Take the Helm: Manual Intervention
+
+One of Orbit's core strengths is the ability to **"take the helm"** of an active mission. You are never locked out of an autonomous process.
+
+If a mission hits a complex roadblock or if you just want to get hands-on, you can jump directly into the active processing terminal:
+
+*   **Attach to the Active Bridge**: Jump into the live `tmux` session where the agent is working. You can watch the agent in real-time or take manual control of the shell.
+    ```bash
+    /orbit:attach <pr-number>
+    ```
+*   **Extra-Vehicular Activity (EVA)**: Need to run a quick manual command without interrupting the agent's flow? Launch an EVA shell directly into the mission capsule.
+    ```bash
+    /orbit:mission <pr-number> eva
+    ```
+
+For details on how these maneuvers are orchestrated, see the **[Maneuver Documentation](docs/REVIEW.md)**.
+
+---
+
 ## 🏗️ The Architecture of Orbit: Sovereign & Agnostic
 
 Orbit is built on a **Hub & Spoke** model designed for speed, isolation, and total developer control.
