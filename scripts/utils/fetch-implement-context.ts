@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-async function run(cmd) {
+async function run(cmd: string) {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
   } catch (_e) {
@@ -17,7 +17,7 @@ async function run(cmd) {
   }
 }
 
-async function fetchIssueHierarchy(owner, repo, issueNumber) {
+async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: number) {
   const gqlQuery = `query($owner:String!, $repo:String!, $number:Int!) {
     repository(owner:$owner, name:$repo) {
       issue(number:$number) {
@@ -77,7 +77,7 @@ async function fetchIssueHierarchy(owner, repo, issueNumber) {
       title: issue.parent.title,
       body: issue.parent.body
     };
-    hierarchy.siblings = (issue.parent.subIssues?.nodes || []).filter(s => s.number !== issue.number);
+    hierarchy.siblings = (issue.parent.subIssues?.nodes || []).filter((s: any) => s.number !== issue.number);
     
     if (issue.parent.parent) {
       hierarchy.grandparent = {
@@ -137,7 +137,7 @@ async function main() {
 
   if (hierarchy.siblings.length > 0) {
     contextMd += `### Sibling Issues:\n`;
-    hierarchy.siblings.forEach(s => {
+    hierarchy.siblings.forEach((s: any) => {
       contextMd += `- [#${s.number}] ${s.title} (${s.state})\n`;
     });
     contextMd += '\n';
@@ -145,7 +145,7 @@ async function main() {
 
   if (hierarchy.subIssues.length > 0) {
     contextMd += `### Sub-Tasks (Children):\n`;
-    hierarchy.subIssues.forEach(s => {
+    hierarchy.subIssues.forEach((s: any) => {
       contextMd += `- [#${s.number}] ${s.title} (${s.state})\n`;
     });
     contextMd += '\n';

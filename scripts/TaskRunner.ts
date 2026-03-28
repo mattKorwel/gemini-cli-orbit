@@ -81,7 +81,7 @@ export function createTaskRunner(logDir: string, header: string) {
       const completedIds = new Set<string>();
 
       const launchTask = (task: Task) => {
-        const taskStatus = status[task.id];
+        const taskStatus = status[task.id]!;
         
         // Check dependency
         if (task.dep && !completedIds.has(task.dep)) {
@@ -122,8 +122,8 @@ export function createTaskRunner(logDir: string, header: string) {
         
         // Check for dependency failures
         tasks.forEach(task => {
-            if (task.dep && status[task.dep].state === 'failed' && status[task.id].state === 'pending') {
-                status[task.id].state = 'skipped';
+            if (task.dep && status[task.dep]!.state === 'failed' && status[task.id]!.state === 'pending') {
+                status[task.id]!.state = 'skipped';
             }
         });
 

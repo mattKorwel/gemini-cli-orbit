@@ -74,7 +74,8 @@ export class GceConnectionManager {
 
   run(command: string, options: { interactive?: boolean | undefined; stdio?: 'pipe' | 'inherit' | undefined; quiet?: boolean | undefined } = {}): { status: number; stdout: string; stderr: string } {
     const args = this.strategy.getRunArgs(command, options);
-    const res = spawnSync(args[0], args.slice(1), { stdio: options.stdio || 'pipe', shell: false });
+    if (args.length === 0) return { status: 1, stdout: '', stderr: 'No command arguments' };
+    const res = spawnSync(args[0]!, args.slice(1), { stdio: options.stdio || 'pipe', shell: false });
     
     const status = (res.status === null) ? 1 : res.status;
 

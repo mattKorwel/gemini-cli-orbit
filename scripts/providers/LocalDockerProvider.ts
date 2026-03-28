@@ -66,7 +66,9 @@ export class LocalDockerProvider implements OrbitProvider {
         ['docker', 'exec', ...(options.interactive ? ['-it'] : []), ...(options.cwd ? ['-w', options.cwd] : []), ...(options.env ? Object.entries(options.env).flatMap(([k, v]) => ['-e', `${k}=${v}`]) : []), ...(options.sensitiveEnv ? Object.entries(options.sensitiveEnv).flatMap(([k, v]) => ['-e', `${k}=${v}`]) : []), options.wrapCapsule, 'sh', '-c', command] :
         ['sh', '-c', command];
 
-    const res = spawnSync(args[0], args.slice(1), { 
+    if (args.length === 0) return { status: 1, stdout: '', stderr: 'No command arguments' };
+    const res = spawnSync(args[0]!, args.slice(1), {
+ 
         stdio: options.quiet ? 'pipe' : 'inherit', 
         shell: false,
         env: { ...process.env, GEMINI_AUTO_UPDATE: '0' }
