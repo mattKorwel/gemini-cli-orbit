@@ -39,9 +39,11 @@ describe('Playbooks', () => {
 
   it('should run fix playbook', async () => {
     const { runFixPlaybook } = await import('./fix.js');
-    const res = await runFixPlaybook(dir, pr, policy, bin);
+    const res = await runFixPlaybook(pr, dir, policy, bin);
     expect(res).toBe(0);
-    expect(spawnSync).toHaveBeenCalled();
+    expect(mockRegister).toHaveBeenCalledTimes(3);
+    expect(mockRunParallel).toHaveBeenCalledTimes(2);
+    expect(mockRunAll).toHaveBeenCalledTimes(1);
   });
 
   it('should run ready playbook', async () => {

@@ -26,6 +26,9 @@ Surgically clean up mission capsules, isolated worktrees, and ephemeral history 
 ### 1. [Maneuver: Review](./REVIEW.md)
 The consolidated review mission provides high-fidelity, parallelized PR review with mandatory behavioral proof.
 
+### 2. [Maneuver: Fix](./FIX.md)
+The consolidated fix mission provides an automated, iterative remediation loop to resolve conflicts, CI failures, and reviewer comments.
+
 ---
 
 ## 🏗️ Deep Dives
