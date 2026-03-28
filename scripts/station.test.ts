@@ -8,13 +8,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runStation } from './station.js';
 
 import { runFixPlaybook } from './playbooks/fix.js';
+import { spawnSync } from 'child_process';
+import fs from 'fs';
 
 vi.mock('child_process');
+vi.mock('fs');
 vi.mock('./playbooks/fix.ts');
 
 describe('runStation', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{"name": "test-repo"}') } as any);
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined as any);
   });
 
   it('should dispatch to the correct playbook', async () => {
