@@ -5,9 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* eslint-env node */
-/* global console, process */
-
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -20,7 +17,7 @@ async function run(cmd) {
       stdio: ['pipe', 'pipe', 'ignore'],
     });
     return stdout.trim();
-  } catch {
+  } catch (_e) {
     return null;
   }
 }

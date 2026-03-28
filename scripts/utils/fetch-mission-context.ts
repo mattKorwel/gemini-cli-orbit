@@ -12,7 +12,7 @@ import path from 'node:path';
 async function run(cmd) {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }
@@ -135,7 +135,7 @@ async function main() {
     const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "${synthesisPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'mission-context.md')} 2>&1`;
     try {
       execSync(synthesisCmd);
-    } catch (e) {
+    } catch (_e) {
        console.error('❌ Failed to synthesize mission context with Gemini. Falling back to raw context.');
        fs.writeFileSync(path.join(logDir, 'mission-context.md'), `# Mission Context (Raw)\n\n## PR Description\n${prMetadata.body}\n\n${issueContext}`);
     }

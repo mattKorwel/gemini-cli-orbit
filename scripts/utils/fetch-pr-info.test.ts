@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { execSync } from 'node:child_process';
 
 vi.mock('node:child_process');
 
