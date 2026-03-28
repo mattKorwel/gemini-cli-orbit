@@ -211,7 +211,8 @@ if (localApiKey) {
         COLORTERM: 'truecolor',
         TERM: 'xterm-256color',
         GEMINI_AUTO_UPDATE: '0',
-        GEMINI_CLI_HOME: '/home/node'
+        GEMINI_CLI_HOME: '/home/node',
+        GCLI_SESSION_ID: sessionId
     }
   };
 

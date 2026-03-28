@@ -13,6 +13,9 @@
 import { runReviewPlaybook } from './playbooks/review.js';
 import { runFixPlaybook } from './playbooks/fix.js';
 import { runReadyPlaybook } from './playbooks/ready.js';
+import { SessionManager } from './utils/SessionManager.js';
+import { TempManager } from './utils/TempManager.js';
+import { getRepoConfig } from './ConfigManager.js';
 
 export async function runStation(args: string[]) {
   const prNumberOrIssue = args[0];
@@ -30,20 +33,29 @@ export async function runStation(args: string[]) {
   // Use global gemini command pre-installed in the development image
   const geminiBin = 'gemini';
 
+  // 1. Resolve Session and Temp Directory
+  const config = getRepoConfig();
+  const tempManager = new TempManager(config);
+  const sessionId = SessionManager.getSessionIdFromEnv() || SessionManager.generateSessionId(prNumberOrIssue, action);
+  const logDir = tempManager.getDir(sessionId);
+
+  console.log(`🚀 Orbit Mission | ID: ${prNumberOrIssue} | Action: ${action}`);
+  console.log(`📂 Log Directory: ${logDir}`);
+
   // Dispatch to Playbook
   switch (action) {
     case 'review':
-      return runReviewPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
+      return runReviewPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
     
     case 'fix':
-      return runFixPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
+      return runFixPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
     
     case 'ready':
-      return runReadyPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
+      return runReadyPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
     
     case 'implement': {
       const { runImplementPlaybook } = await import('./playbooks/implement.js');
-      return runImplementPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin);
+      return runImplementPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
     }
       
     case 'open':

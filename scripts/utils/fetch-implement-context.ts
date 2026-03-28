@@ -93,11 +93,11 @@ async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: num
 
 async function main() {
   const issueNumber = process.argv[2];
-  const logDir = process.argv[3] || './logs';
+  const logDir = process.argv[3];
   const geminiBin = process.argv[4];
   const policyPath = process.argv[5];
 
-  if (!issueNumber) {
+  if (!issueNumber || !logDir) {
     console.error('Usage: fetch-implement-context <issue_number> <log_dir> <gemini_bin> <policy_path>');
     process.exit(1);
   }
