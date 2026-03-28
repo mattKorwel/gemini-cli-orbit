@@ -29,7 +29,7 @@ export async function runStation(args: string[]) {
   }
 
   const targetDir = process.cwd();
-  
+
   // Use global gemini command pre-installed in the development image
   const geminiBin = 'gemini';
 
@@ -39,25 +39,47 @@ export async function runStation(args: string[]) {
   const sessionId = SessionManager.getSessionIdFromEnv() || SessionManager.generateSessionId(prNumberOrIssue, action);
   const logDir = tempManager.getDir(sessionId);
 
+  // 2. Resolve Policy (CLI > Project Local > Fallback)
+  let resolvedPolicyPath = policyPath;
+  const projectLocalPolicy = path.join(targetDir, `.gemini/orbit/${action}.policy.toml`);
+  if (fs.existsSync(projectLocalPolicy)) {
+    resolvedPolicyPath = projectLocalPolicy;
+  } else if (!fs.existsSync(resolvedPolicyPath)) {
+    // Attempt fallback to a known location if the passed one doesn't exist
+    const fallbackPolicy = path.join(targetDir, '.gemini/policies/workspace-policy.toml');
+    if (fs.existsSync(fallbackPolicy)) {
+       resolvedPolicyPath = fallbackPolicy;
+    }
+  }
+
+  // 3. Resolve Guidelines (Project Local > Standard)
+  const projectGuidelines = path.join(targetDir, `.gemini/orbit/${action}-guidelines.md`);
+  let guidelinesPath = '';
+  if (fs.existsSync(projectGuidelines)) {
+    guidelinesPath = projectGuidelines;
+  }
+
   console.log(`🚀 Orbit Mission | ID: ${prNumberOrIssue} | Action: ${action}`);
   console.log(`📂 Log Directory: ${logDir}`);
+  console.log(`🛡️  Using Policy: ${resolvedPolicyPath}`);
+  if (guidelinesPath) console.log(`📖 Using Guidelines: ${guidelinesPath}`);
 
   // Dispatch to Playbook
   switch (action) {
     case 'review':
-      return runReviewPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
-    
+      return runReviewPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, guidelinesPath);
+
     case 'fix':
-      return runFixPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
-    
+      return runFixPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir);
+
     case 'ready':
-      return runReadyPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
-    
+      return runReadyPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir);
+
     case 'implement': {
       const { runImplementPlaybook } = await import('./playbooks/implement.js');
-      return runImplementPlaybook(prNumberOrIssue, targetDir, policyPath, geminiBin, logDir);
+      return runImplementPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, guidelinesPath);
     }
-      
+  ...
     case 'open':
       console.log(`🚀 Dropping into manual session...`);
       return 0;

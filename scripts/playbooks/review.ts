@@ -9,7 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 
-export async function runReviewPlaybook(prNumber: string, targetDir: string, policyPath: string, geminiBin: string, logDir: string) {
+export async function runReviewPlaybook(prNumber: string, targetDir: string, policyPath: string, geminiBin: string, logDir: string, guidelinesPath?: string) {
   const runner = createTaskRunner(logDir, `🚀 Orbit | CONSOLIDATED REVIEW | PR #${prNumber}`);
 
   // 1. PHASE 0: Parallel Context Acquisition
@@ -23,16 +23,19 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
 
   // 2. PHASE 1: Parallel Evaluation
   // Determine if we have custom rules (Repo-specific development guidelines)
-  const possibleRulePaths = [
-    path.join(targetDir, 'GEMINI.md'),
-    path.join(targetDir, '.gemini/review-rules.md'),
-    path.join(targetDir, 'CONTRIBUTING.md')
-  ];
-  const foundRulePaths = possibleRulePaths.filter(p => fs.existsSync(p));
-  
-  let rulesReference = 'the standard project rules in commands/orbit/mission.toml';
-  if (foundRulePaths.length > 0) {
-    rulesReference = `the repo-specific development guidelines in ${foundRulePaths.join(', ')}`;
+  let rulesReference = 'the standard project rules';
+  if (guidelinesPath && fs.existsSync(guidelinesPath)) {
+    rulesReference = `the explicit mission guidelines in ${guidelinesPath}`;
+  } else {
+    const possibleRulePaths = [
+      path.join(targetDir, 'GEMINI.md'),
+      path.join(targetDir, '.gemini/review-rules.md'),
+      path.join(targetDir, 'CONTRIBUTING.md')
+    ];
+    const foundRulePaths = possibleRulePaths.filter(p => fs.existsSync(p));
+    if (foundRulePaths.length > 0) {
+      rulesReference = `the repo-specific development guidelines in ${foundRulePaths.join(', ')}`;
+    }
   }
 
   runner.register([
@@ -47,6 +50,7 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
   // 3. PHASE 2: Synthesis
   console.log('\n⏳ Synthesizing final assessment...');
   const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Merge the results from ci.log, static.log, feedback.log, and proof.log into a final assessment for PR #${prNumber}. Indicate if the PR meets its goals as defined in context.log."`;
+
   
   const synthesisStatus = await runner.run(`${synthesisCmd} > ${path.join(logDir, 'final-assessment.md')} 2>&1`);
   

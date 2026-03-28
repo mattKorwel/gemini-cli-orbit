@@ -175,7 +175,8 @@ async function main() {
 Focus on the specific requirements for Issue #${hierarchy.number} while considering the broader context of its parents and siblings.
 Identify any architectural constraints or coding standards mentioned in the guidelines.`;
     
-    const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "${synthesisPrompt.replace(/"/g, '\\"')}" < ${rawPath} > ${path.join(logDir, 'mission-context.md')} 2>&1`;
+    const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "${synthesisPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'mission-context.md')} 2>&1`;
+
     try {
       execSync(synthesisCmd);
     } catch (_e) {
