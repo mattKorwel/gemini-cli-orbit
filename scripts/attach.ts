@@ -9,6 +9,8 @@ import { spawnSync } from 'node:child_process';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import { SessionManager } from './utils/SessionManager.js';
+import { TempManager } from './utils/TempManager.js';
 
 const q = (str: string) => `'${str.replace(/'/g, "'\\''")}'`;
 
@@ -44,6 +46,7 @@ export async function runAttach(
     backendType
   });
 
+  const sessionId = SessionManager.generateSessionId(prNumber, `attach-${action}`);
   const containerName = `gcli-${prNumber}-${action}`;
   const sessionName = `orbit-${prNumber}-${action}`;
   const containerAttach = `sudo docker exec -it ${containerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
@@ -51,15 +54,16 @@ export async function runAttach(
     interactive: true,
   });
 
+  const tempManager = new TempManager(config);
+
   console.log(`🔗 Attaching to session: ${sessionName}...`);
 
   const isWithinGemini =
     !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
   if (isWithinGemini && !isLocal) {
-    const tempCmdPath = path.join(
-      process.env.TMPDIR || '/tmp',
-      `orbit-attach-${prNumber}.sh`,
-    );
+    const sessionDir = tempManager.getDir(sessionId);
+    const tempCmdPath = path.join(sessionDir, 'launch.sh');
+    
     fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
       mode: 0o755,
     });
@@ -80,6 +84,7 @@ export async function runAttach(
     const res = spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
     if (res.status === 0) {
         console.log(`✅ iTerm2 tab opened for ${sessionName}.`);
+        setTimeout(() => tempManager.cleanup(sessionId), 2000);
         return 0;
     }
     console.warn('⚠️  AppleScript failed to open new tab. Falling back to current terminal.');

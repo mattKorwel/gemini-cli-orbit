@@ -16,7 +16,7 @@ export interface OrbitProvider {
   /**
    * Provisions the underlying infrastructure station.
    */
-  provision(options?: { setupNetwork?: boolean }): Promise<number>;
+  provision(options?: { setupNetwork?: boolean; sessionId?: string }): Promise<number>;
 
   /**
    * Ensures the station is running and accessible.

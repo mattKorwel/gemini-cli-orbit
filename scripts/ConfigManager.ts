@@ -11,6 +11,7 @@ import {
     type OrbitConfig, 
     type OrbitSettings,
     DEFAULT_REPO_NAME,
+    DEFAULT_TEMP_DIR,
     GLOBAL_SETTINGS_PATH,
     PROJECT_CONFIG_PATH,
     PROJECT_ORBIT_DIR,
@@ -135,6 +136,8 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
     if (process.env.GCLI_ORBIT_INSTANCE_NAME) envConfig.instanceName = process.env.GCLI_ORBIT_INSTANCE_NAME;
     if (process.env.GCLI_ORBIT_BACKEND) envConfig.backendType = process.env.GCLI_ORBIT_BACKEND as any;
     if (process.env.GCLI_ORBIT_IMAGE) envConfig.imageUri = process.env.GCLI_ORBIT_IMAGE;
+    if (process.env.GCLI_ORBIT_TEMP_DIR) envConfig.tempDir = process.env.GCLI_ORBIT_TEMP_DIR;
+    if (process.env.GCLI_ORBIT_AUTO_CLEAN) envConfig.autoClean = process.env.GCLI_ORBIT_AUTO_CLEAN === 'true';
     
     config = { ...config, ...envConfig };
 

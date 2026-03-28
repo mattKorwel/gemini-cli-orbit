@@ -39,3 +39,7 @@ This document summarizes the core architectural decisions that define the Orbit 
 ## 🔭 9. Consolidated Review Mission
 **Decision**: Unify all PR review activities into a single, repo-agnostic, parallelized TypeScript mission.
 - **Rationale**: Eliminates fragmentation, enforces "Behavioral Proof" (physically exercising code), and ensures all context (PR description + 3-level issue hierarchy) is utilized for the final assessment.
+
+## 📂 10. Temporary Output Management & Session Lifecycle
+**Decision**: Standardize transient data storage (scripts, logs) using a configurable, session-isolated `tempDir`.
+- **Rationale**: Prevents name collisions during concurrent missions. Ensures all mission-specific artifacts are bundled together, facilitating both easier debugging (when `autoClean` is false) and deterministic cleanup.

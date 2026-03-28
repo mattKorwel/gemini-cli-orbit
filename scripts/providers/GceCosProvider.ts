@@ -19,6 +19,9 @@ import {
 import { GceConnectionManager } from './GceConnectionManager.js';
 import { DEFAULT_IMAGE_URI } from '../Constants.js';
 import { logger } from '../Logger.js';
+import { TempManager } from '../utils/TempManager.js';
+import { SessionManager } from '../utils/SessionManager.js';
+import { getRepoConfig } from '../ConfigManager.js';
 
 
 export class GceCosProvider implements OrbitProvider {
@@ -55,7 +58,7 @@ export class GceCosProvider implements OrbitProvider {
     this.machineType = config.machineType || 'n2-standard-8';
   }
 
-  async provision(options: { setupNetwork?: boolean, skipInstanceCreation?: boolean } = {}): Promise<number> {
+  async provision(options: { setupNetwork?: boolean, skipInstanceCreation?: boolean, sessionId?: string } = {}): Promise<number> {
     const imageUri = this.imageUri;
     const region = this.zone.split('-').slice(0, 2).join('-');
 
@@ -115,7 +118,12 @@ export class GceCosProvider implements OrbitProvider {
       fi
     `;
 
-    const tmpScriptPath = path.join(os.tmpdir(), `gcli-startup-${Date.now()}.sh`);
+    const config = getRepoConfig();
+    const tempManager = new TempManager(config);
+    const sessionId = options.sessionId || SessionManager.generateSessionId('station', 'provision');
+    const sessionDir = tempManager.getDir(sessionId);
+    const tmpScriptPath = path.join(sessionDir, 'startup.sh');
+
     fs.writeFileSync(tmpScriptPath, startupScriptContent);
 
     // Delegate network-interface string to the strategy
@@ -139,7 +147,7 @@ export class GceCosProvider implements OrbitProvider {
     ], { stdio: 'inherit' });
     logger.logOutput(result.stdout, result.stderr);
 
-    fs.unlinkSync(tmpScriptPath);
+    tempManager.cleanup(sessionId);
     if (result.status === 0) {
       logger.info('⏳ Waiting for OS Login and SSH to initialize (this takes ~45s)...');
       await new Promise((r) => setTimeout(r, 45000));
