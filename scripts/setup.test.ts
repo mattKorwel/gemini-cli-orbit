@@ -30,7 +30,8 @@ vi.mock('./Constants.ts', () => ({
     DEFAULT_REPO_NAME: 'gemini-cli',
     DEFAULT_DNS_SUFFIX: '',
     DEFAULT_USER_SUFFIX: '',
-    DEFAULT_IMAGE_URI: 'mock-image'
+    DEFAULT_IMAGE_URI: 'mock-image',
+    DEFAULT_TEMP_DIR: '/Users/mattkorwel/dev/main/.gemini/orbit/tmp'
 }));
 
 vi.mock('node:fs');
