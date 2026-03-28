@@ -28,6 +28,7 @@ export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
 export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_ORBIT_DIR, 'settings.json');
 export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
 export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
+export const DEFAULT_TEMP_DIR = path.join(GLOBAL_ORBIT_DIR, 'tmp');
 
 export const PROJECT_ORBIT_DIR = path.join(REPO_ROOT, '.gemini/orbit');
 export const PROJECT_CONFIG_PATH = path.join(PROJECT_ORBIT_DIR, 'config.json');
@@ -76,6 +77,8 @@ export interface OrbitConfig {
   autoSetupNet?: boolean | undefined; // Whether to auto-configure networking
   machineType?: string | undefined; // GCE Machine type (e.g. n2-standard-8)
   sshSourceRanges?: string[] | undefined; // Custom source ranges for SSH firewall rule
+  tempDir?: string | undefined; // Base directory for temporary output
+  autoClean?: boolean | undefined; // Whether to auto-delete session temp dirs
 }
 
 /**
@@ -85,6 +88,8 @@ export interface OrbitSettings {
   repos: Record<string, OrbitConfig>;
   activeRepo?: string;
   activeProfile?: string; // Global default profile
+  tempDir?: string; // Global default temp dir
+  autoClean?: boolean; // Global default auto-clean
   // Legacy support
   orbit?: OrbitConfig;
 }

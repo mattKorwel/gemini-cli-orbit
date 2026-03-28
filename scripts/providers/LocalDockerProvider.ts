@@ -27,7 +27,7 @@ export class LocalDockerProvider implements OrbitProvider {
     this.stationName = stationName;
   }
 
-  async provision(): Promise<number> {
+  async provision(options?: { setupNetwork?: boolean; sessionId?: string }): Promise<number> {
     console.log(`🐳 Verifying local Docker availability...`);
     const res = spawnSync('docker', ['info'], { stdio: 'pipe' });
     if (res.status !== 0) {

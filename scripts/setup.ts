@@ -296,6 +296,13 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
       return 1;
   }
 
+  // Temporary Output Management
+  const tempDir = await prompt('Temporary Directory', config.tempDir || DEFAULT_TEMP_DIR, shouldRunPrompts, 'Where should mission-specific temporary scripts and logs be stored?');
+  const autoClean = await confirm('Auto-cleanup session data?', config.autoClean !== undefined ? config.autoClean : true, shouldRunPrompts);
+
+  config.tempDir = tempDir;
+  config.autoClean = autoClean;
+
   // 3. Persistence
   const updatedGlobal = loadGlobalSettings();
   updatedGlobal.repos[repoName] = { 
@@ -303,7 +310,9 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
       userFork: config.userFork, upstreamRepo: config.upstreamRepo, 
       imageUri: config.imageUri, profile: selectedDesign,
       machineType: config.machineType,
-      sshSourceRanges: config.sshSourceRanges
+      sshSourceRanges: config.sshSourceRanges,
+      tempDir: config.tempDir,
+      autoClean: config.autoClean
   };
   updatedGlobal.activeRepo = repoName;
   if (selectedDesign) updatedGlobal.activeProfile = selectedDesign;

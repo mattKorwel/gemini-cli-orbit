@@ -11,6 +11,8 @@ import { ProviderFactory } from './providers/ProviderFactory.js';
 import { RemoteProvisioner } from './RemoteProvisioner.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import type { ExecOptions } from './providers/BaseProvider.js';
+import { SessionManager } from './utils/SessionManager.js';
+import { TempManager } from './utils/TempManager.js';
 import { 
   ORBIT_ROOT, 
   SATELLITE_WORKTREES_PATH, 
@@ -127,8 +129,8 @@ Actions:
 
   // Paths - Unified across station and capsule
   const remotePolicyPath = `${POLICIES_PATH}/orbit-policy.toml`;
-  const timestamp = Date.now();
-  const sessionName = `mission-${prNumber}-${action}-${timestamp}`;
+  const sessionId = SessionManager.generateSessionId(prNumber, action);
+  const sessionName = sessionId; // Standardize on sessionId
   const containerName = `gcli-${prNumber}-${action}`;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
@@ -221,15 +223,16 @@ if (localApiKey) {
 
   const finalSSH = provider.getRunCommand(fullCommand, execOptions);
 
+  const tempManager = new TempManager(config);
+
   if (
     !forceMainTerminal &&
     isWithinGemini &&
     env.TERM_PROGRAM === 'iTerm.app'
   ) {
-    const tempCmdPath = path.join(
-      process.env.TMPDIR || '/tmp',
-      `mission-ssh-${prNumber}.sh`,
-    );
+    const sessionDir = tempManager.getDir(sessionId);
+    const tempCmdPath = path.join(sessionDir, 'launch.sh');
+    
     fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
       mode: 0o755,
     });
@@ -262,6 +265,9 @@ if (localApiKey) {
             `;
     spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
     console.log(`✅ iTerm2 ${terminalTarget} opened for mission ${prNumber}.`);
+    
+    // Allow small delay for iTerm to read the file before we potentially clean up the directory
+    setTimeout(() => tempManager.cleanup(sessionId), 2000);
     return 0;
   }
 

@@ -40,7 +40,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     }
   }
 
-  async provision(): Promise<number> {
+  async provision(options?: { setupNetwork?: boolean; sessionId?: string }): Promise<number> {
     console.log(`🏠 Ensuring local worktrees directory: ${this.worktreesDir}`);
     return 0;
   }

@@ -67,6 +67,20 @@ Highest priority overrides for the current session.
 - `GCLI_ORBIT_INSTANCE_NAME`
 - `GCLI_ORBIT_BACKEND`
 - `GCLI_ORBIT_IMAGE`
+- `GCLI_ORBIT_TEMP_DIR`: Override the base directory for session-specific temporary data.
+- `GCLI_ORBIT_AUTO_CLEAN`: (true/false) Whether to delete temporary session directories after completion.
+
+---
+
+## 📂 Temporary Output Management
+
+Orbit generates transient data during missions (e.g., iTerm2 launch scripts, GCE startup scripts). This data is isolated by **Session ID** and stored in a configurable location.
+
+**Default Location**: `~/.gemini/orbit/tmp/<session-id>/`
+
+### Configuration Options
+- **`tempDir`**: The base directory for all Orbit temporary data.
+- **`autoClean`**: If `true` (default), Orbit will automatically delete the session-specific folder once its primary task (like launching a terminal or provisioning a station) is complete.
 
 ---
 
