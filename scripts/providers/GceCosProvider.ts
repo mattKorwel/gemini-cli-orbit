@@ -195,7 +195,7 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async setup(_options: SetupOptions): Promise<number> {
-    logger.info(`   - Verifying connection...`);
+    logger.info('📡 Establishing mission uplink...');
     // ensure strategy has current IP if needed
     await this.conn.onProvisioned();
 
@@ -203,13 +203,17 @@ export class GceCosProvider implements OrbitProvider {
     if (res.status !== 0) {
       const status = await this.getStatus();
       if (status.internalIp) {
-          logger.info(`   ⚠️ Direct connection failed. Falling back to internal IP: ${status.internalIp}`);
+          logger.info(`   ⚠️  Direct connection failed. Falling back to internal IP: ${status.internalIp}`);
           this.conn.setOverrideHost(status.internalIp);
           res = this.conn.run('echo 1');
       }
     }
-    if (res.status !== 0) return 1;
-    logger.info('   ✅ Connection verified.');
+    
+    if (res.status !== 0) {
+        logger.error('❌ Failed to establish mission uplink. Check your corporate network/VPN or SSH permissions.');
+        return 1;
+    }
+    logger.info('   ✅ Mission uplink verified.');
     return 0;
   }
 
