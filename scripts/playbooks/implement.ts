@@ -15,8 +15,8 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
 
   // 1. PHASE 0: Parallel Research & Context
   runner.register([
-    { id: 'context', name: 'Deep Context Acquisition', cmd: `tsx scripts/utils/fetch-implement-context.ts ${issueNumber} ${logDir} ${geminiBin} ${policyPath}` },
-    { id: 'analysis', name: 'Codebase Analysis', cmd: `${geminiBin} --policy ${policyPath} -p "Analyze the codebase for areas relevant to Issue #${issueNumber}. Identify key files and dependencies. Record findings in ${path.join(logDir, 'codebase-analysis.md')}." > ${path.join(logDir, 'analysis.log')} 2>&1` }
+    { id: 'context', name: 'Deep Context Acquisition', cmd: `tsx scripts/utils/fetch-implement-context.ts ${issueNumber} ${logDir} ${geminiBin} ${policyPath}`, timeout: 300000 },
+    { id: 'analysis', name: 'Codebase Analysis', cmd: `${geminiBin} --policy ${policyPath} -p "Analyze the codebase for areas relevant to Issue #${issueNumber}. Identify key files and dependencies. Record findings in ${path.join(logDir, 'codebase-analysis.md')}." > ${path.join(logDir, 'analysis.log')} 2>&1`, timeout: 600000 }
   ]);
 
   await runner.runParallel();
@@ -86,9 +86,9 @@ FOLLOW THESE RULES:
 
   // 5. PHASE 4: Final Quality Control
   runner.register([
-    { id: 'build', name: 'Final Build & Test', cmd: `npm run build && npm test > ${path.join(logDir, 'final-tests.log')} 2>&1` },
-    { id: 'review', name: 'Local Code Review', cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'mission-context.md')}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}." > ${path.join(logDir, 'review.log')} 2>&1` },
-    { id: 'proof', name: 'Behavioral Proof', cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works. Save to ${path.join(logDir, 'behavioral-proof.md')}." > ${path.join(logDir, 'proof.log')} 2>&1` }
+    { id: 'build', name: 'Final Build & Test', cmd: `npm run build && npm test > ${path.join(logDir, 'final-tests.log')} 2>&1`, timeout: 600000 },
+    { id: 'review', name: 'Local Code Review', cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'mission-context.md')}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}." > ${path.join(logDir, 'review.log')} 2>&1`, timeout: 600000 },
+    { id: 'proof', name: 'Behavioral Proof', cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works. Save to ${path.join(logDir, 'behavioral-proof.md')}." > ${path.join(logDir, 'proof.log')} 2>&1`, timeout: 900000 }
   ]);
 
   await runner.runParallel();
