@@ -37,7 +37,7 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
   }
 
   runner.register([
-    { id: 'ci', name: 'CI Monitor', cmd: `node scripts/utils/ci.mjs ${prNumber} > ${path.join(logDir, 'ci-status.md')} 2>&1` },
+    { id: 'ci', name: 'CI Monitor', cmd: `node scripts/utils/ci.mjs > ${path.join(logDir, 'ci-status.md')} 2>&1` },
     { id: 'static', name: 'Static Standards', cmd: `${geminiBin} --policy ${policyPath} -p "Analyze the diff in ${path.join(logDir, 'pr-diff.diff')} against ${rulesReference} and the mission context in ${path.join(logDir, 'mission-context.md')}. Provide a detailed review of code quality, TS types, and architecture." > ${path.join(logDir, 'static-review.md')} 2>&1` },
     { id: 'feedback', name: 'Feedback Analysis', cmd: `node scripts/utils/fetch-pr-info.js ${prNumber} > ${path.join(logDir, 'comments.log')} 2>&1 && ${geminiBin} --policy ${policyPath} -p "Summarize the unresolved PR feedback in ${path.join(logDir, 'comments.log')}." > ${path.join(logDir, 'comments-summary.md')} 2>&1` },
     { id: 'proof', name: 'Behavioral Proof', dep: 'build', cmd: `${geminiBin} --policy ${policyPath} -p "Using the build logs in ${path.join(logDir, 'build.log')} and the diff in ${path.join(logDir, 'pr-diff.diff')}, physically exercise the new code in the terminal. Provide logs proving it works." > ${path.join(logDir, 'behavioral-proof.md')} 2>&1` }
