@@ -35,3 +35,7 @@ This document summarizes the core architectural decisions that define the Orbit 
 ## 🛡️ 8. Read-Only Core
 **Decision**: The primary "Source of Truth" repository on the Host Station is mounted **Read-Only** into Mission Capsules.
 - **Rationale**: Protects the main mirror from accidental corruption or malicious modification by an autonomous agent.
+
+## 🔭 9. Consolidated Review Mission
+**Decision**: Unify all PR review activities into a single, repo-agnostic, parallelized TypeScript mission.
+- **Rationale**: Eliminates fragmentation, enforces "Behavioral Proof" (physically exercising code), and ensures all context (PR description + 3-level issue hierarchy) is utilized for the final assessment.
