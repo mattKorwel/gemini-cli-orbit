@@ -19,7 +19,10 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
     { id: 'build', name: 'Single-Source Build', cmd: `cd ${targetDir} && npm ci && npm run build`, timeout: 600000 }
   ]);
 
-  await runner.runParallel();
+  const contextStatus = await runner.runParallel();
+  if (contextStatus !== 0) {
+    console.warn('⚠️ Phase 0 context acquisition had some failures. Proceeding with caution...');
+  }
 
   // 2. PHASE 1: Parallel Evaluation
   // Determine if we have custom rules (Repo-specific development guidelines)
@@ -45,7 +48,7 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
     { id: 'proof', name: 'Behavioral Proof', dep: 'build', cmd: `${geminiBin} --policy ${policyPath} -p "Using the build logs in build.log and the diff in diff.log, physically exercise the new code in the terminal. Provide logs proving it works."`, timeout: 900000 }
   ]);
 
-  await runner.runParallel();
+  const evalStatus = await runner.runParallel();
 
   // 3. PHASE 2: Synthesis
   console.log('\n⏳ Synthesizing final assessment...');
@@ -60,5 +63,5 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
     spawnSync('sh', ['-c', `printf "\\e]9;Review Complete | PR #${prNumber} | Final assessment ready.\\a"`]);
   }
 
-  return synthesisStatus;
+  return (synthesisStatus !== 0 || evalStatus !== 0) ? 1 : 0;
 }

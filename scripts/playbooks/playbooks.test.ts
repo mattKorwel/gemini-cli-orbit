@@ -64,7 +64,7 @@ describe('Playbooks', () => {
 
   it('should run review playbook', async () => {
     const { runReviewPlaybook } = await import('./review.js');
-    const res = await runReviewPlaybook(pr, dir, policy, bin, logDir);
+    const res = await runReviewPlaybook(pr, dir, policy, bin, logDir, '/tmp/guidelines.md');
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();
     expect(mockRunParallel).toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe('Playbooks', () => {
 
   it('should run implement playbook', async () => {
     const { runImplementPlaybook } = await import('./implement.js');
-    const res = await runImplementPlaybook(pr, dir, policy, bin, logDir);
+    const res = await runImplementPlaybook(pr, dir, policy, bin, logDir, '/tmp/guidelines.md');
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalledTimes(2);
     expect(mockRunParallel).toHaveBeenCalledTimes(2);

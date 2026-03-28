@@ -16,6 +16,8 @@ import { runReadyPlaybook } from './playbooks/ready.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { TempManager } from './utils/TempManager.js';
 import { getRepoConfig } from './ConfigManager.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export async function runStation(args: string[]) {
   const prNumberOrIssue = args[0];
@@ -79,7 +81,7 @@ export async function runStation(args: string[]) {
       const { runImplementPlaybook } = await import('./playbooks/implement.js');
       return runImplementPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, guidelinesPath);
     }
-  ...
+
     case 'open':
       console.log(`🚀 Dropping into manual session...`);
       return 0;
@@ -91,5 +93,8 @@ export async function runStation(args: string[]) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runStation(process.argv.slice(2)).catch(console.error);
+  runStation(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
 }

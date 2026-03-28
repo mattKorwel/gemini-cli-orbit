@@ -18,7 +18,10 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
     { id: 'analysis', name: 'Codebase Analysis', cmd: `${geminiBin} --policy ${policyPath} -p "Analyze the codebase for areas relevant to Issue #${issueNumber}. Identify key files and dependencies. Record findings in codebase-analysis.md."`, timeout: 600000 }
   ]);
 
-  await runner.runParallel();
+  const contextStatus = await runner.runParallel();
+  if (contextStatus !== 0) {
+    console.warn('⚠️ Phase 0 research had some failures. Proceeding with caution...');
+  }
 
   const guidelinesReference = guidelinesPath ? ` and the explicit guidelines in ${guidelinesPath}` : '';
 
@@ -91,19 +94,18 @@ FOLLOW THESE RULES:
     { id: 'proof', name: 'Behavioral Proof', cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works. Save to behavioral-proof.md."`, timeout: 900000 }
   ]);
 
-  await runner.runParallel();
+  const qcStatus = await runner.runParallel();
 
   // 6. PHASE 5: Synthesis & PR Prep
   console.log('\n✨ Synthesizing final results...');
   const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Merge the implementation results from execution.log, local review in review.log, and behavioral proof in proof.log into a final assessment. Then, prepare a Pull Request description based on this work. Save to final-assessment.md."`;
   
   const finalStatus = await runner.run(`${synthesisCmd} > ${path.join(logDir, 'final-assessment.md')} 2>&1`);
-
   
   if (finalStatus === 0) {
     console.log(`\n✅ Implementation complete! Final assessment ready at: ${path.join(logDir, 'final-assessment.md')}`);
     spawnSync('sh', ['-c', `printf "\\e]9;Implementation Complete | Issue #${issueNumber} | Final assessment ready.\\a"`]);
   }
 
-  return finalStatus;
+  return (finalStatus !== 0 || contextStatus !== 0 || executionStatus !== 0 || qcStatus !== 0) ? 1 : 0;
 }
