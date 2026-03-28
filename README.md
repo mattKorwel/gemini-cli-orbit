@@ -37,7 +37,9 @@ gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
 Orbit supports two primary mission modes: **Local** (for maximum speed and low latency) and **Remote** (for massive scale and persistent persistence).
 
 ### 🏠 The Local Path (Multithreaded Development)
-Launch isolated worktrees on your own machine. Perfect for juggling multiple PRs without the overhead of the cloud.
+Launch isolated worktrees on your own machine. Perfect for juggling multiple PRs without the overhead of the cloud. 
+
+_note_: Works best with Tmux installed, but not required.
 
 1.  **Configure Local Profile**:
     ```bash
