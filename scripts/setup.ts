@@ -32,6 +32,7 @@ import {
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
   DEFAULT_IMAGE_URI,
+  DEFAULT_TEMP_DIR,
   type OrbitConfig,
 } from './Constants.js';
 
