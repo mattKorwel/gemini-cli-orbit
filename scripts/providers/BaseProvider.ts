@@ -115,6 +115,7 @@ export interface ExecOptions {
   wrapCapsule?: string;
   quiet?: boolean;
   env?: Record<string, string>;
+  sensitiveEnv?: Record<string, string>;
 }
 
 export interface CapsuleConfig {
@@ -122,6 +123,7 @@ export interface CapsuleConfig {
   image: string;
   mounts: { host: string; capsule: string; readonly?: boolean }[];
   env?: Record<string, string>;
+  sensitiveEnv?: Record<string, string>;
   cpuLimit?: string;
   memoryLimit?: string;
   command?: string;

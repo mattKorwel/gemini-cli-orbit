@@ -58,8 +58,12 @@ describe('GceConnectionManager', () => {
     });
     
     manager.sync('/local', '/remote');
-    const lastCall = vi.mocked(spawnSync).mock.calls[0]![0] as string;
-    expect(lastCall).toContain('gcloud compute ssh');
-    expect(lastCall).toContain('--tunnel-through-iap');
+    const firstArg = vi.mocked(spawnSync).mock.calls[0]![0] as string;
+    const secondArg = vi.mocked(spawnSync).mock.calls[0]![1] as string[];
+    
+    expect(firstArg).toBe('rsync');
+    const sshArg = secondArg.find(a => a.includes('gcloud compute ssh'));
+    expect(sshArg).toBeDefined();
+    expect(sshArg).toContain('--tunnel-through-iap');
   });
 });

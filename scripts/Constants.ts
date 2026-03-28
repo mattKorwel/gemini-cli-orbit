@@ -75,6 +75,7 @@ export interface OrbitConfig {
   useTmux?: boolean | undefined; // Whether to wrap execution in tmux
   autoSetupNet?: boolean | undefined; // Whether to auto-configure networking
   machineType?: string | undefined; // GCE Machine type (e.g. n2-standard-8)
+  sshSourceRanges?: string[] | undefined; // Custom source ranges for SSH firewall rule
 }
 
 /**

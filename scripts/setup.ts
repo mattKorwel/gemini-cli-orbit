@@ -15,7 +15,7 @@ import {
   loadGlobalSettings, 
   getRepoConfig, 
   detectRepoName,
-  loadProjectConfig
+  sanitizeName
 } from './ConfigManager.js';
 import { fileURLToPath } from 'node:url';
 import { 
@@ -28,8 +28,6 @@ import {
   EXTENSION_REMOTE_PATH,
   PROFILES_DIR,
   GLOBAL_SETTINGS_PATH,
-  PROJECT_ORBIT_DIR,
-  GLOBAL_ORBIT_DIR,
   GLOBAL_TOKENS_DIR,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
@@ -130,7 +128,8 @@ async function createFork(upstream: string): Promise<string> {
  */
 async function runDesignMode(name?: string): Promise<OrbitConfig> {
     logger.divider('ORBIT DESIGN CONFIGURATION');
-    const designName = name || await prompt('Design Name', 'default');
+    const rawDesignName = name || await prompt('Design Name', 'default');
+    const designName = sanitizeName(rawDesignName);
     const designPath = path.join(PROFILES_DIR, `${designName.toLowerCase()}.json`);
     
     let existing: Partial<OrbitConfig> = {};
@@ -149,8 +148,10 @@ async function runDesignMode(name?: string): Promise<OrbitConfig> {
     const subnetName = await prompt('Subnet Name', existing.subnetName || 'default', true);
     const dnsSuffix = await prompt('Regional DNS Suffix', existing.dnsSuffix || '', true);
     const userSuffix = await prompt('OS Login User Suffix', existing.userSuffix || '', true);
+    const sshSourceRangesInput = await prompt('SSH Source Ranges (comma-separated)', existing.sshSourceRanges?.join(',') || '0.0.0.0/0', true, 'Source IP ranges allowed to connect via SSH (e.g., 1.2.3.4/32,5.6.7.8/24)');
+    const sshSourceRanges = sshSourceRangesInput.split(',').map(s => s.trim()).filter(Boolean);
 
-    const design: OrbitConfig = { projectId, zone, machineType, backendType: backendType as any, vpcName, subnetName, dnsSuffix, userSuffix };
+    const design: OrbitConfig = { projectId, zone, machineType, backendType: backendType as any, vpcName, subnetName, dnsSuffix, userSuffix, sshSourceRanges };
     
     if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
     fs.writeFileSync(designPath, JSON.stringify(design, null, 2));
@@ -222,14 +223,16 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
           config = { ...config, ...designData, profile: selectedDesign };
       }
 
-      config.instanceName = await prompt('GCE Station Name', config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`, true);
+      const rawInstanceName = await prompt('GCE Station Name', config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`, true);
+      config.instanceName = sanitizeName(rawInstanceName);
       config.machineType = await prompt('GCE Machine Type', config.machineType || 'n2-standard-8', true);
       config.terminalTarget = await prompt('Terminal Target', config.terminalTarget || 'tab', true) as any;
       config.imageUri = await prompt('Orbit Docker Image', config.imageUri || DEFAULT_IMAGE_URI, true);
       config.autoSetupNet = await confirm('Auto-configure Networking (VPC/NAT)?', config.autoSetupNet ?? false, true);
   } else {
       // Surgical or Fast-Path: Silently apply flags if present
-      config.instanceName = await prompt('GCE Station Name', config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`, false);
+      const rawInstanceName = await prompt('GCE Station Name', config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`, false);
+      config.instanceName = sanitizeName(rawInstanceName);
       config.machineType = await prompt('GCE Machine Type', config.machineType || 'n2-standard-8', false);
       config.terminalTarget = await prompt('Terminal Target', config.terminalTarget || 'tab', false) as any;
       config.imageUri = await prompt('Orbit Docker Image', config.imageUri || DEFAULT_IMAGE_URI, false);
@@ -299,7 +302,8 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
       instanceName: config.instanceName, terminalTarget: config.terminalTarget, 
       userFork: config.userFork, upstreamRepo: config.upstreamRepo, 
       imageUri: config.imageUri, profile: selectedDesign,
-      machineType: config.machineType
+      machineType: config.machineType,
+      sshSourceRanges: config.sshSourceRanges
   };
   updatedGlobal.activeRepo = repoName;
   if (selectedDesign) updatedGlobal.activeProfile = selectedDesign;
@@ -346,7 +350,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   logger.info('REMOTE', 'Synchronizing Mission Logic...');
   let res = await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${SATELLITE_WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
   if (res !== 0) return res;
-  res = await provider.exec(`sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 777 ${ORBIT_ROOT}`);
+  res = await provider.exec(`sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 770 ${ORBIT_ROOT}`);
   if (res !== 0) return res;
   
   logger.info('REMOTE', 'Syncing extension source...');
@@ -368,7 +372,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
 
   logger.info('REMOTE', `Finalizing Repository (${config.userFork})...`);
   const remoteWorkDir = `${ORBIT_ROOT}/main/${repoName}`;
-  const repoUrl = `https://${githubToken}@github.com/${config.userFork}.git`;
+  const repoUrl = `https://github.com/${config.userFork}.git`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
   const cloneCmd = `

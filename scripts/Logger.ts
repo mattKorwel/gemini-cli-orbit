@@ -5,7 +5,6 @@
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { ORBIT_LOG_PATH, PROJECT_ORBIT_DIR } from './Constants.js';
 
 export enum LogLevel {

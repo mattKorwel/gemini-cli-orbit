@@ -58,6 +58,7 @@ Designs allow you to switch between different infrastructure environments (e.g.,
 - `backendType`: Connectivity method (`direct-internal`, `external`, `iap`).
 - `vpcName`: The target VPC.
 - `subnetName`: The target Subnet.
+- `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH (e.g., `["35.235.240.0/20"]` for IAP). Defaults to `["0.0.0.0/0"]`.
 
 ### 4. Environment Variables
 Highest priority overrides for the current session.

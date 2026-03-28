@@ -5,7 +5,7 @@ This extension provides high-performance, isolated remote development environmen
 ## 🏗️ Architecture: Multi-Capsule Isolation
 The system utilizes a **Persistent Host Station** (running Capsule-Optimized OS) as the host. Every orbit session is isolated at the **process level** using Docker:
 
-- **HostVM**: Maintains the persistent data disk (`/mnt/disks/data`) and a read-write "Source of Truth" clone of the main repository.
+- **HostVM**: Maintains the persistent data disk (`/mnt/disks/data`) with restrictive permissions (UID 1000, 770) and a read-write "Source of Truth" clone of the main repository.
 - **Isolated Capsules**: Each Pull Request session runs in a dedicated capsule (`gcli-<pr>-<action>`).
 - **Reference Clones**: Job capsules perform a `git clone --reference` against the HostVM's main repo. The main repo is mounted **Read-Only** into capsules for security.
 - **Persistence**: TMUX sessions live inside the job capsules, allowing you to disconnect and re-attach without losing state.
@@ -45,5 +45,7 @@ If you modify the remote environment setup, you must update `scripts/setup.ts` a
 
 ## 🛡️ Security Mandates
 1.  **Read-Only Source**: Never mount the main host repository as Read-Write into job capsules.
-2.  **Secret Injection**: Use standard input pipes or temporary `.env` files for token injection. Avoid `docker exec -e` for sensitive credentials.
+2.  **Secret Injection**: Use RAM-based temporary file mounts (e.g., `/dev/shm/.gcli-env-*`) for token injection. **NEVER** use `docker run/exec -e` for sensitive credentials.
 3.  **Path Parity**: Maintain absolute path parity between Host and Capsule (`/mnt/disks/data`) to prevent Git metadata corruption.
+4.  **Least Privilege**: Always use granular IAM scopes for GCE instances. Avoid `cloud-platform` scope.
+5.  **Input Sanitization**: Always sanitize user-provided names for profiles, stations, and repositories using the `sanitizeName` helper.

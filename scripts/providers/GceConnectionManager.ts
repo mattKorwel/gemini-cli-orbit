@@ -73,8 +73,8 @@ export class GceConnectionManager {
   }
 
   run(command: string, options: { interactive?: boolean | undefined; stdio?: 'pipe' | 'inherit' | undefined; quiet?: boolean | undefined } = {}): { status: number; stdout: string; stderr: string } {
-    const sshCmd = this.getRunCommand(command, options);
-    const res = spawnSync(sshCmd, { stdio: options.stdio || 'pipe', shell: true });
+    const args = this.strategy.getRunArgs(command, options);
+    const res = spawnSync(args[0], args.slice(1), { stdio: options.stdio || 'pipe', shell: false });
     
     const status = (res.status === null) ? 1 : res.status;
 
@@ -111,9 +111,7 @@ export class GceConnectionManager {
         sshCmd = `ssh ${this.getCommonArgs().join(' ')}`;
     }
 
-    const directRsync = `rsync ${rsyncArgs.join(' ')} -e '${sshCmd}' ${localPath} ${fullRemote}:${remotePath}`;
-    
-    const res = spawnSync(directRsync, { stdio: 'inherit', shell: true });
+    const res = spawnSync('rsync', [...rsyncArgs, '-e', sshCmd, localPath, `${fullRemote}:${remotePath}`], { stdio: 'inherit', shell: false });
     return res.status ?? 1;
   }
 }

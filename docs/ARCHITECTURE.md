@@ -29,6 +29,18 @@ Unlike traditional remote environments, Orbit sessions are persistent.
 
 ## 🛡️ Security & Sovereignty
 Orbit is **Sovereign Infrastructure**. You own the host, you own the network, and you own the data. 
-- **No Middlemen**: You connect directly to your own infrastructure.
+
+### Hardened Isolation
+- **Permissions**: The persistent Host Station data is protected with restrictive permissions (UID 1000, 770), ensuring only the mission user and capsule processes have access.
+- **Network Sovereignty**: You connect directly to your own infrastructure. SSH access is restricted via configurable firewall rules (Step 1).
 - **Read-Only Core**: The primary repository mirror is mounted **Read-Only** into mission capsules for maximum safety.
+
+### Secure Secret Management
+- **RAM-based Injection**: Sensitive credentials (like GitHub PATs) are injected into Mission Capsules via temporary RAM-based file mounts (`/dev/shm`), preventing them from leaking into system process lists or persistent logs.
+- **Redaction**: GitHub tokens are never passed in `git clone` URLs, relying instead on the station's secure `.netrc` configuration.
+- **Least-Privilege Scopes**: GCE instances are provisioned with granular IAM scopes (Logging, Monitoring, Storage) instead of broad Cloud Platform access.
+
+### Defensive Execution
+- **Input Sanitization**: All user-provided names for profiles and stations are sanitized to prevent path traversal and shell injection.
+- **Safe Command Execution**: Remote commands are executed using argument arrays rather than raw shell strings, eliminating entire classes of shell injection vulnerabilities.
 - **Policy Enforcement**: Fine-grained security rules in `.gemini/policies/` control what the orbital agent can and cannot do.

@@ -100,7 +100,8 @@ export class GceCosProvider implements OrbitProvider {
         mount -o discard,defaults "$DATA_DISK" /mnt/disks/data
       fi
       mkdir -p /mnt/disks/data/main /mnt/disks/data/worktrees /mnt/disks/data/scripts /mnt/disks/data/policies /mnt/disks/data/gemini-cli-config/.gemini
-      chmod -R 777 /mnt/disks/data
+      chown -R 1000:1000 /mnt/disks/data
+      chmod -R 770 /mnt/disks/data
       mkdir -p /home/node
       ln -sfn /mnt/disks/data /home/node/.orbit
       chown -R 1000:1000 /home/node
@@ -133,7 +134,7 @@ export class GceCosProvider implements OrbitProvider {
         '--metadata-from-file', `startup-script=${tmpScriptPath}`,
         '--metadata', 'enable-oslogin=TRUE',
         '--network-interface', networkInterface,
-        '--scopes', 'https://www.googleapis.com/auth/cloud-platform',
+        '--scopes', 'https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/serviceaccounts.get',
         '--quiet',
     ], { stdio: 'inherit' });
     logger.logOutput(result.stdout, result.stderr);
@@ -194,7 +195,7 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async setup(_options: SetupOptions): Promise<number> {
-    logger.info(`   - Verifying connection...`);
+    logger.info('📡 Establishing mission uplink...');
     // ensure strategy has current IP if needed
     await this.conn.onProvisioned();
 
@@ -202,13 +203,17 @@ export class GceCosProvider implements OrbitProvider {
     if (res.status !== 0) {
       const status = await this.getStatus();
       if (status.internalIp) {
-          logger.info(`   ⚠️ Direct connection failed. Falling back to internal IP: ${status.internalIp}`);
+          logger.info(`   ⚠️  Direct connection failed. Falling back to internal IP: ${status.internalIp}`);
           this.conn.setOverrideHost(status.internalIp);
           res = this.conn.run('echo 1');
       }
     }
-    if (res.status !== 0) return 1;
-    logger.info('   ✅ Connection verified.');
+    
+    if (res.status !== 0) {
+        logger.error('❌ Failed to establish mission uplink. Check your corporate network/VPN or SSH permissions.');
+        return 1;
+    }
+    logger.info('   ✅ Mission uplink verified.');
     return 0;
   }
 
@@ -216,7 +221,9 @@ export class GceCosProvider implements OrbitProvider {
     let finalCmd = command;
     if (options.wrapCapsule) {
       const envFlags = options.env ? Object.entries(options.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
-      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
+      // We source secrets.env if it exists (placed there by runCapsule)
+      const wrappedCmd = `[ -f /home/node/.orbit/secrets.env ] && . /home/node/.orbit/secrets.env; ${command}`;
+      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${options.wrapCapsule} sh -c ${this.quote(wrappedCmd)}`;
     }
     return this.conn.getRunCommand(finalCmd, { interactive: options.interactive });
   }
@@ -229,7 +236,9 @@ export class GceCosProvider implements OrbitProvider {
   async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
     let finalCmd = command;
     if (options.wrapCapsule) {
-      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
+      const envFlags = options.env ? Object.entries(options.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+      const wrappedCmd = `[ -f /home/node/.orbit/secrets.env ] && . /home/node/.orbit/secrets.env; ${command}`;
+      finalCmd = `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${options.wrapCapsule} sh -c ${this.quote(wrappedCmd)}`;
     }
     return this.conn.run(finalCmd, { interactive: options.interactive, stdio: options.interactive ? 'inherit' : 'pipe', quiet: options.quiet });
   }
@@ -269,12 +278,24 @@ export class GceCosProvider implements OrbitProvider {
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`).join(' ');
     const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+    
+    let sensitiveFlags = '';
+    let sensitiveMount = '';
+    if (config.sensitiveEnv && Object.keys(config.sensitiveEnv).length > 0) {
+        const envContent = Object.entries(config.sensitiveEnv).map(([k, v]) => `${k}=${v}`).join('\n');
+        const envFilePath = `/dev/shm/.gcli-env-${config.name}`;
+        await this.exec(`echo ${this.quote(envContent)} > ${envFilePath} && chmod 600 ${envFilePath}`);
+        sensitiveFlags = `--env-file ${envFilePath}`;
+        sensitiveMount = `-v ${envFilePath}:/home/node/.orbit/secrets.env:ro`;
+    }
+
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
-    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${config.image} ${config.command || ''}`;
+    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${sensitiveMount} ${envFlags} ${sensitiveFlags} ${config.image} ${config.command || ''}`;
     return this.exec(dockerCmd);
   }
 
   async removeCapsule(name: string): Promise<number> {
+    await this.exec(`rm -f /dev/shm/.gcli-env-${name} || true`);
     return this.exec(`sudo docker rm -f ${name} || true`);
   }
 

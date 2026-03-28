@@ -48,9 +48,10 @@ export class LocalDockerProvider implements OrbitProvider {
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
     const envFlags = options.env ? Object.entries(options.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+    const sensitiveFlags = options.sensitiveEnv ? Object.entries(options.sensitiveEnv).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
     
     if (options.wrapCapsule) {
-      finalCmd = `docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
+      finalCmd = `docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${sensitiveFlags} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
     }
     return finalCmd;
   }
@@ -61,11 +62,13 @@ export class LocalDockerProvider implements OrbitProvider {
   }
 
   async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
-    const finalCmd = this.getRunCommand(command, options);
+    const args = options.wrapCapsule ? 
+        ['docker', 'exec', ...(options.interactive ? ['-it'] : []), ...(options.cwd ? ['-w', options.cwd] : []), ...(options.env ? Object.entries(options.env).flatMap(([k, v]) => ['-e', `${k}=${v}`]) : []), ...(options.sensitiveEnv ? Object.entries(options.sensitiveEnv).flatMap(([k, v]) => ['-e', `${k}=${v}`]) : []), options.wrapCapsule, 'sh', '-c', command] :
+        ['sh', '-c', command];
 
-    const res = spawnSync(finalCmd, { 
+    const res = spawnSync(args[0], args.slice(1), { 
         stdio: options.quiet ? 'pipe' : 'inherit', 
-        shell: true,
+        shell: false,
         env: { ...process.env, GEMINI_AUTO_UPDATE: '0' }
     });
 
@@ -106,9 +109,10 @@ export class LocalDockerProvider implements OrbitProvider {
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`).join(' ');
     const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+    const sensitiveFlags = config.sensitiveEnv ? Object.entries(config.sensitiveEnv).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
     
-    const dockerCmd = `docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${config.image} ${config.command || ''}`;
+    const dockerCmd = `docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${sensitiveFlags} ${config.image} ${config.command || ''}`;
     
     const res = spawnSync(dockerCmd, { shell: true, stdio: 'inherit' });
     return res.status ?? 0;

@@ -20,6 +20,13 @@ import {
 const REPO_ROOT = process.cwd();
 
 /**
+ * Sanitizes a name (profile, station, repo) to prevent path traversal.
+ */
+export function sanitizeName(name: string): string {
+    return name.replace(/[^a-zA-Z0-9\-_]/g, '');
+}
+
+/**
  * Detects the current repository name using gh cli.
  */
 export function detectRepoName(): string {
