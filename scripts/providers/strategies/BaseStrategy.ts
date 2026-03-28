@@ -7,6 +7,7 @@
 import os from 'os';
 import type { ConnectivityStrategy } from './ConnectivityStrategy.js';
 import { spawnSync } from 'node:child_process';
+import { logger } from '../../Logger.js';
 
 export abstract class BaseStrategy implements ConnectivityStrategy {
   protected overrideHost: string | null = null;
@@ -49,7 +50,10 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
 
   // Default: Ensure broad corporate SSH rule exists
   setupNetworkInfrastructure(vpcName: string): void {
+    const region = this.zone.split('-').slice(0, 2).join('-');
+    logger.info(`   - Ensuring firewall rule 'allow-corporate-ssh' on ${vpcName}...`);
     const fwCheck = spawnSync('gcloud', ['compute', 'firewall-rules', 'describe', 'allow-corporate-ssh', '--project', this.projectId], { stdio: 'pipe' });
+    logger.logOutput(fwCheck.stdout, fwCheck.stderr);
     if (fwCheck.status !== 0) {
         spawnSync('gcloud', [
             'compute', 'firewall-rules', 'create', 'allow-corporate-ssh',
@@ -57,6 +61,34 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
             '--network', vpcName,
             '--allow=tcp:22',
             '--source-ranges=0.0.0.0/0'
+        ], { stdio: 'inherit' });
+    }
+
+    logger.info(`   - Ensuring Cloud NAT for internet access in ${region}...`);
+    const routerName = `${vpcName}-router`;
+    const natName = `${vpcName}-nat`;
+
+    const routerCheck = spawnSync('gcloud', ['compute', 'routers', 'describe', routerName, '--project', this.projectId, '--region', region], { stdio: 'pipe' });
+    logger.logOutput(routerCheck.stdout, routerCheck.stderr);
+    if (routerCheck.status !== 0) {
+        spawnSync('gcloud', [
+            'compute', 'routers', 'create', routerName,
+            '--project', this.projectId,
+            '--network', vpcName,
+            '--region', region
+        ], { stdio: 'inherit' });
+    }
+
+    const natCheck = spawnSync('gcloud', ['compute', 'routers', 'nats', 'describe', natName, '--router', routerName, '--project', this.projectId, '--region', region], { stdio: 'pipe' });
+    logger.logOutput(natCheck.stdout, natCheck.stderr);
+    if (natCheck.status !== 0) {
+        spawnSync('gcloud', [
+            'compute', 'routers', 'nats', 'create', natName,
+            '--project', this.projectId,
+            '--router', routerName,
+            '--region', region,
+            '--auto-allocate-nat-external-ips',
+            '--nat-all-subnet-ip-ranges'
         ], { stdio: 'inherit' });
     }
   }

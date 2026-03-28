@@ -8,27 +8,32 @@ Run the command in your local repository to begin the initialization:
 /orbit:liftoff
 ```
 
-### 1. Station Provisioning
-Liftoff will guide you through the creation of your persistent GCE instance (or other custom host). It will:
-- **Configure Networking**: Establish your preferred connectivity (`direct-internal`, `secure-tunnel`, or `external`).
-- **Setup Storage**: Provision a high-performance PD-Balanced data disk (minimum 200GB recommended).
-- **Initialize Security**: Configure OS Login and prepare the host for secure SSH access.
+### 1. Orbit Design Selection
+Liftoff will ask you to select an **Orbit Design** (Infrastructure Template). If no designs exist, it will guide you through creating your `default` environment (Project, Zone, VPC).
 
-### 2. Digital Identity Synchronization
+### 2. Station Configuration
+Once the environment is selected, Liftoff configures your repo-specific **Station**:
+- **Station Name**: The unique identifier for your remote VM.
+- **Machine Type**: Choose the performance tier (e.g., `n2-standard-8`).
+- **Image**: Select the Orbit Docker image for your capsules.
+
+### 3. Identity & Repository Mirroring
 Your local credentials and configuration are mirrored to the station:
 - **Gemini Auth**: Syncs your `google_accounts` or API keys.
-- **GitHub Auth**: Securely uploads your Personal Access Token (PAT) for remote Git operations.
-- **Extensions**: Synchronizes and links your installed Gemini extensions.
+- **GitHub Auth**: Securely stores your repository PAT in global storage (`~/.gemini/orbit/tokens/`).
+- **Source Mirror**: Creates a "Source of Truth" mirror of your repo on the Host Station for fast capsule creation.
 
-### 3. Repository Mirroring
-Liftoff creates a "Source of Truth" mirror of your current repository on the Host Station. This mirror serves as the reference point for all future Mission Capsules, ensuring that branch checkouts and PR environments are created in seconds.
-
-## 🛠️ Reconfiguring a Mission
-If you need to change your infrastructure profile (e.g., switching from `sandbox` to `corp`), run:
+## 🛠️ Reconfiguring
+If you need to change your station settings (e.g., switching to a bigger machine), run:
 ```bash
 /orbit:liftoff --reconfigure
 ```
 
+To update the global infrastructure template itself, use the dedicated command:
+```bash
+/orbit:profile
+```
+
 ## ✨ Quick Tips
-- **Profiles**: You can save your infrastructure settings as **Profiles** to reuse them across multiple repositories.
-- **Interactive Prompts**: Liftoff will detect existing settings and ask to reuse them by default. Use the `--yes` flag for a non-interactive setup.
+- **Designs**: Reusable infrastructure templates that can be shared across multiple repositories.
+- **Surgical Mode**: Provide any flag (e.g., `--gce-machine-type=n2-highmem-16`) to skip interactive prompts and apply the change immediately.

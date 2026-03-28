@@ -6,6 +6,7 @@
 
 import { BaseStrategy } from './BaseStrategy.js';
 import { spawnSync } from 'node:child_process';
+import { logger } from '../../Logger.js';
 
 export class IapStrategy extends BaseStrategy {
   getBackendType(): string {
@@ -34,8 +35,9 @@ export class IapStrategy extends BaseStrategy {
   setupNetworkInfrastructure(vpcName: string): void {
     // IAP requires the scoped rule
     const iapFwCheck = spawnSync('gcloud', ['compute', 'firewall-rules', 'describe', 'allow-ssh-iap', '--project', this.projectId], { stdio: 'pipe' });
+    logger.logOutput(iapFwCheck.stdout, iapFwCheck.stderr);
     if (iapFwCheck.status !== 0) {
-      console.log('🏗️  Adding IAP Firewall Rule (allow-ssh-iap)...');
+      logger.info('🏗️  Adding IAP Firewall Rule (allow-ssh-iap)...');
       spawnSync('gcloud', [
         'compute', 'firewall-rules', 'create', 'allow-ssh-iap',
         '--project', this.projectId,

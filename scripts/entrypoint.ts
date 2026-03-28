@@ -6,10 +6,9 @@
 import { spawnSync } from 'node:child_process';
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { logger } from './Logger.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-
-
 
 const prNumber = process.argv[2];
 const branchName = process.argv[3];
@@ -17,8 +16,13 @@ const policyPath = process.argv[4];
 const ISOLATED_CONFIG = '/home/node';
 
 async function main() {
+  const isVerbose = process.argv.includes('--verbose');
+  if (isVerbose) {
+    logger.setVerbose(true);
+  }
+
   if (!prNumber || !branchName || !policyPath) {
-    console.error('Usage: tsx entrypoint.ts <PR_NUMBER> <BRANCH_NAME> <POLICY_PATH>');
+    logger.error('Usage: tsx entrypoint.ts <PR_NUMBER> <BRANCH_NAME> <POLICY_PATH> [--verbose]');
     process.exit(1);
   }
 
@@ -33,24 +37,26 @@ async function main() {
   const customPrompt = process.argv[6];
 
   // 1. Run the Orbit Doctor (Health Check)
-  console.log('🩺 Running Orbit Doctor...');
+  logger.info('🩺 Running Orbit Doctor...');
   const healthCheckRes = spawnSync('df', ['-h', targetDir], { stdio: 'pipe' });
+  logger.logOutput(healthCheckRes.stdout, healthCheckRes.stderr);
   if (healthCheckRes.status === 0) {
-      console.log(`   ✅ Disk usage verified for ${targetDir}`);
+      logger.info(`   ✅ Disk usage verified for ${targetDir}`);
   }
 
   const gitCheckRes = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', cwd: targetDir });
+  logger.logOutput(gitCheckRes.stdout, gitCheckRes.stderr);
   if (gitCheckRes.status !== 0) {
-      console.error('   ❌ Critical: Not a valid git worktree. Attempting self-repair...');
+      logger.error('   ❌ Critical: Not a valid git worktree. Attempting self-repair...');
       // Self-repair logic can be added here if needed
   } else {
-      console.log('   ✅ Git worktree health verified.');
+      logger.info('   ✅ Git worktree health verified.');
   }
 
   // 2. Run the Parallel Reviewer
-  console.log('\n🚀 Launching Parallel Review Worker...');
-  console.log(`   - Script: ${path.join(__dirname, 'worker.ts')}`);
-  console.log(`   - Action: ${action}`);
+  logger.info('\n🚀 Launching Parallel Review Worker...');
+  logger.info(`   - Script: ${path.join(__dirname, 'worker.ts')}`);
+  logger.info(`   - Action: ${action}`);
 
   const workerResult = spawnSync(tsxBin, [path.join(__dirname, 'worker.ts'), prNumber, branchName, policyPath, action], {
     stdio: 'inherit',
@@ -58,12 +64,12 @@ async function main() {
   });
 
   if (workerResult.status !== 0) {
-    console.error(`❌ Worker failed with exit code ${workerResult.status}.`);
-    if (workerResult.error) console.error('   Error:', workerResult.error.message);
+    logger.error(`❌ Worker failed with exit code ${workerResult.status}.`);
+    if (workerResult.error) logger.error('   Error:', workerResult.error.message);
   }
 
   // 2. Launch the Interactive Gemini Session (Local Nightly)
-  console.log('\n✨ Orbit ready. Joining interactive session...');
+  logger.info('\n✨ Orbit ready. Joining interactive session...');
   
   const geminiArgs = ['--policy', policyPath];
   let initialPrompt = '';
@@ -88,4 +94,6 @@ async function main() {
   });
 }
 
-main().catch(console.error);
+main().catch(err => {
+  logger.error(err instanceof Error ? err.message : String(err));
+});

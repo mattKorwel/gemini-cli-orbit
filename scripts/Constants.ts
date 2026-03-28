@@ -27,10 +27,12 @@ export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
 export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_ORBIT_DIR, 'settings.json');
 export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
+export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 
 export const PROJECT_ORBIT_DIR = path.join(REPO_ROOT, '.gemini/orbit');
 export const PROJECT_CONFIG_PATH = path.join(PROJECT_ORBIT_DIR, 'config.json');
 export const LOCAL_SETTINGS_PATH = path.join(PROJECT_ORBIT_DIR, 'settings.json');
+export const ORBIT_LOG_PATH = path.join(PROJECT_ORBIT_DIR, 'orbit.log');
 
 /**
  * Repository Metadata
@@ -71,6 +73,8 @@ export interface OrbitConfig {
   profile?: string | undefined; // Link to a named profile in PROFILES_DIR
   worktreesDir?: string | undefined; // Local worktrees base path
   useTmux?: boolean | undefined; // Whether to wrap execution in tmux
+  autoSetupNet?: boolean | undefined; // Whether to auto-configure networking
+  machineType?: string | undefined; // GCE Machine type (e.g. n2-standard-8)
 }
 
 /**

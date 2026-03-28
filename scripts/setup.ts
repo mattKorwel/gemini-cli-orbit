@@ -9,11 +9,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 import readline from 'node:readline';
+import { logger } from './Logger.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { 
   loadGlobalSettings, 
   getRepoConfig, 
-  detectRepoName 
+  detectRepoName,
+  loadProjectConfig
 } from './ConfigManager.js';
 import { fileURLToPath } from 'node:url';
 import { 
@@ -28,6 +30,7 @@ import {
   GLOBAL_SETTINGS_PATH,
   PROJECT_ORBIT_DIR,
   GLOBAL_ORBIT_DIR,
+  GLOBAL_TOKENS_DIR,
   UPSTREAM_ORG,
   DEFAULT_REPO_NAME,
   DEFAULT_IMAGE_URI,
@@ -40,21 +43,16 @@ const EXTENSION_ROOT = path.resolve(__dirname, '..');
 const REPO_ROOT = process.cwd();
 
 /**
- * Loads and parses a local .env file from the repository root and the home directory.
+ * Loads and parses a local .env file.
  */
 function loadDotEnv() {
-  const envPaths = [
-    path.join(REPO_ROOT, '.env'),
-    path.join(os.homedir(), '.env')
-  ];
-
+  const envPaths = [path.join(REPO_ROOT, '.env'), path.join(os.homedir(), '.env')];
   envPaths.forEach(envPath => {
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf8');
       content.split('\n').forEach(line => {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) return;
-        
         const match = trimmed.match(/^([^=]+)=(.*)$/);
         if (match) {
           const key = match[1]!.trim();
@@ -66,27 +64,27 @@ function loadDotEnv() {
   });
 }
 
-async function prompt(question: string, defaultValue: string, explanation?: string, sensitive: boolean = false): Promise<string> {
+/**
+ * Modern Clarity Prompt: Handles flags, auto-accept, and interactive input.
+ */
+async function prompt(question: string, defaultValue: string, interactive: boolean = true, explanation?: string, sensitive: boolean = false): Promise<string> {
   const args = process.argv.slice(2);
-  const autoAccept = args.includes('--yes') || args.includes('-y');
-  
-  // Check for specific flag overrides (e.g. --project=foo)
   const flagName = question.toLowerCase().replace(/\s+/g, '-');
   const flagOverride = args.find(a => a.startsWith(`--${flagName}=`))?.split('=')[1];
   
-  if (flagOverride !== undefined) return flagOverride;
-  if (autoAccept) return defaultValue;
-
-  if (explanation) {
-      console.log(`\n📖 ${explanation}`);
+  if (flagOverride !== undefined) {
+      logger.debug('PROMPT', `Using flag override for ${question}: ${sensitive ? '****' : flagOverride}`);
+      return flagOverride;
   }
+
+  const autoAccept = args.includes('--yes') || args.includes('-y');
+  if (!interactive || autoAccept) return defaultValue;
+
+  if (explanation) logger.info('SETUP', `\n📖 ${explanation}`);
 
   const displayDefault = sensitive && defaultValue ? `${defaultValue.substring(0, 4)}...${defaultValue.substring(defaultValue.length - 4)}` : defaultValue;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  
-  const promptMsg = defaultValue 
-    ? `❓ ${question} [Detected: ${displayDefault}] (Press <Enter> to keep, or type new value): `
-    : `❓ ${question} (<Enter> for none): `;
+  const promptMsg = defaultValue ? `❓ ${question} [${displayDefault}]: ` : `❓ ${question}: `;
 
   return new Promise((resolve) => {
     rl.question(promptMsg, (answer) => {
@@ -96,8 +94,12 @@ async function prompt(question: string, defaultValue: string, explanation?: stri
   });
 }
 
-async function confirm(question: string, defaultValue: boolean = true): Promise<boolean> {
-  const autoAccept = process.argv.includes('--yes') || process.argv.includes('-y');
+/**
+ * Modern Clarity Confirm: Handles auto-accept via flags or non-interactive mode.
+ */
+async function confirm(question: string, defaultValue: boolean = true, interactive: boolean = true): Promise<boolean> {
+  const args = process.argv.slice(2);
+  const autoAccept = args.includes('--yes') || args.includes('-y') || !interactive;
   if (autoAccept) return defaultValue;
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -105,18 +107,15 @@ async function confirm(question: string, defaultValue: boolean = true): Promise<
     const promptMsg = `❓ ${question} (${defaultValue ? 'Y/n' : 'y/N'}): `;
     rl.question(promptMsg, (answer) => {
       rl.close();
-      if (!answer.trim()) {
-        resolve(defaultValue);
-      } else {
-        resolve(answer.trim().toLowerCase() === 'y');
-      }
+      resolve(!answer.trim() ? defaultValue : answer.trim().toLowerCase() === 'y');
     });
   });
 }
 
 async function createFork(upstream: string): Promise<string> {
-    console.log(`   - Creating fork for ${upstream}...`);
+    logger.info('SETUP', `   - Creating fork for ${upstream}...`);
     const forkRes = spawnSync('gh', ['repo', 'fork', upstream, '--clone=false'], { stdio: 'inherit' });
+    logger.logOutput(forkRes.stdout, forkRes.stderr);
     if (forkRes.status === 0) {
         const userRes = spawnSync('gh', ['api', 'user', '-q', '.login'], { stdio: 'pipe' });
         const user = userRes.stdout.toString().trim();
@@ -125,366 +124,270 @@ async function createFork(upstream: string): Promise<string> {
     return upstream;
 }
 
+/**
+ * MODE: Design Management
+ * Manages global infrastructure templates (formerly Profiles).
+ */
+async function runDesignMode(name?: string): Promise<OrbitConfig> {
+    logger.divider('ORBIT DESIGN CONFIGURATION');
+    const designName = name || await prompt('Design Name', 'default');
+    const designPath = path.join(PROFILES_DIR, `${designName.toLowerCase()}.json`);
+    
+    let existing: Partial<OrbitConfig> = {};
+    if (fs.existsSync(designPath)) {
+        logger.info('SETUP', `Editing existing design: ${designName}`);
+        existing = JSON.parse(fs.readFileSync(designPath, 'utf8'));
+    } else {
+        logger.info('SETUP', `Creating new design: ${designName}`);
+    }
+
+    const projectId = await prompt('GCP Project ID', existing.projectId || '', true, 'The GCP Project for this infrastructure.');
+    const zone = await prompt('GCP Zone', existing.zone || 'us-west1-a', true);
+    const machineType = await prompt('GCE Machine Type', existing.machineType || 'n2-standard-8', true, 'e.g. n2-standard-8, n2-highmem-16');
+    const backendType = await prompt('Connectivity Backend', existing.backendType || 'direct-internal', true, 'direct-internal, external, or iap');
+    const vpcName = await prompt('VPC Name', existing.vpcName || 'default', true);
+    const subnetName = await prompt('Subnet Name', existing.subnetName || 'default', true);
+    const dnsSuffix = await prompt('Regional DNS Suffix', existing.dnsSuffix || '', true);
+    const userSuffix = await prompt('OS Login User Suffix', existing.userSuffix || '', true);
+
+    const design: OrbitConfig = { projectId, zone, machineType, backendType: backendType as any, vpcName, subnetName, dnsSuffix, userSuffix };
+    
+    if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
+    fs.writeFileSync(designPath, JSON.stringify(design, null, 2));
+    logger.info('SETUP', `✅ Design '${designName}' saved to global storage.`);
+    
+    return design;
+}
+
+/**
+ * MAIN ENTRY POINT: runSetup
+ */
 export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   loadDotEnv();
   const args = process.argv.slice(2);
+  const verbose = args.includes('--verbose');
+  logger.setVerbose(verbose);
+  
   const reconfigure = args.includes('--reconfigure');
-  const skipConfigArg = args.includes('--yes') || args.includes('-y');
-  const profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
-
-  console.log(`
-================================================================================
-🚀 GEMINI ORBIT: HIGH-PERFORMANCE REMOTE MISSIONS
-================================================================================
-Orbit allows you to delegate heavy tasks (PR reviews, automated corrections,
-and full builds) to a dedicated, high-performance host station.
-================================================================================
-  `);
-
-  console.log('📝 PHASE 1: MISSION CONFIGURATION');
-  console.log('--------------------------------------------------------------------------------');
-
-  // 0. Load Hierarchy
-  const globalSettings = loadGlobalSettings();
+  const designMode = args.includes('--profile-mode');
   const repoName = detectRepoName();
-  
-  // Resolve current effective config
+  const globalSettings = loadGlobalSettings();
+
+  if (designMode) {
+      const name = args.find(a => a.startsWith('--profile='))?.split('=')[1];
+      await runDesignMode(name);
+      return 0;
+  }
+
+  logger.info('SETUP', '\n[ ORBIT MISSION LIFTOFF ]\n');
+
+  // 1. Initial State & Profile Resolution
   let config = getRepoConfig(repoName);
+  const profileUrl = args.find(a => a.startsWith('--profile='))?.split('=')[1];
+  let selectedDesign = profileUrl || config.profile || globalSettings.activeProfile;
 
-  // Profile Selection / Creation
+  // Happy Path: No orbit designs found -> Cohesive Setup
   if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
-  const localProfiles = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
-  
-  let selectedProfile = config.profile || globalSettings.activeProfile;
+  const localDesigns = fs.readdirSync(PROFILES_DIR).filter(f => f.endsWith('.json'));
 
-  if (!selectedProfile && localProfiles.length === 0 && !skipConfigArg) {
-      console.log('✨ No profiles found. Creating "default" profile for your infrastructure...');
-      selectedProfile = 'default';
-      const defaultProfilePath = path.join(PROFILES_DIR, 'default.json');
-      fs.writeFileSync(defaultProfilePath, JSON.stringify({}, null, 2));
+  if (localDesigns.length === 0) {
+      logger.info('SETUP', 'No orbit designs found. Starting cohesive infrastructure setup...');
+      const newDesign = await runDesignMode('default');
+      selectedDesign = 'default';
+      config = { ...config, ...newDesign, profile: 'default' };
+  } else if (profileUrl && profileUrl !== config.profile) {
+      logger.info('SETUP', `🔄 Switching to design: ${profileUrl}`);
+      const designPath = path.join(PROFILES_DIR, `${profileUrl.toLowerCase()}.json`);
+      if (fs.existsSync(designPath)) {
+          const designData = JSON.parse(fs.readFileSync(designPath, 'utf8'));
+          config = { ...config, ...designData, profile: profileUrl };
+      }
   }
 
-  if (!profileUrl && !skipConfigArg && localProfiles.length > 0) {
-      console.log(`📋 Found ${localProfiles.length} global orbit profiles:`);
-      localProfiles.forEach((p, i) => {
-          const name = p.replace('.json', '');
-          const indicator = name === selectedProfile ? ' (Active)' : '';
-          console.log(`   ${i + 1}. ${name}${indicator}`);
-      });
-      console.log(`   0. Use Current / Create New`);
+  // --- CONFIGURATION PHASE DECISION ---
+  const hasFlags = args.some(a => a.startsWith('--') && !['--reconfigure', '--yes', '-y', '--verbose', '--auto-setup-network', '--profile-mode'].includes(a));
+  const isFreshRepo = !config.projectId;
+  const shouldRunPrompts = isFreshRepo || reconfigure;
+
+  if (shouldRunPrompts) {
+      logger.divider('STATION CONFIGURATION');
       
-      const choice = await prompt('Select a profile number or 0', '0');
-      if (choice !== '0') {
-          selectedProfile = localProfiles[parseInt(choice) - 1]?.replace('.json', '');
+      // Design Selection
+      if (localDesigns.length > 1 && !profileUrl) {
+          logger.info('SETUP', 'Available Orbit Designs:');
+          localDesigns.forEach((p, i) => logger.info('SETUP', `   ${i+1}. ${p.replace('.json', '')}${p.replace('.json', '') === selectedDesign ? ' (Active)' : ''}`));
+          const choice = await prompt('Select design number', '1');
+          selectedDesign = localDesigns[parseInt(choice) - 1]?.replace('.json', '') || selectedDesign;
+          const designData = JSON.parse(fs.readFileSync(path.join(PROFILES_DIR, `${selectedDesign}.json`), 'utf8'));
+          config = { ...config, ...designData, profile: selectedDesign };
       }
+
+      config.instanceName = await prompt('GCE Station Name', config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`, true);
+      config.machineType = await prompt('GCE Machine Type', config.machineType || 'n2-standard-8', true);
+      config.terminalTarget = await prompt('Terminal Target', config.terminalTarget || 'tab', true) as any;
+      config.imageUri = await prompt('Orbit Docker Image', config.imageUri || DEFAULT_IMAGE_URI, true);
+      config.autoSetupNet = await confirm('Auto-configure Networking (VPC/NAT)?', config.autoSetupNet ?? false, true);
+  } else {
+      // Surgical or Fast-Path: Silently apply flags if present
+      config.instanceName = await prompt('GCE Station Name', config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`, false);
+      config.machineType = await prompt('GCE Machine Type', config.machineType || 'n2-standard-8', false);
+      config.terminalTarget = await prompt('Terminal Target', config.terminalTarget || 'tab', false) as any;
+      config.imageUri = await prompt('Orbit Docker Image', config.imageUri || DEFAULT_IMAGE_URI, false);
+      config.autoSetupNet = args.includes('--auto-setup-network') || config.autoSetupNet || false;
+      
+      const mode = hasFlags ? 'Surgical Update' : 'Fast-Path';
+      logger.info('SETUP', `✨ ${mode} using design '${selectedDesign || 'default'}'`);
   }
 
-  // Load selected profile data
-  let profileData: Partial<OrbitConfig> = {};
-  if (selectedProfile) {
-      const profilePath = path.join(PROFILES_DIR, selectedProfile.endsWith('.json') ? selectedProfile : `${selectedProfile}.json`);
-      if (fs.existsSync(profilePath)) {
-          profileData = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
-      }
-  }
-
-  // Reload config with the potentially new profile
-  config = { ...config, ...profileData, profile: selectedProfile };
-
-  console.log('\n🔍 Detecting repository origins...');
-  let upstreamRepo = config.upstreamRepo || `${UPSTREAM_ORG}/${DEFAULT_REPO_NAME}`;
+  // 2. Repository & Security
+  logger.divider('REPOSITORY & SECURITY');
   
+  // Repo Discovery
   const repoInfoRes = spawnSync('gh', ['repo', 'view', '--json', 'name,nameWithOwner,parent,isFork'], { stdio: 'pipe' });
+  let upstreamRepo = config.upstreamRepo || `${UPSTREAM_ORG}/${DEFAULT_REPO_NAME}`;
   if (repoInfoRes.status === 0) {
-      try {
-          const _repoInfo = JSON.parse(repoInfoRes.stdout.toString());
-          upstreamRepo = _repoInfo.isFork && _repoInfo.parent ? _repoInfo.parent.nameWithOwner : _repoInfo.nameWithOwner;
-      } catch (_e) {}
+      const _repoInfo = JSON.parse(repoInfoRes.stdout.toString());
+      upstreamRepo = _repoInfo.isFork && _repoInfo.parent ? _repoInfo.parent.nameWithOwner : _repoInfo.nameWithOwner;
+      if (!config.userFork) config.userFork = _repoInfo.nameWithOwner;
   }
 
-  let skipConfig = false;
-  if (config.projectId && !reconfigure) {
-      console.log(`   ✅ Existing configuration found for repo: ${repoName}`);
-      skipConfig = skipConfigArg || await confirm('Use existing configuration and skip to execution?');
+  if (shouldRunPrompts) {
+      const userRes = spawnSync('gh', ['api', 'user', '-q', '.login'], { stdio: 'pipe' });
+      const currentUser = userRes.stdout.toString().trim();
+      if (config.userFork?.startsWith(`${currentUser}/`)) {
+          logger.info('SETUP', `✅ Repository owned by you: ${config.userFork}`);
+      } else {
+          config.userFork = await confirm(`Create personal fork for missions?`, true, shouldRunPrompts) ? await createFork(upstreamRepo) : upstreamRepo;
+      }
   }
+  config.upstreamRepo = upstreamRepo;
 
-  // 1. Project Identity & Networking
-  let projectId = config.projectId || '';
-  let zone = config.zone || 'us-west1-a';
-  let instanceName = config.instanceName || `gcli-station-${env.USER || 'gcli-user'}`;
-  let terminalTarget = config.terminalTarget || 'tab';
-  let userFork = config.userFork || upstreamRepo;
-  let dnsSuffix = config.dnsSuffix || '';
-  let userSuffix = config.userSuffix || '';
-  let backendType = config.backendType || 'direct-internal';
-  let imageUri = config.imageUri || DEFAULT_IMAGE_URI;
-  let vpcName = config.vpcName || 'default';
-  let subnetName = config.subnetName || 'default';
-  let autoSetupNet = false;
+  // PAT Management
+  if (!fs.existsSync(GLOBAL_TOKENS_DIR)) fs.mkdirSync(GLOBAL_TOKENS_DIR, { recursive: true });
+  const tokenPath = path.join(GLOBAL_TOKENS_DIR, `${repoName}.token`);
+  let githubToken = fs.existsSync(tokenPath) ? fs.readFileSync(tokenPath, 'utf8').trim() : '';
 
-  if (!skipConfig) {
-      projectId = await prompt('GCP Project ID', projectId, 
-        'The GCP Project where your orbit station will live. Your personal project is recommended.');
+  if (!githubToken || reconfigure) {
+      logger.info('SETUP', '🔑 GitHub Authentication (Management Container)');
+      let suggestedToken = githubToken || env.WORKSPACE_GH_TOKEN || '';
+      let source = githubToken ? 'existing' : (env.WORKSPACE_GH_TOKEN ? 'environment' : '');
       
-      if (!projectId) {
-          console.error('❌ Project ID is required.');
-          return 1;
-      }
-
-      zone = await prompt('GCP Zone', zone, 
-        'The GCE zone where your station will be provisioned.');
-
-      instanceName = await prompt('GCE Station Name', instanceName,
-        'The name of the GCE VM that will act as your mission station.');
-
-      terminalTarget = await prompt('Terminal Target (foreground, background, tab, window)', terminalTarget,
-        'Default display mode for new orbit missions.') as any;
-
-      console.log('\n🌐 Networking Configuration:');
-      backendType = await prompt('Connectivity Backend (direct-internal, external, iap)', backendType,
-        'direct-internal: VPC-internal DNS\nexternal: Public IP\niap: GCP IAP tunnel') as any;
-
-      dnsSuffix = await prompt('Regional DNS Suffix', dnsSuffix,
-        'Optional suffix for internal DNS (e.g. .gcpnode.com).');
-
-      userSuffix = await prompt('OS Login User Suffix', userSuffix,
-        'Optional suffix for usernames (e.g. _google_com).');
-
-      imageUri = await prompt('Orbit Docker Image', imageUri,
-        'The Docker image used for the station supervisor and satellite capsules.');
-
-      autoSetupNet = await confirm('Auto-configure VPC/Subnet?', false);
-
-      if (!autoSetupNet) {
-          vpcName = await prompt('VPC Name', vpcName, 'The existing VPC to use.');
-          subnetName = await prompt('Subnet Name', subnetName, 'The existing Subnet to use.');
-      }
-
-      // 2. Repository Discovery (Dynamic)
-      if (repoInfoRes.status === 0) {
-          try {
-              const _repoInfo = JSON.parse(repoInfoRes.stdout.toString());
-              console.log(`   - Searching for your forks of ${upstreamRepo}...`);
-              
-              const gqlQuery = `query { viewer { repositories(first: 100, isFork: true, affiliations: OWNER) { nodes { nameWithOwner parent { nameWithOwner } } } } }`;
-              const forksRes = spawnSync('gh', ['api', 'graphql', '-f', `query=${gqlQuery}`, '--jq', `.data.viewer.repositories.nodes[] | select(.parent.nameWithOwner == "${upstreamRepo}") | .nameWithOwner`], { stdio: 'pipe' });
-              const myForks = forksRes.stdout.toString().trim().split('\n').filter(Boolean);
-
-              if (myForks.length > 0) {
-                  console.log('\n🍴 Found existing forks:');
-                  myForks.forEach((name: string, i: number) => console.log(`   [${i + 1}] ${name}`));
-                  console.log(`   [c] Create a new fork`);
-                  console.log(`   [u] Use upstream directly (not recommended)`);
-
-                  const choice = await prompt('Select an option', '1');
-                  if (choice.toLowerCase() === 'c') {
-                      userFork = await createFork(upstreamRepo);
-                  } else if (choice.toLowerCase() === 'u') {
-                      userFork = upstreamRepo;
-                  } else {
-                      const idx = parseInt(choice) - 1;
-                      userFork = (myForks[idx] || myForks[0])!;
-                  }
-              } else {
-                  const shouldFork = await confirm('No fork detected. Create a personal fork for sandboxed implementations?');
-                  userFork = shouldFork ? await createFork(upstreamRepo) : upstreamRepo;
-              }
-          } catch (_e) {
-              userFork = upstreamRepo;
+      if (!suggestedToken) {
+          const others = fs.readdirSync(GLOBAL_TOKENS_DIR).filter(f => f.endsWith('.token'));
+          if (others[0]) {
+              suggestedToken = fs.readFileSync(path.join(GLOBAL_TOKENS_DIR, others[0]), 'utf8').trim();
+              source = `another repo (${others[0].replace('.token', '')})`;
           }
       }
-      
-      console.log(`   ✅ Upstream:    ${upstreamRepo}`);
-      console.log(`   ✅ Orbit:   ${userFork}`);
-  }
 
-  // 3. Security & Auth
-  const localGhTokenPath = path.join(PROJECT_ORBIT_DIR, 'gh_token');
-  let githubToken = env.WORKSPACE_GH_TOKEN || '';
-  
-  if (!githubToken && fs.existsSync(localGhTokenPath)) {
-      githubToken = fs.readFileSync(localGhTokenPath, 'utf8').trim();
-  }
-
-  if (githubToken) {
-      if (!skipConfig) {
-          githubToken = await prompt('GitHub Token', githubToken, 'A GitHub PAT is required for remote repository access.', true);
+      if (suggestedToken && await confirm(`Use ${source} GitHub token for ${repoName}?`, true, shouldRunPrompts)) {
+          githubToken = suggestedToken;
+      } else {
+          githubToken = await prompt('GitHub Token', '', true, 'Provide a scoped PAT for the remote management container.', true);
       }
-  } else {
-      console.log('\n🔑 GitHub PAT is missing.');
-      githubToken = await prompt('Paste Scoped Token', '');
+      if (githubToken) fs.writeFileSync(tokenPath, githubToken, { mode: 0o600 });
   }
 
   if (!githubToken) {
-      console.error('❌ GitHub Token is required.');
+      logger.error('SETUP', '❌ GitHub Token is required.');
       return 1;
   }
 
-  if (!fs.existsSync(PROJECT_ORBIT_DIR)) fs.mkdirSync(PROJECT_ORBIT_DIR, { recursive: true });
-  fs.writeFileSync(localGhTokenPath, githubToken, { mode: 0o600 });
-
-  // 4. Gemini API Auth
-  const localSettingsPath = path.join(env.HOME || '', '.gemini/settings.json');
-  let authStrategy = 'google_accounts';
-  let geminiApiKey = env.WORKSPACE_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
-
-  if (fs.existsSync(localSettingsPath)) {
-      try {
-          const localSettings = JSON.parse(fs.readFileSync(localSettingsPath, 'utf8'));
-          authStrategy = localSettings.security?.auth?.selectedType || 'google_accounts';
-          if (!geminiApiKey && localSettings.security?.auth?.apiKey) {
-              geminiApiKey = localSettings.security.auth.apiKey;
-          }
-      } catch (_e) {}
-  }
-
-  if (authStrategy === 'gemini-api-key') {
-      if (!skipConfig) {
-          geminiApiKey = await prompt('Gemini API Key', geminiApiKey, 'Enter to use? Or paste a new one', true);
-      }
-  } else {
-      console.log(`🔐 Using current auth strategy: ${authStrategy}`);
-  }
-
-  // 5. Save Partitioned Configuration
-  if (!fs.existsSync(GLOBAL_ORBIT_DIR)) fs.mkdirSync(GLOBAL_ORBIT_DIR, { recursive: true });
-  
-  // Save INFRASTRUCTURE to Profile
-  if (selectedProfile) {
-      const profilePath = path.join(PROFILES_DIR, `${selectedProfile.toLowerCase()}.json`);
-      const profileToSave = {
-          projectId, zone, vpcName, subnetName, dnsSuffix, userSuffix, backendType
-      };
-      fs.writeFileSync(profilePath, JSON.stringify(profileToSave, null, 2));
-      console.log(`✅ Infrastructure saved to profile: ${selectedProfile}`);
-  }
-
-  // Save CUSTOMIZATION and LINK to Global Registry
-  const repoCustomization: OrbitConfig = { 
-    instanceName, terminalTarget: terminalTarget as any, 
-    userFork, upstreamRepo, imageUri, profile: selectedProfile
+  // 3. Persistence
+  const updatedGlobal = loadGlobalSettings();
+  updatedGlobal.repos[repoName] = { 
+      instanceName: config.instanceName, terminalTarget: config.terminalTarget, 
+      userFork: config.userFork, upstreamRepo: config.upstreamRepo, 
+      imageUri: config.imageUri, profile: selectedDesign,
+      machineType: config.machineType
   };
+  updatedGlobal.activeRepo = repoName;
+  if (selectedDesign) updatedGlobal.activeProfile = selectedDesign;
+  fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(updatedGlobal, null, 2));
 
-  const updatedGlobalSettings = loadGlobalSettings();
-  updatedGlobalSettings.repos[repoName] = repoCustomization;
-  updatedGlobalSettings.activeRepo = repoName;
-  if (selectedProfile) updatedGlobalSettings.activeProfile = selectedProfile;
-  
-  fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(updatedGlobalSettings, null, 2));
-  console.log(`✅ Repository link saved to global registry.`);
-
-  // 6. Transition to Execution
-  let repoConfig = getRepoConfig(repoName);
-  
-  // Merge locally collected variables to ensure they are available even if not persisted correctly yet
-  repoConfig = {
-    ...repoConfig,
-    projectId, zone, vpcName, subnetName, dnsSuffix, userSuffix, backendType,
-    instanceName, imageUri, userFork, upstreamRepo
-  };
-
-  const cleanProviderConfig: any = {
-      projectId: repoConfig.projectId!,
-      zone: repoConfig.zone!,
-      instanceName: repoConfig.instanceName!,
-  };
-  Object.keys(repoConfig).forEach(k => {
-      if ((repoConfig as any)[k] !== undefined) cleanProviderConfig[k] = (repoConfig as any)[k];
-  });
-  const provider = ProviderFactory.getProvider(cleanProviderConfig);
-
-  console.log('\n🏗️  PHASE 2: STATION LIFTOFF');
-  console.log('--------------------------------------------------------------------------------');
-  console.log(`   - Verifying access and finding station ${repoConfig.instanceName}...`);
+  // 4. Execution (Phase 2 & 3)
+  const provider = ProviderFactory.getProvider(config as any);
+  logger.divider('STATION LIFTOFF');
+  logger.info('SETUP', `Finding station ${config.instanceName}...`);
   let status = await provider.getStatus();
   
-  if (status.status === 'UNKNOWN' || status.status === 'ERROR') {
-    const shouldProvision = await confirm(`Station ${repoConfig.instanceName} not found. Provision it now?`);
-    if (!shouldProvision) return 1;
-    
-    const provisionRes = await provider.provision({ setupNetwork: autoSetupNet });
-    if (provisionRes !== 0) return 1;
-    status = await provider.getStatus();
+  if (config.autoSetupNet) {
+      logger.info('SETUP', 'Verifying Network Infrastructure...');
+      await (provider as any).provision({ setupNetwork: true, skipInstanceCreation: true });
+  }
+
+  if (status.status === 'NOT_FOUND' || status.status === 'UNKNOWN' || status.status === 'ERROR') {
+      const shouldProvision = shouldRunPrompts ? await confirm(`Station not found. Provision it now?`, true, shouldRunPrompts) : true;
+      if (shouldProvision) {
+          const res = await provider.provision({ setupNetwork: config.autoSetupNet || false });
+          if (res !== 0) return res;
+          status = await provider.getStatus();
+      } else return 1;
   }
 
   if (status.status !== 'RUNNING') {
-    console.log(`   - Waking up station ${repoConfig.instanceName}...`);
-    await provider.ensureReady();
+      logger.info('SETUP', `Waking up station...`);
+      await provider.ensureReady();
   }
 
-  console.log('\n🚀 PHASE 3: REMOTE INITIALIZATION');
-  console.log('--------------------------------------------------------------------------------');
+  logger.divider('REMOTE INITIALIZATION');
   await provider.ensureReady();
-
+  const rawUser = env.USER || 'node';
+  const fullUser = `${rawUser}${config.userSuffix || ''}`;
+  
   const setupRes = await provider.setup({ 
-      projectId: repoConfig.projectId!, 
-      zone: repoConfig.zone!, 
-      dnsSuffix: repoConfig.dnsSuffix!, 
-      userSuffix: repoConfig.userSuffix!, 
-      backendType: repoConfig.backendType as any
+      projectId: config.projectId!, zone: config.zone!, 
+      dnsSuffix: config.dnsSuffix!, userSuffix: config.userSuffix!, 
+      backendType: config.backendType as any
   });
   if (setupRes !== 0) return setupRes;
 
-  console.log(`\n📦 Synchronizing Mission Logic & Credentials...`);
-  await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${SATELLITE_WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
-  await provider.exec(`sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 777 ${ORBIT_ROOT}`);
+  // Remote setup logic (Clone, Sync, Link)
+  logger.info('REMOTE', 'Synchronizing Mission Logic...');
+  let res = await provider.exec(`sudo mkdir -p ${MAIN_REPO_PATH} ${SATELLITE_WORKTREES_PATH} ${POLICIES_PATH} ${SCRIPTS_PATH} ${CONFIG_DIR} ${EXTENSION_REMOTE_PATH}`);
+  if (res !== 0) return res;
+  res = await provider.exec(`sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 777 ${ORBIT_ROOT}`);
+  if (res !== 0) return res;
   
-  console.log('📦 Syncing extension source and skills...');
-  await provider.sync(EXTENSION_ROOT + '/', `${EXTENSION_REMOTE_PATH}/`, { 
-      delete: true, sudo: true, exclude: ['node_modules', '.git', '.gemini/orbit/profiles'] 
-  });
-  await provider.sync(path.join(EXTENSION_ROOT, '.gemini/policies/orbit-policy.toml'), `${POLICIES_PATH}/orbit-policy.toml`, { sudo: true });
-
-  console.log('🔗 Linking extension in remote capsule...');
-  await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy station-supervisor /usr/local/share/npm-global/bin/gemini extensions link ${EXTENSION_REMOTE_PATH}`);
-
-  console.log('⚙️  Initializing remote Gemini configuration...');
-  const remoteSettings = {
-    security: { auth: { selectedType: authStrategy }, folderTrust: { enabled: false } },
-    ui: { theme: 'Shades Of Purple', useAlternateBuffer: true, useBackgroundColor: true },
-    general: { enableAutoUpdate: false }
-  };
+  logger.info('REMOTE', 'Syncing extension source...');
+  res = await provider.sync(EXTENSION_ROOT + '/', `${EXTENSION_REMOTE_PATH}/`, { delete: true, exclude: ['node_modules', '.git', 'bundle', 'dist'] });
+  if (res !== 0) return res;
   
-  const tmpSettingsPath = path.join(os.tmpdir(), `remote-settings-${Date.now()}.json`);
-  fs.writeFileSync(tmpSettingsPath, JSON.stringify(remoteSettings, null, 2));
-  await provider.sync(tmpSettingsPath, `${CONFIG_DIR}/settings.json`, { sudo: true });
-  fs.unlinkSync(tmpSettingsPath);
-
-  if (authStrategy !== 'gemini-api-key' && (authStrategy === 'google_accounts' || authStrategy === 'oauth-personal')) {
-      const localCreds = path.join(os.homedir(), '.gemini/google_accounts.json');
-      if (fs.existsSync(localCreds)) {
-        await provider.sync(localCreds, `${CONFIG_DIR}/google_accounts.json`, { sudo: true });
-        console.log('   ✅ Synchronized Google Accounts credentials.');
-      }
+  const policyFile = path.join(EXTENSION_ROOT, '.gemini/policies/workspace-policy.toml');
+  if (fs.existsSync(policyFile)) {
+      res = await provider.sync(policyFile, `${POLICIES_PATH}/orbit-policy.toml`, { sudo: true });
+      if (res !== 0) return res;
   }
 
-  if (githubToken) {
-    await provider.exec(`echo ${githubToken} | sudo tee ${ORBIT_ROOT}/.gh_token > /dev/null`);
-    console.log('   ✅ Uploaded GitHub PAT to remote station.');
-  }
+  logger.info('REMOTE', 'Linking extension...');
+  res = await provider.exec(`sudo docker exec -u node -e GEMINI_API_KEY=dummy ${provider.stationName} /usr/local/share/npm-global/bin/gemini extensions link ${EXTENSION_REMOTE_PATH}`);
+  if (res !== 0) return res;
 
-  console.log(`🚀 Finalizing Remote Mission Repository (${userFork})...`);
-  const repoUrl = `https://github.com/${userFork}.git`;
+  const netrc = `machine github.com login oauth-basic password ${githubToken}`;
+  await provider.exec(`echo "${netrc}" | sudo tee /home/${fullUser}/.netrc > /dev/null && sudo chown ${fullUser}:${fullUser} /home/${fullUser}/.netrc && sudo chmod 600 /home/${fullUser}/.netrc`);
+
+  logger.info('REMOTE', `Finalizing Repository (${config.userFork})...`);
   const remoteWorkDir = `${ORBIT_ROOT}/main/${repoName}`;
-  const upstreamUrl = `https://github.com/${upstreamRepo}.git`;
+  const repoUrl = `https://${githubToken}@github.com/${config.userFork}.git`;
+  const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
-  const setupRepoCmd = `
-    sudo mkdir -p $(dirname ${remoteWorkDir}) && \
+  const cloneCmd = `
+    sudo mkdir -p $(dirname ${remoteWorkDir}) && sudo chown -R 1000:1000 $(dirname ${remoteWorkDir}) && \
     if [ ! -d "${remoteWorkDir}/.git" ]; then
       sudo rm -rf ${remoteWorkDir} && \
-      sudo git clone --quiet -c core.filemode=false ${repoUrl} ${remoteWorkDir} && \
-      sudo git -C ${remoteWorkDir} remote add upstream ${upstreamUrl}
+      sudo HOME=/home/${fullUser} git clone --quiet -c core.filemode=false ${repoUrl} ${remoteWorkDir} && \
+      sudo HOME=/home/${fullUser} git -C ${remoteWorkDir} remote add upstream ${upstreamUrl} || true
     fi && \
-    sudo git -C ${remoteWorkDir} -c safe.directory='*' fetch --quiet upstream && \
+    sudo HOME=/home/${fullUser} git -C ${remoteWorkDir} fetch --quiet upstream && \
     sudo chown -R 1000:1000 ${ORBIT_ROOT}
   `;
-  await provider.exec(setupRepoCmd);
+  res = await provider.exec(cloneCmd);
+  if (res !== 0) return res;
 
-  console.log('\n✨ ALL SYSTEMS GO! Your Gemini Orbit is ready.');
+  logger.info('SETUP', '\n✨ ALL SYSTEMS GO! Your Gemini Orbit is ready.');
   return 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runSetup().catch(console.error);
+  runSetup().catch(e => logger.error('FATAL', e));
 }
-

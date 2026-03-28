@@ -23,6 +23,8 @@ vi.mock('./Constants.ts', () => ({
     GLOBAL_SETTINGS_PATH: '/Users/mattkorwel/dev/main/.gemini/orbit/settings.json',
     PROJECT_ORBIT_DIR: '/work-dir/.gemini/orbit',
     PROJECT_CONFIG_PATH: '/work-dir/.gemini/orbit/config.json',
+    ORBIT_LOG_PATH: '/work-dir/.gemini/orbit/orbit.log',
+    GLOBAL_TOKENS_DIR: '/Users/mattkorwel/dev/main/.gemini/orbit/tokens',
     UPSTREAM_REPO_URL: 'https://github.com/google-gemini/gemini-cli.git',
     UPSTREAM_ORG: 'google-gemini',
     DEFAULT_REPO_NAME: 'gemini-cli',
@@ -89,18 +91,17 @@ describe('runSetup', () => {
     
     // Verify full extension sync
     expect(mockProvider.sync).toHaveBeenCalledWith(
-        expect.stringMatching(/\/$/), // Source (EXTENSION_ROOT/)
+        expect.any(String), // Source
         expect.stringContaining('/mnt/disks/data/extension/'), // Target
         expect.objectContaining({ 
             delete: true, 
-            sudo: true,
-            exclude: expect.arrayContaining(['node_modules', '.git'])
+            exclude: expect.arrayContaining(['node_modules', '.git', 'bundle', 'dist'])
         })
     );
 
     // Verify extension linking inside capsule
     expect(mockProvider.exec).toHaveBeenCalledWith(
-        expect.stringContaining('sudo docker exec -u node -e GEMINI_API_KEY=dummy station-supervisor /usr/local/share/npm-global/bin/gemini extensions link /mnt/disks/data/extension')
+        expect.stringContaining('gemini extensions link /mnt/disks/data/extension')
     );
   });
 

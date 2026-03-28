@@ -23,6 +23,9 @@ export class ProviderFactory {
     backendType?: string | undefined;
     imageUri?: string | undefined;
     worktreesDir?: string | undefined;
+    vpcName?: string | undefined;
+    subnetName?: string | undefined;
+    machineType?: string | undefined;
   }): OrbitProvider {
     const stationName = config.repoName ? `gcli-station-${config.repoName}` : 'station-supervisor';
 
@@ -45,6 +48,9 @@ export class ProviderFactory {
         userSuffix: config.userSuffix,
         backendType: config.backendType,
         imageUri: config.imageUri,
+        vpcName: config.vpcName,
+        subnetName: config.subnetName,
+        machineType: config.machineType,
         stationName
       }
     );

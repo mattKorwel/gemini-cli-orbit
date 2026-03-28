@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { logger } from './Logger.js';
 import { 
   type OrbitProvider,
 } from './providers/BaseProvider.js';
@@ -25,10 +26,10 @@ export class RemoteProvisioner {
 
     if (!capsuleStatus.running) {
       if (capsuleStatus.exists) {
-        console.log(`   - Reviving isolated capsule ${containerName}...`);
+        logger.info(`   - Reviving isolated capsule ${containerName}...`);
         await this.provider.removeCapsule(containerName);
       } else {
-        console.log(`   - Provisioning isolated capsule ${containerName}...`);
+        logger.info(`   - Provisioning isolated capsule ${containerName}...`);
       }
 
       await this.provider.runCapsule({
@@ -49,18 +50,19 @@ export class RemoteProvisioner {
       // Wait for capsule to stabilize
       await this.waitForCapsule(containerName, 10000);
     } else {
-        console.log(`   ✅ Isolated capsule ${containerName} is already active.`);
+        logger.info(`   ✅ Isolated capsule ${containerName} is already active.`);
     }
 
     // 2. Provision the repository using a reference clone for speed and isolation
     const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapCapsule: containerName, quiet: true });
+    logger.logOutput(check.stdout, check.stderr);
 
     if (check.status !== 0) {
       // Clear previous history for this session only if we are doing a fresh provision
       const clearHistoryCmd = `rm -rf /home/node/.gemini/history/mission-${prNumber}-${action}*`;
       await this.provider.exec(clearHistoryCmd, { wrapCapsule: containerName });
 
-      console.log(`   - Provisioning isolated git repo for PR #${prNumber} (inside capsule via reference)...`);
+      logger.info(`   - Provisioning isolated git repo for PR #${prNumber} (inside capsule via reference)...`);
       
       // 3.1 Ensure remoteWorktreeDir parent is owned by node on the HOST first
       // Skip sudo if we are local
@@ -84,12 +86,13 @@ export class RemoteProvisioner {
       `;
 
       const setupRes = await this.provider.getExecOutput(cloneCmd.replace(/\n/g, ''), { wrapCapsule: containerName });
+      logger.logOutput(setupRes.stdout, setupRes.stderr);
       if (setupRes.status !== 0) {
         throw new Error(`Failed to provision isolated repo: ${setupRes.stderr}`);
       }
-      console.log('   ✅ Isolated repository provisioned successfully.');
+      logger.info('   ✅ Isolated repository provisioned successfully.');
     } else {
-      console.log('   ✅ Remote repository ready.');
+      logger.info('   ✅ Remote repository ready.');
     }
 
     const isLocal = (this.provider as any).projectId === 'local';

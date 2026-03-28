@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { glob } from 'glob';
+import { logger } from './Logger.js';
 
 /**
  * sync-docs.ts
@@ -28,7 +29,7 @@ async function sync() {
     content = content.replace(regex, (match, filePath, symbol) => {
       const fullPath = path.resolve(path.dirname(mdFile), filePath);
       if (!fs.existsSync(fullPath)) {
-        console.warn(`⚠️  Warning: ${filePath} not found (referenced in ${mdFile})`);
+        logger.warn(`⚠️  Warning: ${filePath} not found (referenced in ${mdFile})`);
         return match;
       }
 
@@ -43,7 +44,7 @@ async function sync() {
         if (symbolMatch) {
           source = symbolMatch[0];
         } else {
-          console.warn(`⚠️  Warning: Symbol ${symbol} not found in ${filePath}`);
+          logger.warn(`⚠️  Warning: Symbol ${symbol} not found in ${filePath}`);
         }
       }
 
@@ -53,10 +54,12 @@ async function sync() {
     });
 
     if (modified) {
-      console.log(`✅ Synced ${mdFile}`);
+      logger.info(`✅ Synced ${mdFile}`);
       fs.writeFileSync(mdFile, content);
     }
   }
 }
 
-sync().catch(console.error);
+sync().catch(err => {
+  logger.error(err instanceof Error ? err.message : String(err));
+});
