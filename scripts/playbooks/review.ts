@@ -48,6 +48,8 @@ export async function runReviewPlaybook(prNumber: string, targetDir: string, pol
   // 3. PHASE 2: Synthesis
   console.log('\n⏳ Synthesizing final assessment...');
   const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Merge the results from ${path.join(logDir, 'ci-status.md')}, ${path.join(logDir, 'static-review.md')}, ${path.join(logDir, 'comments-summary.md')}, and ${path.join(logDir, 'behavioral-proof.md')} into a final assessment for PR #${prNumber}. Indicate if the PR meets its goals as defined in ${path.join(logDir, 'mission-context.md')}." > ${path.join(logDir, 'final-assessment.md')} 2>&1`;
+
+
   
   const synthesisStatus = await runner.run(synthesisCmd);
   

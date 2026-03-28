@@ -181,14 +181,12 @@ export function createTaskRunner(logDir: string, header: string) {
     },
 
     renderStatus() {
-      // Clear terminal and move to (0,0)
+      // Clear screen and reset cursor
       process.stdout.write('\x1b[2J\x1b[H');
 
       console.log(`\n${header}`);
       console.log('='.repeat(50));
 
-      // Status Area (Fixed at top)
-      console.log('🛰️  TASK STATUS:');
       Object.values(status).forEach(s => {
         let icon = '⏳';
         if (s.state === 'success') icon = '✅';
@@ -201,24 +199,8 @@ export function createTaskRunner(logDir: string, header: string) {
         console.log(`${icon} [${s.id}] ${s.name}: ${s.state.toUpperCase()}${exitPart}`);
       });
 
-      console.log('\n📖 LIVE LOG FEED (Most Recent):');
-      console.log('-'.repeat(50));
-
-      // Live Log Feed (Last 15 lines of global history)
-      const feed = logHistory.slice(-15);
-      if (feed.length === 0) {
-        console.log('   (Waiting for output...)');
-      } else {
-        feed.forEach(entry => {
-          const name = status[entry.taskId]?.name || entry.taskId;
-          // Trim long lines to prevent wrapping artifacts
-          const cleanLine = entry.line.replace(/\x1b\[[0-9;]*m/g, '').slice(0, 100);
-          process.stdout.write(`\x1b[90m[${name.slice(0, 12)}] \x1b[0m${cleanLine}\n`);
-        });
-      }
-
-      console.log('-'.repeat(50));
+      console.log('\n' + '='.repeat(50));
+      console.log(`💡 Tip: To stream all logs, run: tail -f ${logDir}/*.log`);
       console.log('='.repeat(50));
-    }
-  };
+    }  };
 }

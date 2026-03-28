@@ -23,7 +23,7 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
 
   // 2. PHASE 1: Mission Planning (Read-Only)
   console.log('\n📝 Phase 1: Planning...');
-  const planningCmd = `${geminiBin} --policy ${policyPath} -p "Based on the Mission Context in ${path.join(logDir, 'mission-context.md')} and the Codebase Analysis in ${path.join(logDir, 'codebase-analysis.md')}, generate a detailed implementation plan. 
+  const planningCmd = `${geminiBin} --policy ${policyPath} -p "Based on the Mission Context in ${path.join(logDir, 'context.log')} and the Codebase Analysis in ${path.join(logDir, 'analysis.log')}, generate a detailed implementation plan. 
 Include:
 - Objective
 - Affected Files
@@ -44,7 +44,7 @@ Save the plan to ${path.join(logDir, 'implementation-plan.md')}." > ${path.join(
     planAttempts++;
     console.log(`   - Review Attempt ${planAttempts}/${maxPlanAttempts}...`);
     
-    const criticCmd = `${geminiBin} --policy ${policyPath} -p "Review the implementation plan in ${path.join(logDir, 'implementation-plan.md')} against the requirements in ${path.join(logDir, 'mission-context.md')}. 
+    const criticCmd = `${geminiBin} --policy ${policyPath} -p "Review the implementation plan in ${path.join(logDir, 'implementation-plan.md')} against the requirements in ${path.join(logDir, 'context.log')}. 
 Ensure it follows project guidelines and uses small, testable steps. 
 If it is perfect, reply ONLY with 'GO'. 
 Otherwise, provide specific feedback and reply with 'NO-GO' at the end. 
@@ -87,7 +87,7 @@ FOLLOW THESE RULES:
   // 5. PHASE 4: Final Quality Control
   runner.register([
     { id: 'build', name: 'Final Build & Test', cmd: `npm run build && npm test > ${path.join(logDir, 'final-tests.log')} 2>&1`, timeout: 600000 },
-    { id: 'review', name: 'Local Code Review', cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'mission-context.md')}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}." > ${path.join(logDir, 'review.log')} 2>&1`, timeout: 600000 },
+    { id: 'review', name: 'Local Code Review', cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'context.log')}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}." > ${path.join(logDir, 'review.log')} 2>&1`, timeout: 600000 },
     { id: 'proof', name: 'Behavioral Proof', cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works. Save to ${path.join(logDir, 'behavioral-proof.md')}." > ${path.join(logDir, 'proof.log')} 2>&1`, timeout: 900000 }
   ]);
 
@@ -96,6 +96,8 @@ FOLLOW THESE RULES:
   // 6. PHASE 5: Synthesis & PR Prep
   console.log('\n✨ Synthesizing final results...');
   const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Merge the implementation results, local review, and behavioral proof into a final assessment. Then, prepare a Pull Request description based on this work. Save to ${path.join(logDir, 'final-assessment.md')}." > ${path.join(logDir, 'synthesis.log')} 2>&1`;
+
+
   
   const finalStatus = await runner.run(synthesisCmd);
   
