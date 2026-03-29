@@ -130,6 +130,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 'N/A (Local Worktree)';
   }
 
+  async getCapsuleIdleTime(name: string): Promise<number> {
+    return 0;
+  }
+
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const capsulePath = path.join(this.worktreesDir, config.name);
     

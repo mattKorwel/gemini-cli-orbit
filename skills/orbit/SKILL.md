@@ -19,23 +19,30 @@ This skill enables the agent to utilize **Gemini Workspaces**—a high-performan
 - **Persistent Logic**: When a task is expected to take longer than a few minutes and needs to survive local connection drops.
 - **Environment Isolation**: When you need a clean, high-performance environment to verify a fix without polluting the user's local machine.
 
+### Mission-Specific Skills
+This extension provides specialized skills for common missions. You SHOULD use these for detailed procedural guidance:
+- **`orbit-review`**: High-fidelity PR reviews (Phase 0-2, Mustard Test).
+- **`orbit-fix`**: Automated CI repair and conflict resolution.
+- **`orbit-implement`**: Autonomous feature execution with self-correction and test-first logic.
+- **`orbit-ci`**: High-performance CI monitoring and failure replication.
+
 ### How to use Workspaces
-1. **Setup**: If the user hasn't initialized their environment, you MUST run the setup script using npx tsx and the absolute path. Do NOT use npm scripts.
+1. **Setup**: If the user hasn't initialized their environment, you MUST run the setup script using npx tsx and the absolute path.
    ```bash
    npx tsx ${extensionPath}/scripts/setup.ts
    ```
-2. **Launch**: Start a playbook for a specific PR/issue:
+2. **Launch a Mission**: Start a playbook for a specific PR/issue:
    ```bash
-   npx tsx ${extensionPath}/scripts/orchestrator.ts <PR_NUMBER> [action]
+   npx tsx ${extensionPath}/scripts/orchestrator.ts <PR_OR_ISSUE_NUMBER> [action]
    ```
-   - Actions: `review` (default), `fix`, `ready`.
+   - Actions: `review` (default), `fix`, `implement`, `ready`.
 3. **Check Status**: See global state and active sessions:
    ```bash
    npx tsx ${extensionPath}/scripts/status.ts
    ```
    Or deep-dive into specific PR logs:
    ```bash
-   npx tsx ${extensionPath}/scripts/check.ts <PR_NUMBER>
+   npx tsx ${extensionPath}/scripts/check.ts <PR_OR_ISSUE_NUMBER>
    ```
 4. **Cleanup**: 
    - **Bulk**: Clear all sessions/worktrees:

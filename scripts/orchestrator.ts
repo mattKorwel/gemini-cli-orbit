@@ -146,7 +146,7 @@ const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, 
     upstreamUrl,
     cpuLimit: config.cpuLimit,
     memoryLimit: config.memoryLimit
-});
+} as any);
 
 if (!remoteWorktreeDir) {
     console.error('❌ Failed to provision satellite worktree.');
