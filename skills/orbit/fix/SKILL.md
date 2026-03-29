@@ -33,7 +33,7 @@ The mission follows a strict sequence of diagnostics, remediation, and verificat
 ### 1. Launch a Fix Mission
 To start a fix mission for a specific PR:
 ```bash
-npx tsx ${extensionPath}/scripts/orchestrator.ts <PR_NUMBER> fix
+node ${extensionPath}/bundle/orchestrator.js <PR_NUMBER> fix
 ```
 
 ### 2. Monitor Progress

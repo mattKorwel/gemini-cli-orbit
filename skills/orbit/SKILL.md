@@ -27,43 +27,43 @@ This extension provides specialized skills for common missions. You SHOULD use t
 - **`orbit-ci`**: High-performance CI monitoring and failure replication.
 
 ### How to use Workspaces
-1. **Setup**: If the user hasn't initialized their environment, you MUST run the setup script using npx tsx and the absolute path.
+1. **Setup**: If the user hasn't initialized their environment, you MUST run the setup script using node and the absolute path.
    ```bash
-   npx tsx ${extensionPath}/scripts/setup.ts
+   node ${extensionPath}/bundle/setup.js
    ```
 2. **Launch a Mission**: Start a playbook for a specific PR/issue:
    ```bash
-   npx tsx ${extensionPath}/scripts/orchestrator.ts <PR_OR_ISSUE_NUMBER> [action]
+   node ${extensionPath}/bundle/orchestrator.js <PR_OR_ISSUE_NUMBER> [action]
    ```
    - Actions: `review` (default), `fix`, `implement`, `ready`.
 3. **Check Status**: See global state and active sessions:
    ```bash
-   npx tsx ${extensionPath}/scripts/status.ts
+   node ${extensionPath}/bundle/status.js
    ```
    Or deep-dive into specific PR logs:
    ```bash
-   npx tsx ${extensionPath}/scripts/check.ts <PR_OR_ISSUE_NUMBER>
+   node ${extensionPath}/bundle/check.js <PR_OR_ISSUE_NUMBER>
    ```
 4. **Cleanup**: 
    - **Bulk**: Clear all sessions/worktrees:
      ```bash
-     npx tsx ${extensionPath}/scripts/clean.ts --all
+     node ${extensionPath}/bundle/clean.js --all
      ```
    - **Surgical**: Kill a specific PR task:
      ```bash
-     npx tsx ${extensionPath}/scripts/clean.ts <PR_NUMBER> <action>
+     node ${extensionPath}/bundle/clean.js <PR_NUMBER> <action>
      ```
 5. **Fleet**: Manage VM lifecycle:
    ```bash
-   npx tsx ${extensionPath}/scripts/fleet.ts [stop|provision|list]
+   node ${extensionPath}/bundle/fleet.js [stop|provision|list]
    ```
 6. **Attach/Logs**: 
    ```bash
-   npx tsx ${extensionPath}/scripts/attach.ts <PR_NUMBER>
-   npx tsx ${extensionPath}/scripts/logs.ts <PR_NUMBER>
+   node ${extensionPath}/bundle/attach.js <PR_NUMBER>
+   node ${extensionPath}/bundle/logs.js <PR_NUMBER>
    ```
 
 ## ⚠️ Important Constraints
-- **NO NPM**: Do NOT attempt to use `npm run` or `npm orbit`. Those commands are deprecated in favor of running the extension scripts directly.
-- **npx tsx**: Always use `npx tsx` followed by the absolute path provided in `${extensionPath}`.
+- **NO NPM**: Do NOT attempt to use `npm run` or `npm orbit`. Those commands are deprecated in favor of running the extension bundles directly.
+- **node**: Always use `node` followed by the absolute path to the bundle in `${extensionPath}/bundle/*.js`.
 - **Absolute Paths**: Always use absolute paths (e.g., `/mnt/disks/data/...`) when orchestrating remote commands.

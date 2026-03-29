@@ -38,7 +38,7 @@ The mission follows a strict sequence of research, planning, execution, and veri
 ### 1. Launch an Implementation Mission
 To start an implementation mission for a specific issue:
 ```bash
-npx tsx ${extensionPath}/scripts/orchestrator.ts <ISSUE_NUMBER> implement
+node ${extensionPath}/bundle/orchestrator.js <ISSUE_NUMBER> implement
 ```
 
 ### 2. Monitor Progress

@@ -29,7 +29,7 @@ The mission follows a strict three-phase execution model:
 ### 1. Launch a Review
 To start a review mission for a specific PR:
 ```bash
-npx tsx ${extensionPath}/scripts/orchestrator.ts <PR_NUMBER> review
+node ${extensionPath}/bundle/orchestrator.js <PR_NUMBER> review
 ```
 
 ### 2. Monitor Progress
