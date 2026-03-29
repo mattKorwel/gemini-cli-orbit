@@ -1,6 +1,6 @@
 {
   "name": "@google/gemini-orbit-extension",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "High-performance remote missions for Gemini CLI.",
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "sync-docs": "tsx scripts/sync-docs.ts",
+    "version:release": "tsx scripts/prepare-release.ts",
     "bundle": "esbuild $(find scripts -maxdepth 1 -name \"*.ts\" ! -name \"*.test.ts\") --bundle --platform=node --format=esm --outdir=bundle --minify --sourcemap --target=node20 --external:vitest --external:node:*",
     "build": "npm run typecheck && npm run bundle"
   },
