@@ -149,7 +149,9 @@ for (let i = 0; i < rawArgs.length; i++) {
       process.env.GCLI_ORBIT_REPO_NAME = repo;
       arg = id;
     }
-    filteredArgs.push(arg);
+    if (arg !== undefined) {
+      filteredArgs.push(arg);
+    }
   }
 }
 const res = spawnSync(exec, [finalPath, ...filteredArgs], {
