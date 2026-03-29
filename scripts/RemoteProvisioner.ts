@@ -7,12 +7,13 @@
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
 import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
+import { sanitizeName } from './ConfigManager.js';
 
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
 
   async provisionWorktree(
-    prNumber: string,
+    identifier: string,
     action: string,
     isEvaMode: boolean,
     ghEnv: string,
@@ -24,8 +25,9 @@ export class RemoteProvisioner {
       memoryLimit?: string;
     },
   ): Promise<string> {
-    const remoteWorktreeDir = `${config.worktreesDir}/mission-${prNumber}-${action}`;
-    const containerName = `gcli-${prNumber}-${action}`;
+    const sId = sanitizeName(identifier);
+    const remoteWorktreeDir = `${config.worktreesDir}/mission-${sId}-${action}`;
+    const containerName = `gcli-${sId}-${action}`;
     const imageUri = DEFAULT_IMAGE_URI;
 
     // 1. Ensure the specific mission capsule is active
@@ -81,11 +83,11 @@ export class RemoteProvisioner {
 
     if (check.status !== 0) {
       // Clear previous history for this session only if we are doing a fresh provision
-      const clearHistoryCmd = `rm -rf /home/node/.gemini/history/mission-${prNumber}-${action}*`;
+      const clearHistoryCmd = `rm -rf /home/node/.gemini/history/mission-${sId}-${action}*`;
       await this.provider.exec(clearHistoryCmd, { wrapCapsule: containerName });
 
       logger.info(
-        `   - Provisioning isolated git repo for PR #${prNumber} (inside capsule via reference)...`,
+        `   - Provisioning isolated git repo for ${identifier} (inside capsule via reference)...`,
       );
 
       // 3.1 Ensure remoteWorktreeDir parent is owned by node on the HOST first
@@ -110,7 +112,7 @@ export class RemoteProvisioner {
         cd ${remoteWorktreeDir} && \
         git config --replace-all core.filemode false && \
         git remote add upstream ${config.upstreamUrl} && \
-        gh pr checkout ${prNumber}
+        (gh pr checkout ${identifier} || git checkout ${identifier})
       `;
 
       const setupRes = await this.provider.getExecOutput(

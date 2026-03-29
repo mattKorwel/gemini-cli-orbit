@@ -6,15 +6,19 @@
 import { spawnSync } from 'node:child_process';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import {
+  getRepoConfig,
+  detectRepoName,
+  sanitizeName,
+} from './ConfigManager.js';
 
 export async function runChecker(
   args: string[],
   _env: NodeJS.ProcessEnv = process.env,
 ) {
-  const prNumber = args[0];
-  if (!prNumber) {
-    console.error('Usage: npm run review:check <PR_NUMBER>');
+  const identifier = args[0];
+  if (!identifier) {
+    console.error('Usage: orbit check <IDENTIFIER>');
     return 1;
   }
 
@@ -36,19 +40,24 @@ export async function runChecker(
   });
 
   const action = 'review';
-  const containerName = `gcli-${prNumber}-${action}`;
+  const sId = sanitizeName(identifier);
+  const containerName = `gcli-${sId}-${action}`;
 
   console.log(
-    `🔍 Checking remote status for PR #${prNumber} on ${instanceName}...`,
+    `🔍 Checking remote status for ${identifier} on ${instanceName}...`,
   );
 
   const branchView = spawnSync(
     'gh',
-    ['pr', 'view', prNumber, '--json', 'headRefName', '-q', '.headRefName'],
+    ['pr', 'view', identifier, '--json', 'headRefName', '-q', '.headRefName'],
     { shell: true },
   );
-  const branchName = branchView.stdout.toString().trim();
-  const logDir = `${remoteWorkDir}/${branchName}/.gemini/logs/review-${prNumber}`;
+  let branchName = branchView.stdout.toString().trim();
+  if (!branchName || branchName === 'undefined') {
+    // If pr view fails, assume identifier IS the branch name
+    branchName = identifier;
+  }
+  const logDir = `${remoteWorkDir}/${branchName}/.gemini/logs/review-${identifier}`;
 
   const tasks = ['build', 'ci', 'review', 'verify'];
   let allDone = true;

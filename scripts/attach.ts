@@ -8,7 +8,11 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import {
+  getRepoConfig,
+  detectRepoName,
+  sanitizeName,
+} from './ConfigManager.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { TempManager } from './utils/TempManager.js';
 
@@ -18,12 +22,12 @@ export async function runAttach(
   args: string[],
   env: NodeJS.ProcessEnv = process.env,
 ) {
-  const prNumber = args[0];
+  const identifier = args[0];
   const action = args[1] || 'review';
   const isLocal = args.includes('--local');
 
-  if (!prNumber) {
-    console.error('Usage: orbit attach <PR_NUMBER> [action] [--local]');
+  if (!identifier) {
+    console.error('Usage: orbit attach <IDENTIFIER> [action] [--local]');
     return 1;
   }
 
@@ -50,11 +54,12 @@ export async function runAttach(
   });
 
   const sessionId = SessionManager.generateSessionId(
-    prNumber,
+    identifier,
     `attach-${action}`,
   );
-  const containerName = `gcli-${prNumber}-${action}`;
-  const sessionName = `orbit-${prNumber}-${action}`;
+  const sId = sanitizeName(identifier);
+  const containerName = `gcli-${sId}-${action}`;
+  const sessionName = `orbit-${sId}-${action}`;
   const containerAttach = `sudo docker exec -it ${containerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
   const finalSSH = provider.getRunCommand(containerAttach, {
     interactive: true,

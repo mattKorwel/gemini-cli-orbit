@@ -2,13 +2,13 @@
 name: orbit-implement
 description:
   Expertise in high-fidelity, autonomous feature implementation using Gemini
-  Workspaces.
+  Orbit.
 ---
 
 # Orbit: Mission Execution (Implement)
 
 This skill enables the agent to execute an **Autonomous Implementation Mission**
-in an isolated Gemini Workspace. This is for implementing complex features or
+in an isolated **Orbit Capsule**. This is for implementing complex features or
 addressing large issues through a multi-phase, self-correcting process.
 
 ## 🚀 The Implementation Pipeline
@@ -58,11 +58,13 @@ verification:
 
 ### 1. Launch an Implementation Mission
 
-To start an implementation mission for a specific issue:
+To start an implementation mission for a specific issue or branch:
 
 ```bash
-node ${extensionPath}/bundle/orchestrator.js <ISSUE_NUMBER> implement
+node ${extensionPath}/bundle/orchestrator.js <IDENTIFIER> implement
 ```
+
+- **IDENTIFIER**: Can be an issue number, PR number, or Git branch name.
 
 ### 2. Monitor Progress
 
@@ -70,7 +72,7 @@ Implementation missions run in a background `tmux` session. You can monitor the
 logs:
 
 ```bash
-node ${extensionPath}/bundle/check.js <ISSUE_NUMBER>
+node ${extensionPath}/bundle/check.js <IDENTIFIER>
 ```
 
 ### 3. Retrieve Results

@@ -9,7 +9,11 @@ import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { RemoteProvisioner } from './RemoteProvisioner.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import {
+  getRepoConfig,
+  detectRepoName,
+  sanitizeName,
+} from './ConfigManager.js';
 import type { ExecOptions } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { TempManager } from './utils/TempManager.js';
@@ -69,7 +73,7 @@ export async function runOrchestrator(
     promptArgs.push(arg);
   }
 
-  const prNumber = promptArgs[0];
+  const identifier = promptArgs[0];
   const actionArg = promptArgs[1] || 'mission';
   let action = 'mission';
   let customPrompt = '';
@@ -78,7 +82,7 @@ export async function runOrchestrator(
   if (validActions.includes(actionArg)) {
     action = actionArg;
     customPrompt = promptArgs.slice(2).join(' ');
-  } else if (prNumber && prNumber !== 'eva') {
+  } else if (identifier && identifier !== 'eva') {
     action = 'mission';
     customPrompt = promptArgs.slice(1).join(' ');
   }
@@ -86,10 +90,12 @@ export async function runOrchestrator(
   // Handle "shell" mode: orbit mission eva [identifier]
   const isEvaMode = action === 'eva';
 
-  if (!prNumber) {
+  if (!identifier) {
     console.error(`
-❌ Usage: orbit mission <PR_NUMBER> [action] [prompt...]
+❌ Usage: orbit mission <IDENTIFIER> [action] [prompt...]
    OR:    orbit mission eva [identifier]
+
+IDENTIFIER: Can be a PR number or a Git branch name.
 
 Actions:
   (default)  - Launch interactive agent mission.
@@ -128,9 +134,9 @@ Actions:
 
   // Paths - Unified across station and capsule
   const remotePolicyPath = `${POLICIES_PATH}/orbit-policy.toml`;
-  const sessionId = SessionManager.generateSessionId(prNumber, action);
+  const sessionId = SessionManager.generateSessionId(identifier, action);
   const sessionName = sessionId; // Standardize on sessionId
-  const containerName = `gcli-${prNumber}-${action}`;
+  const containerName = `gcli-${sanitizeName(identifier)}-${action}`;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
@@ -140,7 +146,7 @@ Actions:
   // 4. Remote Context Setup (Executed INSIDE capsule for path consistency)
   const provisioner = new RemoteProvisioner(provider);
   const remoteWorktreeDir = await provisioner.provisionWorktree(
-    prNumber,
+    identifier,
     action,
     isEvaMode,
     '',
@@ -154,7 +160,7 @@ Actions:
   );
 
   if (!remoteWorktreeDir) {
-    console.error('❌ Failed to provision satellite worktree.');
+    console.error('❌ Failed to provision Orbit capsule.');
     return 1;
   }
 
@@ -190,7 +196,7 @@ Actions:
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
   const remoteWorker = isEvaMode
     ? `gemini`
-    : `tsx ${SCRIPTS_PATH}/entrypoint.ts ${prNumber} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+    : `tsx ${SCRIPTS_PATH}/entrypoint.ts ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
 
   // 6. Persistence vs Raw Execution
   let useTmux = config.useTmux !== false;
@@ -283,7 +289,9 @@ Actions:
                 end run
             `;
     spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
-    console.log(`✅ iTerm2 ${terminalTarget} opened for mission ${prNumber}.`);
+    console.log(
+      `✅ iTerm2 ${terminalTarget} opened for mission ${identifier}.`,
+    );
 
     // Allow small delay for iTerm to read the file before we potentially clean up the directory
     setTimeout(() => tempManager.cleanup(sessionId), 2000);

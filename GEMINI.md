@@ -6,14 +6,14 @@ environments for Gemini CLI.
 ## 🏗️ Architecture: Multi-Capsule Isolation
 
 The system utilizes a **Persistent Host Station** (running Capsule-Optimized OS)
-as the host. Every orbit session is isolated at the **process level** using
+as the host. Every Orbit mission is isolated at the **process level** using
 Docker:
 
 - **HostVM**: Maintains the persistent data disk (`/mnt/disks/data`) with
   restrictive permissions (UID 1000, 770) and a read-write "Source of Truth"
   clone of the main repository.
-- **Isolated Capsules**: Each Pull Request session runs in a dedicated capsule
-  (`gcli-<pr>-<action>`).
+- **Isolated Capsules**: Each mission runs in a dedicated capsule
+  (`gcli-<identifier>-<action>`).
 - **Reference Clones**: Job capsules perform a `git clone --reference` against
   the HostVM's main repo. The main repo is mounted **Read-Only** into capsules
   for security.
@@ -22,14 +22,14 @@ Docker:
 
 ## 🔗 Shared State Strategy
 
-To ensure a consistent developer experience across all isolated PR sessions, we
+To ensure a consistent developer experience across all isolated PR missions, we
 utilize a **Shared Configuration** model:
 
 - **Mount Path**: `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to
   `/home/node/.gemini` in **every** capsule.
 - **Benefits**: Linking an extension (like `orbit`) in one capsule makes it
-  instantly available to all other PR capsules on that station. It also unifies
-  UI themes and aliases.
+  instantly available to all other Orbit capsules on that station. It also
+  unifies UI themes and aliases.
 - **Concurrency**: Gemini CLI handles concurrent access to this folder via
   atomic writes and file locking.
 
@@ -68,8 +68,8 @@ We use **Vitest** for unit testing and **ESLint** for code quality.
 ### Adding Commands & Playbooks
 
 - **Commands**: Custom slash commands are registered via TOML files in
-  `commands/orbit/`. These wrap the TypeScript scripts in `scripts/` using
-  `npx tsx`.
+  `commands/orbit/`. These wrap the bundled JavaScript entry points in
+  `bundle/`.
 - **Playbooks**: Complex multi-step missions (like `review` or `fix`) should be
   implemented in `scripts/playbooks/` using the parallel `TaskRunner`.
 
@@ -82,8 +82,8 @@ defined in **ADR 9**.
 
 The mission follows a strict phased execution:
 
-- **Phase 0 (Context)**: Parallel fetch of PR metadata, diff, recursive issue
-  hierarchy (up to 3 levels), and a single-source build.
+- **Phase 0 (Context)**: Parallel fetch of mission metadata, diff, recursive
+  issue hierarchy (up to 3 levels), and a single-source build.
 - **Phase 1 (Evaluation)**: Parallel background tasks for CI monitoring, static
   rules enforcement, feedback analysis, and mandatory **Behavioral Proof**.
 - **Phase 2 (Synthesis)**: Unified merge of all logs into `final-assessment.md`.
@@ -109,7 +109,7 @@ fails.
 Use the repo-agnostic utility to monitor branch status locally:
 
 ```bash
-node scripts/utils/ci.mjs <BRANCH_NAME>
+node bundle/ci.js <BRANCH_NAME>
 ```
 
 ## 🛡️ Security Mandates
