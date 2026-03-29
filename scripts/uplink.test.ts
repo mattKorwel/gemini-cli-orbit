@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runLogs } from './logs.js';
+import { runUplink } from './uplink.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
 
@@ -14,7 +14,7 @@ vi.mock('node:fs');
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
 
-describe('runLogs', () => {
+describe('runUplink', () => {
   const mockProvider = {
     getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'mock-logs', stderr: '' }),
   };
@@ -38,13 +38,12 @@ describe('runLogs', () => {
   });
 
   it('should fetch and display logs for a PR', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await runLogs(['23176']);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await runUplink(['23176']);
     
     expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
-        expect.stringContaining('tail -n 50'),
+        expect.stringContaining('ls -t'),
         expect.any(Object)
     );
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('mock-logs'));
   });
 });

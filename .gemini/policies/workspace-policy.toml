@@ -5,6 +5,13 @@ decision = "allow"
 priority = 100
 
 [[rule]]
+toolName = "read_file"
+decision = "allow"
+priority = 110
+[rule.toolParameters]
+file_path = "**/.gemini/orbit/tmp/**"
+
+[[rule]]
 toolName = "write_file"
 decision = "allow"
 priority = 100

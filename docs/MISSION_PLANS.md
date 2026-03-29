@@ -57,6 +57,36 @@ Remediation tasks are executed sequentially to prevent file-system race conditio
 
 ---
 
+## 🏗️ Maneuver: Consolidated Implement
+
+The **Implement Mission** provides a high-fidelity, phased approach to feature development and bug fixing based on GitHub issues. It enforces a "Think Before Code" workflow with deep context alignment and mandatory verification.
+
+### Architecture: Research-Plan-Execute-Verify
+The implementation mission follows a structured lifecycle to ensure quality and architectural alignment.
+
+#### Phase 0: Deep Context & Research (Parallel)
+Before any code is modified, the mission performs comprehensive research:
+1.  **Issue Hierarchy**: Fetches the target issue, its parent, grandparent, children, and siblings (up to 3 levels).
+2.  **Synthesis**: Combines hierarchy and repository guidelines into a `mission-context.md`.
+3.  **Codebase Analysis**: Performs a targeted analysis of relevant modules and dependencies.
+
+#### Phase 1: Planning & Review (Sequential)
+Gemini generates a detailed `implementation-plan.md` which is then reviewed by an automated "Critic" against requirements and guidelines. The plan is revised until approved (or max attempts reached).
+
+#### Phase 2: Sequential Implementation
+The agent implements the plan in small chunks (~10-15 minutes).
+1.  **Test-First**: Each chunk begins by creating or updating a reproduction test.
+2.  **Implementation**: The agent modifies the source code to satisfy the test.
+3.  **Verification**: The test is run immediately to confirm the chunk's success.
+
+#### Phase 3: Quality Control & Synthesis
+- **Final Build & Test**: Runs the full project test suite.
+- **Local Review**: An automated review of the changes against the mission context.
+- **Mustard Test (Proof)**: Physically verifies the implementation in the terminal with logs.
+- **Final Assessment**: Merges all logs and proof into a `final-implementation-assessment.md`.
+
+---
+
 ## 🚀 Triggering Maneuvers
 
 Missions can be triggered from within an Orbit station or locally:
@@ -67,6 +97,9 @@ orbit mission <PR_NUMBER> review
 
 # Start a consolidated fix mission
 orbit mission <PR_NUMBER> fix
+
+# Start a consolidated implementation
+orbit mission <ISSUE_NUMBER> implement
 ```
 
 ## 📊 Determinism & Reporting

@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-async function run(cmd) {
+async function run(cmd: string) {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
   } catch (_e) {
@@ -17,7 +17,7 @@ async function run(cmd) {
   }
 }
 
-async function fetchIssueHierarchy(owner, repo, issueNumber, depth = 0) {
+async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: number, depth = 0): Promise<any> {
   if (depth >= 3) return null;
 
   const gqlQuery = `query($owner:String!, $repo:String!, $number:Int!) {
@@ -49,7 +49,7 @@ async function fetchIssueHierarchy(owner, repo, issueNumber, depth = 0) {
   const issue = data?.data?.repository?.issue;
   if (!issue) return null;
 
-  const hierarchy = {
+  const hierarchy: any = {
     number: issue.number,
     title: issue.title,
     body: issue.body,
@@ -70,11 +70,11 @@ async function fetchIssueHierarchy(owner, repo, issueNumber, depth = 0) {
 
 async function main() {
   const prNumber = process.argv[2];
-  const logDir = process.argv[3] || './logs';
+  const logDir = process.argv[3];
   const geminiBin = process.argv[4];
   const policyPath = process.argv[5];
 
-  if (!prNumber) {
+  if (!prNumber || !logDir) {
     console.error('Usage: fetch-mission-context <pr_number> <log_dir> <gemini_bin> <policy_path>');
     process.exit(1);
   }
@@ -107,9 +107,9 @@ async function main() {
       if (hierarchy) {
         issueContext += `## Issue #${hierarchy.number}: ${hierarchy.title} (${hierarchy.state})\n\n`;
         issueContext += `**Description**:\n${hierarchy.body}\n\n`;
-        if (hierarchy.subIssues.length > 0) {
+        if (hierarchy.subIssues && (hierarchy.subIssues as any[]).length > 0) {
           issueContext += `### Sub-Tasks:\n`;
-          hierarchy.subIssues.forEach(sub => {
+          (hierarchy.subIssues as any[]).forEach((sub: any) => {
             issueContext += `- [#${sub.number}] ${sub.title} (${sub.state})\n`;
           });
           issueContext += '\n';

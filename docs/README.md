@@ -29,6 +29,9 @@ The consolidated review mission provides high-fidelity, parallelized PR review w
 ### 2. [Maneuver: Fix](./FIX.md)
 The consolidated fix mission provides an automated, iterative remediation loop to resolve conflicts, CI failures, and reviewer comments.
 
+### 3. [Maneuver: Implement](./IMPLEMENT.md)
+The consolidated implement mission provides a phased, autonomous workflow to transform issues into verified implementations.
+
 ---
 
 ## 🏗️ Deep Dives

@@ -7,3 +7,13 @@
 - [x] UI: Fix odd printing/alignment of fork logic output compared to networking section.
 - [x] Security: Migrated repository tokens to global storage (~/.gemini/orbit/tokens/) to prevent accidental commits.
 - [x] Resolve disk size warnings on VM creation (boot disk 200GB vs 10GB image noise)
+- [x] Orbit: Implement Consolidated "Implement Mission" (ADR 11)
+  - [x] Draft ADR 11
+  - [x] Create implementation plan
+  - [x] Create `fetch-implement-context.ts` for deep hierarchy research
+  - [x] Refactor `implement.ts` playbook to use `TaskRunner` and phased execution
+  - [x] Update `station.ts` to ensure full integration
+  - [x] Update `docs/MISSION_PLANS.md` with new maneuver details
+  - [x] Verify implementation with manual test
+
+
