@@ -319,7 +319,18 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   if (selectedDesign) updatedGlobal.activeProfile = selectedDesign;
   fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(updatedGlobal, null, 2));
 
-  // 4. Execution (Phase 2 & 3)
+  // 4. Shell Integration
+  logger.divider('SHELL INTEGRATION');
+  const shellFlag = args.includes('--shell-integration');
+  if (shouldRunPrompts || shellFlag) {
+      const wantShell = shellFlag || await confirm('Install "orbit" CLI and autocompletion in your shell profile?', true, shouldRunPrompts);
+      if (wantShell) {
+          const installRes = spawnSync('npx', ['tsx', path.join(SCRIPTS_PATH, 'install-shell.ts')], { stdio: 'inherit' });
+          if (installRes.status !== 0) logger.warn('SETUP', '⚠️ Shell integration failed, but continuing liftoff...');
+      }
+  }
+
+  // 5. Execution (Phase 2 & 3)
   const provider = ProviderFactory.getProvider(config as any);
   logger.divider('STATION LIFTOFF');
   logger.info('SETUP', `Finding station ${config.instanceName}...`);

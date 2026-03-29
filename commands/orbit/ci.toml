@@ -1,0 +1,5 @@
+description = "Monitor CI status for a branch."
+prompt = """
+I am monitoring the CI status for branch {{args}}.
+!{node scripts/utils/ci.mjs {{args}}}
+"""

@@ -43,3 +43,7 @@ This document summarizes the core architectural decisions that define the Orbit 
 ## 📂 10. Temporary Output Management & Session Lifecycle
 **Decision**: Standardize transient data storage (scripts, logs) using a configurable, session-isolated `tempDir`.
 - **Rationale**: Prevents name collisions during concurrent missions. Ensures all mission-specific artifacts are bundled together, facilitating both easier debugging (when `autoClean` is false) and deterministic cleanup.
+
+## 🐚 11. Universal Shell Integration & CLI Dispatcher
+**Decision**: Implement a dedicated `orbit` CLI dispatcher with automated profile integration and tab-completion.
+- **Rationale**: Provides high-velocity access to Orbit commands (`mission`, `ci`, `pulse`) directly from any terminal, bypassing the `gemini orbit` prefix. Native completions for Zsh, Bash, Fish, and PowerShell ensure discoverability and a polished user experience.
