@@ -16,22 +16,27 @@ describe('fetch-mission-context.ts utility', () => {
 
   it('should parse repository owner and name correctly', () => {
     const remoteUrl = 'https://github.com/google-gemini/gemini-cli.git';
-    const repoMatch = remoteUrl.match(/github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/);
-    
+    const repoMatch = remoteUrl.match(
+      /github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/,
+    );
+
     expect(repoMatch![1]).toBe('google-gemini');
     expect(repoMatch![2]).toBe('gemini-cli');
   });
 
   it('should handle complex git remote URLs', () => {
     const sshUrl = 'git@github.com:mattKorwel/gemini-cli-orbit.git';
-    const repoMatch = sshUrl.match(/github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/);
-    
+    const repoMatch = sshUrl.match(
+      /github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/,
+    );
+
     expect(repoMatch![1]).toBe('mattKorwel');
     expect(repoMatch![2]).toBe('gemini-cli-orbit');
   });
 
   it('should simulate merge conflict detection logic', () => {
-    const conflictOutput = '<<<<<<< HEAD\ncontent\n=======\nother\n>>>>>>> branch';
+    const conflictOutput =
+      '<<<<<<< HEAD\ncontent\n=======\nother\n>>>>>>> branch';
     const hasConflicts = conflictOutput.includes('<<<<<<<');
     expect(hasConflicts).toBe(true);
 

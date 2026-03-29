@@ -6,9 +6,9 @@
 import readline from 'node:readline';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
-import { 
-  ORBIT_ROOT, 
-  SATELLITE_WORKTREES_PATH, 
+import {
+  ORBIT_ROOT,
+  SATELLITE_WORKTREES_PATH,
   CONFIG_DIR,
 } from './Constants.js';
 
@@ -31,13 +31,16 @@ export async function runSplashdown(
 ) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
-  
+
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`);
+    console.error(
+      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
+    );
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } =
+    config;
   const provider = ProviderFactory.getProvider({
     projectId: projectId!,
     zone: zone!,
@@ -45,7 +48,7 @@ export async function runSplashdown(
     repoName,
     dnsSuffix,
     userSuffix,
-    backendType
+    backendType,
   });
 
   // --- Bulk Cleanup ---
@@ -61,11 +64,16 @@ export async function runSplashdown(
     return 0;
   }
 
-  console.log(`🧹 Starting ${isGlobal ? 'GLOBAL' : 'REPOSITORY'} splashdown...`);
+  console.log(
+    `🧹 Starting ${isGlobal ? 'GLOBAL' : 'REPOSITORY'} splashdown...`,
+  );
 
   // 1. Standard Cleanup
   console.log('   - Terminating remote capsules...');
-  const containerRes = await provider.getExecOutput("sudo docker ps -a --format '{{.Names}}' | grep '^gcli-'", { quiet: true });
+  const containerRes = await provider.getExecOutput(
+    "sudo docker ps -a --format '{{.Names}}' | grep '^gcli-'",
+    { quiet: true },
+  );
   if (containerRes.status === 0 && containerRes.stdout.trim()) {
     const names = containerRes.stdout.trim().split('\n').join(' ');
     await provider.exec(`sudo docker rm -f ${names}`);
@@ -76,18 +84,24 @@ export async function runSplashdown(
     await provider.exec(`sudo docker rm -f station-supervisor || true`);
   }
 
-  console.log(`   - Clearing satellite worktrees for ${isGlobal ? 'ALL repos' : config.repoName}...`);
+  console.log(
+    `   - Clearing satellite worktrees for ${isGlobal ? 'ALL repos' : config.repoName}...`,
+  );
   if (isGlobal) {
     await provider.exec(`sudo rm -rf ${SATELLITE_WORKTREES_PATH}/*`);
   } else {
-    await provider.exec(`sudo rm -rf ${SATELLITE_WORKTREES_PATH}/${config.repoName}/*`);
+    await provider.exec(
+      `sudo rm -rf ${SATELLITE_WORKTREES_PATH}/${config.repoName}/*`,
+    );
   }
 
   console.log('   - Clearing mission history and telemetry...');
   await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/*`);
   await provider.exec(`sudo rm -f ${CONFIG_DIR}/state.json`);
 
-  console.log(`   - Wiping ${isGlobal ? 'ALL' : 'current'} repository mission clones...`);
+  console.log(
+    `   - Wiping ${isGlobal ? 'ALL' : 'current'} repository mission clones...`,
+  );
   if (isGlobal) {
     await provider.exec(`sudo rm -rf ${ORBIT_ROOT}/main/*`);
   } else {
@@ -97,13 +111,17 @@ export async function runSplashdown(
   console.log('   - Pruning station Docker resources...');
   await provider.exec(`sudo docker system prune -af --volumes`);
 
-  console.log(`✅ ${isGlobal ? 'Global station' : 'Repository ' + config.repoName} splashdown complete.`);
+  console.log(
+    `✅ ${isGlobal ? 'Global station' : 'Repository ' + config.repoName} splashdown complete.`,
+  );
   return 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runSplashdown(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+  runSplashdown(process.argv.slice(2))
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
       console.error(err);
       process.exit(1);
-  });
+    });
 }

@@ -46,9 +46,13 @@ async function main() {
     process.exit(1);
   }
 
-  const repoMatch = remoteUrl.match(/github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/);
+  const repoMatch = remoteUrl.match(
+    /github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/,
+  );
   if (!repoMatch) {
-    console.error('❌ Could not parse repository owner and name from remote URL.');
+    console.error(
+      '❌ Could not parse repository owner and name from remote URL.',
+    );
     process.exit(1);
   }
 
@@ -60,10 +64,10 @@ async function main() {
   const [authInfo, diff, commits, rawJson] = await Promise.all([
     run('gh auth status -a'),
     run('gh pr diff'),
+    run(`git fetch origin main && git log origin/main..origin/${branch}`),
     run(
-      `git fetch origin main && git log origin/main..origin/${branch}`,
+      `gh api graphql -F branch="${branch}" -F repo="${repo}" -F owner="${owner}" -f query='${gqlQuery}'`,
     ),
-    run(`gh api graphql -F branch="${branch}" -F repo="${repo}" -F owner="${owner}" -f query='${gqlQuery}'`),
   ]);
 
   if (!diff) {

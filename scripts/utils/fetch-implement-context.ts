@@ -11,13 +11,20 @@ import path from 'node:path';
 
 async function run(cmd: string) {
   try {
-    return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    return execSync(cmd, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim();
   } catch (_e) {
     return null;
   }
 }
 
-async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: number) {
+async function fetchIssueHierarchy(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+) {
   const gqlQuery = `query($owner:String!, $repo:String!, $number:Int!) {
     repository(owner:$owner, name:$repo) {
       issue(number:$number) {
@@ -53,7 +60,9 @@ async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: num
     }
   }`;
 
-  const result = await run(`gh api graphql -F owner="${owner}" -F repo="${repo}" -F number=${issueNumber} -f query='${gqlQuery}'`);
+  const result = await run(
+    `gh api graphql -F owner="${owner}" -F repo="${repo}" -F number=${issueNumber} -f query='${gqlQuery}'`,
+  );
   if (!result) return null;
 
   const data = JSON.parse(result);
@@ -68,22 +77,24 @@ async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: num
     subIssues: issue.subIssues?.nodes || [],
     parent: null,
     grandparent: null,
-    siblings: []
+    siblings: [],
   };
 
   if (issue.parent) {
     hierarchy.parent = {
       number: issue.parent.number,
       title: issue.parent.title,
-      body: issue.parent.body
+      body: issue.parent.body,
     };
-    hierarchy.siblings = (issue.parent.subIssues?.nodes || []).filter((s: any) => s.number !== issue.number);
-    
+    hierarchy.siblings = (issue.parent.subIssues?.nodes || []).filter(
+      (s: any) => s.number !== issue.number,
+    );
+
     if (issue.parent.parent) {
       hierarchy.grandparent = {
         number: issue.parent.parent.number,
         title: issue.parent.parent.title,
-        body: issue.parent.parent.body
+        body: issue.parent.parent.body,
       };
     }
   }
@@ -98,12 +109,16 @@ async function main() {
   const policyPath = process.argv[5];
 
   if (!issueNumber || !logDir) {
-    console.error('Usage: fetch-implement-context <issue_number> <log_dir> <gemini_bin> <policy_path>');
+    console.error(
+      'Usage: fetch-implement-context <issue_number> <log_dir> <gemini_bin> <policy_path>',
+    );
     process.exit(1);
   }
 
   const remoteUrl = await run('git remote get-url origin');
-  const repoMatch = remoteUrl?.match(/github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/);
+  const repoMatch = remoteUrl?.match(
+    /github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/,
+  );
   const owner = repoMatch ? repoMatch[1] : null;
   const repo = repoMatch ? repoMatch[2] : null;
 
@@ -113,7 +128,11 @@ async function main() {
   }
 
   console.log(`📡 Fetching deep hierarchy for Issue #${issueNumber}...`);
-  const hierarchy = await fetchIssueHierarchy(owner, repo, parseInt(issueNumber));
+  const hierarchy = await fetchIssueHierarchy(
+    owner,
+    repo,
+    parseInt(issueNumber),
+  );
 
   if (!hierarchy) {
     console.error(`❌ Could not fetch hierarchy for Issue #${issueNumber}.`);
@@ -153,7 +172,11 @@ async function main() {
 
   // 2. Fetch Guidelines
   contextMd += `## Repository Guidelines\n\n`;
-  const guidelineFiles = ['GEMINI.md', '.gemini/review-rules.md', 'CONTRIBUTING.md'];
+  const guidelineFiles = [
+    'GEMINI.md',
+    '.gemini/review-rules.md',
+    'CONTRIBUTING.md',
+  ];
   let foundGuidelines = false;
   for (const f of guidelineFiles) {
     const p = path.join(process.cwd(), f);
@@ -174,24 +197,26 @@ async function main() {
     const synthesisPrompt = `Synthesize this deep issue hierarchy and repository guidelines into a concise "Source of Truth" document for implementation. 
 Focus on the specific requirements for Issue #${hierarchy.number} while considering the broader context of its parents and siblings.
 Identify any architectural constraints or coding standards mentioned in the guidelines.`;
-    
+
     const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "${synthesisPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'mission-context.md')} 2>&1`;
 
     try {
       execSync(synthesisCmd);
     } catch (_e) {
-       console.error('❌ Failed to synthesize mission context with Gemini. Falling back to raw context.');
-       fs.copyFileSync(rawPath, path.join(logDir, 'mission-context.md'));
+      console.error(
+        '❌ Failed to synthesize mission context with Gemini. Falling back to raw context.',
+      );
+      fs.copyFileSync(rawPath, path.join(logDir, 'mission-context.md'));
     }
   } else {
-     console.log('⚠️ No Gemini bin/policy provided. Using raw context.');
-     fs.copyFileSync(rawPath, path.join(logDir, 'mission-context.md'));
+    console.log('⚠️ No Gemini bin/policy provided. Using raw context.');
+    fs.copyFileSync(rawPath, path.join(logDir, 'mission-context.md'));
   }
 
   console.log('✨ Mission context complete.');
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('❌ Error fetching implementation context:', err);
   process.exit(1);
 });

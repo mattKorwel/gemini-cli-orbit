@@ -18,25 +18,29 @@ describe('runJettison', () => {
   const mockProvider = {
     exec: vi.fn().mockResolvedValue(0),
     removeCapsule: vi.fn().mockResolvedValue(0),
-    getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'gcli-23176-open', stderr: '' }),
+    getExecOutput: vi
+      .fn()
+      .mockResolvedValue({ status: 0, stdout: 'gcli-23176-open', stderr: '' }),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
-    
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbit-extension');
+
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue(
+      'gemini-orbit-extension',
+    );
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-        projectId: 'p',
-        zone: 'z',
-        instanceName: 'i',
-        repoName: 'gemini-orbit-extension',
-        terminalTarget: 'tab',
-        userFork: 'u/f',
-        upstreamRepo: 'o/r',
-        remoteHost: 'h',
-        remoteWorkDir: '/w',
-        useContainer: true
+      projectId: 'p',
+      zone: 'z',
+      instanceName: 'i',
+      repoName: 'gemini-orbit-extension',
+      terminalTarget: 'tab',
+      userFork: 'u/f',
+      upstreamRepo: 'o/r',
+      remoteHost: 'h',
+      remoteWorkDir: '/w',
+      useContainer: true,
     });
 
     vi.mocked(readline.createInterface).mockReturnValue({
@@ -47,10 +51,12 @@ describe('runJettison', () => {
 
   it('should perform surgical jettison for a specific PR', async () => {
     const res = await runJettison(['23176', 'open']);
-    
+
     expect(res).toBe(0);
     expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-23176-open');
-    expect(mockProvider.exec).toHaveBeenCalledWith(expect.stringContaining('rm -rf'));
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('rm -rf'),
+    );
   });
 
   it('should return non-zero if jettison fails', async () => {

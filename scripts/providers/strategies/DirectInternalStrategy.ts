@@ -20,8 +20,14 @@ export class DirectInternalStrategy extends BaseStrategy {
     // nic0.<name>.<zone>.c.<project>.internal[.<custom-suffix>]
     const customSuffix = this.config.dnsSuffix || '';
     const baseSuffix = `.c.${this.projectId}.internal`;
-    const fullSuffix = baseSuffix + (customSuffix.startsWith('.') ? customSuffix : (customSuffix ? '.' + customSuffix : ''));
-    
+    const fullSuffix =
+      baseSuffix +
+      (customSuffix.startsWith('.')
+        ? customSuffix
+        : customSuffix
+          ? '.' + customSuffix
+          : '');
+
     return `${user}@nic0.${this.instanceName}.${this.zone}${fullSuffix}`;
   }
 }

@@ -17,42 +17,54 @@ export async function runBlackbox(args: string[]) {
     return 1;
   }
 
-  console.log(`🕵️  Searching blackbox for mission PR #${prNumber} (${action})...`);
+  console.log(
+    `🕵️  Searching blackbox for mission PR #${prNumber} (${action})...`,
+  );
 
   const localPattern = `orbit-${prNumber}-${action}-`;
   if (!fs.existsSync(DEFAULT_TEMP_DIR)) {
-      console.log('❌ No local mission recordings found (Temp directory missing).');
-      return 1;
+    console.log(
+      '❌ No local mission recordings found (Temp directory missing).',
+    );
+    return 1;
   }
 
-  const localDirs = fs.readdirSync(DEFAULT_TEMP_DIR)
-      .filter(d => d.startsWith(localPattern))
-      .map(d => ({ name: d, time: fs.statSync(path.join(DEFAULT_TEMP_DIR, d)).mtime.getTime() }))
-      .sort((a, b) => b.time - a.time);
+  const localDirs = fs
+    .readdirSync(DEFAULT_TEMP_DIR)
+    .filter((d) => d.startsWith(localPattern))
+    .map((d) => ({
+      name: d,
+      time: fs.statSync(path.join(DEFAULT_TEMP_DIR, d)).mtime.getTime(),
+    }))
+    .sort((a, b) => b.time - a.time);
 
   const dir = localDirs[0];
   if (!dir) {
-      console.log(`❌ No local recordings found for PR #${prNumber}.`);
-      return 1;
+    console.log(`❌ No local recordings found for PR #${prNumber}.`);
+    return 1;
   }
   const latestLocal = path.join(DEFAULT_TEMP_DIR, dir.name);
   console.log(`📂 Found mission recording: ${latestLocal}`);
-  
-  const logs = fs.readdirSync(latestLocal).filter(f => f.endsWith('.log'));
+
+  const logs = fs.readdirSync(latestLocal).filter((f) => f.endsWith('.log'));
   if (logs.length > 0) {
-      console.log('\n--- MISSION LOG FILES ---');
-      logs.forEach(log => console.log(`- ${log}`));
-      console.log(`\nTip: To stream these logs, run: tail -f ${latestLocal}/*.log`);
+    console.log('\n--- MISSION LOG FILES ---');
+    logs.forEach((log) => console.log(`- ${log}`));
+    console.log(
+      `\nTip: To stream these logs, run: tail -f ${latestLocal}/*.log`,
+    );
   } else {
-      console.log('❌ recording directory is empty.');
+    console.log('❌ recording directory is empty.');
   }
 
   return 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runBlackbox(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+  runBlackbox(process.argv.slice(2))
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
       console.error(err);
       process.exit(1);
-  });
+    });
 }

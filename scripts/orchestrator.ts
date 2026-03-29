@@ -13,13 +13,12 @@ import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import type { ExecOptions } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { TempManager } from './utils/TempManager.js';
-import { 
-  ORBIT_ROOT, 
-  SATELLITE_WORKTREES_PATH, 
-  POLICIES_PATH, 
-  SCRIPTS_PATH, 
+import {
+  ORBIT_ROOT,
+  SATELLITE_WORKTREES_PATH,
+  POLICIES_PATH,
+  SCRIPTS_PATH,
 } from './Constants.js';
-
 
 const REPO_ROOT = process.cwd();
 
@@ -29,16 +28,16 @@ const REPO_ROOT = process.cwd();
 function loadDotEnv(env: NodeJS.ProcessEnv) {
   const envPaths = [
     path.join(REPO_ROOT, '.env'),
-    path.join(process.env.HOME || '', '.env')
+    path.join(process.env.HOME || '', '.env'),
   ];
 
-  envPaths.forEach(envPath => {
+  envPaths.forEach((envPath) => {
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf8');
-      content.split('\n').forEach(line => {
+      content.split('\n').forEach((line) => {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) return;
-        
+
         const match = trimmed.match(/^([^=]+)=(.*)$/);
         if (match && match[1] && match[2]) {
           const key = match[1].trim();
@@ -120,7 +119,7 @@ Actions:
     repoName: config.repoName,
     dnsSuffix: config.dnsSuffix,
     userSuffix: config.userSuffix,
-    backendType: config.backendType
+    backendType: config.backendType,
   });
 
   // 2. Wake Station & Verify Capsule
@@ -135,43 +134,54 @@ Actions:
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
-// 3. Remote Preparation
-const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
+  // 3. Remote Preparation
+  const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
 
-// 4. Remote Context Setup (Executed INSIDE capsule for path consistency)
-const provisioner = new RemoteProvisioner(provider);
-const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isEvaMode, '', {
-    remoteWorkDir: config.remoteWorkDir!,
-    worktreesDir: repoWorktreesDir,
-    upstreamUrl,
-    cpuLimit: config.cpuLimit,
-    memoryLimit: config.memoryLimit
-} as any);
+  // 4. Remote Context Setup (Executed INSIDE capsule for path consistency)
+  const provisioner = new RemoteProvisioner(provider);
+  const remoteWorktreeDir = await provisioner.provisionWorktree(
+    prNumber,
+    action,
+    isEvaMode,
+    '',
+    {
+      remoteWorkDir: config.remoteWorkDir!,
+      worktreesDir: repoWorktreesDir,
+      upstreamUrl,
+      cpuLimit: config.cpuLimit,
+      memoryLimit: config.memoryLimit,
+    } as any,
+  );
 
-if (!remoteWorktreeDir) {
+  if (!remoteWorktreeDir) {
     console.error('❌ Failed to provision satellite worktree.');
     return 1;
-}
+  }
 
-// AUTH: Inject credentials directly into the worktree .env
-if (localApiKey) {
-  console.log('   - Injecting mission authentication context...');
-  const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName}`;
-  const authRes = await provider.exec(
-      `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`
-  );
-  if (authRes !== 0) return authRes;
-}
+  // AUTH: Inject credentials directly into the worktree .env
+  if (localApiKey) {
+    console.log('   - Injecting mission authentication context...');
+    const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName}`;
+    const authRes = await provider.exec(
+      `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`,
+    );
+    if (authRes !== 0) return authRes;
+  }
 
-// 5. Execution Logic
+  // 5. Execution Logic
   const isWithinGemini =
     !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
 
   // Handle --open override
   const openIdx = args.indexOf('--open');
-  let terminalTarget: 'foreground' | 'background' | 'tab' | 'window' = config.terminalTarget || 'tab';
+  let terminalTarget: 'foreground' | 'background' | 'tab' | 'window' =
+    config.terminalTarget || 'tab';
   if (openIdx !== -1 && args[openIdx + 1]) {
-    terminalTarget = args[openIdx + 1] as 'foreground' | 'background' | 'tab' | 'window';
+    terminalTarget = args[openIdx + 1] as
+      | 'foreground'
+      | 'background'
+      | 'tab'
+      | 'window';
   }
 
   // FORCE FOREGROUND if requested or if not in a supported terminal
@@ -185,12 +195,17 @@ if (localApiKey) {
   // 6. Persistence vs Raw Execution
   let useTmux = config.useTmux !== false;
   if (useTmux) {
-      // Verify tmux presence on the provider
-      const tmuxCheck = await provider.getExecOutput('tmux -V', { wrapCapsule: containerName, quiet: true });
-      if (tmuxCheck.status !== 0) {
-          console.log('   ⚠️ tmux not detected in environment. Falling back to raw execution.');
-          useTmux = false;
-      }
+    // Verify tmux presence on the provider
+    const tmuxCheck = await provider.getExecOutput('tmux -V', {
+      wrapCapsule: containerName,
+      quiet: true,
+    });
+    if (tmuxCheck.status !== 0) {
+      console.log(
+        '   ⚠️ tmux not detected in environment. Falling back to raw execution.',
+      );
+      useTmux = false;
+    }
   }
 
   const tmuxStyle = `
@@ -211,16 +226,16 @@ if (localApiKey) {
     interactive: true,
     wrapCapsule: containerName,
     env: {
-        COLORTERM: 'truecolor',
-        TERM: 'xterm-256color',
-        GEMINI_AUTO_UPDATE: '0',
-        GEMINI_CLI_HOME: '/home/node',
-        GCLI_SESSION_ID: sessionId
-    }
+      COLORTERM: 'truecolor',
+      TERM: 'xterm-256color',
+      GEMINI_AUTO_UPDATE: '0',
+      GEMINI_CLI_HOME: '/home/node',
+      GCLI_SESSION_ID: sessionId,
+    },
   };
 
   const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
-  
+
   // If local, we likely don't need the gh token cat thing if we are already authed
   const isLocal = config.providerType === 'local-worktree';
   const fullCommand = isLocal ? missionCmd : `${ghAuthCmd} && ${missionCmd}`;
@@ -236,7 +251,7 @@ if (localApiKey) {
   ) {
     const sessionDir = tempManager.getDir(sessionId);
     const tempCmdPath = path.join(sessionDir, 'launch.sh');
-    
+
     fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
       mode: 0o755,
     });
@@ -269,7 +284,7 @@ if (localApiKey) {
             `;
     spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
     console.log(`✅ iTerm2 ${terminalTarget} opened for mission ${prNumber}.`);
-    
+
     // Allow small delay for iTerm to read the file before we potentially clean up the directory
     setTimeout(() => tempManager.cleanup(sessionId), 2000);
     return 0;
@@ -283,8 +298,10 @@ if (localApiKey) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runOrchestrator(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+  runOrchestrator(process.argv.slice(2))
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

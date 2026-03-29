@@ -30,17 +30,20 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
   constructor(
     stationName: string = 'local-station',
-    worktreesDir: string = path.join(os.homedir(), 'dev/orbit/worktrees')
+    worktreesDir: string = path.join(os.homedir(), 'dev/orbit/worktrees'),
   ) {
     this.stationName = stationName;
     this.worktreesDir = worktreesDir;
-    
+
     if (!fs.existsSync(this.worktreesDir)) {
       fs.mkdirSync(this.worktreesDir, { recursive: true });
     }
   }
 
-  async provision(options?: { setupNetwork?: boolean; sessionId?: string }): Promise<number> {
+  async provision(options?: {
+    setupNetwork?: boolean;
+    sessionId?: string;
+  }): Promise<number> {
     console.log(`🏠 Ensuring local worktrees directory: ${this.worktreesDir}`);
     return 0;
   }
@@ -59,15 +62,23 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
-    const envPrefix = options.env ? Object.entries(options.env).map(([k, v]) => `${k}=${this.quote(v)}`).join(' ') + ' ' : '';
-    const sensitivePrefix = options.sensitiveEnv ? Object.entries(options.sensitiveEnv).map(([k, v]) => `${k}=${this.quote(v)}`).join(' ') + ' ' : '';
-    
+    const envPrefix = options.env
+      ? Object.entries(options.env)
+          .map(([k, v]) => `${k}=${this.quote(v)}`)
+          .join(' ') + ' '
+      : '';
+    const sensitivePrefix = options.sensitiveEnv
+      ? Object.entries(options.sensitiveEnv)
+          .map(([k, v]) => `${k}=${this.quote(v)}`)
+          .join(' ') + ' '
+      : '';
+
     if (options.wrapCapsule) {
-       // Capsule is the worktree directory name
-       const capsulePath = path.join(this.worktreesDir, options.wrapCapsule);
-       finalCmd = `cd ${capsulePath} && ${envPrefix}${sensitivePrefix}${command}`;
+      // Capsule is the worktree directory name
+      const capsulePath = path.join(this.worktreesDir, options.wrapCapsule);
+      finalCmd = `cd ${capsulePath} && ${envPrefix}${sensitivePrefix}${command}`;
     } else {
-       finalCmd = `${envPrefix}${sensitivePrefix}${command}`;
+      finalCmd = `${envPrefix}${sensitivePrefix}${command}`;
     }
     return finalCmd;
   }
@@ -77,7 +88,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return res.status;
   }
 
-  async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
+  async getExecOutput(
+    command: string,
+    options: ExecOptions = {},
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
     const finalCmd = command;
     let cwd = options.cwd || process.cwd();
 
@@ -85,11 +99,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
       cwd = path.join(this.worktreesDir, options.wrapCapsule);
     }
 
-    const res = spawnSync(finalCmd, { 
-        stdio: options.quiet ? 'pipe' : 'inherit', 
-        shell: true, 
-        cwd,
-        env: { ...process.env, GEMINI_AUTO_UPDATE: '0' }
+    const res = spawnSync(finalCmd, {
+      stdio: options.quiet ? 'pipe' : 'inherit',
+      shell: true,
+      cwd,
+      env: { ...process.env, GEMINI_AUTO_UPDATE: '0' },
     });
 
     return {
@@ -99,12 +113,19 @@ export class LocalWorktreeProvider implements OrbitProvider {
     };
   }
 
-  async sync(localPath: string, remotePath: string, _options: SyncOptions = {}): Promise<number> {
-    // For local worktree, this is essentially a no-op if paths are same, 
+  async sync(
+    localPath: string,
+    remotePath: string,
+    _options: SyncOptions = {},
+  ): Promise<number> {
+    // For local worktree, this is essentially a no-op if paths are same,
     // or a copy if they are different.
     if (path.resolve(localPath) === path.resolve(remotePath)) return 0;
-    
-    const res = spawnSync(`cp -r ${localPath} ${remotePath}`, { shell: true, stdio: 'inherit' });
+
+    const res = spawnSync(`cp -r ${localPath} ${remotePath}`, {
+      shell: true,
+      stdio: 'inherit',
+    });
     return res.status ?? 0;
   }
 
@@ -120,7 +141,9 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
-  async getCapsuleStatus(name: string): Promise<{ running: boolean; exists: boolean }> {
+  async getCapsuleStatus(
+    name: string,
+  ): Promise<{ running: boolean; exists: boolean }> {
     const capsulePath = path.join(this.worktreesDir, name);
     const exists = fs.existsSync(capsulePath);
     return { running: exists, exists };
@@ -136,23 +159,26 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const capsulePath = path.join(this.worktreesDir, config.name);
-    
+
     if (fs.existsSync(capsulePath)) {
-        console.log(`   ✅ Local worktree already exists: ${capsulePath}`);
-        return 0;
+      console.log(`   ✅ Local worktree already exists: ${capsulePath}`);
+      return 0;
     }
 
     console.log(`   🌿 Creating local worktree: ${config.name}...`);
-    
+
     // We expect the 'image' field to be the source repository path for local-worktree
-    const sourceRepo = config.image; 
-    
-    // Note: LocalWorktree doesn't currently use config.env or config.sensitiveEnv 
+    const sourceRepo = config.image;
+
+    // Note: LocalWorktree doesn't currently use config.env or config.sensitiveEnv
     // for the creation process, but they are available for getRunCommand.
-    
+
     // git worktree add <path> <branch>
-    const res = spawnSync(`git -C ${sourceRepo} worktree add ${capsulePath} -b ${config.name} main`, { shell: true, stdio: 'inherit' });
-    
+    const res = spawnSync(
+      `git -C ${sourceRepo} worktree add ${capsulePath} -b ${config.name} main`,
+      { shell: true, stdio: 'inherit' },
+    );
+
     return res.status ?? 0;
   }
 
@@ -161,13 +187,19 @@ export class LocalWorktreeProvider implements OrbitProvider {
     if (!fs.existsSync(capsulePath)) return 0;
 
     console.log(`   🔥 Removing local worktree: ${name}...`);
-    const res = spawnSync(`git worktree remove ${capsulePath} --force`, { shell: true, stdio: 'inherit' });
+    const res = spawnSync(`git worktree remove ${capsulePath} --force`, {
+      shell: true,
+      stdio: 'inherit',
+    });
     return res.status ?? 0;
   }
 
   async capturePane(capsuleName: string): Promise<string> {
     // Local capture could use tmux if session name matches
-    const res = spawnSync(`tmux capture-pane -pt ${capsuleName} 2>/dev/null`, { shell: true, stdio: 'pipe' });
+    const res = spawnSync(`tmux capture-pane -pt ${capsuleName} 2>/dev/null`, {
+      shell: true,
+      stdio: 'pipe',
+    });
     return res.stdout?.toString() || '';
   }
 
@@ -178,7 +210,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
   async destroy(): Promise<number> {
     console.log(`🔥 Removing all local worktrees in ${this.worktreesDir}...`);
-    const res = spawnSync(`rm -rf ${this.worktreesDir}`, { shell: true, stdio: 'inherit' });
+    const res = spawnSync(`rm -rf ${this.worktreesDir}`, {
+      shell: true,
+      stdio: 'inherit',
+    });
     return res.status ?? 0;
   }
 

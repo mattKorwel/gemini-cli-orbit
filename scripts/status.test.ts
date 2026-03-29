@@ -9,37 +9,40 @@ import { runStatus } from './status.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
 
-
 vi.mock('node:fs');
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
 
 describe('runStatus', () => {
   const mockProvider = {
-    getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
+    getStatus: vi
+      .fn()
+      .mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
     getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: '' }),
     capturePane: vi.fn().mockResolvedValue(''),
     listCapsules: vi.fn().mockResolvedValue([]),
     stationName: 'gcli-station-repo',
     projectId: 'p',
-    zone: 'z'
+    zone: 'z',
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
-    
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-orbit-extension');
+
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue(
+      'gemini-orbit-extension',
+    );
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-        projectId: 'p',
-        zone: 'z',
-        instanceName: 'i',
-        repoName: 'gemini-orbit-extension',
-        terminalTarget: 'tab',
-        userFork: 'u/f',
-        upstreamRepo: 'o/r',
-        remoteHost: 'h',
-        remoteWorkDir: '/w',
+      projectId: 'p',
+      zone: 'z',
+      instanceName: 'i',
+      repoName: 'gemini-orbit-extension',
+      terminalTarget: 'tab',
+      userFork: 'u/f',
+      upstreamRepo: 'o/r',
+      remoteHost: 'h',
+      remoteWorkDir: '/w',
     });
   });
 

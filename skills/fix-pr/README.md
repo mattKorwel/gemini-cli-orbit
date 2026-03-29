@@ -5,20 +5,20 @@ fix a pull request until it is mergeable and passes all quality checks.
 
 ## When to use fix-pr
 
--   **Autonomous fixing**: Move a PR from failing to green without manual
-    intervention.
--   **Iterative loops**: Automatically handle the "fix -> push -> wait for CI"
-    cycle.
--   **Context preservation**: Maintain context across multiple fix attempts.
+- **Autonomous fixing**: Move a PR from failing to green without manual
+  intervention.
+- **Iterative loops**: Automatically handle the "fix -> push -> wait for CI"
+  cycle.
+- **Context preservation**: Maintain context across multiple fix attempts.
 
 ## Sync vs Offload
 
 This skill is designed to be versatile:
 
--   **Synchronous mode**: Activate the skill in your current terminal for
-    quick fixes or conflict resolution.
--   **Offloaded mode**: Use `npm run offload <PR> fix` to launch an iterative
-    fix loop on a remote workstation, keeping your local machine free.
+- **Synchronous mode**: Activate the skill in your current terminal for quick
+  fixes or conflict resolution.
+- **Offloaded mode**: Use `npm run offload <PR> fix` to launch an iterative fix
+  loop on a remote workstation, keeping your local machine free.
 
 ## Objective
 

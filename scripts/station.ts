@@ -6,7 +6,7 @@
 
 /**
  * Universal Orbit Station (Remote)
- * 
+ *
  * Stateful orchestrator for complex development loops.
  */
 
@@ -27,12 +27,14 @@ export async function runStation(args: string[]) {
   const action = args[3] || 'review';
 
   if (!prNumberOrIssue || !policyPath) {
-    console.error('Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]');
+    console.error(
+      'Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]',
+    );
     return 1;
   }
 
   const targetDir = process.cwd();
-  
+
   // Resolve absolute path of gemini to ensure we use the same one in sub-tasks
   // Prefer the nightly binary which is known to support policies
   let geminiBin = '/Users/mattkorwel/.gcli/nightly/node_modules/.bin/gemini';
@@ -52,24 +54,35 @@ export async function runStation(args: string[]) {
   // 1. Resolve Session and Temp Directory
   const config = getRepoConfig();
   const tempManager = new TempManager(config);
-  const sessionId = SessionManager.getSessionIdFromEnv() || SessionManager.generateSessionId(prNumberOrIssue, action);
+  const sessionId =
+    SessionManager.getSessionIdFromEnv() ||
+    SessionManager.generateSessionId(prNumberOrIssue, action);
   const logDir = tempManager.getDir(sessionId);
 
   // 2. Resolve Policy (CLI > Project Local > Fallback)
   let resolvedPolicyPath = policyPath;
-  const projectLocalPolicy = path.join(targetDir, `.gemini/orbit/${action}.policy.toml`);
+  const projectLocalPolicy = path.join(
+    targetDir,
+    `.gemini/orbit/${action}.policy.toml`,
+  );
   if (fs.existsSync(projectLocalPolicy)) {
     resolvedPolicyPath = projectLocalPolicy;
   } else if (!fs.existsSync(resolvedPolicyPath)) {
     // Attempt fallback to a known location if the passed one doesn't exist
-    const fallbackPolicy = path.join(targetDir, '.gemini/policies/workspace-policy.toml');
+    const fallbackPolicy = path.join(
+      targetDir,
+      '.gemini/policies/workspace-policy.toml',
+    );
     if (fs.existsSync(fallbackPolicy)) {
-       resolvedPolicyPath = fallbackPolicy;
+      resolvedPolicyPath = fallbackPolicy;
     }
   }
 
   // 3. Resolve Guidelines (Project Local > Standard)
-  const projectGuidelines = path.join(targetDir, `.gemini/orbit/${action}-guidelines.md`);
+  const projectGuidelines = path.join(
+    targetDir,
+    `.gemini/orbit/${action}-guidelines.md`,
+  );
   let guidelinesPath = '';
   if (fs.existsSync(projectGuidelines)) {
     guidelinesPath = projectGuidelines;
@@ -85,29 +98,63 @@ export async function runStation(args: string[]) {
   try {
     fs.writeFileSync(
       path.join(targetDir, '.gemini/current-session.json'),
-      JSON.stringify({ sessionId, logDir, action, timestamp: new Date().toISOString() }, null, 2)
+      JSON.stringify(
+        { sessionId, logDir, action, timestamp: new Date().toISOString() },
+        null,
+        2,
+      ),
     );
   } catch {}
 
   // Dispatch to Playbook
   switch (action) {
     case 'review':
-      return runReviewPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, missionHeader, guidelinesPath);
+      return runReviewPlaybook(
+        prNumberOrIssue,
+        targetDir,
+        resolvedPolicyPath,
+        geminiBin,
+        logDir,
+        missionHeader,
+        guidelinesPath,
+      );
 
     case 'fix':
-      return runFixPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, missionHeader);
+      return runFixPlaybook(
+        prNumberOrIssue,
+        targetDir,
+        resolvedPolicyPath,
+        geminiBin,
+        logDir,
+        missionHeader,
+      );
 
     case 'ready':
-      return runReadyPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, missionHeader);
+      return runReadyPlaybook(
+        prNumberOrIssue,
+        targetDir,
+        resolvedPolicyPath,
+        geminiBin,
+        logDir,
+        missionHeader,
+      );
 
     case 'implement': {
       const { runImplementPlaybook } = await import('./playbooks/implement.js');
-      return runImplementPlaybook(prNumberOrIssue, targetDir, resolvedPolicyPath, geminiBin, logDir, missionHeader, guidelinesPath);
+      return runImplementPlaybook(
+        prNumberOrIssue,
+        targetDir,
+        resolvedPolicyPath,
+        geminiBin,
+        logDir,
+        missionHeader,
+        guidelinesPath,
+      );
     }
     case 'open':
       console.log(`🚀 Dropping into manual session...`);
       return 0;
-      
+
     default:
       console.error(`❌ Unknown action: ${action}`);
       return 1;
@@ -115,8 +162,10 @@ export async function runStation(args: string[]) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runStation(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+  runStation(process.argv.slice(2))
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

@@ -83,8 +83,7 @@ function generateTestCommand(failedFilesMap: Map<string, Set<string>>): string {
       relPath = file.replace('packages/cli/', '');
     }
     relPath = relPath.replace(/^.*packages\/[^\/]+\//, '');
-    if (!orbitToFiles.has(orbit))
-      orbitToFiles.set(orbit, new Set());
+    if (!orbitToFiles.has(orbit)) orbitToFiles.set(orbit, new Set());
     orbitToFiles.get(orbit)!.add(relPath);
   }
   const commands = [];
@@ -100,15 +99,19 @@ async function monitor() {
     targetRunIds = [parseInt(RUN_ID_OVERRIDE, 10)];
   } else {
     const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
-    console.log(`🔍 Looking for runs associated with commit ${headSha.substring(0, 7)} on branch ${BRANCH}...`);
-    
+    console.log(
+      `🔍 Looking for runs associated with commit ${headSha.substring(0, 7)} on branch ${BRANCH}...`,
+    );
+
     let attempts = 0;
     const maxAttempts = 20; // Wait up to 5 minutes (20 * 15s)
 
     while (targetRunIds.length === 0 && attempts < maxAttempts) {
       if (attempts > 0) {
-        process.stdout.write(`\r⏳ No runs found yet. Waiting for GitHub to register the run (Attempt ${attempts}/${maxAttempts})...`);
-        await new Promise(r => setTimeout(r, 15000));
+        process.stdout.write(
+          `\r⏳ No runs found yet. Waiting for GitHub to register the run (Attempt ${attempts}/${maxAttempts})...`,
+        );
+        await new Promise((r) => setTimeout(r, 15000));
       }
       attempts++;
 
@@ -136,7 +139,7 @@ async function monitor() {
               .filter(Boolean)
               .map((url) => {
                 const match = url.match(/actions\/runs\/(\d+)/);
-                return (match && match[1]) ? parseInt(match[1], 10) : null;
+                return match && match[1] ? parseInt(match[1], 10) : null;
               })
               .filter((id): id is number => id !== null);
 
@@ -151,12 +154,14 @@ async function monitor() {
         }
       }
     }
-    
+
     if (attempts > 1) console.log(''); // New line after polling
   }
 
   if (targetRunIds.length === 0) {
-    console.log(`❌ No runs found for branch ${BRANCH} at commit ${execSync(`git rev-parse --short "${BRANCH}"`).toString().trim()} after waiting.`);
+    console.log(
+      `❌ No runs found for branch ${BRANCH} at commit ${execSync(`git rev-parse --short "${BRANCH}"`).toString().trim()} after waiting.`,
+    );
     process.exit(0);
   }
 
@@ -168,7 +173,9 @@ async function monitor() {
         runNames.push(JSON.parse(runInfo).workflowName);
       }
     }
-    console.log(`🚀 Monitoring workflows: ${[...new Set(runNames)].join(', ')}`);
+    console.log(
+      `🚀 Monitoring workflows: ${[...new Set(runNames)].join(', ')}`,
+    );
   }
 
   while (true) {

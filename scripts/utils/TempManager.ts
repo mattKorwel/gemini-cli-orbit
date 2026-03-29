@@ -13,50 +13,52 @@ import { type OrbitConfig, DEFAULT_TEMP_DIR } from '../Constants.js';
  * Manages session-isolated temporary directories for missions.
  */
 export class TempManager {
-    private readonly baseTempDir: string;
-    private readonly autoClean: boolean;
+  private readonly baseTempDir: string;
+  private readonly autoClean: boolean;
 
-    constructor(config: OrbitConfig) {
-        // Resolve temp dir: Config > Environment > Default
-        this.baseTempDir = config.tempDir || 
-                          process.env.GCLI_ORBIT_TEMP_DIR || 
-                          DEFAULT_TEMP_DIR;
-        
-        // Resolve autoClean: Config > Environment > Default (true)
-        this.autoClean = config.autoClean !== undefined ? config.autoClean : 
-                        (process.env.GCLI_ORBIT_AUTO_CLEAN !== undefined ? 
-                         process.env.GCLI_ORBIT_AUTO_CLEAN === 'true' : true);
+  constructor(config: OrbitConfig) {
+    // Resolve temp dir: Config > Environment > Default
+    this.baseTempDir =
+      config.tempDir || process.env.GCLI_ORBIT_TEMP_DIR || DEFAULT_TEMP_DIR;
 
-        // Replace home tilde if present
-        if (this.baseTempDir.startsWith('~')) {
-            this.baseTempDir = path.join(os.homedir(), this.baseTempDir.slice(1));
-        }
+    // Resolve autoClean: Config > Environment > Default (true)
+    this.autoClean =
+      config.autoClean !== undefined
+        ? config.autoClean
+        : process.env.GCLI_ORBIT_AUTO_CLEAN !== undefined
+          ? process.env.GCLI_ORBIT_AUTO_CLEAN === 'true'
+          : true;
+
+    // Replace home tilde if present
+    if (this.baseTempDir.startsWith('~')) {
+      this.baseTempDir = path.join(os.homedir(), this.baseTempDir.slice(1));
     }
+  }
 
-    /**
-     * Ensures and returns the session-specific temporary directory.
-     */
-    getDir(sessionId: string): string {
-        const sessionDir = path.join(this.baseTempDir, sessionId);
-        if (!fs.existsSync(sessionDir)) {
-            fs.mkdirSync(sessionDir, { recursive: true });
-        }
-        return sessionDir;
+  /**
+   * Ensures and returns the session-specific temporary directory.
+   */
+  getDir(sessionId: string): string {
+    const sessionDir = path.join(this.baseTempDir, sessionId);
+    if (!fs.existsSync(sessionDir)) {
+      fs.mkdirSync(sessionDir, { recursive: true });
     }
+    return sessionDir;
+  }
 
-    /**
-     * Cleans up the session directory if autoClean is enabled.
-     */
-    cleanup(sessionId: string): void {
-        if (!this.autoClean) return;
-        
-        const sessionDir = path.join(this.baseTempDir, sessionId);
-        if (fs.existsSync(sessionDir)) {
-            try {
-                fs.rmSync(sessionDir, { recursive: true, force: true });
-            } catch (e) {
-                console.error(`⚠️ Failed to clean up temp dir ${sessionDir}:`, e);
-            }
-        }
+  /**
+   * Cleans up the session directory if autoClean is enabled.
+   */
+  cleanup(sessionId: string): void {
+    if (!this.autoClean) return;
+
+    const sessionDir = path.join(this.baseTempDir, sessionId);
+    if (fs.existsSync(sessionDir)) {
+      try {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+      } catch (e) {
+        console.error(`⚠️ Failed to clean up temp dir ${sessionDir}:`, e);
+      }
     }
+  }
 }

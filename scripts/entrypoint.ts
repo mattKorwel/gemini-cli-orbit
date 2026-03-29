@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { spawnSync } from 'node:child_process';
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { logger } from './Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,7 +22,9 @@ async function main() {
   }
 
   if (!prNumber || !branchName || !policyPath) {
-    logger.error('Usage: tsx entrypoint.ts <PR_NUMBER> <BRANCH_NAME> <POLICY_PATH> [--verbose]');
+    logger.error(
+      'Usage: tsx entrypoint.ts <PR_NUMBER> <BRANCH_NAME> <POLICY_PATH> [--verbose]',
+    );
     process.exit(1);
   }
 
@@ -30,7 +32,7 @@ async function main() {
   const targetDir = path.join(workDir, branchName);
 
   // Use global tools pre-installed in the development image
-  const tsxBin = 'tsx'; 
+  const tsxBin = 'tsx';
   const geminiBin = 'gemini';
 
   const action = process.argv[5] || 'review';
@@ -41,16 +43,21 @@ async function main() {
   const healthCheckRes = spawnSync('df', ['-h', targetDir], { stdio: 'pipe' });
   logger.logOutput(healthCheckRes.stdout, healthCheckRes.stderr);
   if (healthCheckRes.status === 0) {
-      logger.info(`   ✅ Disk usage verified for ${targetDir}`);
+    logger.info(`   ✅ Disk usage verified for ${targetDir}`);
   }
 
-  const gitCheckRes = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe', cwd: targetDir });
+  const gitCheckRes = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    stdio: 'pipe',
+    cwd: targetDir,
+  });
   logger.logOutput(gitCheckRes.stdout, gitCheckRes.stderr);
   if (gitCheckRes.status !== 0) {
-      logger.error('   ❌ Critical: Not a valid git worktree. Attempting self-repair...');
-      // Self-repair logic can be added here if needed
+    logger.error(
+      '   ❌ Critical: Not a valid git worktree. Attempting self-repair...',
+    );
+    // Self-repair logic can be added here if needed
   } else {
-      logger.info('   ✅ Git worktree health verified.');
+    logger.info('   ✅ Git worktree health verified.');
   }
 
   // 2. Run the Parallel Reviewer
@@ -58,42 +65,53 @@ async function main() {
   logger.info(`   - Script: ${path.join(__dirname, 'station.ts')}`);
   logger.info(`   - Action: ${action}`);
 
-  const workerResult = spawnSync(tsxBin, [path.join(__dirname, 'station.ts'), prNumber, branchName, policyPath, action], {
-    stdio: 'inherit',
-    env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG }
-  });
+  const workerResult = spawnSync(
+    tsxBin,
+    [
+      path.join(__dirname, 'station.ts'),
+      prNumber,
+      branchName,
+      policyPath,
+      action,
+    ],
+    {
+      stdio: 'inherit',
+      env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG },
+    },
+  );
 
   if (workerResult.status !== 0) {
     logger.error(`❌ Worker failed with exit code ${workerResult.status}.`);
-    if (workerResult.error) logger.error('   Error:', workerResult.error.message);
+    if (workerResult.error)
+      logger.error('   Error:', workerResult.error.message);
   }
 
   // 2. Launch the Interactive Gemini Session (Local Nightly)
   logger.info('\n✨ Orbit ready. Joining interactive session...');
-  
+
   const geminiArgs = ['--policy', policyPath];
   let initialPrompt = '';
 
   if (customPrompt) {
-      initialPrompt = customPrompt;
+    initialPrompt = customPrompt;
   } else if (action !== 'open') {
-      // For any non-open action (if we re-add them), provide a helper prompt.
-      // But if it's 'open' and no prompt was passed, we want it to be clean.
-      initialPrompt = `I've jumped into this orbit for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
+    // For any non-open action (if we re-add them), provide a helper prompt.
+    // But if it's 'open' and no prompt was passed, we want it to be clean.
+    initialPrompt = `I've jumped into this orbit for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
   }
 
   // Use --prompt-interactive ONLY if we have a prompt to avoid argument errors
   if (initialPrompt) {
-      geminiArgs.push('--prompt-interactive', initialPrompt);
+    geminiArgs.push('--prompt-interactive', initialPrompt);
   }
 
   process.chdir(targetDir);
   spawnSync(geminiBin, geminiArgs, {
     stdio: 'inherit',
-    env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG }
+    env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG },
   });
 }
 
-main().catch(err => {
+main().catch((err) => {
   logger.error(err instanceof Error ? err.message : String(err));
 });

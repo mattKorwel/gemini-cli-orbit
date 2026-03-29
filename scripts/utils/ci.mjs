@@ -18,40 +18,43 @@ let REPO;
 try {
   const remoteUrl = execSync('git remote get-url origin').toString().trim();
   REPO = remoteUrl
-  .replace(/.*github\.com[\/:]/, '')
-  .replace(/\.git$/, '')
-  .trim();
-  } catch (_e) {
+    .replace(/.*github\.com[\/:]/, '')
+    .replace(/\.git$/, '')
+    .trim();
+} catch (_e) {
   // Fallback to local package.json if git fails
   try {
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  REPO = pkg.repository?.url?.replace(/.*github\.com[\/:]/, '').replace(/\.git$/, '') || 'unknown/repo';
+    const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    REPO =
+      pkg.repository?.url
+        ?.replace(/.*github\.com[\/:]/, '')
+        .replace(/\.git$/, '') || 'unknown/repo';
   } catch (_e) {
-  REPO = 'unknown/repo';
+    REPO = 'unknown/repo';
   }
-  }
+}
 
-  function runGh(args) {
+function runGh(args) {
   try {
-  return execSync(`gh ${args}`, {
-    stdio: ['ignore', 'pipe', 'ignore'],
-  }).toString();
+    return execSync(`gh ${args}`, {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString();
   } catch (_e) {
-  return null;
+    return null;
   }
-  }
+}
 
-  function fetchFailuresViaApi(jobId) {
+function fetchFailuresViaApi(jobId) {
   try {
-  const cmd = `gh api repos/${REPO}/actions/jobs/${jobId}/logs | grep -iE " FAIL |❌|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
-  return execSync(cmd, {
-    stdio: ['ignore', 'pipe', 'ignore'],
-    maxBuffer: 10 * 1024 * 1024,
-  }).toString();
+    const cmd = `gh api repos/${REPO}/actions/jobs/${jobId}/logs | grep -iE " FAIL |❌|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
+    return execSync(cmd, {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 10 * 1024 * 1024,
+    }).toString();
   } catch (_e) {
-  return '';
+    return '';
   }
-  }
+}
 function isNoise(line) {
   const lower = line.toLowerCase();
   return (
@@ -83,7 +86,9 @@ function findWorkspaceForFile(file) {
   while (currentDir !== '.' && currentDir !== '/') {
     if (fs.existsSync(path.join(currentDir, 'package.json'))) {
       try {
-        const pkg = JSON.parse(fs.readFileSync(path.join(currentDir, 'package.json'), 'utf8'));
+        const pkg = JSON.parse(
+          fs.readFileSync(path.join(currentDir, 'package.json'), 'utf8'),
+        );
         if (pkg.name) return pkg.name;
       } catch {
         // Continue searching
@@ -101,7 +106,7 @@ function generateTestCommand(failedFilesMap) {
       ['Job Error', 'Unknown File', 'Build Error', 'Lint Error'].includes(file)
     )
       continue;
-    
+
     const workspace = findWorkspaceForFile(file);
     const relPath = file;
 

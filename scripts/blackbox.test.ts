@@ -29,8 +29,12 @@ describe('runBlackbox', () => {
 
   it('shows logs if local directory exists', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readdirSync).mockReturnValueOnce(['orbit-123-review-1'] as any);
-    vi.mocked(fs.statSync).mockReturnValue({ mtime: { getTime: () => 100 } } as any);
+    vi.mocked(fs.readdirSync).mockReturnValueOnce([
+      'orbit-123-review-1',
+    ] as any);
+    vi.mocked(fs.statSync).mockReturnValue({
+      mtime: { getTime: () => 100 },
+    } as any);
     vi.mocked(fs.readdirSync).mockReturnValueOnce(['test.log'] as any);
 
     const res = await runBlackbox(['123', 'review']);

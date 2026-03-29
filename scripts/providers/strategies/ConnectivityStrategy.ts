@@ -18,12 +18,18 @@ export interface ConnectivityStrategy {
   /**
    * Returns the full shell command string.
    */
-  getRunCommand(command: string, options: { interactive?: boolean | undefined }): string;
+  getRunCommand(
+    command: string,
+    options: { interactive?: boolean | undefined },
+  ): string;
 
   /**
    * Returns the command as an array of arguments (safer for spawn).
    */
-  getRunArgs(command: string, options: { interactive?: boolean | undefined }): string[];
+  getRunArgs(
+    command: string,
+    options: { interactive?: boolean | undefined },
+  ): string[];
 
   /**
    * Sets an override host (e.g. after resolving IP).

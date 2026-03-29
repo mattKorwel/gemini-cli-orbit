@@ -20,9 +20,11 @@ export async function runChecker(
 
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
-  
+
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit setup" first.`);
+    console.error(
+      `❌ Settings not found for repo: ${repoName}. Run "orbit setup" first.`,
+    );
     return 1;
   }
   const { projectId, zone, remoteWorkDir, instanceName } = config;

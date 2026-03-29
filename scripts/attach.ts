@@ -29,13 +29,16 @@ export async function runAttach(
 
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
-  
+
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit setup" first.`);
+    console.error(
+      `❌ Settings not found for repo: ${repoName}. Run "orbit setup" first.`,
+    );
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } =
+    config;
   const provider = ProviderFactory.getProvider({
     projectId: projectId!,
     zone: zone!,
@@ -43,10 +46,13 @@ export async function runAttach(
     repoName,
     dnsSuffix,
     userSuffix,
-    backendType
+    backendType,
   });
 
-  const sessionId = SessionManager.generateSessionId(prNumber, `attach-${action}`);
+  const sessionId = SessionManager.generateSessionId(
+    prNumber,
+    `attach-${action}`,
+  );
   const containerName = `gcli-${prNumber}-${action}`;
   const sessionName = `orbit-${prNumber}-${action}`;
   const containerAttach = `sudo docker exec -it ${containerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
@@ -63,7 +69,7 @@ export async function runAttach(
   if (isWithinGemini && !isLocal) {
     const sessionDir = tempManager.getDir(sessionId);
     const tempCmdPath = path.join(sessionDir, 'launch.sh');
-    
+
     fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
       mode: 0o755,
     });
@@ -81,13 +87,17 @@ export async function runAttach(
         end tell
       end run
     `;
-    const res = spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
+    const res = spawnSync('osascript', ['-', tempCmdPath], {
+      input: appleScript,
+    });
     if (res.status === 0) {
-        console.log(`✅ iTerm2 tab opened for ${sessionName}.`);
-        setTimeout(() => tempManager.cleanup(sessionId), 2000);
-        return 0;
+      console.log(`✅ iTerm2 tab opened for ${sessionName}.`);
+      setTimeout(() => tempManager.cleanup(sessionId), 2000);
+      return 0;
     }
-    console.warn('⚠️  AppleScript failed to open new tab. Falling back to current terminal.');
+    console.warn(
+      '⚠️  AppleScript failed to open new tab. Falling back to current terminal.',
+    );
   }
 
   const finalRes = spawnSync(finalSSH, { stdio: 'inherit', shell: true });
@@ -95,8 +105,10 @@ export async function runAttach(
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runAttach(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+  runAttach(process.argv.slice(2))
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
       console.error(err);
       process.exit(1);
-  });
+    });
 }
