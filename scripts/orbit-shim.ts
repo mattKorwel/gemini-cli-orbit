@@ -13,7 +13,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 const COMMANDS: Record<string, { script: string; description: string }> = {
   mission: {
-    script: 'orchestrator.ts',
+    script: 'mission.ts',
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
   liftoff: {
@@ -21,7 +21,7 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     description: 'Initial station setup: provision GCE Worker and Docker base.',
   },
   ci: {
-    script: 'utils/ci.mjs',
+    script: 'ci.ts',
     description: 'Monitor CI status for a branch with noise filtering.',
   },
   pulse: {
@@ -85,13 +85,13 @@ if (!commandInfo) {
   process.exit(1);
 }
 
-const script = commandInfo.script;
+const scriptName = commandInfo.script;
 const bundleBinPath = path.join(
   ROOT,
   'bundle/bin',
-  script.replace('.ts', '.js'),
+  scriptName.replace('.ts', '.js'),
 );
-const scriptPath = path.join(ROOT, 'scripts/bin', script);
+const scriptPath = path.join(ROOT, 'scripts/bin', scriptName);
 
 let finalPath = bundleBinPath;
 let useTsx = false;
@@ -100,27 +100,12 @@ let useTsx = false;
 if (!fs.existsSync(bundleBinPath)) {
   if (fs.existsSync(scriptPath)) {
     finalPath = scriptPath;
-    useTsx = script.endsWith('.ts');
+    useTsx = true;
   } else {
-    // Fallback to old structure if bin is missing
-    const oldBundlePath = path.join(
-      ROOT,
-      'bundle',
-      script.replace('.ts', '.js'),
+    console.error(
+      `\n❌ Script execution failure: Could not find ${scriptName} in bundle/bin/ or scripts/bin/`,
     );
-    const oldScriptPath = path.join(ROOT, 'scripts', script);
-
-    if (fs.existsSync(oldBundlePath)) {
-      finalPath = oldBundlePath;
-    } else if (fs.existsSync(oldScriptPath)) {
-      finalPath = oldScriptPath;
-      useTsx = true;
-    } else {
-      console.error(
-        `\n❌ Script execution failure: Could not find ${script} in bundle/ or scripts/`,
-      );
-      process.exit(1);
-    }
+    process.exit(1);
   }
 }
 
@@ -154,6 +139,7 @@ for (let i = 0; i < rawArgs.length; i++) {
     }
   }
 }
+
 const res = spawnSync(exec, [finalPath, ...filteredArgs], {
   stdio: 'inherit',
   env: process.env,

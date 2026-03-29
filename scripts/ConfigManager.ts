@@ -27,27 +27,52 @@ export function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9\-_]/g, '');
 }
 
+let cachedRepoName: string | null = null;
+let isWithinGit: boolean | null = null;
+
+/**
+ * Helper: Checks if the current CWD is within a git repository.
+ */
+function checkGitStatus(): boolean {
+  if (isWithinGit !== null) return isWithinGit;
+  const res = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    stdio: 'pipe',
+  });
+  isWithinGit = res.status === 0;
+  return isWithinGit;
+}
+
 /**
  * Detects the current repository name using gh cli.
  */
 export function detectRepoName(): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
+  if (cachedRepoName) return cachedRepoName;
 
-  const res = spawnSync('gh', ['repo', 'view', '--json', 'name'], {
-    stdio: 'pipe',
-  });
-  if (res.status === 0) {
-    try {
-      return JSON.parse(res.stdout.toString()).name;
-    } catch {}
+  if (checkGitStatus()) {
+    const res = spawnSync('gh', ['repo', 'view', '--json', 'name'], {
+      stdio: 'pipe',
+    });
+    if (res.status === 0) {
+      try {
+        cachedRepoName = JSON.parse(res.stdout.toString()).name;
+        return cachedRepoName!;
+      } catch {}
+    }
   }
-  return path.basename(REPO_ROOT) || DEFAULT_REPO_NAME || 'gemini-cli';
+
+  const basename = path.basename(REPO_ROOT);
+  if (basename && basename !== 'mattkorwel' && basename !== 'dev') {
+    return basename;
+  }
+
+  return DEFAULT_REPO_NAME || 'gemini-cli';
 }
 
 /**
  * Loads settings from a specific path.
  */
-function loadJson(p: string): any {
+export function loadJson(p: string): any {
   if (fs.existsSync(p)) {
     try {
       return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -78,6 +103,13 @@ export function loadProjectConfig(): OrbitConfig {
  * Fetches a GitHub repository variable using gh cli.
  */
 function getGhVariable(name: string): string | undefined {
+  if (
+    !checkGitStatus() ||
+    process.env.GCLI_ORBIT_PROVIDER === 'local-worktree'
+  ) {
+    return undefined;
+  }
+
   const res = spawnSync('gh', ['variable', 'get', name], { stdio: 'pipe' });
   if (res.status === 0) {
     return res.stdout.toString().trim();
@@ -180,7 +212,6 @@ export function loadSettings(): OrbitSettings {
   const global = loadGlobalSettings();
   if (Object.keys(global.repos).length > 0) return global;
 
-  // Check if we have an old project-local one to migrate
   const projectLocalPath = path.join(PROJECT_ORBIT_DIR, 'settings.json');
   if (fs.existsSync(projectLocalPath)) {
     const local = loadJson(projectLocalPath);

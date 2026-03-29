@@ -26,7 +26,7 @@ import {
   LOCAL_POLICIES_PATH,
   LOCAL_BUNDLE_PATH,
   BUNDLE_PATH,
-  PRIMARY_REPO_ROOT,
+  getPrimaryRepoRoot,
 } from './Constants.js';
 
 const REPO_ROOT = process.cwd();
@@ -67,6 +67,11 @@ export async function runOrchestrator(
   env: NodeJS.ProcessEnv = process.env,
 ) {
   loadDotEnv(env);
+
+  // 1. Resolve Repo & Config FIRST for context-aware help
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+
   const promptArgs: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -96,31 +101,33 @@ export async function runOrchestrator(
   const isEvaMode = action === 'eva';
 
   if (!identifier) {
-    console.error(`
-❌ Usage: orbit mission <IDENTIFIER> [action] [prompt...]
-   OR:    orbit mission eva [identifier]
+    const isLocalMode = config?.providerType === 'local-worktree';
+    const cmdPrefix = isLocalMode ? 'gml' : 'gm';
 
-IDENTIFIER: Can be a PR number or a Git branch name.
+    console.log(`
+🚀 GEMINI ORBIT: MISSION CONTROL
 
-Actions:
-  (default)  - Launch interactive agent mission.
-  shell      - Extra-Vehicular Activity: Ingress into raw bash capsule.
-  fix        - Execute automated orbital correction.
-  review     - Execute mission observation.
-  implement  - Execute mission execution.
+Usage: ${cmdPrefix} <IDENTIFIER> [action] [prompt...]
+
+IDENTIFIER:
+  - A Pull Request number (e.g., 20)
+  - A branch name (e.g., feat-mcp)
+
+ACTIONS:
+  review    - (Default) Parallel analysis, build, and behavioral proof.
+  fix       - Iterative CI repair and conflict resolution.
+  implement - Autonomous feature execution with test-first logic.
+  eva       - Ingress into a raw bash session inside the capsule.
+
+EXAMPLES:
+  ${cmdPrefix} 20 review
+  ${cmdPrefix} feat-mcp fix "fix the lint errors"
+
+${isLocalMode ? '📍 [LOCAL MODE]: Worktrees will be created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions will be offloaded to your Orbit Cloud Station.'}
+
+Current Repo: ${repoName || 'Not Detected'}
     `);
-    return 1;
-  }
-
-  // 1. Load Settings
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-
-  if (!config) {
-    console.error(
-      `❌ Orbit settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
-    );
-    return 1;
+    return 0;
   }
 
   const isLocal =
@@ -141,9 +148,8 @@ Actions:
   const readyRes = await provider.ensureReady();
   if (readyRes !== 0) return readyRes;
 
-  const isLocalWorktree = config.providerType === 'local-worktree';
-
   // Paths - Unified across station and capsule
+  const isLocalWorktree = config.providerType === 'local-worktree';
   const remotePolicyPath = isLocalWorktree
     ? LOCAL_POLICIES_PATH
     : `${POLICIES_PATH}/orbit-policy.toml`;
@@ -188,7 +194,7 @@ Actions:
       upstreamUrl,
       cpuLimit: config.cpuLimit,
       memoryLimit: config.memoryLimit,
-      image: isLocalWorktree ? PRIMARY_REPO_ROOT : config.imageUri, // Use primary root as "image" (source) for worktree
+      image: isLocalWorktree ? getPrimaryRepoRoot() : config.imageUri,
     } as any,
   );
 
@@ -225,7 +231,6 @@ Actions:
       | 'window';
   }
 
-  // FORCE FOREGROUND if requested or if not in a supported terminal
   const forceMainTerminal = terminalTarget === 'foreground';
 
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
@@ -258,13 +263,10 @@ Actions:
 
   const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
 
-  // If local, we likely don't need the gh token cat thing if we are already authed
   const fullCommand = isLocalWorktree
     ? missionCmd
     : `${ghAuthCmd} && ${missionCmd}`;
-
   const finalSSH = provider.getRunCommand(fullCommand, execOptions);
-
   const tempManager = new TempManager(config);
 
   if (
@@ -289,7 +291,6 @@ ${finalSSH}
     console.log(`\n✨ Orbit mission ${identifier} ready.`);
     console.log(`📂 Launching in isolated iTerm2 tab...`);
 
-    // Use applescript to open a new tab and run the command
     const appleScript = `
       tell application "iTerm"
         tell current window

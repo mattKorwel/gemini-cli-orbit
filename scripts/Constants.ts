@@ -13,8 +13,9 @@ const REPO_ROOT = process.cwd();
 
 /**
  * Resolves the primary repository root (the 'main' clone) even if currently in a worktree.
+ * This is now an exported function to avoid module-load time hangs.
  */
-function resolvePrimaryRepoRoot(): string {
+export function getPrimaryRepoRoot(): string {
   // If we are explicitly told which repo to use, try to find its main folder
   if (process.env.GCLI_ORBIT_REPO_NAME) {
     const devDir = path.join(os.homedir(), 'dev');
@@ -44,11 +45,8 @@ function resolvePrimaryRepoRoot(): string {
   return REPO_ROOT;
 }
 
-export const PRIMARY_REPO_ROOT = resolvePrimaryRepoRoot();
-
 /**
- * Canonical paths for the Gemini Orbit system.
- * Standardized across Host Station and Satellite Capsules.
+ * Standardized paths
  */
 export const ORBIT_ROOT = '/mnt/disks/data';
 export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
@@ -102,12 +100,11 @@ export const DEFAULT_IMAGE_URI =
 
 /**
  * Orbit Configuration Interface
- * Used for both Profiles and Repository-specific settings.
  */
 export interface OrbitConfig {
   projectId?: string | undefined;
   zone?: string | undefined;
-  instanceName?: string | undefined; // The GCE station name
+  instanceName?: string | undefined;
   terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
   userFork?: string | undefined;
   upstreamRepo?: string | undefined;
@@ -127,28 +124,27 @@ export interface OrbitConfig {
   imageUri?: string | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;
-  profile?: string | undefined; // Link to a named profile in PROFILES_DIR
-  worktreesDir?: string | undefined; // Local worktrees base path
-  useTmux?: boolean | undefined; // Whether to wrap execution in tmux
-  autoSetupNet?: boolean | undefined; // Whether to auto-configure networking
-  machineType?: string | undefined; // GCE Machine type (e.g. n2-standard-8)
-  sshSourceRanges?: string[] | undefined; // Custom source ranges for SSH firewall rule
-  tempDir?: string | undefined; // Base directory for temporary output
-  autoClean?: boolean | undefined; // Whether to auto-delete session temp dirs
-  cpuLimit?: string | undefined; // Container CPU limit (e.g. '2')
-  memoryLimit?: string | undefined; // Container Memory limit (e.g. '8g')
-  reaperIdleLimit?: number | undefined; // Auto-shutdown idle threshold in hours (e.g. 24)
+  profile?: string | undefined;
+  worktreesDir?: string | undefined;
+  useTmux?: boolean | undefined;
+  autoSetupNet?: boolean | undefined;
+  machineType?: string | undefined;
+  sshSourceRanges?: string[] | undefined;
+  tempDir?: string | undefined;
+  autoClean?: boolean | undefined;
+  cpuLimit?: string | undefined;
+  memoryLimit?: string | undefined;
+  reaperIdleLimit?: number | undefined;
 }
 
 /**
- * Global Settings File Structure (~/.gemini/orbit/settings.json)
+ * Global Settings File Structure
  */
 export interface OrbitSettings {
   repos: Record<string, OrbitConfig>;
   activeRepo?: string;
-  activeProfile?: string; // Global default profile
-  tempDir?: string; // Global default temp dir
-  autoClean?: boolean; // Global default auto-clean
-  // Legacy support
+  activeProfile?: string;
+  tempDir?: string;
+  autoClean?: boolean;
   orbit?: OrbitConfig;
 }
