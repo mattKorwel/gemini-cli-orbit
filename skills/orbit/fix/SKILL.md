@@ -2,13 +2,13 @@
 name: orbit-fix
 description:
   Expertise in automated, multi-phase Pull Request repair and conflict
-  resolution using Gemini Workspaces.
+  resolution using Gemini Orbit.
 ---
 
 # Orbit: Orbital Correction (Fix)
 
 This skill enables the agent to execute an **Automated PR Fix** mission in an
-isolated Gemini Workspace. It is designed to autonomously repair CI failures,
+isolated **Orbit Capsule**. It is designed to autonomously repair CI failures,
 resolve merge conflicts, and address PR feedback through a structured,
 multi-phase process.
 
@@ -48,18 +48,20 @@ verification:
 
 ### 1. Launch a Fix Mission
 
-To start a fix mission for a specific PR:
+To start a fix mission for a specific PR or branch:
 
 ```bash
-node ${extensionPath}/bundle/orchestrator.js <PR_NUMBER> fix
+node ${extensionPath}/bundle/orchestrator.js <IDENTIFIER> fix
 ```
+
+- **IDENTIFIER**: Can be a PR number or a Git branch name.
 
 ### 2. Monitor Progress
 
 Fix missions run in a background `tmux` session. You can monitor the logs:
 
 ```bash
-node ${extensionPath}/bundle/check.js <PR_NUMBER>
+node ${extensionPath}/bundle/check.js <IDENTIFIER>
 ```
 
 ### 3. Retrieve Results

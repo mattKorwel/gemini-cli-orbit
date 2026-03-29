@@ -1,30 +1,31 @@
 ---
 name: orbit
 description:
-  Expertise in managing and utilizing Gemini Workspaces for high-performance
-  remote development tasks.
+  Expertise in managing and utilizing Gemini Orbit for high-performance remote
+  development tasks.
 ---
 
-# Gemini Workspaces Skill
+# Gemini Orbit Skill
 
-This skill enables the agent to utilize **Gemini Workspaces**—a
-high-performance, persistent remote development platform. It allows the agent to
-move intensive tasks (PR reviews, complex repairs, full builds) from the local
-environment to a dedicated cloud station.
+This skill enables the agent to utilize **Gemini Orbit**—a high-performance,
+persistent remote development platform. It allows the agent to move intensive
+tasks (PR reviews, complex repairs, full builds) from the local environment to a
+dedicated cloud station using isolated **Orbit Capsules**.
 
 ## 🛠️ Key Capabilities
 
 1. **Persistent Execution**: Jobs run in remote `tmux` sessions. Disconnecting
    or crashing the local terminal does not stop the remote work.
 2. **Parallel Infrastructure**: The agent can launch a heavy task (like a full
-   build or CI run) in a orbit while continuing to assist the user locally.
+   build or CI run) in an Orbit capsule while continuing to assist the user
+   locally.
 3. **Behavioral Fidelity**: Remote stations have full tool access (Git, Node,
    Docker, etc.) and high-performance compute, allowing the agent to provide
    behavioral proofs of its work.
 
 ## 📋 Instructions for the Agent
 
-### When to use Workspaces
+### When to use Orbit
 
 - **Intensive Tasks**: Full preflight runs, large-scale refactors, or deep PR
   reviews.
@@ -44,37 +45,38 @@ these for detailed procedural guidance:
   test-first logic.
 - **`orbit-ci`**: High-performance CI monitoring and failure replication.
 
-### How to use Workspaces
+### How to use Orbit
 
 1. **Setup**: If the user hasn't initialized their environment, you MUST run the
    setup script using node and the absolute path.
    ```bash
    node ${extensionPath}/bundle/setup.js
    ```
-2. **Launch a Mission**: Start a playbook for a specific PR/issue:
+2. **Launch a Mission**: Start a playbook for a specific PR or Git branch:
 
    ```bash
-   node ${extensionPath}/bundle/orchestrator.js <PR_OR_ISSUE_NUMBER> [action]
+   node ${extensionPath}/bundle/orchestrator.js <IDENTIFIER> [action]
    ```
 
-   - Actions: `review` (default), `fix`, `implement`, `ready`.
+   - **IDENTIFIER**: Can be a Pull Request number or a Git branch name.
+   - **Actions**: `review` (default), `fix`, `implement`, `ready`.
 
 3. **Check Status**: See global state and active sessions:
    ```bash
    node ${extensionPath}/bundle/status.js
    ```
-   Or deep-dive into specific PR logs:
+   Or deep-dive into specific mission logs:
    ```bash
-   node ${extensionPath}/bundle/check.js <PR_OR_ISSUE_NUMBER>
+   node ${extensionPath}/bundle/check.js <IDENTIFIER>
    ```
 4. **Cleanup**:
-   - **Bulk**: Clear all sessions/worktrees:
+   - **Bulk**: Clear all capsules/worktrees:
      ```bash
      node ${extensionPath}/bundle/clean.js --all
      ```
-   - **Surgical**: Kill a specific PR task:
+   - **Surgical**: Kill a specific Orbit capsule:
      ```bash
-     node ${extensionPath}/bundle/clean.js <PR_NUMBER> <action>
+     node ${extensionPath}/bundle/clean.js <IDENTIFIER> <action>
      ```
 5. **Fleet**: Manage VM lifecycle:
    ```bash
@@ -82,8 +84,8 @@ these for detailed procedural guidance:
    ```
 6. **Attach/Logs**:
    ```bash
-   node ${extensionPath}/bundle/attach.js <PR_NUMBER>
-   node ${extensionPath}/bundle/logs.js <PR_NUMBER>
+   node ${extensionPath}/bundle/attach.js <IDENTIFIER>
+   node ${extensionPath}/bundle/logs.js <IDENTIFIER>
    ```
 
 ## ⚠️ Important Constraints

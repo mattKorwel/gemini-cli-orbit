@@ -2,13 +2,13 @@
 name: orbit-review
 description:
   Expertise in high-fidelity, parallelized Pull Request reviews using Gemini
-  Workspaces.
+  Orbit.
 ---
 
 # Orbit: Mission Observation (Review)
 
 This skill enables the agent to execute a **High-Fidelity PR Review** mission in
-an isolated Gemini Workspace. This is the gold standard for PR reviews,
+an isolated **Orbit Capsule**. This is the gold standard for PR reviews,
 utilizing parallel execution to provide a comprehensive assessment across
 multiple dimensions.
 
@@ -18,8 +18,7 @@ The mission follows a strict three-phase execution model:
 
 ### Phase 0: Context Acquisition (Parallel)
 
-- **PR Mission Context**: Fetches PR metadata, diff, and recursive issue
-  hierarchy.
+- **Mission Context**: Fetches PR metadata, diff, and recursive issue hierarchy.
 - **Diff Fetching**: Obtains the raw changes.
 - **Single-Source Build**: Executes `npm ci` and `npm run build` to ensure the
   environment is ready.
@@ -42,18 +41,20 @@ The mission follows a strict three-phase execution model:
 
 ### 1. Launch a Review
 
-To start a review mission for a specific PR:
+To start a review mission for a specific PR or branch:
 
 ```bash
-node ${extensionPath}/bundle/orchestrator.js <PR_NUMBER> review
+node ${extensionPath}/bundle/orchestrator.js <IDENTIFIER> review
 ```
+
+- **IDENTIFIER**: Can be a PR number or a Git branch name.
 
 ### 2. Monitor Progress
 
 Review missions run in a background `tmux` session. You can monitor the logs:
 
 ```bash
-node ${extensionPath}/bundle/check.js <PR_NUMBER>
+node ${extensionPath}/bundle/check.js <IDENTIFIER>
 ```
 
 ### 3. Retrieve Results
@@ -68,5 +69,5 @@ can read it using standard file tools if attached, or see the summary in the
   missing or failed, the review is incomplete.
 - **Repo Standards**: The review automatically respects `GEMINI.md` and other
   local configuration files.
-- **Parallelism**: Multiple reviews can run simultaneously on different PRs
-  without interference.
+- **Parallelism**: Multiple reviews can run simultaneously on different PRs or
+  branches without interference.

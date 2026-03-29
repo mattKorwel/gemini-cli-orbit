@@ -90,14 +90,14 @@ async function fetchIssueHierarchy(
 }
 
 async function main() {
-  const prNumber = process.argv[2];
+  const identifier = process.argv[2];
   const logDir = process.argv[3];
   const geminiBin = process.argv[4];
   const policyPath = process.argv[5];
 
-  if (!prNumber || !logDir) {
+  if (!identifier || !logDir) {
     console.error(
-      'Usage: fetch-mission-context <pr_number> <log_dir> <gemini_bin> <policy_path>',
+      'Usage: fetch-mission-context <identifier> <log_dir> <gemini_bin> <policy_path>',
     );
     process.exit(1);
   }
@@ -114,16 +114,24 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`📡 Fetching metadata for PR #${prNumber}...`);
+  console.log(`📡 Fetching metadata for ${identifier}...`);
   const prJson = await run(
-    `gh pr view ${prNumber} --json body,closingIssuesReferences,baseRefName,headRefName`,
+    `gh pr view ${identifier} --json body,closingIssuesReferences,baseRefName,headRefName`,
   );
-  if (!prJson) {
-    console.error('❌ Could not fetch PR metadata.');
-    process.exit(1);
-  }
 
-  const prMetadata = JSON.parse(prJson);
+  let prMetadata: any;
+  if (prJson) {
+    prMetadata = JSON.parse(prJson);
+  } else {
+    // If pr view fails, assume it's a branch and synthesize minimal metadata
+    console.log(`⚠️  No PR found for ${identifier}. Using branch as context.`);
+    prMetadata = {
+      body: `Mission on branch: ${identifier}`,
+      closingIssuesReferences: [],
+      baseRefName: 'main', // Heuristic
+      headRefName: identifier,
+    };
+  }
   fs.writeFileSync(
     path.join(logDir, 'pr-metadata.json'),
     JSON.stringify(prMetadata, null, 2),
