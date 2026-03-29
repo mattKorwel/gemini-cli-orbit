@@ -9,7 +9,7 @@ toolName = "read_file"
 decision = "allow"
 priority = 110
 [rule.toolParameters]
-file_path = "/Users/mattkorwel/.gemini/orbit/tmp/**"
+file_path = "**/.gemini/orbit/tmp/**"
 
 [[rule]]
 toolName = "write_file"
