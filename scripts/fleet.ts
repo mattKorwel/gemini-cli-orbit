@@ -14,7 +14,7 @@ const REPO_ROOT = process.cwd();
 const USER = process.env.USER || 'gcli-user';
 const DEFAULT_ZONE = 'us-west1-a';
 
-async function listStations(): Promise<number> {
+export async function listStations(): Promise<number> {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
   const projectId = config?.projectId || process.env.GOOGLE_CLOUD_PROJECT || '';
@@ -38,7 +38,7 @@ async function listStations(): Promise<number> {
   return await provider.listStations();
 }
 
-async function launchStation(): Promise<number> {
+export async function launchStation(): Promise<number> {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
 
@@ -67,7 +67,7 @@ async function launchStation(): Promise<number> {
   return await provider.provision();
 }
 
-async function stopStation(): Promise<number> {
+export async function stopStation(): Promise<number> {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
   if (!config) return 1;
@@ -83,7 +83,7 @@ async function stopStation(): Promise<number> {
   return await provider.stop();
 }
 
-async function destroyStation(): Promise<number> {
+export async function destroyStation(): Promise<number> {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
   if (!config) return 1;
@@ -104,14 +104,14 @@ async function destroyStation(): Promise<number> {
   return await provider.destroy();
 }
 
-async function rebuildStation(): Promise<number> {
+export async function rebuildStation(): Promise<number> {
   const res1 = await destroyStation();
   const res2 = await launchStation();
   return res1 === 0 && res2 === 0 ? 0 : 1;
 }
 
-async function main(): Promise<number> {
-  const action = process.argv[2] || 'list';
+export async function runFleet(args: string[]): Promise<number> {
+  const action = args[0] || 'list';
 
   switch (action) {
     case 'list':
@@ -128,13 +128,4 @@ async function main(): Promise<number> {
       console.error(`❌ Unknown constellation action: ${action}`);
       return 1;
   }
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main()
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
 }

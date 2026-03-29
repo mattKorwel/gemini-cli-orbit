@@ -100,12 +100,3 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
   );
   return 0;
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runStatus()
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
-}

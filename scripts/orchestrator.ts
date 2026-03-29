@@ -304,12 +304,3 @@ Actions:
 
   return finalRes.status ?? 0;
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runOrchestrator(process.argv.slice(2))
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
-}

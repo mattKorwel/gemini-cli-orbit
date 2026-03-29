@@ -83,13 +83,12 @@ describe('runReap', () => {
   });
 
   it('should respect custom threshold flag', async () => {
-    process.argv = ['node', 'scripts/reap.js', '--threshold=1']; // 1 hour threshold
     mockProvider.listCapsules.mockResolvedValue(['gcli-123-mission']);
     mockProvider.getCapsuleIdleTime.mockResolvedValue(7200); // 2 hours > 1 hour
 
     mockRl.question.mockImplementation((_q, cb) => cb('n')); // Decline reap
 
-    await runReap();
+    await runReap({ threshold: 1 });
     // Verify threshold was calculated as 1 hour (3600s)
     // If it used 4h default, it wouldn't have asked to reap.
     expect(mockRl.question).toHaveBeenCalledWith(

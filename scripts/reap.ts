@@ -28,7 +28,10 @@ function formatDuration(seconds: number): string {
   return `${m}m`;
 }
 
-export async function runReap(env: NodeJS.ProcessEnv = process.env) {
+export async function runReap(
+  options: { threshold?: number | undefined; force?: boolean | undefined } = {},
+  env: NodeJS.ProcessEnv = process.env,
+) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
 
@@ -53,12 +56,9 @@ export async function runReap(env: NodeJS.ProcessEnv = process.env) {
     return 0;
   }
 
-  const args = process.argv.slice(2);
-  const thresholdHours = parseInt(
-    args.find((a) => a.startsWith('--threshold='))?.split('=')[1] || '4',
-  );
+  const thresholdHours = options.threshold ?? 4;
   const thresholdSeconds = thresholdHours * 3600;
-  const force = args.includes('--force');
+  const force = options.force ?? false;
 
   console.log(`\n🧹 ORBIT AUTO-REAPER (Threshold: ${thresholdHours}h)`);
   console.log(
@@ -133,13 +133,4 @@ export async function runReap(env: NodeJS.ProcessEnv = process.env) {
     `\n--------------------------------------------------------------------------------\n`,
   );
   return 0;
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runReap()
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
 }

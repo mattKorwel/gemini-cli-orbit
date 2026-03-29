@@ -1,6 +1,0 @@
-description = "Check the health and telemetry of the mission constellation and active satellites."
-prompt = """
-Retrieving mission pulse...
-
-!{node bundle/status.js {{args}} }
-"""

@@ -713,7 +713,3 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   logger.info('SETUP', '\n✨ ALL SYSTEMS GO! Your Gemini Orbit is ready.');
   return 0;
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runSetup().catch((e) => logger.error('FATAL', e));
-}
