@@ -103,3 +103,13 @@ profile integration and tab-completion.
   `ci`, `pulse`) directly from any terminal, bypassing the `gemini orbit`
   prefix. Native completions for Zsh, Bash, Fish, and PowerShell ensure
   discoverability and a polished user experience.
+
+## 🤖 12. Transition to MCP-First Architecture
+
+**Decision**: Re-implement all extension commands and functionality as a single
+Model Context Protocol (MCP) server.
+
+- **Rationale**: Solves the path-resolution problem by resolving the extension
+  root once at server startup. Eliminates brittle TOML-based shell hacks.
+  Provides the LLM with type-safe "Tools" for autonomous mission management
+  while maintaining high-fidelity "Prompts" for user-facing slash commands.

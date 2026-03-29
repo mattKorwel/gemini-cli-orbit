@@ -101,3 +101,29 @@ and you own the data.
   vulnerabilities.
 - **Policy Enforcement**: Fine-grained security rules in `.gemini/policies/`
   control what the orbital agent can and cannot do.
+
+## 🤖 MCP-Powered Interface
+
+Orbit uses the **Model Context Protocol (MCP)** as its primary interface for
+both human and autonomous interactions.
+
+### 1. Centralized Command Logic
+
+All Orbit functionality is consolidated into a single, persistent MCP server.
+This eliminates path-resolution issues and ensures that the extension behaves
+consistently across different platforms and installation methods.
+
+### 2. Autonomous Mission Management
+
+By exposing mission logic as type-safe **MCP Tools**, Orbit allows autonomous
+agents to:
+
+- **Provision** their own mission environments.
+- **Check** the status of the orbital constellation.
+- **Cleanup** resources when tasks are complete.
+
+### 3. Unified User Experience
+
+User-facing slash commands (e.g., `/orbit:mission`) are powered by **MCP
+Prompts**, providing structured argument parsing, real-time validation, and rich
+inline documentation.
