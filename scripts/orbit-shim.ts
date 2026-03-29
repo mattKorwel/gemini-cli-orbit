@@ -75,7 +75,14 @@ function showHelp() {
 }
 
 const args = process.argv.slice(2);
-const cmd = args[0];
+let cmd = args[0];
+
+// Handle universal repo:cmd shorthand (e.g., orbit dotfiles:pulse)
+if (cmd && cmd.includes(':')) {
+  const [repo, actualCmd] = cmd.split(':');
+  process.env.GCLI_ORBIT_REPO_NAME = repo;
+  cmd = actualCmd;
+}
 
 if (!cmd || cmd === '-h' || cmd === '--help') {
   showHelp();

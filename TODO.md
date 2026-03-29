@@ -25,3 +25,4 @@
   - [x] Update `station.ts` to ensure full integration
   - [x] Update `docs/MISSION_PLANS.md` with new maneuver details
   - [x] Verify implementation with manual test
+- [ ] CI needs to print info aout where its runnign and waht's it doing
