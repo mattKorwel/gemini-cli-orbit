@@ -130,19 +130,28 @@ const exec = useTsx ? 'npx tsx' : 'node';
 const rawArgs = args.slice(1);
 const filteredArgs: string[] = [];
 for (let i = 0; i < rawArgs.length; i++) {
-  const arg = rawArgs[i];
+  let arg = rawArgs[i];
   if (arg === undefined) continue;
+
   if (arg === '--local' || arg === '-l') {
     process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
     process.env.GCLI_MCP = '0';
+  } else if ((arg === '--repo' || arg === '-r') && rawArgs[i + 1]) {
+    process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1];
+    i++;
   } else if (arg === '--profile' && rawArgs[i + 1]) {
     process.env.GCLI_ORBIT_PROFILE = rawArgs[i + 1];
     i++;
   } else {
+    // Handle repo:id shorthand (e.g., gm orbit:20)
+    if (cmd === 'mission' && arg.includes(':')) {
+      const [repo, id] = arg.split(':');
+      process.env.GCLI_ORBIT_REPO_NAME = repo;
+      arg = id;
+    }
     filteredArgs.push(arg);
   }
 }
-
 const res = spawnSync(exec, [finalPath, ...filteredArgs], {
   stdio: 'inherit',
   env: process.env,

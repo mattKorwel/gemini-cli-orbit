@@ -31,6 +31,8 @@ export function sanitizeName(name: string): string {
  * Detects the current repository name using gh cli.
  */
 export function detectRepoName(): string {
+  if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
+
   const res = spawnSync('gh', ['repo', 'view', '--json', 'name'], {
     stdio: 'pipe',
   });

@@ -16,6 +16,7 @@ import {
   type OrbitStatus,
   type CapsuleConfig,
 } from './BaseProvider.js';
+import { PRIMARY_REPO_ROOT } from '../Constants.js';
 
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
@@ -29,12 +30,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
   public worktreesDir: string;
   public readonly isLocal = true;
 
-  constructor(
-    stationName: string = 'local',
-    worktreesDir: string = path.join(os.homedir(), 'dev'),
-  ) {
+  constructor(stationName: string = 'local', worktreesDir?: string) {
     this.stationName = stationName;
-    this.worktreesDir = worktreesDir;
+    // Default to parent of primary repo (e.g., ~/dev/gemini-cli-orbit/)
+    // so worktrees are siblings to 'main'
+    this.worktreesDir = worktreesDir || path.dirname(PRIMARY_REPO_ROOT);
 
     if (!fs.existsSync(this.worktreesDir)) {
       fs.mkdirSync(this.worktreesDir, { recursive: true });

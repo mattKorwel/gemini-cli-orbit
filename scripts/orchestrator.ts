@@ -26,6 +26,7 @@ import {
   LOCAL_POLICIES_PATH,
   LOCAL_BUNDLE_PATH,
   BUNDLE_PATH,
+  PRIMARY_REPO_ROOT,
 } from './Constants.js';
 
 const REPO_ROOT = process.cwd();
@@ -187,7 +188,7 @@ Actions:
       upstreamUrl,
       cpuLimit: config.cpuLimit,
       memoryLimit: config.memoryLimit,
-      image: isLocalWorktree ? REPO_ROOT : config.imageUri, // Use local root as "image" (source) for worktree
+      image: isLocalWorktree ? PRIMARY_REPO_ROOT : config.imageUri, // Use primary root as "image" (source) for worktree
     } as any,
   );
 

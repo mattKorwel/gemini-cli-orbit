@@ -6,8 +6,45 @@
 
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const REPO_ROOT = process.cwd();
+
+/**
+ * Resolves the primary repository root (the 'main' clone) even if currently in a worktree.
+ */
+function resolvePrimaryRepoRoot(): string {
+  // If we are explicitly told which repo to use, try to find its main folder
+  if (process.env.GCLI_ORBIT_REPO_NAME) {
+    const devDir = path.join(os.homedir(), 'dev');
+    const possiblePaths = [
+      path.join(devDir, process.env.GCLI_ORBIT_REPO_NAME, 'main'),
+      path.join(devDir, process.env.GCLI_ORBIT_REPO_NAME),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(path.join(p, '.git'))) return p;
+    }
+  }
+
+  try {
+    const res = spawnSync('git', ['rev-parse', '--git-common-dir'], {
+      stdio: 'pipe',
+    });
+    if (res.status === 0) {
+      const commonDir = res.stdout.toString().trim();
+      // If commonDir is just ".git", we are in the main repo already
+      if (commonDir === '.git') return REPO_ROOT;
+      // Otherwise, commonDir is an absolute path to the main .git folder
+      return path.dirname(commonDir);
+    }
+  } catch (e) {
+    // Fallback to CWD if git fails
+  }
+  return REPO_ROOT;
+}
+
+export const PRIMARY_REPO_ROOT = resolvePrimaryRepoRoot();
 
 /**
  * Canonical paths for the Gemini Orbit system.

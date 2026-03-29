@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
 import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
@@ -12,6 +13,23 @@ import { sanitizeName } from './ConfigManager.js';
 
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
+
+  /**
+   * Resolves a PR number or branch name to a clean branch identifier.
+   */
+  private async resolveBranch(id: string): Promise<string> {
+    if (/^\d+$/.test(id)) {
+      const res = spawnSync(
+        'gh',
+        ['pr', 'view', id, '--json', 'headRefName', '-q', '.headRefName'],
+        { stdio: 'pipe' },
+      );
+      if (res.status === 0) {
+        return res.stdout.toString().trim();
+      }
+    }
+    return id;
+  }
 
   async provisionWorktree(
     identifier: string,
@@ -27,37 +45,35 @@ export class RemoteProvisioner {
       image?: string;
     },
   ): Promise<string> {
-    const sId = sanitizeName(identifier);
-    const isLocalWorktree = (this.provider as any).worktreesDir !== undefined;
+    const isLocal = (this.provider as any).isLocal;
+    const branch = await this.resolveBranch(identifier);
+    const sBranch = sanitizeName(branch);
 
-    const remoteWorktreeDir = isLocalWorktree
-      ? path.join((this.provider as any).worktreesDir, `gcli-${sId}-${action}`)
-      : `${config.worktreesDir}/mission-${sId}-${action}`;
-
-    const containerName = `gcli-${sId}-${action}`;
+    // In local mode, the container name IS the branch name (to match worktree folder)
+    const containerName = isLocal
+      ? branch
+      : `gcli-${sanitizeName(identifier)}-${action}`;
     const imageUri = DEFAULT_IMAGE_URI;
 
     // 1. Ensure the specific mission capsule is active
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);
 
-    if (!capsuleStatus.running) {
-      if (capsuleStatus.exists) {
-        logger.info(`   - Reviving isolated capsule ${containerName}...`);
-        await this.provider.removeCapsule(containerName);
-      } else {
-        logger.info(`   - Provisioning isolated capsule ${containerName}...`);
-      }
+    if (!capsuleStatus.exists) {
+      logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
 
-      const isGce = (this.provider as any).projectId !== 'local';
+      const remoteWorktreeDir = isLocal
+        ? path.join((this.provider as any).worktreesDir, branch)
+        : `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
 
       await this.provider.runCapsule({
         name: containerName,
         image: config.image || config.remoteWorkDir || imageUri,
-        user: isGce ? 'root' : undefined,
+        user: isLocal ? undefined : 'root',
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
-        mounts: isGce
-          ? [
+        mounts: isLocal
+          ? []
+          : [
               {
                 host: config.remoteWorkDir,
                 capsule: config.remoteWorkDir,
@@ -74,65 +90,46 @@ export class RemoteProvisioner {
                 capsule: '/home/node/.gemini',
                 readonly: false,
               },
-            ]
-          : [],
-        command: isGce
-          ? `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`
-          : undefined,
+            ],
+        command: isLocal
+          ? undefined
+          : `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`,
       });
-
-      // Wait for capsule to stabilize
-      if (!isLocalWorktree) {
-        await this.waitForCapsule(containerName, 10000);
-      } else {
-        logger.info(`   ✅ Local worktree ${containerName} ready.`);
-      }
-    } else {
-      logger.info(`   ✅ Isolated capsule ${containerName} is already active.`);
     }
 
-    // 2. If local worktree, we are done (it was created by runCapsule)
-    if (isLocalWorktree) {
-      return remoteWorktreeDir;
+    if (isLocal) {
+      const wtPath = path.join((this.provider as any).worktreesDir, branch);
+      logger.info(`   ✅ Local workspace ready: ${wtPath}`);
+      return wtPath;
     }
+
+    // --- REMOTE ONLY LOGIC ---
+    const remoteWorktreeDir = `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
+    await this.waitForCapsule(containerName, 10000);
 
     // 3. Provision the repository using a reference clone for speed and isolation
     const check = await this.provider.getExecOutput(
       `ls -d ${remoteWorktreeDir}/.git`,
       { wrapCapsule: containerName, quiet: true },
     );
-    logger.logOutput(check.stdout, check.stderr);
 
     if (check.status !== 0) {
-      // Clear previous history for this session only if we are doing a fresh provision
-      const clearHistoryCmd = `rm -rf /home/node/.gemini/history/mission-${sId}-${action}*`;
-      await this.provider.exec(clearHistoryCmd, { wrapCapsule: containerName });
-
       logger.info(
-        `   - Provisioning isolated git repo for ${identifier} (inside capsule via reference)...`,
+        `   - Provisioning isolated git repo for ${identifier} (remote reference)...`,
       );
-
-      // 3.1 Ensure remoteWorktreeDir parent is owned by node on the HOST first
-      // Skip sudo if we are local
-      const isLocal = (this.provider as any).projectId === 'local';
-      const sudoPrefix = isLocal ? '' : 'sudo ';
 
       await this.provider.exec(
-        `${sudoPrefix}mkdir -p ${config.worktreesDir} && ${sudoPrefix}chown -R 1000:1000 ${config.worktreesDir}`,
+        `sudo mkdir -p ${config.worktreesDir} && sudo chown -R 1000:1000 ${config.worktreesDir}`,
       );
       await this.provider.exec(
-        `${sudoPrefix}mkdir -p ${remoteWorktreeDir} && ${sudoPrefix}chown -R 1000:1000 ${remoteWorktreeDir}`,
+        `sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`,
       );
 
-      // 3.2 Perform Reference Clone inside the capsule
-      // We point to the RO main repo as the reference
       const cloneCmd = `
         (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) && \
         git config --global --add safe.directory '*' && \
-        (rm -rf ${remoteWorktreeDir} || true) && \
         git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
         cd ${remoteWorktreeDir} && \
-        git config --replace-all core.filemode false && \
         git remote add upstream ${config.upstreamUrl} && \
         (gh pr checkout ${identifier} || git checkout ${identifier})
       `;
@@ -141,23 +138,11 @@ export class RemoteProvisioner {
         cloneCmd.replace(/\n/g, ''),
         { wrapCapsule: containerName },
       );
-      logger.logOutput(setupRes.stdout, setupRes.stderr);
       if (setupRes.status !== 0) {
-        throw new Error(
-          `Failed to provision isolated repo: ${setupRes.stderr}`,
-        );
+        throw new Error(`Failed to provision remote repo: ${setupRes.stderr}`);
       }
-      logger.info('   ✅ Isolated repository provisioned successfully.');
-    } else {
-      logger.info('   ✅ Remote repository ready.');
     }
 
-    const isLocal = (this.provider as any).projectId === 'local';
-    const sudoPrefix = isLocal ? '' : 'sudo ';
-    await this.provider.exec(
-      `${sudoPrefix}chown -R 1000:1000 ${remoteWorktreeDir}`,
-      { wrapCapsule: containerName },
-    );
     return remoteWorktreeDir;
   }
 

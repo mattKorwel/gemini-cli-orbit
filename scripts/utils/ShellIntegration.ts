@@ -190,6 +190,8 @@ export class ShellIntegration {
       return `${header}
 function orbit { ${exec} ${quotedShim} @args }
 function gm { ${exec} ${quotedShim} mission @args }
+function gml { $env:GCLI_ORBIT_PROVIDER='local-worktree'; & gm @args }
+function gmr { $env:GCLI_ORBIT_PROFILE='corp'; & gm @args }
 $orbit_completions = @('blackbox', 'ci', 'constellation', 'jettison', 'liftoff', 'mission', 'pulse', 'splashdown', 'uplink')
 Register-ArgumentCompleter -CommandName orbit -ParameterName args -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
@@ -227,6 +229,8 @@ ${footer}`;
       return `${header}
 alias orbit='${exec} ${quotedShim}'
 alias gm='orbit mission'
+alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
+alias gmr='GCLI_ORBIT_PROFILE=corp gm'
 complete -c orbit -f
 complete -c orbit -a 'blackbox ci constellation jettison liftoff mission pulse splashdown uplink'
 ${footer}`;
@@ -236,6 +240,8 @@ ${footer}`;
     return `${header}
 alias orbit='${exec} ${quotedShim}'
 alias gm='orbit mission'
+alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
+alias gmr='GCLI_ORBIT_PROFILE=corp gm'
 _orbit_completions() {
   COMPREPLY=($(compgen -W "${commands}" -- "\${COMP_WORDS[1]}"))
 }
