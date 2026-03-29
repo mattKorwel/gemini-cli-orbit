@@ -39,5 +39,9 @@ The review follows a strict phased execution to maximize efficiency and depth of
 The review maneuver can be triggered via the standard orbit launch command:
 
 ```bash
-/orbit launch --mission review
+/orbit mission <PR_NUMBER> review
 ```
+
+To monitor progress, use the telemetry commands:
+- `/orbit:uplink <PR_NUMBER> review`: Stream real-time logs from a remote capsule.
+- `/orbit:blackbox <PR_NUMBER> review`: Inspect recorded local mission logs.

@@ -36,3 +36,7 @@ The fix maneuver can be triggered via the standard orbit launch command:
 ```bash
 /orbit mission <PR_NUMBER> fix
 ```
+
+To monitor progress, use the telemetry commands:
+- `/orbit:uplink <PR_NUMBER> fix`: Stream real-time logs from a remote capsule.
+- `/orbit:blackbox <PR_NUMBER> fix`: Inspect recorded local mission logs.
