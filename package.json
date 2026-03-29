@@ -9,8 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
-    "sync-docs": "tsx scripts/sync-docs.ts",
-    "version:release": "tsx scripts/prepare-release.ts",
+    "sync-docs": "tsx tools/sync-docs.ts",
+    "version:release": "tsx tools/prepare-release.ts",
     "bundle": "esbuild $(find scripts -maxdepth 1 -name \"*.ts\" ! -name \"*.test.ts\") --bundle --platform=node --format=esm --outdir=bundle --minify --sourcemap --target=node20 --external:vitest --external:node:*",
     "build": "npm run typecheck && npm run bundle"
   },
