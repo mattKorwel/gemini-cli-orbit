@@ -35,13 +35,14 @@ export class GceCosProvider implements OrbitProvider {
   private vpcName: string;
   private subnetName: string;
   private machineType: string;
+  private reaperIdleLimit: number;
 
   constructor(
     projectId: string,
     zone: string,
     instanceName: string,
     repoRoot: string,
-    config: { dnsSuffix?: string | undefined, userSuffix?: string | undefined, backendType?: string | undefined, imageUri?: string | undefined, vpcName?: string | undefined, subnetName?: string | undefined, stationName?: string | undefined, machineType?: string | undefined } = {}
+    config: { dnsSuffix?: string | undefined, userSuffix?: string | undefined, backendType?: string | undefined, imageUri?: string | undefined, vpcName?: string | undefined, subnetName?: string | undefined, stationName?: string | undefined, machineType?: string | undefined, reaperIdleLimit?: number | undefined } = {}
   ) {
     this.projectId = projectId;
     this.zone = zone;
@@ -56,6 +57,7 @@ export class GceCosProvider implements OrbitProvider {
     this.vpcName = config.vpcName || 'default';
     this.subnetName = config.subnetName || 'default';
     this.machineType = config.machineType || 'n2-standard-8';
+    this.reaperIdleLimit = config.reaperIdleLimit || 24;
   }
 
   async provision(options: { setupNetwork?: boolean, skipInstanceCreation?: boolean, sessionId?: string } = {}): Promise<number> {

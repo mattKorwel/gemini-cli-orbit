@@ -6,10 +6,10 @@
   "license": "Apache-2.0",
   "skills": [
     "skills/orbit/SKILL.md",
-    "skills/ci/SKILL.md",
-    "skills/async-pr-review/SKILL.md",
-    "skills/fix-pr/SKILL.md",
-    "skills/review-pr/SKILL.md"
+    "skills/orbit/review/SKILL.md",
+    "skills/orbit/fix/SKILL.md",
+    "skills/orbit/implement/SKILL.md",
+    "skills/orbit/ci/SKILL.md"
   ],
   "contextFileName": "docs/GEMINI.md"
 }

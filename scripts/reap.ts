@@ -100,7 +100,7 @@ export async function runReap(env: NodeJS.ProcessEnv = process.env) {
       if (remaining.length === 0) {
           console.log(`\n📊 All capsules have been removed. The station is now empty.`);
           if (force || await confirm(`Would you like to splashdown the host station to save costs?`)) {
-              await runSplashdown(env);
+              await runSplashdown([], env);
           }
       }
   }
