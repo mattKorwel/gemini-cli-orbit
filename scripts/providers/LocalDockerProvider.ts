@@ -19,6 +19,8 @@ import {
  * LocalDockerProvider manages local Docker containers as isolated capsules.
  */
 export class LocalDockerProvider implements OrbitProvider {
+  public readonly type = 'local-docker';
+  public readonly isLocal = true;
   public projectId: string = 'local';
   public zone: string = 'localhost';
   public stationName: string;

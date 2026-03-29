@@ -130,12 +130,6 @@ Current Repo: ${repoName || 'Not Detected'}
     return 0;
   }
 
-  const isLocal =
-    !config.projectId ||
-    config.projectId === 'local' ||
-    config.providerType === 'local-worktree' ||
-    config.providerType === 'local-docker';
-
   const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({
     ...config,
@@ -148,8 +142,9 @@ Current Repo: ${repoName || 'Not Detected'}
   const readyRes = await provider.ensureReady();
   if (readyRes !== 0) return readyRes;
 
+  const isLocalWorktree = provider.type === 'local-worktree';
+
   // Paths - Unified across station and capsule
-  const isLocalWorktree = config.providerType === 'local-worktree';
   const remotePolicyPath = isLocalWorktree
     ? LOCAL_POLICIES_PATH
     : `${POLICIES_PATH}/orbit-policy.toml`;

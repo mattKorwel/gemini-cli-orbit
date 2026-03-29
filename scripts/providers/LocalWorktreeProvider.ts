@@ -22,11 +22,12 @@ import { getPrimaryRepoRoot } from '../Constants.js';
  * Manages worktrees as siblings in ~/dev/<repo>/ and uses tmux for persistence.
  */
 export class LocalWorktreeProvider implements OrbitProvider {
+  public readonly type = 'local-worktree';
+  public readonly isLocal = true;
   public projectId: string = 'local';
   public zone: string = 'localhost';
-  public stationName: string = 'local';
+  public stationName: string;
   public worktreesDir: string;
-  public readonly isLocal = true;
 
   constructor(stationName: string = 'local', worktreesDir?: string) {
     this.stationName = stationName;

@@ -65,7 +65,7 @@ export class RemoteProvisioner {
         ? path.join((this.provider as any).worktreesDir, branch)
         : `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
 
-      await this.provider.runCapsule({
+      const runRes = await this.provider.runCapsule({
         name: containerName,
         image: config.image || config.remoteWorkDir || imageUri,
         user: isLocal ? undefined : 'root',
@@ -95,6 +95,12 @@ export class RemoteProvisioner {
           ? undefined
           : `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`,
       });
+
+      if (runRes !== 0) {
+        throw new Error(
+          `Failed to provision workspace: provider returned ${runRes}`,
+        );
+      }
     }
 
     if (isLocal) {

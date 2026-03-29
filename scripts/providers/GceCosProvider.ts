@@ -24,7 +24,10 @@ import { SessionManager } from '../utils/SessionManager.js';
 import { getRepoConfig } from '../ConfigManager.js';
 
 export class GceCosProvider implements OrbitProvider {
-  public projectId: string;
+  public readonly type = 'gce';
+  public readonly isLocal = false;
+  projectId: string;
+
   public zone: string;
   public stationName: string;
   private instanceName: string;
