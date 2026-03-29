@@ -19,10 +19,23 @@ function main() {
     process.exit(1);
   }
 
+  // 0. Check for clean working directory
+  try {
+    const status = execSync('git status --porcelain').toString();
+    if (status.trim().length > 0) {
+      console.error(
+        '❌ Working directory is not clean. Please commit or stash changes first.',
+      );
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error('❌ Failed to check git status.');
+    process.exit(1);
+  }
+
   console.log(`🚀 Bumping version (${bumpType})...`);
 
   // 1. Bump version using npm (updates package.json and package-lock.json)
-  // We use --no-git-tag-version because we want to sync with gemini-extension.json first
   try {
     execSync(`npm version ${bumpType} --no-git-tag-version`, {
       stdio: 'inherit',
@@ -35,6 +48,7 @@ function main() {
   // 2. Read the new version from package.json
   const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf8'));
   const newVersion = pkg.version;
+  const tag = `v${newVersion}`;
 
   // 3. Update gemini-extension.json
   console.log(`   - Syncing gemini-extension.json to version ${newVersion}...`);
@@ -47,14 +61,27 @@ function main() {
     JSON.stringify(extensionJson, null, 2) + '\n',
   );
 
-  console.log(`✅ Version synchronized to ${newVersion}.`);
-  console.log(`\nNext steps:`);
+  // 4. Git Operations
+  console.log(`   - Committing and tagging ${tag}...`);
+  try {
+    execSync(`git add package.json package-lock.json gemini-extension.json`, {
+      stdio: 'inherit',
+    });
+    execSync(`git commit -m "chore: release ${tag}"`, { stdio: 'inherit' });
+    execSync(`git tag -a ${tag} -m "Release ${tag}"`, { stdio: 'inherit' });
+  } catch (err) {
+    console.error('❌ Git operations failed:', err);
+    process.exit(1);
+  }
+
   console.log(
-    `1. git add package.json package-lock.json gemini-extension.json`,
+    `\n✅ Version synchronized, committed, and tagged locally as ${tag}.`,
   );
-  console.log(`2. git commit -m "chore: release v${newVersion}"`);
-  console.log(`3. Create a PR, merge to main.`);
-  console.log(`4. git tag v${newVersion} && git push origin v${newVersion}`);
+  console.log(`\nNext steps:`);
+  console.log(`1. Push with tags: git push origin HEAD --tags`);
+  console.log(
+    `2. Create a PR for the commit if on a branch, or merge directly.`,
+  );
 }
 
 main();
