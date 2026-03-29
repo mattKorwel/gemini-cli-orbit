@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import {
   type OrbitConfig,
@@ -62,12 +63,16 @@ export function detectRepoName(): string {
   }
 
   const basename = path.basename(REPO_ROOT);
-  if (
-    basename &&
-    basename !== 'mattkorwel' &&
-    basename !== 'dev' &&
-    basename !== 'Users'
-  ) {
+  const currentUser = os.userInfo().username;
+  const ignoredNames = new Set([
+    'dev',
+    'Users',
+    'home',
+    'workspace',
+    currentUser,
+  ]);
+
+  if (basename && !ignoredNames.has(basename)) {
     return basename;
   }
 
