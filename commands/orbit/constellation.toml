@@ -2,5 +2,5 @@ description = "Manage the entire mission constellation of stations across projec
 prompt = """
 Managing constellation...
 
-!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/fleet.js" {{args}} }
+!{node bundle/fleet.js {{args}} }
 """

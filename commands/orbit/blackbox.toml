@@ -1,6 +1,6 @@
-description = "Retrieve detailed mission telemetry and history logs for an identifier."
+description = "Mission Blackbox: Inspect recorded local mission logs."
 prompt = """
-Retrieving blackbox logs for {{args}}...
+I am retrieving the blackbox recordings for mission PR #{{args}}.
 
-!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/blackbox.js" {{args}} }
+!{node bundle/blackbox.js {{args}} }
 """

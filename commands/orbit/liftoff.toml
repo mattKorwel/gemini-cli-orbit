@@ -1,6 +1,11 @@
-description = "Initial station setup: provision GCE Worker and Docker base."
+description = "Initial station liftoff: provision the GCE Worker and Docker base."
 prompt = """
-Setting up Orbit station...
+Starting station liftoff...
 
-!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/setup.js" {{args}} }
+This will:
+1. Create the GCE Worker instance.
+2. Configure the persistent data disk.
+3. Pull the base 'capsule' image.
+
+!{node bundle/setup.js {{args}} }
 """

@@ -1,6 +1,5 @@
-description = "Monitor high-fidelity CI status for a branch."
+description = "Monitor CI status for a branch."
 prompt = """
-I will monitor the CI status for {{args}}.
-
-!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/ci.js" {{args}} }
+I am monitoring the CI status for branch {{args}}.
+!{node scripts/utils/ci.mjs {{args}}}
 """

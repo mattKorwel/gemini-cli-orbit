@@ -1,6 +1,6 @@
-description = "Check Orbit station health and active mission status."
+description = "Check the health and telemetry of the mission constellation and active satellites."
 prompt = """
-Checking Orbit pulse...
+Retrieving mission pulse...
 
-!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/status.js" {{args}} }
+!{node bundle/status.js {{args}} }
 """
