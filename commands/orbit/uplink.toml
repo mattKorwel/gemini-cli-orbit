@@ -1,0 +1,6 @@
+description = "Mission Uplink: Stream real-time logs from local or remote missions."
+prompt = """
+I am establishing an uplink to mission PR #{{args}}.
+
+!{node bundle/logs.js {{args}} }
+"""
