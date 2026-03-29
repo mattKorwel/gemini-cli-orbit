@@ -22,6 +22,10 @@ import {
   SATELLITE_WORKTREES_PATH,
   POLICIES_PATH,
   SCRIPTS_PATH,
+  LOCAL_SCRIPTS_PATH,
+  LOCAL_POLICIES_PATH,
+  LOCAL_BUNDLE_PATH,
+  BUNDLE_PATH,
 } from './Constants.js';
 
 const REPO_ROOT = process.cwd();
@@ -118,27 +122,54 @@ Actions:
     return 1;
   }
 
+  const isLocal =
+    !config.projectId ||
+    config.projectId === 'local' ||
+    config.providerType === 'local-worktree' ||
+    config.providerType === 'local-docker';
+
+  const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    instanceName: config.instanceName!,
-    repoName: config.repoName,
-    dnsSuffix: config.dnsSuffix,
-    userSuffix: config.userSuffix,
-    backendType: config.backendType,
+    ...config,
+    projectId: config.projectId || 'local',
+    zone: config.zone || 'local',
+    instanceName,
   });
 
   // 2. Wake Station & Verify Capsule
   const readyRes = await provider.ensureReady();
   if (readyRes !== 0) return readyRes;
 
+  const isLocalWorktree = config.providerType === 'local-worktree';
+
   // Paths - Unified across station and capsule
-  const remotePolicyPath = `${POLICIES_PATH}/orbit-policy.toml`;
+  const remotePolicyPath = isLocalWorktree
+    ? LOCAL_POLICIES_PATH
+    : `${POLICIES_PATH}/orbit-policy.toml`;
   const sessionId = SessionManager.generateSessionId(identifier, action);
+
+  // Resolve branch for naming consistency
+  let branch = identifier;
+  if (/^\d+$/.test(identifier)) {
+    const res = spawnSync(
+      'gh',
+      ['pr', 'view', identifier, '--json', 'headRefName', '-q', '.headRefName'],
+      { stdio: 'pipe' },
+    );
+    if (res.status === 0) branch = res.stdout.toString().trim();
+  }
+
   const sessionName = sessionId; // Standardize on sessionId
-  const containerName = `gcli-${sanitizeName(identifier)}-${action}`;
+  const containerName = isLocalWorktree
+    ? branch
+    : `gcli-${sanitizeName(identifier)}-${action}`;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
+
+  const effectiveScriptsPath = isLocalWorktree
+    ? LOCAL_SCRIPTS_PATH
+    : SCRIPTS_PATH;
+  const effectiveBundlePath = isLocalWorktree ? LOCAL_BUNDLE_PATH : BUNDLE_PATH;
 
   // 3. Remote Preparation
   const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
@@ -156,6 +187,7 @@ Actions:
       upstreamUrl,
       cpuLimit: config.cpuLimit,
       memoryLimit: config.memoryLimit,
+      image: isLocalWorktree ? REPO_ROOT : config.imageUri, // Use local root as "image" (source) for worktree
     } as any,
   );
 
@@ -167,10 +199,12 @@ Actions:
   // AUTH: Inject credentials directly into the worktree .env
   if (localApiKey) {
     console.log('   - Injecting mission authentication context...');
-    const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName}`;
-    const authRes = await provider.exec(
-      `sudo docker exec -u node ${containerName} sh -c ${q(`echo ${q(dotEnvContent)} > ${remoteWorktreeDir}/.env`)}`,
-    );
+    const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
+
+    // Use the provider's abstraction instead of hardcoding docker
+    const authRes = await provider.exec(`echo ${q(dotEnvContent)} > .env`, {
+      wrapCapsule: containerName,
+    });
     if (authRes !== 0) return authRes;
   }
 
@@ -196,37 +230,16 @@ Actions:
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
   const remoteWorker = isEvaMode
     ? `gemini`
-    : `tsx ${SCRIPTS_PATH}/entrypoint.ts ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+    : `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
 
-  // 6. Persistence vs Raw Execution
-  let useTmux = config.useTmux !== false;
-  if (useTmux) {
-    // Verify tmux presence on the provider
-    const tmuxCheck = await provider.getExecOutput('tmux -V', {
-      wrapCapsule: containerName,
-      quiet: true,
-    });
-    if (tmuxCheck.status !== 0) {
-      console.log(
-        '   ⚠️ tmux not detected in environment. Falling back to raw execution.',
-      );
-      useTmux = false;
-    }
-  }
+  // Helper: Check if tmux is installed
+  const hasTmux = spawnSync('which', ['tmux'], { stdio: 'pipe' }).status === 0;
 
-  const tmuxStyle = `
-    tmux set -g status off;
-  `.replace(/\n/g, '');
-
-  const tmuxCmd = isEvaMode
-    ? `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`)}`
-    : `tmux new-session -A -s ${sessionName} ${q(`${tmuxStyle} cd ${remoteWorktreeDir} && ${remoteWorker} || (echo '❌ Mission Failed' && sleep 30)`)}`;
-
-  const rawCmd = isEvaMode
-    ? `cd ${remoteWorktreeDir} && ${remoteWorker}; exec $SHELL`
-    : `cd ${remoteWorktreeDir} && ${remoteWorker}`;
-
-  const missionCmd = useTmux ? tmuxCmd : rawCmd;
+  // We wrap in tmux for persistence
+  const missionCmd =
+    config.useTmux !== false && hasTmux
+      ? `tmux new-session -A -s ${q(`orbit-${branch}`)} ${q(remoteWorker)}`
+      : remoteWorker;
 
   const execOptions: ExecOptions = {
     interactive: true,
@@ -235,7 +248,9 @@ Actions:
       COLORTERM: 'truecolor',
       TERM: 'xterm-256color',
       GEMINI_AUTO_UPDATE: '0',
-      GEMINI_CLI_HOME: '/home/node',
+      GEMINI_CLI_HOME: isLocalWorktree
+        ? process.env.HOME || '/home/node'
+        : '/home/node',
       GCLI_SESSION_ID: sessionId,
     },
   };
@@ -243,8 +258,9 @@ Actions:
   const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
 
   // If local, we likely don't need the gh token cat thing if we are already authed
-  const isLocal = config.providerType === 'local-worktree';
-  const fullCommand = isLocal ? missionCmd : `${ghAuthCmd} && ${missionCmd}`;
+  const fullCommand = isLocalWorktree
+    ? missionCmd
+    : `${ghAuthCmd} && ${missionCmd}`;
 
   const finalSSH = provider.getRunCommand(fullCommand, execOptions);
 
@@ -257,50 +273,37 @@ Actions:
   ) {
     const sessionDir = tempManager.getDir(sessionId);
     const tempCmdPath = path.join(sessionDir, 'launch.sh');
-
-    fs.writeFileSync(tempCmdPath, `#!/bin/bash\n${finalSSH}\nrm "$0"`, {
-      mode: 0o755,
-    });
-
-    const appleScript =
-      terminalTarget === 'window'
-        ? `
-                on run argv
-                tell application "iTerm"
-                    set newWindow to (create window with default profile)
-                    tell current session of newWindow
-                    write text (quoted form of item 1 of argv) & return
-                    end tell
-                    activate
-                end tell
-                end run
-            `
-        : `
-                on run argv
-                tell application "iTerm"
-                    tell current window
-                    set newTab to (create tab with default profile)
-                    tell current session of newTab
-                        write text (quoted form of item 1 of argv) & return
-                    end tell
-                    end tell
-                    activate
-                end tell
-                end run
-            `;
-    spawnSync('osascript', ['-', tempCmdPath], { input: appleScript });
-    console.log(
-      `✅ iTerm2 ${terminalTarget} opened for mission ${identifier}.`,
+    fs.writeFileSync(
+      tempCmdPath,
+      `#!/bin/bash
+echo -e "\\033]50;SetProfile=Orbit\\a"
+clear
+echo "🚀 Orbit Mission: ${identifier} (${action})"
+echo "--------------------------------------------------"
+${finalSSH}
+`,
     );
+    fs.chmodSync(tempCmdPath, 0o755);
 
-    // Allow small delay for iTerm to read the file before we potentially clean up the directory
-    setTimeout(() => tempManager.cleanup(sessionId), 2000);
+    console.log(`\n✨ Orbit mission ${identifier} ready.`);
+    console.log(`📂 Launching in isolated iTerm2 tab...`);
+
+    // Use applescript to open a new tab and run the command
+    const appleScript = `
+      tell application "iTerm"
+        tell current window
+          create tab with default profile
+          tell current session
+            write text "${tempCmdPath} && exit"
+          end tell
+        end tell
+      end tell
+    `;
+    spawnSync('osascript', ['-e', appleScript]);
     return 0;
   }
 
-  // Fallback: Run in current terminal
-  console.log(`📡 Uplinking to session ${sessionName}...`);
-  const finalRes = spawnSync(finalSSH, { stdio: 'inherit', shell: true });
-
-  return finalRes.status ?? 0;
+  // DEFAULT: Run in-place
+  console.log(`\n🚀 Launching Orbit Mission: ${identifier} (${action})...\n`);
+  return provider.exec(fullCommand, execOptions);
 }

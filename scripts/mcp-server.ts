@@ -19,38 +19,87 @@ import { runUplink } from './uplink.js';
 import { runBlackbox } from './blackbox.js';
 import { runFleet } from './fleet.js';
 
-// --- OUTPUT CAPTURE HELPER ---
-class OutputCapturer {
-  private originalLog = console.log;
-  private originalError = console.error;
-  private originalWarn = console.warn;
-  private buffer: string[] = [];
+/**
+ * Helper to capture stdout/stderr during a tool's execution.
+ * This ensures the main protocol stream (stdout) remains pure.
+ */
+async function runWithCapture(fn: () => Promise<any>): Promise<string> {
+  const buffer: string[] = [];
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
-  start() {
-    this.buffer = [];
-    console.log = (...args: any[]) => this.buffer.push(args.join(' '));
-    console.error = (...args: any[]) =>
-      this.buffer.push(`[ERROR] ${args.join(' ')}`);
-    console.warn = (...args: any[]) =>
-      this.buffer.push(`[WARN] ${args.join(' ')}`);
+  // Intercept writes
+  process.stdout.write = ((chunk: any, encoding?: any, cb?: any) => {
+    buffer.push(chunk.toString());
+    if (typeof cb === 'function') cb();
+    return true;
+  }) as any;
+
+  process.stderr.write = ((chunk: any, encoding?: any, cb?: any) => {
+    buffer.push(chunk.toString());
+    if (typeof cb === 'function') cb();
+    return true;
+  }) as any;
+
+  try {
+    await fn();
+  } finally {
+    // Restore
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
   }
 
-  stop(): string {
-    console.log = this.originalLog;
-    console.error = this.originalError;
-    console.warn = this.originalWarn;
-    return this.buffer.join('\n');
-  }
+  return buffer.join('');
 }
-
-const capturer = new OutputCapturer();
 
 const server = new McpServer({
   name: 'orbit',
   version: '1.0.0',
 });
 
-// --- TOOLS (For LLM Autonomy) ---
+// --- TOOLS ---
+
+server.registerTool(
+  'get_mission_guidelines',
+  {
+    description:
+      'Get expert instructions and architectural guidelines for Orbit missions.',
+    inputSchema: z.object({}).shape,
+  },
+  async () => {
+    const guidelines = `
+# Gemini Orbit Mission Guidelines
+
+You are an expert in managing high-performance remote missions.
+
+## Core Mandates
+1. **Host-Capsule Separation**: Always maintain the distinction between the persistent Host Station and ephemeral Job Capsules.
+2. **Read-Only Source**: Never mount the main host mirror as Read-Write into capsules.
+3. **Behavioral Proof (Mustard Test)**: Every implementation or review MUST attempt a physical verification in the remote terminal.
+4. **Path Parity**: Use absolute paths (/mnt/disks/data/...) to ensure consistency across environments.
+
+## Available Mission Types
+- **review**: Parallelized PR analysis with automated build and behavioral proof.
+- **fix**: Iterative repair of CI failures and merge conflicts.
+- **implement**: Autonomous feature execution with test-first logic.
+- **ci**: High-performance monitoring and failure replication.
+
+## Local Worktree Mode
+- Use 'local-worktree' provider for zero-overhead local development.
+- Worktrees are created as siblings in ~/dev/ (e.g., ~/dev/feat-branch).
+- Persistent sessions are managed via tmux: orbit-<branch>.
+- Automatically resolves PR numbers to branch names via GH CLI.
+- **Dependencies**: If 'tmux' or other local tools are missing, you are authorized to attempt installation (e.g., 'brew install tmux' on macOS) to ensure full functionality.
+
+## Architectural Roadmap
+- **Command Dispatcher**: Transitioning to a centralized \`CommandDispatcher\` for all \`spawn\`/\`exec\` calls to ensure type safety (\`.node()\`, \`.docker()\`, \`.gcloud()\`).
+- **App Restructuring**: Moving towards a unified \`src/\` structure with a single entry point for the MCP server and CLI tools.
+`;
+    return {
+      content: [{ type: 'text', text: guidelines }],
+    };
+  },
+);
 
 server.registerTool(
   'get_orbit_pulse',
@@ -59,9 +108,7 @@ server.registerTool(
     inputSchema: z.object({}).shape,
   },
   async () => {
-    capturer.start();
-    await runStatus();
-    const output = capturer.stop();
+    const output = await runWithCapture(() => runStatus());
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -81,11 +128,12 @@ server.registerTool(
     }).shape,
   },
   async ({ identifier, action, prompt }) => {
-    capturer.start();
-    const args = [identifier, action];
-    if (prompt) args.push(prompt);
-    const code = await runOrchestrator(args);
-    const output = capturer.stop();
+    let code: number | undefined;
+    const output = await runWithCapture(async () => {
+      const args = [identifier, action];
+      if (prompt) args.push(prompt);
+      code = await runOrchestrator(args);
+    });
     return {
       content: [
         {
@@ -107,9 +155,7 @@ server.registerTool(
     }).shape,
   },
   async ({ prNumber, action }) => {
-    capturer.start();
-    await runJettison([prNumber, action]);
-    const output = capturer.stop();
+    const output = await runWithCapture(() => runJettison([prNumber, action]));
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -126,9 +172,7 @@ server.registerTool(
     }).shape,
   },
   async ({ action }) => {
-    capturer.start();
-    await runFleet([action]);
-    const output = capturer.stop();
+    const output = await runWithCapture(() => runFleet([action]));
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -145,9 +189,7 @@ server.registerTool(
     }).shape,
   },
   async ({ threshold, force }) => {
-    capturer.start();
-    await runReap({ threshold, force });
-    const output = capturer.stop();
+    const output = await runWithCapture(() => runReap({ threshold, force }));
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -164,19 +206,19 @@ server.registerTool(
     }).shape,
   },
   async ({ branch, runId }) => {
-    capturer.start();
-    const args = [];
-    if (branch) args.push(branch);
-    if (runId) args.push(runId);
-    await runCI(args);
-    const output = capturer.stop();
+    const output = await runWithCapture(() => {
+      const args = [];
+      if (branch) args.push(branch);
+      if (runId) args.push(runId);
+      return runCI(args);
+    });
     return {
       content: [{ type: 'text', text: output }],
     };
   },
 );
 
-// --- PROMPTS (For User Slash Commands) ---
+// --- PROMPTS ---
 
 server.registerPrompt(
   'pulse',

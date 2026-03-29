@@ -28,17 +28,21 @@ export class ProviderFactory {
     machineType?: string | undefined;
     reaperIdleLimit?: number | undefined;
   }): OrbitProvider {
+    const isLocal = !config.projectId || config.projectId === 'local';
+    const effectiveProvider =
+      config.providerType || (isLocal ? 'local-worktree' : 'gce');
+
     const stationName = config.repoName
       ? `gcli-station-${config.repoName}`
       : 'station-supervisor';
 
-    if (config.providerType === 'local-worktree') {
+    if (effectiveProvider === 'local-worktree') {
       return new LocalWorktreeProvider(stationName, config.worktreesDir);
     }
 
     if (
-      config.providerType === 'local-docker' ||
-      config.providerType === 'podman'
+      effectiveProvider === 'local-docker' ||
+      effectiveProvider === 'podman'
     ) {
       return new LocalDockerProvider(stationName);
     }

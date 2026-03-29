@@ -145,38 +145,29 @@ export class ShellIntegration {
   private uninstall(profilePath: string): void {
     if (!fs.existsSync(profilePath)) return;
     const content = fs.readFileSync(profilePath, 'utf8');
-    const marker = '# Gemini Orbit Shell Integration';
-    if (content.includes(marker)) {
-      const lines = content.split('\n');
-      const newLines: string[] = [];
-      let skipping = false;
-      for (const line of lines) {
-        if (line.includes(marker)) {
-          skipping = true;
-          continue;
-        }
-        if (
-          skipping &&
-          (line.trim() === '' ||
-            line.startsWith('}') ||
-            line.startsWith('end') ||
-            line.includes('fi'))
-        ) {
-          // This is a bit naive but works for our simple blocks
-          if (
-            line.includes('fi') ||
-            line.includes('}') ||
-            line.includes('end')
-          ) {
-            skipping = false;
-            continue;
-          }
-        }
-        if (!skipping) newLines.push(line);
+    const header = '# Gemini Orbit Shell Integration';
+    const footer = '# End Gemini Orbit Shell Integration';
+
+    if (content.includes(header)) {
+      const startIndex = content.indexOf(header);
+      const endIndex = content.indexOf(footer, startIndex);
+
+      if (endIndex !== -1) {
+        const fullBlock = content.substring(
+          startIndex,
+          endIndex + footer.length,
+        );
+        // Also remove leading/trailing newlines to keep profile clean
+        const newContent = content
+          .replace(new RegExp(`\\n?${this.escapeRegExp(fullBlock)}\\n?`), '\n')
+          .trim();
+        fs.writeFileSync(profilePath, newContent + '\n');
       }
-      // Simpler: Just remove everything from the marker to the next empty line or specific end marker
-      // Actually, let's just do a simple string replacement for the block we know we write.
     }
+  }
+
+  private escapeRegExp(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private isInstalled(profilePath: string): boolean {
@@ -187,23 +178,32 @@ export class ShellIntegration {
 
   private generateIntegration(shell: string, shimPath: string): string {
     const header = '# Gemini Orbit Shell Integration';
+    const footer = '# End Gemini Orbit Shell Integration';
     const commands =
       'blackbox ci constellation jettison liftoff mission pulse splashdown uplink';
     const quotedShim = `"${shimPath}"`;
 
+    // Determine if we should use node or tsx
+    const exec = shimPath.endsWith('.js') ? 'node' : 'npx tsx';
+
     if (shell === 'powershell') {
       return `${header}
-function orbit { npx tsx ${quotedShim} @args }
+function orbit { ${exec} ${quotedShim} @args }
+function gm { ${exec} ${quotedShim} mission @args }
 $orbit_completions = @('blackbox', 'ci', 'constellation', 'jettison', 'liftoff', 'mission', 'pulse', 'splashdown', 'uplink')
 Register-ArgumentCompleter -CommandName orbit -ParameterName args -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
     $orbit_completions | Where-Object { $_ -like "$wordToComplete*" }
-}`;
+}
+${footer}`;
     }
 
     if (shell === 'zsh') {
       return `${header}
-alias orbit='npx tsx ${quotedShim}'
+alias orbit='${exec} ${quotedShim}'
+alias gm='orbit mission'
+alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
+alias gmr='GCLI_ORBIT_PROFILE=corp gm'
 _orbit() {
   local -a commands
   commands=(
@@ -219,22 +219,27 @@ _orbit() {
   )
   _describe 'orbit' commands
 }
-compdef _orbit orbit`;
+compdef _orbit orbit
+${footer}`;
     }
 
     if (shell === 'fish') {
       return `${header}
-alias orbit='npx tsx ${quotedShim}'
+alias orbit='${exec} ${quotedShim}'
+alias gm='orbit mission'
 complete -c orbit -f
-complete -c orbit -a 'blackbox ci constellation jettison liftoff mission pulse splashdown uplink'`;
+complete -c orbit -a 'blackbox ci constellation jettison liftoff mission pulse splashdown uplink'
+${footer}`;
     }
 
     // bash fallback
     return `${header}
-alias orbit='npx tsx ${quotedShim}'
+alias orbit='${exec} ${quotedShim}'
+alias gm='orbit mission'
 _orbit_completions() {
   COMPREPLY=($(compgen -W "${commands}" -- "\${COMP_WORDS[1]}"))
 }
-complete -F _orbit_completions orbit`;
+complete -F _orbit_completions orbit
+${footer}`;
   }
 }

@@ -17,27 +17,38 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } =
-    config;
+  const isLocal =
+    !config.projectId ||
+    config.projectId === 'local' ||
+    config.providerType === 'local-worktree' ||
+    config.providerType === 'local-docker';
+
+  if (!isLocal && !config.instanceName) {
+    console.error(
+      `❌ Station name not configured for repo: ${repoName}. Check your profile or environment variables (GCLI_ORBIT_INSTANCE_NAME).`,
+    );
+    return 1;
+  }
+
+  const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({
-    projectId: projectId!,
-    zone: zone!,
-    instanceName: instanceName!,
-    repoName,
-    dnsSuffix,
-    userSuffix,
-    backendType,
+    ...config,
+    projectId: config.projectId || 'local',
+    zone: config.zone || 'local',
+    instanceName,
   });
 
   const statusRes = await provider.getStatus();
   if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
     console.error(
-      `❌ Station ${instanceName} is in an invalid state: ${statusRes.status}`,
+      `❌ Station ${instanceName || 'local'} is in an invalid state: ${statusRes.status}`,
     );
     return 1;
   }
 
-  console.log(`\n🛰️  ORBIT MISSION CONTROL: ${instanceName} (${repoName})`);
+  console.log(
+    `\n🛰️  ORBIT MISSION CONTROL: ${instanceName || 'local'} (${repoName})`,
+  );
   console.log(
     `--------------------------------------------------------------------------------`,
   );

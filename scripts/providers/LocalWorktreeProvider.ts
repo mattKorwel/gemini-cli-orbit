@@ -18,19 +18,20 @@ import {
 } from './BaseProvider.js';
 
 /**
- * LocalWorktreeProvider manages local git worktrees as isolated "capsules".
- * This allows "multithreaded" development on the local machine without
- * the overhead of Docker or remote VMs.
+ * LocalWorktreeProvider: High-performance local workspace management.
+ * Aligned with the user's native 'rswitch' and 'go' dotfiles workflow.
+ * Manages worktrees as siblings in ~/dev and uses tmux for persistence.
  */
 export class LocalWorktreeProvider implements OrbitProvider {
   public projectId: string = 'local';
   public zone: string = 'localhost';
-  public stationName: string;
-  private worktreesDir: string;
+  public stationName: string = 'local';
+  public worktreesDir: string;
+  public readonly isLocal = true;
 
   constructor(
-    stationName: string = 'local-station',
-    worktreesDir: string = path.join(os.homedir(), 'dev/orbit/worktrees'),
+    stationName: string = 'local',
+    worktreesDir: string = path.join(os.homedir(), 'dev'),
   ) {
     this.stationName = stationName;
     this.worktreesDir = worktreesDir;
@@ -40,11 +41,55 @@ export class LocalWorktreeProvider implements OrbitProvider {
     }
   }
 
-  async provision(options?: {
-    setupNetwork?: boolean;
-    sessionId?: string;
-  }): Promise<number> {
-    console.log(`🏠 Ensuring local worktrees directory: ${this.worktreesDir}`);
+  /**
+   * Helper: Resolves a PR number or branch name to a clean identifier.
+   */
+  private async resolveIdentifier(
+    id: string,
+  ): Promise<{ branch: string; isPr: boolean }> {
+    if (/^\d+$/.test(id)) {
+      const res = spawnSync(
+        'gh',
+        ['pr', 'view', id, '--json', 'headRefName', '-q', '.headRefName'],
+        { stdio: 'pipe' },
+      );
+      if (res.status === 0) {
+        return { branch: res.stdout.toString().trim(), isPr: true };
+      }
+    }
+    return { branch: id, isPr: false };
+  }
+
+  /**
+   * Helper: Find where a branch is checked out ANYWHERE on the system.
+   */
+  private findExistingWorktree(branch: string): string | null {
+    const res = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+      stdio: 'pipe',
+    });
+    if (res.status !== 0) return null;
+
+    const lines = res.stdout.toString().split('\n');
+    let currentPath = '';
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        currentPath = line.substring(9).trim();
+      } else if (
+        line.startsWith('branch refs/heads/') &&
+        line.endsWith(branch)
+      ) {
+        return currentPath;
+      }
+    }
+    return null;
+  }
+
+  private hasTmux(): boolean {
+    const res = spawnSync('which', ['tmux'], { stdio: 'pipe' });
+    return res.status === 0;
+  }
+
+  async provision(): Promise<number> {
     return 0;
   }
 
@@ -52,35 +97,40 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
-  async setup(_options: SetupOptions): Promise<number> {
+  async setup(): Promise<number> {
     return 0;
   }
 
-  private quote(val: string): string {
+  private q(val: string): string {
     return `'${val.replace(/'/g, "'\\''")}'`;
   }
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
-    let finalCmd = command;
     const envPrefix = options.env
       ? Object.entries(options.env)
-          .map(([k, v]) => `${k}=${this.quote(v)}`)
-          .join(' ') + ' '
-      : '';
-    const sensitivePrefix = options.sensitiveEnv
-      ? Object.entries(options.sensitiveEnv)
-          .map(([k, v]) => `${k}=${this.quote(v)}`)
+          .map(([k, v]) => `${k}=${this.q(v)}`)
           .join(' ') + ' '
       : '';
 
-    if (options.wrapCapsule) {
-      // Capsule is the worktree directory name
-      const capsulePath = path.join(this.worktreesDir, options.wrapCapsule);
-      finalCmd = `cd ${capsulePath} && ${envPrefix}${sensitivePrefix}${command}`;
-    } else {
-      finalCmd = `${envPrefix}${sensitivePrefix}${command}`;
+    const capsuleDir = options.wrapCapsule
+      ? this.findExistingWorktree(options.wrapCapsule) ||
+        path.join(this.worktreesDir, options.wrapCapsule)
+      : process.cwd();
+
+    if (this.hasTmux()) {
+      const sessionName = options.wrapCapsule
+        ? `orbit-${options.wrapCapsule}`
+        : 'orbit-local';
+      return `tmux new-session -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${envPrefix}${command}; exec zsh"`;
     }
-    return finalCmd;
+
+    console.warn(
+      '\n⚠️  [LocalWorktree] tmux not found. Persistence is disabled, so closing this terminal will kill the mission.',
+    );
+    console.warn(
+      '👉 Run "brew install tmux" to enable persistent background missions.\n',
+    );
+    return `cd ${this.q(capsuleDir)} && ${envPrefix}${command}`;
   }
 
   async exec(command: string, options: ExecOptions = {}): Promise<number> {
@@ -92,18 +142,18 @@ export class LocalWorktreeProvider implements OrbitProvider {
     command: string,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    const finalCmd = command;
     let cwd = options.cwd || process.cwd();
-
     if (options.wrapCapsule) {
-      cwd = path.join(this.worktreesDir, options.wrapCapsule);
+      cwd =
+        this.findExistingWorktree(options.wrapCapsule) ||
+        path.join(this.worktreesDir, options.wrapCapsule);
     }
 
-    const res = spawnSync(finalCmd, {
+    const res = spawnSync(command, {
       stdio: options.quiet ? 'pipe' : 'inherit',
       shell: true,
       cwd,
-      env: { ...process.env, GEMINI_AUTO_UPDATE: '0' },
+      env: { ...process.env, ...options.env, GEMINI_AUTO_UPDATE: '0' },
     });
 
     return {
@@ -113,20 +163,8 @@ export class LocalWorktreeProvider implements OrbitProvider {
     };
   }
 
-  async sync(
-    localPath: string,
-    remotePath: string,
-    _options: SyncOptions = {},
-  ): Promise<number> {
-    // For local worktree, this is essentially a no-op if paths are same,
-    // or a copy if they are different.
-    if (path.resolve(localPath) === path.resolve(remotePath)) return 0;
-
-    const res = spawnSync(`cp -r ${localPath} ${remotePath}`, {
-      shell: true,
-      stdio: 'inherit',
-    });
-    return res.status ?? 0;
+  async sync(): Promise<number> {
+    return 0;
   }
 
   async getStatus(): Promise<OrbitStatus> {
@@ -144,81 +182,122 @@ export class LocalWorktreeProvider implements OrbitProvider {
   async getCapsuleStatus(
     name: string,
   ): Promise<{ running: boolean; exists: boolean }> {
-    const capsulePath = path.join(this.worktreesDir, name);
-    const exists = fs.existsSync(capsulePath);
-    return { running: exists, exists };
+    const wtCheck = this.findExistingWorktree(name);
+    if (wtCheck) {
+      const tmuxCheck = this.hasTmux()
+        ? spawnSync('tmux', ['has-session', '-t', `orbit-${name}`]).status === 0
+        : false;
+      return { exists: true, running: tmuxCheck };
+    }
+    return { exists: false, running: false };
   }
 
-  async getCapsuleStats(name: string): Promise<string> {
+  async getCapsuleStats(): Promise<string> {
     return 'N/A (Local Worktree)';
   }
 
-  async getCapsuleIdleTime(name: string): Promise<number> {
+  async getCapsuleIdleTime(): Promise<number> {
     return 0;
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
-    const capsulePath = path.join(this.worktreesDir, config.name);
+    const branch = config.name;
+    const existingWt = this.findExistingWorktree(branch);
 
-    if (fs.existsSync(capsulePath)) {
-      console.log(`   ✅ Local worktree already exists: ${capsulePath}`);
+    if (existingWt) {
+      console.log(
+        `   📍 Branch '${branch}' is already checked out at: ${existingWt}`,
+      );
       return 0;
     }
 
-    console.log(`   🌿 Creating local worktree: ${config.name}...`);
-
-    // We expect the 'image' field to be the source repository path for local-worktree
-    const sourceRepo = config.image;
-
-    // Note: LocalWorktree doesn't currently use config.env or config.sensitiveEnv
-    // for the creation process, but they are available for getRunCommand.
-
-    // git worktree add <path> <branch>
-    const res = spawnSync(
-      `git -C ${sourceRepo} worktree add ${capsulePath} -b ${config.name} main`,
-      { shell: true, stdio: 'inherit' },
+    const targetDir = path.join(this.worktreesDir, branch);
+    console.log(
+      `   🌿 Orbit: Provisioning local worktree for '${branch}' in ${targetDir}...`,
     );
 
+    const sourceDir = process.cwd();
+    spawnSync('git', ['fetch', 'origin'], { cwd: sourceDir, stdio: 'inherit' });
+
+    const args: string[] = ['worktree', 'add'];
+    const localCheck = spawnSync(
+      'git',
+      ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
+      { cwd: sourceDir },
+    );
+
+    if (localCheck.status === 0) {
+      args.push(targetDir, branch);
+    } else {
+      const remoteCheck = spawnSync(
+        'git',
+        ['ls-remote', '--exit-code', '--heads', 'origin', branch],
+        { cwd: sourceDir },
+      );
+      if (remoteCheck.status === 0) {
+        args.push('-b', branch, targetDir, `origin/${branch}`);
+      } else {
+        args.push('-b', branch, targetDir, 'origin/main');
+      }
+    }
+
+    const res = spawnSync('git', ['-C', sourceDir, ...args], {
+      stdio: 'inherit',
+    });
     return res.status ?? 0;
   }
 
   async removeCapsule(name: string): Promise<number> {
-    const capsulePath = path.join(this.worktreesDir, name);
-    if (!fs.existsSync(capsulePath)) return 0;
+    const wtPath = this.findExistingWorktree(name);
+    if (!wtPath) return 0;
 
-    console.log(`   🔥 Removing local worktree: ${name}...`);
-    const res = spawnSync(`git worktree remove ${capsulePath} --force`, {
-      shell: true,
+    console.log(`   🔥 Orbit: Removing local worktree: ${name}`);
+    const res = spawnSync('git', ['worktree', 'remove', wtPath, '--force'], {
       stdio: 'inherit',
     });
+
+    if (this.hasTmux()) {
+      spawnSync('tmux', ['kill-session', '-t', `orbit-${name}`]);
+    }
+
     return res.status ?? 0;
   }
 
   async capturePane(capsuleName: string): Promise<string> {
-    // Local capture could use tmux if session name matches
-    const res = spawnSync(`tmux capture-pane -pt ${capsuleName} 2>/dev/null`, {
-      shell: true,
-      stdio: 'pipe',
-    });
+    if (!this.hasTmux()) return '';
+    const res = spawnSync(
+      'tmux',
+      ['capture-pane', '-pt', `orbit-${capsuleName}`],
+      { stdio: 'pipe' },
+    );
     return res.stdout?.toString() || '';
   }
 
   async listStations(): Promise<number> {
-    console.log(`🏠 Local Station: ${this.stationName} is RUNNING.`);
+    console.log(`🏠 Local Workspace: ${this.worktreesDir}`);
     return 0;
   }
 
   async destroy(): Promise<number> {
-    console.log(`🔥 Removing all local worktrees in ${this.worktreesDir}...`);
-    const res = spawnSync(`rm -rf ${this.worktreesDir}`, {
-      shell: true,
-      stdio: 'inherit',
-    });
-    return res.status ?? 0;
+    return 0;
   }
 
   async listCapsules(): Promise<string[]> {
-    if (!fs.existsSync(this.worktreesDir)) return [];
-    return fs.readdirSync(this.worktreesDir);
+    const res = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+      stdio: 'pipe',
+    });
+    if (res.status !== 0) return [];
+
+    const worktrees: string[] = [];
+    const lines = res.stdout.toString().split('\n');
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        const wtPath = line.substring(9).trim();
+        if (wtPath.startsWith(this.worktreesDir)) {
+          worktrees.push(path.basename(wtPath));
+        }
+      }
+    }
+    return worktrees;
   }
 }

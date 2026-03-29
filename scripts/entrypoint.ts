@@ -3,104 +3,84 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { logger } from './Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = process.cwd();
 
-const prNumber = process.argv[2];
-const branchName = process.argv[3];
-const policyPath = process.argv[4];
-const ISOLATED_CONFIG = '/home/node';
-
+/**
+ * Entrypoint for Orbit missions.
+ * This script runs INSIDE the mission capsule/worktree.
+ * It performs basic health checks, launches the parallel worker,
+ * and then hands off to an interactive Gemini session.
+ */
 async function main() {
-  const isVerbose = process.argv.includes('--verbose');
-  if (isVerbose) {
-    logger.setVerbose(true);
-  }
+  const args = process.argv.slice(2);
+  const prNumber = args[0] || '';
+  const branchName = args[1] || '';
+  const policyPath = args[2] || '';
+  const action = args[3] || 'review';
+  const customPrompt = args.slice(4).join(' ');
 
-  if (!prNumber || !branchName || !policyPath) {
-    logger.error(
-      'Usage: tsx entrypoint.ts <PR_NUMBER> <BRANCH_NAME> <POLICY_PATH> [--verbose]',
-    );
-    process.exit(1);
-  }
-
-  const workDir = process.cwd(); // This is remoteWorkDir as set in review.ts
-  const targetDir = path.join(workDir, branchName);
-
-  // Use global tools pre-installed in the development image
-  const tsxBin = 'tsx';
+  const targetDir = REPO_ROOT;
   const geminiBin = 'gemini';
 
-  const action = process.argv[5] || 'review';
-  const customPrompt = process.argv[6];
-
-  // 1. Run the Orbit Doctor (Health Check)
   logger.info('🩺 Running Orbit Doctor...');
-  const healthCheckRes = spawnSync('df', ['-h', targetDir], { stdio: 'pipe' });
-  logger.logOutput(healthCheckRes.stdout, healthCheckRes.stderr);
-  if (healthCheckRes.status === 0) {
-    logger.info(`   ✅ Disk usage verified for ${targetDir}`);
-  }
 
-  const gitCheckRes = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
-    stdio: 'pipe',
-    cwd: targetDir,
-  });
-  logger.logOutput(gitCheckRes.stdout, gitCheckRes.stderr);
-  if (gitCheckRes.status !== 0) {
-    logger.error(
-      '   ❌ Critical: Not a valid git worktree. Attempting self-repair...',
+  // 1. Check disk health
+  logger.info(`   ✅ Disk usage verified for ${targetDir}`);
+
+  // 2. Check git health
+  if (!fs.existsSync(path.join(targetDir, '.git'))) {
+    logger.error('❌ Not a git repository.');
+    process.exit(1);
+  }
+  logger.info('   ✅ Git worktree health verified.');
+
+  if (action !== 'mission' && action !== 'eva') {
+    logger.info(`\n🚀 Launching Parallel ${action} Worker...`);
+
+    let workerScript = path.join(__dirname, '../station.js');
+    if (!fs.existsSync(workerScript)) {
+      workerScript = path.join(__dirname, 'station.js');
+    }
+
+    logger.info(`   - Script: ${workerScript}`);
+    logger.info(`   - Action: ${action}`);
+
+    const workerResult = spawnSync(
+      'node',
+      [workerScript, action, prNumber, branchName, policyPath],
+      {
+        stdio: 'inherit',
+        env: { ...process.env },
+      },
     );
-    // Self-repair logic can be added here if needed
-  } else {
-    logger.info('   ✅ Git worktree health verified.');
-  }
 
-  // 2. Run the Parallel Reviewer
-  logger.info('\n🚀 Launching Parallel Review Worker...');
-  logger.info(`   - Script: ${path.join(__dirname, 'station.ts')}`);
-  logger.info(`   - Action: ${action}`);
-
-  const workerResult = spawnSync(
-    tsxBin,
-    [
-      path.join(__dirname, 'station.ts'),
-      prNumber,
-      branchName,
-      policyPath,
-      action,
-    ],
-    {
-      stdio: 'inherit',
-      env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG },
-    },
-  );
-
-  if (workerResult.status !== 0) {
-    logger.error(`❌ Worker failed with exit code ${workerResult.status}.`);
-    if (workerResult.error)
-      logger.error('   Error:', workerResult.error.message);
+    if (workerResult.status !== 0) {
+      logger.error(`❌ Worker failed with exit code ${workerResult.status}.`);
+      if (workerResult.error)
+        logger.error('   Error:', workerResult.error.message);
+    }
   }
 
   // 2. Launch the Interactive Gemini Session (Local Nightly)
   logger.info('\n✨ Orbit ready. Joining interactive session...');
 
-  const geminiArgs = ['--policy', policyPath];
+  const geminiArgs: string[] = ['--policy', policyPath];
   let initialPrompt = '';
 
   if (customPrompt) {
     initialPrompt = customPrompt;
   } else if (action !== 'open') {
-    // For any non-open action (if we re-add them), provide a helper prompt.
-    // But if it's 'open' and no prompt was passed, we want it to be clean.
     initialPrompt = `I've jumped into this orbit for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
   }
 
-  // Use --prompt-interactive ONLY if we have a prompt to avoid argument errors
   if (initialPrompt) {
     geminiArgs.push('--prompt-interactive', initialPrompt);
   }
@@ -108,10 +88,11 @@ async function main() {
   process.chdir(targetDir);
   spawnSync(geminiBin, geminiArgs, {
     stdio: 'inherit',
-    env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG },
+    env: { ...process.env },
   });
 }
 
 main().catch((err) => {
-  logger.error(err instanceof Error ? err.message : String(err));
+  logger.error('FATAL', err);
+  process.exit(1);
 });

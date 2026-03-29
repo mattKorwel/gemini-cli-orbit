@@ -46,10 +46,10 @@ automated tests.
 
 ---
 
-## 🎚️ 2. Tiered Configuration & Surgical Mode
+## 🎚️ 2. Tiered Configuration & Local Worktree Management
 
 **Goal**: Verify the system merges Project Defaults, Global Registry, Designs,
-and Env Vars correctly.
+and Env Vars correctly, and supports the 'rswitch' style local workflow.
 
 ### 2.1 Resolution Hierarchy
 
@@ -58,18 +58,19 @@ and Env Vars correctly.
       `echo '{"projectId": "design-p"}' > ~/.gemini/orbit/profiles/test-resolution.json`.
     - Set an env var: `export GCLI_ORBIT_PROJECT_ID=env-p`.
 2.  **Automated Check**:
-    - `node -e "import { getRepoConfig } from './bundle/ConfigManager.js'; console.log(getRepoConfig('gemini-cli').projectId)"`
-    - [ ] **Expected**: `env-p` (Environment variables have the highest
+    - `node bundle/bin/status.js`
+    - [ ] **Expected**: Config uses `env-p` (Environment variables have
           priority).
 
-### 2.2 Surgical Updates
+### 2.2 Smart Local Worktrees
 
-1.  **Input**: Run `orbit liftoff --gce-machine-type=n2-highmem-16` (using the
-    bundled script).
-2.  **Expected Output**:
-    - [ ] The script should **NOT** prompt for confirmation (Surgical Mode).
-    - [ ] `~/.gemini/orbit/settings.json` is updated with the new machine type
-          for the current repo.
+1.  **Input**: Run `orbit mission <PR_NUMBER> review` with
+    `GCLI_ORBIT_PROVIDER=local-worktree`.
+2.  **Expected Behavior**:
+    - [ ] Automatically resolves PR number to branch name via `gh pr view`.
+    - [ ] Detects if the branch is already checked out in another worktree.
+    - [ ] Creates a sibling worktree in `~/dev/` if missing.
+    - [ ] Launches a persistent session via `tmux` (or falls back gracefully).
 
 ---
 

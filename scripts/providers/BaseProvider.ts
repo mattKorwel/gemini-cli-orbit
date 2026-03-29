@@ -141,8 +141,8 @@ export interface CapsuleConfig {
   sensitiveEnv?: Record<string, string>;
   cpuLimit?: string;
   memoryLimit?: string;
-  command?: string;
-  user?: string;
+  command?: string | undefined;
+  user?: string | undefined;
 }
 
 export interface SyncOptions {

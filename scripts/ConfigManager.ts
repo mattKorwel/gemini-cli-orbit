@@ -122,6 +122,7 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
 
   // 4. Resolve Profile
   const profileName =
+    process.env.GCLI_ORBIT_PROFILE ||
     globalSettings.repos?.[targetRepo]?.profile ||
     globalSettings.activeProfile ||
     projectConfig.profile;
@@ -149,6 +150,8 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
     envConfig.instanceName = process.env.GCLI_ORBIT_INSTANCE_NAME;
   if (process.env.GCLI_ORBIT_BACKEND)
     envConfig.backendType = process.env.GCLI_ORBIT_BACKEND as any;
+  if (process.env.GCLI_ORBIT_PROVIDER)
+    envConfig.providerType = process.env.GCLI_ORBIT_PROVIDER as any;
   if (process.env.GCLI_ORBIT_IMAGE)
     envConfig.imageUri = process.env.GCLI_ORBIT_IMAGE;
   if (process.env.GCLI_ORBIT_TEMP_DIR)

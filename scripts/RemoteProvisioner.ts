@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import path from 'node:path';
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
 import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
@@ -23,10 +24,16 @@ export class RemoteProvisioner {
       upstreamUrl: string;
       cpuLimit?: string;
       memoryLimit?: string;
+      image?: string;
     },
   ): Promise<string> {
     const sId = sanitizeName(identifier);
-    const remoteWorktreeDir = `${config.worktreesDir}/mission-${sId}-${action}`;
+    const isLocalWorktree = (this.provider as any).worktreesDir !== undefined;
+
+    const remoteWorktreeDir = isLocalWorktree
+      ? path.join((this.provider as any).worktreesDir, `gcli-${sId}-${action}`)
+      : `${config.worktreesDir}/mission-${sId}-${action}`;
+
     const containerName = `gcli-${sId}-${action}`;
     const imageUri = DEFAULT_IMAGE_URI;
 
@@ -41,40 +48,55 @@ export class RemoteProvisioner {
         logger.info(`   - Provisioning isolated capsule ${containerName}...`);
       }
 
+      const isGce = (this.provider as any).projectId !== 'local';
+
       await this.provider.runCapsule({
         name: containerName,
-        image: config.remoteWorkDir || imageUri, // Local worktree uses remoteWorkDir as source repo
-        user: 'root',
+        image: config.image || config.remoteWorkDir || imageUri,
+        user: isGce ? 'root' : undefined,
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
-        mounts: [
-          {
-            host: config.remoteWorkDir,
-            capsule: config.remoteWorkDir,
-            readonly: true,
-          }, // MOUNT READ-ONLY
-          {
-            host: remoteWorktreeDir,
-            capsule: remoteWorktreeDir,
-            readonly: false,
-          }, // Specific Satellite Worktree RW
-          { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: true }, // Broad mount as RO for shared assets
-          {
-            host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
-            capsule: '/home/node/.gemini',
-            readonly: false,
-          },
-        ],
-        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`,
+        mounts: isGce
+          ? [
+              {
+                host: config.remoteWorkDir,
+                capsule: config.remoteWorkDir,
+                readonly: true,
+              },
+              {
+                host: remoteWorktreeDir,
+                capsule: remoteWorktreeDir,
+                readonly: false,
+              },
+              { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: true },
+              {
+                host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
+                capsule: '/home/node/.gemini',
+                readonly: false,
+              },
+            ]
+          : [],
+        command: isGce
+          ? `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`
+          : undefined,
       });
 
       // Wait for capsule to stabilize
-      await this.waitForCapsule(containerName, 10000);
+      if (!isLocalWorktree) {
+        await this.waitForCapsule(containerName, 10000);
+      } else {
+        logger.info(`   ✅ Local worktree ${containerName} ready.`);
+      }
     } else {
       logger.info(`   ✅ Isolated capsule ${containerName} is already active.`);
     }
 
-    // 2. Provision the repository using a reference clone for speed and isolation
+    // 2. If local worktree, we are done (it was created by runCapsule)
+    if (isLocalWorktree) {
+      return remoteWorktreeDir;
+    }
+
+    // 3. Provision the repository using a reference clone for speed and isolation
     const check = await this.provider.getExecOutput(
       `ls -d ${remoteWorktreeDir}/.git`,
       { wrapCapsule: containerName, quiet: true },

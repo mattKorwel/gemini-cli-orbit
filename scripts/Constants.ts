@@ -21,6 +21,12 @@ export const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
 export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 
+export const LOCAL_SCRIPTS_PATH = path.join(REPO_ROOT, 'scripts');
+export const LOCAL_POLICIES_PATH = path.join(REPO_ROOT, '.gemini/policies');
+export const LOCAL_BUNDLE_PATH = path.join(REPO_ROOT, 'bundle');
+
+export const BUNDLE_PATH = `${ORBIT_ROOT}/bundle`;
+
 /**
  * Configuration Paths
  */
