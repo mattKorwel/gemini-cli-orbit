@@ -1,6 +1,6 @@
-description = "Review mission data and logs from the remote worker/capsules."
+description = "Mission Blackbox: Inspect recorded local mission logs."
 prompt = """
-Opening mission blackbox...
+I am retrieving the blackbox recordings for mission PR #{{args}}.
 
-!{node bundle/logs.js {{args}} }
+!{node bundle/blackbox.js {{args}} }
 """

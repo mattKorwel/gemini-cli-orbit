@@ -37,7 +37,8 @@ When you run a mission:
 4.  **Persistent Tmux**: The session is wrapped in `tmux`, allowing you to safely disconnect without interrupting any running processes.
 
 ## ✨ Quick Commands
-- `/orbit:mission <PR> fix`: Automated PR correction.
-- `/orbit:mission <PR> review`: Deep technical PR review.
+- `/orbit:mission <PR> [action]`: Launch a mission (fix, review, implement).
 - `/orbit:mission <PR> eva`: Raw bash access to the capsule.
-- `/orbit:mission <PR> implement`: Autonomous feature implementation.
+- `/orbit:pulse`: Monitor host and capsule health.
+- `/orbit:uplink <PR> [action]`: Stream real-time logs from a remote capsule.
+- `/orbit:blackbox <PR> [action]`: Inspect recorded local mission logs.

@@ -10,10 +10,12 @@ import { runStation } from './station.js';
 import { runFixPlaybook } from './playbooks/fix.js';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
+import * as ConfigManager from './ConfigManager.js';
 
 vi.mock('child_process');
 vi.mock('fs');
 vi.mock('./playbooks/fix.ts');
+vi.mock('./ConfigManager.ts');
 
 describe('runStation', () => {
   beforeEach(() => {
@@ -21,6 +23,10 @@ describe('runStation', () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{"name": "test-repo"}') } as any);
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined as any);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined as any);
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+        repoName: 'test-repo',
+    });
   });
 
   it('should dispatch to the correct playbook', async () => {
