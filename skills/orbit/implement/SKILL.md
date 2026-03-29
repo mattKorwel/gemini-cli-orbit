@@ -44,7 +44,7 @@ node ${extensionPath}/bundle/orchestrator.js <ISSUE_NUMBER> implement
 ### 2. Monitor Progress
 Implementation missions run in a background `tmux` session. You can monitor the logs:
 ```bash
-npx tsx ${extensionPath}/scripts/check.ts <ISSUE_NUMBER>
+node ${extensionPath}/bundle/check.js <ISSUE_NUMBER>
 ```
 
 ### 3. Retrieve Results

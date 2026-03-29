@@ -35,7 +35,7 @@ node ${extensionPath}/bundle/orchestrator.js <PR_NUMBER> review
 ### 2. Monitor Progress
 Review missions run in a background `tmux` session. You can monitor the logs:
 ```bash
-npx tsx ${extensionPath}/scripts/check.ts <PR_NUMBER>
+node ${extensionPath}/bundle/check.js <PR_NUMBER>
 ```
 
 ### 3. Retrieve Results
