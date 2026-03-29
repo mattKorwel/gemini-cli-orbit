@@ -1,6 +1,6 @@
-description = "Jettison a specific satellite session, capsule, and worktree."
+description = "Decommission a specific mission Orbit capsule and its worktree."
 prompt = """
-Ejecting session for PR #{{args}}...
+I am decommissioning the capsule for {{args}}.
 
-!{node bundle/jettison.js {{args}} }
+!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/jettison.js" {{args}} }
 """

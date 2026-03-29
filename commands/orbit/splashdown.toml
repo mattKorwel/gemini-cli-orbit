@@ -1,11 +1,6 @@
-description = "Full mission splashdown: destroy the station, all capsules, and the remote disk."
+description = "Emergency shutdown of all active remote capsules and the station."
 prompt = """
-⚠️ DANGER: You are about to initiate a FULL MISSION SPLASHDOWN.
+Executing emergency splashdown...
 
-This will:
-1. Terminate the GCE station instance.
-2. Permanently delete the persistent data disk.
-3. Remove all constellation-wide settings.
-
-!{node bundle/splashdown.js --all }
+!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/splashdown.js" --all }
 """

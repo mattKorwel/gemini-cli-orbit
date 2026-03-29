@@ -1,11 +1,6 @@
-description = "Automated resource cleanup: identify and jettison idle mission capsules."
+description = "Perform orbital cleanup of idle or completed missions."
 prompt = """
-Starting resource reaping...
+Reaping stale capsules...
 
-This will:
-1. Scan all active mission capsules for idle time.
-2. Identify capsules with no terminal activity for more than the threshold (default 4h).
-3. Offer to jettison idle missions and potentially splashdown the host station.
-
-!{node bundle/reap.js {{args}} }
+!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/reap.js" {{args}} }
 """

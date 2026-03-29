@@ -1,6 +1,6 @@
-description = "Mission Uplink: Establish a real-time connection to a remote mission capsule."
+description = "Quickly connect to an existing mission session (attach to tmux)."
 prompt = """
-I am establishing an uplink to mission PR #{{args}}.
+Establishing uplink to {{args}}...
 
-!{node bundle/uplink.js {{args}} }
+!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/uplink.js" {{args}} }
 """

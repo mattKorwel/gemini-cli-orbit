@@ -9,5 +9,5 @@ Actions available:
 - review     - Execute mission observation (review playbook).
 - implement  - Execute mission execution (implement playbook).
 
-!{node bundle/orchestrator.js {{args}} }
+!{ node "$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || echo .)/bundle/orchestrator.js" {{args}} }
 """
