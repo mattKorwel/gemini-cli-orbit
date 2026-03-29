@@ -138,6 +138,8 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
     if (process.env.GCLI_ORBIT_IMAGE) envConfig.imageUri = process.env.GCLI_ORBIT_IMAGE;
     if (process.env.GCLI_ORBIT_TEMP_DIR) envConfig.tempDir = process.env.GCLI_ORBIT_TEMP_DIR;
     if (process.env.GCLI_ORBIT_AUTO_CLEAN) envConfig.autoClean = process.env.GCLI_ORBIT_AUTO_CLEAN === 'true';
+    if (process.env.GCLI_ORBIT_CPU_LIMIT) envConfig.cpuLimit = process.env.GCLI_ORBIT_CPU_LIMIT;
+    if (process.env.GCLI_ORBIT_MEMORY_LIMIT) envConfig.memoryLimit = process.env.GCLI_ORBIT_MEMORY_LIMIT;
     
     config = { ...config, ...envConfig };
 

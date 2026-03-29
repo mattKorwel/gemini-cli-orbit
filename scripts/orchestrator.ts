@@ -143,8 +143,11 @@ const provisioner = new RemoteProvisioner(provider);
 const remoteWorktreeDir = await provisioner.provisionWorktree(prNumber, action, isEvaMode, '', {
     remoteWorkDir: config.remoteWorkDir!,
     worktreesDir: repoWorktreesDir,
-    upstreamUrl
+    upstreamUrl,
+    cpuLimit: config.cpuLimit,
+    memoryLimit: config.memoryLimit
 });
+
 if (!remoteWorktreeDir) {
     console.error('❌ Failed to provision satellite worktree.');
     return 1;

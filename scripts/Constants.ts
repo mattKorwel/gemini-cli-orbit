@@ -79,6 +79,9 @@ export interface OrbitConfig {
   sshSourceRanges?: string[] | undefined; // Custom source ranges for SSH firewall rule
   tempDir?: string | undefined; // Base directory for temporary output
   autoClean?: boolean | undefined; // Whether to auto-delete session temp dirs
+  cpuLimit?: string | undefined; // Container CPU limit (e.g. '2')
+  memoryLimit?: string | undefined; // Container Memory limit (e.g. '8g')
+  reaperIdleLimit?: number | undefined; // Auto-shutdown idle threshold in hours (e.g. 24)
 }
 
 /**

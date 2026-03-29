@@ -1,0 +1,101 @@
+# 🛰️ Day in the Life of a Gemini Orbit Engineer
+
+This guide walks you through a typical development cycle using Gemini Orbit. Orbit provides high-performance, isolated remote environments for your PRs and missions.
+
+---
+
+## 🌅 1. Morning Liftoff: Starting your Station
+
+When you start your day (or work on a new repository), you need to ensure your **Persistent Host Station** is ready.
+
+```bash
+# Provision or wake up your station
+orbit liftoff
+```
+
+- **What happens**: Orbit checks if your GCE instance exists. If not, it creates it. It ensures the Docker daemon is ready and the latest capsule images are pulled.
+- **Persistent Data**: Your `/mnt/disks/data` disk is preserved across stops/starts. Your main repo clone is always there.
+
+---
+
+## 🚀 2. Starting a New Mission (PR)
+
+You've found a bug or a feature to implement. You want a clean, isolated environment.
+
+```bash
+# Start a new mission for an issue
+orbit mission implement <issue-number>
+```
+
+- **Isolation**: Orbit creates a dedicated **Capsule** (Docker container) and a **Git Worktree**.
+- **Speed**: It uses a `git clone --reference` against the host's main repo, so it takes seconds, not minutes.
+- **Context**: The `implement` playbook automatically fetches issue metadata and relevant codebase context.
+
+---
+
+## 🛠️ 3. Developing & Debugging
+
+You are now working inside your capsule. You can attach to it at any time:
+
+```bash
+# Attach to the mission terminal
+orbit uplink <pr-number>
+```
+
+- **Persistence**: Uplink uses TMUX. You can disconnect, lose your internet connection, or switch machines—your terminal state is preserved.
+- **Native Experience**: Use your local VS Code or editor. Changes are synced (or mounted) automatically.
+
+---
+
+## 🔍 4. Mission Control: Reviewing a PR
+
+Before you merge, you want a high-fidelity review.
+
+```bash
+# Run a consolidated review mission
+orbit mission review <pr-number>
+```
+
+- **The Mustard Test**: Orbit won't just look at the code; it will physically execute it in the capsule and provide logs.
+- **CI Monitoring**: It watches the actual GitHub Actions status in parallel.
+- **Synthesis**: You get a `final-assessment.md` with everything you need to know.
+
+---
+
+## 🧹 5. Splashdown: Cleaning Up
+
+Once your PR is merged, clean up the specific mission resources.
+
+```bash
+# Remove the specific mission capsule and worktree
+orbit jettison <pr-number>
+```
+
+At the end of the day, stop your Host Station to save costs:
+
+```bash
+# Stop the GCE instance (preserving the disk)
+orbit splashdown
+```
+
+---
+
+## 🆘 Troubleshooting: The Pulse
+
+If something feels wrong, check the status of your entire orbit:
+
+```bash
+# Check station and capsule health
+orbit pulse
+```
+
+- **Thinking vs Waiting**: Pulse tells you if an agent is currently busy or waiting for your input.
+- **Resource Usage**: (Coming Soon) View CPU and Memory pressure on your station.
+
+---
+
+## 💡 Pro-Tips
+
+1. **Shared Config**: Any extension you link or alias you create in `.gemini/` is instantly available in *all* capsules.
+2. **Design Profiles**: Switch between `direct-internal` (fastest) and `iap` (most secure) using `orbit liftoff --profile=iap`.
+3. **Bulk Cleanup**: Use `orbit splashdown --bulk` to wipe out multiple stale missions at once.

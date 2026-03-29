@@ -16,17 +16,30 @@ Pulse reports the core status of your primary digital outpost:
 
 ### 2. Active Mission Capsules
 Pulse lists all ephemeral mission environments currently running on the host. For each active mission, it shows:
-- **PR Number**: The specific workstream being handled.
-- **Mission Name**: The unique identifier for the capsule.
-- **State**: Whether the mission is actively processing or waiting.
+- **State**: The current status of the Gemini agent (Thinking vs Waiting).
+- **Capsule Name**: The unique identifier for the mission environment (e.g., `gcli-123-mission`).
+- **Resource Usage**: Real-time CPU and Memory consumption (e.g., `CPU: 12.5%, Mem: 1.2GB / 8GB`).
 
 ---
 
-## 🛰️ Mission Intelligence (v1.4+)
+## 🛰️ Mission Intelligence (v1.5+)
 For active PR missions, Pulse provides a deeper look into what the Gemini agent is doing:
-- **🧠 [THINKING]**: The agent is actively processing a task or analyzing the PR.
-- **⏳ [WAITING]**: The agent has completed its last task and is awaiting your next directive.
-- **❌ [CRASHED/STALE]**: The mission requires intervention or manual restart.
+- **🧠 [THINKING]**: The agent is actively processing a task, running a build, or analyzing the PR.
+- **✋ [WAITING]**: The agent is awaiting your input or a manual approval.
+- **💤 [IDLE]**: The capsule is active but no agent or TMUX session is currently running.
+
+## 🆘 Troubleshooting & "Zombie" Capsules
+Sometimes a mission environment can become unresponsive or "zombie" if a process crashes internally. 
+
+### Identifying a Zombie
+Check the resource usage in `pulse`. If a capsule shows **0% CPU** and **Static Memory** while you expect it to be working, it may be a zombie.
+
+### The Surgical Kill
+To kill a specific capsule without affecting your Host Station or other missions:
+```bash
+orbit jettison <pr-number>
+```
+This will physically remove the Docker container and clean up its associated worktree, allowing you to re-launch the mission cleanly.
 
 ## ✨ Use Cases
 - **Health Check**: Ensure your station is responsive before launching a complex mission.

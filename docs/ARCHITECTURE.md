@@ -27,6 +27,16 @@ Unlike traditional remote environments, Orbit sessions are persistent.
 - If your local machine sleeps or loses power, the Mission Capsule continues its trajectory.
 - Autonomous missions (like automated refactoring or deep reviews) run independently in the background.
 
+## 4. Cost Management & The Auto-Reaper
+
+To ensure your digital outpost doesn't incur unnecessary costs, Orbit includes mechanisms for resource lifecycle management.
+
+### The Auto-Reaper
+Orbit provides an optional **Station Autopilot** (The Reaper) that monitors station and capsule activity.
+- **Idle Detection**: If a mission capsule has had no terminal activity or background task progression for a configurable threshold (e.g., 4 hours), the Reaper can automatically **Jettison** the capsule.
+- **Station Sleep**: If all mission capsules are idle or removed, the Reaper can initiate a **Splashdown** of the Host Station itself, stopping the GCE instance while preserving the persistent data disk.
+- **TTL Policies**: Missions can be launched with a "Time-To-Live," after which they are automatically cleaned up regardless of activity.
+
 ## 🛡️ Security & Sovereignty
 Orbit is **Sovereign Infrastructure**. You own the host, you own the network, and you own the data. 
 

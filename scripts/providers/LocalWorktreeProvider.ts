@@ -126,6 +126,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return { running: exists, exists };
   }
 
+  async getCapsuleStats(name: string): Promise<string> {
+    return 'N/A (Local Worktree)';
+  }
+
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const capsulePath = path.join(this.worktreesDir, config.name);
     

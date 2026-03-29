@@ -108,6 +108,27 @@ export class LocalDockerProvider implements OrbitProvider {
     return { running: res.stdout?.toString().trim() === 'true', exists: true };
   }
 
+  async getCapsuleStats(name: string): Promise<string> {
+    const res = spawnSync(`docker stats ${name} --no-stream --format 'CPU: {{.CPUPerc}}, Mem: {{.MemUsage}} / {{.MemLimit}}'`, { shell: true, stdio: 'pipe' });
+    if (res.status !== 0) return 'N/A';
+    return res.stdout?.toString().trim() || 'N/A';
+  }
+
+  async getCapsuleIdleTime(name: string): Promise<number> {
+    const tmuxRes = await this.getExecOutput('stat -c %X /tmp/tmux-1000/default 2>/dev/null', { wrapCapsule: name, quiet: true });
+    if (tmuxRes.status === 0) {
+      const lastActivity = parseInt(tmuxRes.stdout.trim());
+      return Math.floor(Date.now() / 1000) - lastActivity;
+    }
+
+    const startRes = await this.getExecOutput(`docker inspect -f '{{.State.StartedAt}}' ${name}`, { quiet: true });
+    if (startRes.status === 0) {
+        const startTime = new Date(startRes.stdout.trim()).getTime() / 1000;
+        return Math.floor(Date.now() / 1000) - Math.floor(startTime);
+    }
+    return 0;
+  }
+
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`).join(' ');
     const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';

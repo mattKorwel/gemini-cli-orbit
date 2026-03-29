@@ -108,6 +108,61 @@ export class GceCosProvider implements OrbitProvider {
       mkdir -p /home/node
       ln -sfn /mnt/disks/data /home/node/.orbit
       chown -R 1000:1000 /home/node
+
+      # Auto-Reaper Script (Runs on Host OS)
+      cat << 'REAPER_EOF' > /mnt/disks/data/scripts/reaper.sh
+#!/bin/bash
+IDLE_LIMIT_HOURS=${this.reaperIdleLimit}
+[ "$IDLE_LIMIT_HOURS" -le 0 ] && exit 0
+
+THRESHOLD_SECONDS=$((IDLE_LIMIT_HOURS * 3600))
+INSTANCE_NAME=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
+ZONE=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ '{print $NF}')
+PROJECT=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/project/project-id)
+
+echo "🔍 Orbit Reaper starting with $IDLE_LIMIT_HOURS hour threshold..."
+
+while true; do
+  STATION_IDLE=true
+  
+  # 1. Check for active SSH sessions on the host
+  # On COS, 'who' might be empty for OS Login, so we check established TCP connections on port 22
+  SSH_CONNS=$(ss -t -n state established '( dport = :22 )' | grep -v "Recv-Q" || true)
+  if [ -n "$SSH_CONNS" ]; then
+    STATION_IDLE=false
+  fi
+
+  # 2. Check all active capsules for mission activity
+  if [ "$STATION_IDLE" = true ]; then
+    CAPSULES=$(docker ps --format '{{.Names}}' | grep '^gcli-' || true)
+    if [ -n "$CAPSULES" ]; then
+      for name in $CAPSULES; do
+        # Check tmux socket atime inside the capsule
+        LAST_ACT=$(docker exec $name stat -c %X /tmp/tmux-1000/default 2>/dev/null || docker inspect -f '{{.State.StartedAt}}' $name | xargs -I{} date --date={} +%s)
+        NOW=$(date +%s)
+        IDLE=$((NOW - LAST_ACT))
+        
+        if [ "$IDLE" -lt "$THRESHOLD_SECONDS" ]; then
+          STATION_IDLE=false
+          break
+        fi
+      done
+    fi
+  fi
+
+  if [ "$STATION_IDLE" = true ]; then
+    echo "💤 Station idle (No SSH, No Capsule Activity) for > $IDLE_LIMIT_HOURS hours. Shutting down..."
+    gcloud compute instances stop $INSTANCE_NAME --project $PROJECT --zone $ZONE --quiet
+  fi
+  
+  sleep 600 # Check every 10 minutes
+done
+REAPER_EOF
+      chmod +x /mnt/disks/data/scripts/reaper.sh
+      
+      # Start Reaper in background on Host
+      /mnt/disks/data/scripts/reaper.sh > /var/log/orbit-reaper.log 2>&1 &
+
       until docker info >/dev/null 2>&1; do sleep 2; done
       docker pull ${imageUri}
       if ! docker ps -a | grep -q "${this.stationName}"; then
@@ -281,6 +336,31 @@ export class GceCosProvider implements OrbitProvider {
     const res = await this.getExecOutput(`sudo docker inspect -f '{{.State.Running}}' ${name}`, { quiet: true });
     if (res.status !== 0) return { running: false, exists: false };
     return { running: res.stdout.trim() === 'true', exists: true };
+  }
+
+  async getCapsuleStats(name: string): Promise<string> {
+    const res = await this.getExecOutput(`sudo docker stats ${name} --no-stream --format 'CPU: {{.CPUPerc}}, Mem: {{.MemUsage}} / {{.MemLimit}}'`, { quiet: true });
+    if (res.status !== 0) return 'N/A';
+    return res.stdout.trim() || 'N/A';
+  }
+
+  async getCapsuleIdleTime(name: string): Promise<number> {
+    // We check the atime of the tmux socket inside the capsule.
+    // If no tmux sessions exist, we check the container start time.
+    const tmuxRes = await this.getExecOutput('stat -c %X /tmp/tmux-1000/default 2>/dev/null', { wrapCapsule: name, quiet: true });
+    if (tmuxRes.status === 0) {
+      const lastActivity = parseInt(tmuxRes.stdout.trim());
+      return Math.floor(Date.now() / 1000) - lastActivity;
+    }
+
+    // Fallback: Check container start time
+    const startRes = await this.getExecOutput(`sudo docker inspect -f '{{.State.StartedAt}}' ${name}`, { quiet: true });
+    if (startRes.status === 0) {
+        const startTime = new Date(startRes.stdout.trim()).getTime() / 1000;
+        return Math.floor(Date.now() / 1000) - Math.floor(startTime);
+    }
+
+    return 0;
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {

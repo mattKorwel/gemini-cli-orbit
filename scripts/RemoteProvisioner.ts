@@ -16,7 +16,7 @@ import {
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
 
-  async provisionWorktree(prNumber: string, action: string, isEvaMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string }): Promise<string> {
+  async provisionWorktree(prNumber: string, action: string, isEvaMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string, cpuLimit?: string, memoryLimit?: string }): Promise<string> {
     const remoteWorktreeDir = `${config.worktreesDir}/mission-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
     const imageUri = DEFAULT_IMAGE_URI;
@@ -36,8 +36,8 @@ export class RemoteProvisioner {
         name: containerName,
         image: config.remoteWorkDir || imageUri, // Local worktree uses remoteWorkDir as source repo
         user: 'root',
-        cpuLimit: '2',
-        memoryLimit: '8g',
+        cpuLimit: config.cpuLimit || '2',
+        memoryLimit: config.memoryLimit || '8g',
         mounts: [
           { host: config.remoteWorkDir, capsule: config.remoteWorkDir, readonly: true }, // MOUNT READ-ONLY
           { host: remoteWorktreeDir, capsule: remoteWorktreeDir, readonly: false }, // Specific Satellite Worktree RW

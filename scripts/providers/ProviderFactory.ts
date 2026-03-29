@@ -26,7 +26,8 @@ export class ProviderFactory {
     vpcName?: string | undefined;
     subnetName?: string | undefined;
     machineType?: string | undefined;
-  }): OrbitProvider {
+    reaperIdleLimit?: number | undefined;
+    }): OrbitProvider {
     const stationName = config.repoName ? `gcli-station-${config.repoName}` : 'station-supervisor';
 
     if (config.providerType === 'local-worktree') {
@@ -36,23 +37,25 @@ export class ProviderFactory {
     if (config.providerType === 'local-docker' || config.providerType === 'podman') {
         return new LocalDockerProvider(stationName);
     }
-    
+
     // Default to GCE
     return new GceCosProvider(
       config.projectId,
       config.zone,
       config.instanceName,
       REPO_ROOT,
-      { 
-        dnsSuffix: config.dnsSuffix, 
+      {
+        dnsSuffix: config.dnsSuffix,
         userSuffix: config.userSuffix,
         backendType: config.backendType,
         imageUri: config.imageUri,
         vpcName: config.vpcName,
         subnetName: config.subnetName,
         machineType: config.machineType,
+        reaperIdleLimit: config.reaperIdleLimit,
         stationName
       }
     );
-  }
+    }
+
 }

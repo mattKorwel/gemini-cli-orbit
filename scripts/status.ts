@@ -52,7 +52,10 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
     
     if (containers.length > 0) {
       for (const containerName of containers) {
+          const stats = await provider.getCapsuleStats(containerName);
           const tmuxRes = await provider.getExecOutput('tmux list-sessions -F "#S" 2>/dev/null', { wrapCapsule: containerName, quiet: true });
+          
+          let stateLabel = '💤 [IDLE]    ';
           if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
               // HEURISTIC: Capture pane to see what's happening
               const paneOutput = await provider.capturePane(containerName);
@@ -69,13 +72,13 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
                 lastLine.includes('node@') && lastLine.includes('$'); // Shell prompt
               
               if (isWaiting) {
-                  console.log(`     ✋ [WAITING] ${containerName} (Needs your input!)`);
+                  stateLabel = '✋ [WAITING] ';
               } else {
-                  console.log(`     🧠 [THINKING] ${containerName} (Agent is active)`);
+                  stateLabel = '🧠 [THINKING]';
               }
-          } else {
-              console.log(`     💤 [IDLE]     ${containerName} (Ready for work)`);
           }
+          
+          console.log(`     ${stateLabel} ${containerName.padEnd(20)} | ${stats}`);
       }
     } else {
       console.log('     - No mission capsules found');

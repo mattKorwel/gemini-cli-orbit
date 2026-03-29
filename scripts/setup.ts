@@ -152,7 +152,15 @@ async function runDesignMode(name?: string): Promise<OrbitConfig> {
     const sshSourceRangesInput = await prompt('SSH Source Ranges (comma-separated)', existing.sshSourceRanges?.join(',') || '0.0.0.0/0', true, 'Source IP ranges allowed to connect via SSH (e.g., 1.2.3.4/32,5.6.7.8/24)');
     const sshSourceRanges = sshSourceRangesInput.split(',').map(s => s.trim()).filter(Boolean);
 
-    const design: OrbitConfig = { projectId, zone, machineType, backendType: backendType as any, vpcName, subnetName, dnsSuffix, userSuffix, sshSourceRanges };
+    const cpuLimit = await prompt('Capsule CPU Limit', existing.cpuLimit || '2', true, 'Max CPU cores per isolated mission capsule.');
+    const memoryLimit = await prompt('Capsule Memory Limit', existing.memoryLimit || '8g', true, 'Max RAM per isolated mission capsule (e.g. 8g, 16g).');
+    const reaperIdleLimit = parseInt(await prompt('Auto-Shutdown Idle Limit (hours)', existing.reaperIdleLimit?.toString() || '8', true, 'Number of hours of inactivity before the station auto-shuts down. 0 to disable.'));
+
+    const design: OrbitConfig = { 
+        projectId, zone, machineType, backendType: backendType as any, 
+        vpcName, subnetName, dnsSuffix, userSuffix, sshSourceRanges,
+        cpuLimit, memoryLimit, reaperIdleLimit
+    };
     
     if (!fs.existsSync(PROFILES_DIR)) fs.mkdirSync(PROFILES_DIR, { recursive: true });
     fs.writeFileSync(designPath, JSON.stringify(design, null, 2));
@@ -344,15 +352,20 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   if (status.status === 'NOT_FOUND' || status.status === 'UNKNOWN' || status.status === 'ERROR') {
       const shouldProvision = shouldRunPrompts ? await confirm(`Station not found. Provision it now?`, true, shouldRunPrompts) : true;
       if (shouldProvision) {
+          const start = Date.now();
+          logger.info('SETUP', `Provisioning new station ${config.instanceName}...`);
           const res = await provider.provision({ setupNetwork: config.autoSetupNet || false });
           if (res !== 0) return res;
           status = await provider.getStatus();
+          logger.info('SETUP', `✅ Provisioning complete in ${((Date.now() - start) / 1000).toFixed(1)}s.`);
       } else return 1;
   }
 
   if (status.status !== 'RUNNING') {
+      const start = Date.now();
       logger.info('SETUP', `Waking up station...`);
       await provider.ensureReady();
+      logger.info('SETUP', `✅ Station awake in ${((Date.now() - start) / 1000).toFixed(1)}s.`);
   }
 
   logger.divider('REMOTE INITIALIZATION');

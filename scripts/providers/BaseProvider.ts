@@ -71,6 +71,16 @@ export interface OrbitProvider {
   getCapsuleStatus(name: string): Promise<{ running: boolean; exists: boolean }>;
 
   /**
+   * Returns resource usage stats for a specific capsule.
+   */
+  getCapsuleStats(name: string): Promise<string>;
+
+  /**
+   * Returns the number of seconds since the last activity in the capsule.
+   */
+  getCapsuleIdleTime(name: string): Promise<number>;
+
+  /**
    * Runs a capsule (container) with specific configuration.
    */
   runCapsule(config: CapsuleConfig): Promise<number>;

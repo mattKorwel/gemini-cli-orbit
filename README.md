@@ -32,6 +32,16 @@ gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
 
 ---
 
+## 📖 Documentation
+
+- **[Day in the Life of an Orbit Engineer](docs/DAY_IN_THE_LIFE.md)**: A step-by-step guide to the common developer workflow.
+- **[Architecture](docs/ARCHITECTURE.md)**: Deep dive into the Hub & Spoke model, persistent stations, and isolated capsules.
+- **[Pulse](docs/PULSE.md)**: How to monitor your orbital health and mission telemetry.
+- **[Auto-Reaper](scripts/reap.ts)**: Reclaim resources from idle missions (`orbit reap`).
+- **[Configuration](docs/CONFIGURATION.md)**: Setting up GCE profiles, networking, and custom images.
+
+---
+
 ## 🚀 Quick Start: Choose Your Mission Profile
 
 Orbit supports two primary mission modes: **Local** (for maximum speed and low latency) and **Remote** (for massive scale and persistent persistence).
