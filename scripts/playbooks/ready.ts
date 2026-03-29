@@ -1,10 +1,10 @@
 import { createTaskRunner } from '../TaskRunner.js';
 import path from 'path';
 
-export async function runReadyPlaybook(prNumber: string, targetDir: string, _policyPath: string, _geminiBin: string, logDir: string) {
+export async function runReadyPlaybook(prNumber: string, targetDir: string, _policyPath: string, _geminiBin: string, logDir: string, missionHeader: string) {
   const runner = createTaskRunner(
     logDir,
-    `🚀 Orbit | READY | PR #${prNumber}`
+    missionHeader
   );
 
   runner.register([

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "sync-docs": "tsx scripts/sync-docs.ts",
+    "orbit:logs": "tail -f $(jq -r .logDir .gemini/current-session.json)/*.log",
     "bundle": "esbuild $(find scripts -maxdepth 1 -name \"*.ts\" ! -name \"*.test.ts\") --bundle --platform=node --format=esm --outdir=bundle --minify --sourcemap --target=node20 --external:vitest --external:node:*",
     "build": "npm run typecheck && npm run bundle"
   },

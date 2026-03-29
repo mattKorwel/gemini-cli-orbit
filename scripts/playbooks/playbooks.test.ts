@@ -31,6 +31,7 @@ describe('Playbooks', () => {
   const policy = '/policy';
   const bin = '/bin/gemini';
   const logDir = '/tmp/log-dir';
+  const header = '🚀 Test Mission';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,7 +48,7 @@ describe('Playbooks', () => {
 
   it('should run fix playbook', async () => {
     const { runFixPlaybook } = await import('./fix.js');
-    const res = await runFixPlaybook(pr, dir, policy, bin, logDir);
+    const res = await runFixPlaybook(pr, dir, policy, bin, logDir, header);
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalledTimes(3);
     expect(mockRunParallel).toHaveBeenCalledTimes(2);
@@ -56,7 +57,7 @@ describe('Playbooks', () => {
 
   it('should run ready playbook', async () => {
     const { runReadyPlaybook } = await import('./ready.js');
-    const res = await runReadyPlaybook(pr, dir, policy, bin, logDir);
+    const res = await runReadyPlaybook(pr, dir, policy, bin, logDir, header);
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();
     expect(mockRunAll).toHaveBeenCalled();
@@ -64,7 +65,7 @@ describe('Playbooks', () => {
 
   it('should run review playbook', async () => {
     const { runReviewPlaybook } = await import('./review.js');
-    const res = await runReviewPlaybook(pr, dir, policy, bin, logDir, '/tmp/guidelines.md');
+    const res = await runReviewPlaybook(pr, dir, policy, bin, logDir, header, '/tmp/guidelines.md');
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();
     expect(mockRunParallel).toHaveBeenCalled();
@@ -72,7 +73,7 @@ describe('Playbooks', () => {
 
   it('should run implement playbook', async () => {
     const { runImplementPlaybook } = await import('./implement.js');
-    const res = await runImplementPlaybook(pr, dir, policy, bin, logDir, '/tmp/guidelines.md');
+    const res = await runImplementPlaybook(pr, dir, policy, bin, logDir, header, '/tmp/guidelines.md');
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalledTimes(2);
     expect(mockRunParallel).toHaveBeenCalledTimes(2);

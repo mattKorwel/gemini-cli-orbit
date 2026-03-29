@@ -29,6 +29,7 @@ export function createTaskRunner(logDir: string, header: string) {
   const tasks: Task[] = [];
   const status: Record<string, TaskStatus> = {};
   const logHistory: { taskId: string; line: string }[] = [];
+  const completedIds = new Set<string>();
 
   try {
     fs.mkdirSync(logDir, { recursive: true });
@@ -82,7 +83,6 @@ export function createTaskRunner(logDir: string, header: string) {
       console.log('='.repeat(50));
 
       const runningTasks: Map<string, { proc: any; timer: NodeJS.Timeout; lastReadPos: number }> = new Map();
-      const completedIds = new Set<string>();
 
       const launchTask = (task: Task) => {
         const taskStatus = status[task.id]!;
