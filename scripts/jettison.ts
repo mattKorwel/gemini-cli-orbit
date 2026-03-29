@@ -5,10 +5,7 @@
  */
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
-import { 
-  SATELLITE_WORKTREES_PATH, 
-  CONFIG_DIR,
-} from './Constants.js';
+import { SATELLITE_WORKTREES_PATH, CONFIG_DIR } from './Constants.js';
 
 export async function runJettison(
   args: string[],
@@ -24,13 +21,16 @@ export async function runJettison(
 
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
-  
+
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`);
+    console.error(
+      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
+    );
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } = config;
+  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } =
+    config;
   const provider = ProviderFactory.getProvider({
     projectId: projectId!,
     zone: zone!,
@@ -38,7 +38,7 @@ export async function runJettison(
     repoName,
     dnsSuffix,
     userSuffix,
-    backendType
+    backendType,
   });
 
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
@@ -56,20 +56,26 @@ export async function runJettison(
   const res2 = await provider.exec(`sudo rm -rf ${worktreePath}`);
 
   // 3. Clear history files for this mission on host station
-  const res3 = await provider.exec(`sudo rm -rf ${CONFIG_DIR}/history/orbit-${prNumber}-${actionArg}*`);
+  const res3 = await provider.exec(
+    `sudo rm -rf ${CONFIG_DIR}/history/orbit-${prNumber}-${actionArg}*`,
+  );
 
   if (res1 !== 0 || res2 !== 0 || res3 !== 0) {
-      console.error('❌ Jettison failed.');
-      return 1;
+    console.error('❌ Jettison failed.');
+    return 1;
   }
 
-  console.log(`✅ Jettison complete for PR #${prNumber} in ${config.repoName}.`);
+  console.log(
+    `✅ Jettison complete for PR #${prNumber} in ${config.repoName}.`,
+  );
   return 0;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runJettison(process.argv.slice(2)).then(code => process.exit(code || 0)).catch(err => {
+  runJettison(process.argv.slice(2))
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
       console.error(err);
       process.exit(1);
-  });
+    });
 }

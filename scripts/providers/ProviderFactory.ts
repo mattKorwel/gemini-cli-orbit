@@ -27,15 +27,20 @@ export class ProviderFactory {
     subnetName?: string | undefined;
     machineType?: string | undefined;
     reaperIdleLimit?: number | undefined;
-    }): OrbitProvider {
-    const stationName = config.repoName ? `gcli-station-${config.repoName}` : 'station-supervisor';
+  }): OrbitProvider {
+    const stationName = config.repoName
+      ? `gcli-station-${config.repoName}`
+      : 'station-supervisor';
 
     if (config.providerType === 'local-worktree') {
-        return new LocalWorktreeProvider(stationName, config.worktreesDir);
+      return new LocalWorktreeProvider(stationName, config.worktreesDir);
     }
 
-    if (config.providerType === 'local-docker' || config.providerType === 'podman') {
-        return new LocalDockerProvider(stationName);
+    if (
+      config.providerType === 'local-docker' ||
+      config.providerType === 'podman'
+    ) {
+      return new LocalDockerProvider(stationName);
     }
 
     // Default to GCE
@@ -53,9 +58,8 @@ export class ProviderFactory {
         subnetName: config.subnetName,
         machineType: config.machineType,
         reaperIdleLimit: config.reaperIdleLimit,
-        stationName
-      }
+        stationName,
+      },
     );
-    }
-
+  }
 }

@@ -13,165 +13,196 @@ import { logger } from '../Logger.js';
  * Manages shell profile integration for Gemini Orbit.
  */
 export class ShellIntegration {
-    private readonly home: string;
+  private readonly home: string;
 
-    constructor() {
-        this.home = os.homedir();
+  constructor() {
+    this.home = os.homedir();
+  }
+
+  /**
+   * Detects the current shell based on environment variables and OS.
+   */
+  detectShell(): string {
+    // Explicit override via environment
+    if (process.env.GCLI_ORBIT_SHELL) return process.env.GCLI_ORBIT_SHELL;
+
+    const shellPath = process.env.SHELL || '';
+    if (shellPath.includes('zsh')) return 'zsh';
+    if (shellPath.includes('bash')) return 'bash';
+    if (shellPath.includes('fish')) return 'fish';
+
+    // Windows/PowerShell detection
+    if (os.platform() === 'win32' || process.env.PSModulePath) {
+      return 'powershell';
     }
 
-    /**
-     * Detects the current shell based on environment variables and OS.
-     */
-    detectShell(): string {
-        // Explicit override via environment
-        if (process.env.GCLI_ORBIT_SHELL) return process.env.GCLI_ORBIT_SHELL;
+    return 'unknown';
+  }
 
-        const shellPath = process.env.SHELL || '';
-        if (shellPath.includes('zsh')) return 'zsh';
-        if (shellPath.includes('bash')) return 'bash';
-        if (shellPath.includes('fish')) return 'fish';
-        
-        // Windows/PowerShell detection
-        if (os.platform() === 'win32' || process.env.PSModulePath) {
-            return 'powershell';
+  /**
+   * Returns the appropriate profile path for the detected shell.
+   */
+  getProfilePath(shell: string): string | null {
+    switch (shell) {
+      case 'zsh':
+        return path.join(this.home, '.zshrc');
+      case 'bash': {
+        const bashProfile = path.join(this.home, '.bash_profile');
+        if (os.platform() === 'darwin' || fs.existsSync(bashProfile)) {
+          return bashProfile;
         }
+        return path.join(this.home, '.bashrc');
+      }
+      case 'fish':
+        return path.join(this.home, '.config', 'fish', 'config.fish');
+      case 'powershell': {
+        const psDirName =
+          os.platform() === 'win32' ? 'PowerShell' : 'powershell';
+        const psDocsPath = path.join(this.home, 'Documents', psDirName);
+        const psConfigPath = path.join(this.home, '.config', psDirName);
+        const targetDir = fs.existsSync(psDocsPath)
+          ? psDocsPath
+          : fs.existsSync(psConfigPath)
+            ? psConfigPath
+            : psDocsPath;
+        return path.join(targetDir, 'Microsoft.PowerShell_profile.ps1');
+      }
+      default:
+        return null;
+    }
+  }
 
-        return 'unknown';
+  /**
+   * Installs the orbit alias/function and autocompletion into the shell profile.
+   */
+  install(shimPath: string): boolean {
+    const shell = this.detectShell();
+    const profilePath = this.getProfilePath(shell);
+
+    if (!profilePath) {
+      logger.error(
+        'SHELL',
+        `Could not determine profile path for shell: ${shell}`,
+      );
+      return false;
     }
 
-    /**
-     * Returns the appropriate profile path for the detected shell.
-     */
-    getProfilePath(shell: string): string | null {
-        switch (shell) {
-            case 'zsh':
-                return path.join(this.home, '.zshrc');
-            case 'bash': {
-                const bashProfile = path.join(this.home, '.bash_profile');
-                if (os.platform() === 'darwin' || fs.existsSync(bashProfile)) {
-                    return bashProfile;
-                }
-                return path.join(this.home, '.bashrc');
-            }
-            case 'fish':
-                return path.join(this.home, '.config', 'fish', 'config.fish');
-            case 'powershell': {
-                const psDirName = os.platform() === 'win32' ? 'PowerShell' : 'powershell';
-                const psDocsPath = path.join(this.home, 'Documents', psDirName);
-                const psConfigPath = path.join(this.home, '.config', psDirName);
-                const targetDir = fs.existsSync(psDocsPath) ? psDocsPath : (fs.existsSync(psConfigPath) ? psConfigPath : psDocsPath);
-                return path.join(targetDir, 'Microsoft.PowerShell_profile.ps1');
-            }
-            default:
-                return null;
-        }
+    const integration = this.generateIntegration(shell, shimPath);
+    if (this.isInstalled(profilePath)) {
+      logger.info(
+        'SHELL',
+        `Orbit integration already present in ${profilePath}. Updating...`,
+      );
+      // We'll replace the old block if it exists, or just skip for now.
+      // For simplicity, we'll append if not found, but since isInstalled returns true,
+      // we should ideally replace it to allow updates to the shim path.
+      this.uninstall(profilePath);
     }
 
-    /**
-     * Installs the orbit alias/function and autocompletion into the shell profile.
-     */
-    install(shimPath: string): boolean {
-        const shell = this.detectShell();
-        const profilePath = this.getProfilePath(shell);
+    try {
+      const dir = path.dirname(profilePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-        if (!profilePath) {
-            logger.error('SHELL', `Could not determine profile path for shell: ${shell}`);
-            return false;
-        }
+      // Create a backup before modifying
+      if (fs.existsSync(profilePath)) {
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, '-')
+          .slice(0, 19);
+        const backupPath = `${profilePath}.bak.${timestamp}`;
+        fs.copyFileSync(profilePath, backupPath);
+        logger.info('SHELL', `Created backup of your profile: ${backupPath}`);
+      }
 
-        const integration = this.generateIntegration(shell, shimPath);
-        if (this.isInstalled(profilePath)) {
-            logger.info('SHELL', `Orbit integration already present in ${profilePath}. Updating...`);
-            // We'll replace the old block if it exists, or just skip for now.
-            // For simplicity, we'll append if not found, but since isInstalled returns true,
-            // we should ideally replace it to allow updates to the shim path.
-            this.uninstall(profilePath);
-        }
+      if (!fs.existsSync(profilePath)) {
+        fs.writeFileSync(profilePath, '', { mode: 0o644 });
+      }
 
-        try {
-            const dir = path.dirname(profilePath);
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(profilePath, `\n${integration}\n`);
+      logger.info(
+        'SHELL',
+        `✅ Added orbit CLI and autocompletion to ${profilePath}`,
+      );
 
-            // Create a backup before modifying
-            if (fs.existsSync(profilePath)) {
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                const backupPath = `${profilePath}.bak.${timestamp}`;
-                fs.copyFileSync(profilePath, backupPath);
-                logger.info('SHELL', `Created backup of your profile: ${backupPath}`);
-            }
+      const sourceCmd =
+        shell === 'powershell'
+          ? `. $PROFILE`
+          : shell === 'fish'
+            ? `source ${profilePath}`
+            : `source ${profilePath}`;
 
-            if (!fs.existsSync(profilePath)) {
-                fs.writeFileSync(profilePath, '', { mode: 0o644 });
-            }
-            
-            fs.appendFileSync(profilePath, `\n${integration}\n`);
-            logger.info('SHELL', `✅ Added orbit CLI and autocompletion to ${profilePath}`);
-            
-            const sourceCmd = shell === 'powershell' 
-                ? `. $PROFILE` 
-                : (shell === 'fish' ? `source ${profilePath}` : `source ${profilePath}`);
-                
-            logger.info('SHELL', `👉 Restart your shell or run: ${sourceCmd}`);
-            return true;
-        } catch (e) {
-            logger.error('SHELL', `Failed to write to ${profilePath}: ${e}`);
-            return false;
-        }
+      logger.info('SHELL', `👉 Restart your shell or run: ${sourceCmd}`);
+      return true;
+    } catch (e) {
+      logger.error('SHELL', `Failed to write to ${profilePath}: ${e}`);
+      return false;
     }
+  }
 
-    /**
-     * Removes the integration block from a profile.
-     */
-    private uninstall(profilePath: string): void {
-        if (!fs.existsSync(profilePath)) return;
-        const content = fs.readFileSync(profilePath, 'utf8');
-        const marker = '# Gemini Orbit Shell Integration';
-        if (content.includes(marker)) {
-            const lines = content.split('\n');
-            const newLines: string[] = [];
-            let skipping = false;
-            for (const line of lines) {
-                if (line.includes(marker)) {
-                    skipping = true;
-                    continue;
-                }
-                if (skipping && (line.trim() === '' || line.startsWith('}') || line.startsWith('end') || line.includes('fi'))) {
-                    // This is a bit naive but works for our simple blocks
-                    if (line.includes('fi') || line.includes('}') || line.includes('end')) {
-                        skipping = false;
-                        continue;
-                    }
-                }
-                if (!skipping) newLines.push(line);
-            }
-            // Simpler: Just remove everything from the marker to the next empty line or specific end marker
-            // Actually, let's just do a simple string replacement for the block we know we write.
+  /**
+   * Removes the integration block from a profile.
+   */
+  private uninstall(profilePath: string): void {
+    if (!fs.existsSync(profilePath)) return;
+    const content = fs.readFileSync(profilePath, 'utf8');
+    const marker = '# Gemini Orbit Shell Integration';
+    if (content.includes(marker)) {
+      const lines = content.split('\n');
+      const newLines: string[] = [];
+      let skipping = false;
+      for (const line of lines) {
+        if (line.includes(marker)) {
+          skipping = true;
+          continue;
         }
+        if (
+          skipping &&
+          (line.trim() === '' ||
+            line.startsWith('}') ||
+            line.startsWith('end') ||
+            line.includes('fi'))
+        ) {
+          // This is a bit naive but works for our simple blocks
+          if (
+            line.includes('fi') ||
+            line.includes('}') ||
+            line.includes('end')
+          ) {
+            skipping = false;
+            continue;
+          }
+        }
+        if (!skipping) newLines.push(line);
+      }
+      // Simpler: Just remove everything from the marker to the next empty line or specific end marker
+      // Actually, let's just do a simple string replacement for the block we know we write.
     }
+  }
 
-    private isInstalled(profilePath: string): boolean {
-        if (!fs.existsSync(profilePath)) return false;
-        const content = fs.readFileSync(profilePath, 'utf8');
-        return content.includes('# Gemini Orbit Shell Integration');
-    }
+  private isInstalled(profilePath: string): boolean {
+    if (!fs.existsSync(profilePath)) return false;
+    const content = fs.readFileSync(profilePath, 'utf8');
+    return content.includes('# Gemini Orbit Shell Integration');
+  }
 
-    private generateIntegration(shell: string, shimPath: string): string {
-        const header = '# Gemini Orbit Shell Integration';
-        const commands = 'blackbox ci constellation jettison liftoff mission pulse splashdown uplink';
-        const quotedShim = `"${shimPath}"`;
+  private generateIntegration(shell: string, shimPath: string): string {
+    const header = '# Gemini Orbit Shell Integration';
+    const commands =
+      'blackbox ci constellation jettison liftoff mission pulse splashdown uplink';
+    const quotedShim = `"${shimPath}"`;
 
-        if (shell === 'powershell') {
-            return `${header}
+    if (shell === 'powershell') {
+      return `${header}
 function orbit { npx tsx ${quotedShim} @args }
 $orbit_completions = @('blackbox', 'ci', 'constellation', 'jettison', 'liftoff', 'mission', 'pulse', 'splashdown', 'uplink')
 Register-ArgumentCompleter -CommandName orbit -ParameterName args -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
     $orbit_completions | Where-Object { $_ -like "$wordToComplete*" }
 }`;
-        }
+    }
 
-        if (shell === 'zsh') {
-            return `${header}
+    if (shell === 'zsh') {
+      return `${header}
 alias orbit='npx tsx ${quotedShim}'
 _orbit() {
   local -a commands
@@ -189,21 +220,21 @@ _orbit() {
   _describe 'orbit' commands
 }
 compdef _orbit orbit`;
-        }
+    }
 
-        if (shell === 'fish') {
-            return `${header}
+    if (shell === 'fish') {
+      return `${header}
 alias orbit='npx tsx ${quotedShim}'
 complete -c orbit -f
 complete -c orbit -a 'blackbox ci constellation jettison liftoff mission pulse splashdown uplink'`;
-        }
+    }
 
-        // bash fallback
-        return `${header}
+    // bash fallback
+    return `${header}
 alias orbit='npx tsx ${quotedShim}'
 _orbit_completions() {
   COMPREPLY=($(compgen -W "${commands}" -- "\${COMP_WORDS[1]}"))
 }
 complete -F _orbit_completions orbit`;
-    }
+  }
 }

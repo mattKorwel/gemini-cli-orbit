@@ -18,23 +18,27 @@ vi.mock('node:readline');
 
 describe('runReap', () => {
   const mockProvider = {
-    getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
+    getStatus: vi
+      .fn()
+      .mockResolvedValue({ status: 'RUNNING', internalIp: '10.0.0.1' }),
     listCapsules: vi.fn().mockResolvedValue([]),
     getCapsuleIdleTime: vi.fn().mockResolvedValue(0),
     removeCapsule: vi.fn().mockResolvedValue(0),
-    stationName: 'test-station'
+    stationName: 'test-station',
   };
 
   const mockRl = {
     question: vi.fn(),
-    close: vi.fn()
+    close: vi.fn(),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('test-repo');
-    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({ projectId: 'p' } as any);
+    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
+      projectId: 'p',
+    } as any);
     vi.mocked(readline.createInterface).mockReturnValue(mockRl as any);
   });
 
@@ -45,7 +49,10 @@ describe('runReap', () => {
   });
 
   it('should identify and reap idle capsules', async () => {
-    mockProvider.listCapsules.mockResolvedValue(['gcli-123-mission', 'gcli-456-mission']);
+    mockProvider.listCapsules.mockResolvedValue([
+      'gcli-123-mission',
+      'gcli-456-mission',
+    ]);
     // 123 is active (1 hour idle), 456 is idle (5 hours idle > 4h default)
     mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(3600);
     mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(18000);
@@ -56,7 +63,9 @@ describe('runReap', () => {
     const res = await runReap();
     expect(res).toBe(0);
     expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-456-mission');
-    expect(mockProvider.removeCapsule).not.toHaveBeenCalledWith('gcli-123-mission');
+    expect(mockProvider.removeCapsule).not.toHaveBeenCalledWith(
+      'gcli-123-mission',
+    );
   });
 
   it('should offer to splashdown if all capsules are reaped', async () => {
@@ -83,6 +92,9 @@ describe('runReap', () => {
     await runReap();
     // Verify threshold was calculated as 1 hour (3600s)
     // If it used 4h default, it wouldn't have asked to reap.
-    expect(mockRl.question).toHaveBeenCalledWith(expect.stringContaining('Jettison all idle capsules?'), expect.any(Function));
+    expect(mockRl.question).toHaveBeenCalledWith(
+      expect.stringContaining('Jettison all idle capsules?'),
+      expect.any(Function),
+    );
   });
 });

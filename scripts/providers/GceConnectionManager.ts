@@ -19,24 +19,50 @@ export class GceConnectionManager {
   private strategy: ConnectivityStrategy;
 
   constructor(
-    projectId: string, 
-    zone: string, 
-    instanceName: string, 
-    private config: { dnsSuffix?: string | undefined, userSuffix?: string | undefined, backendType?: string | undefined } = {},
-    private repoRoot: string = process.cwd()
+    projectId: string,
+    zone: string,
+    instanceName: string,
+    private config: {
+      dnsSuffix?: string | undefined;
+      userSuffix?: string | undefined;
+      backendType?: string | undefined;
+    } = {},
+    private repoRoot: string = process.cwd(),
   ) {
     const backend = config.backendType || 'direct-internal';
-    const cleanConfig: { dnsSuffix?: string, userSuffix?: string, backendType?: string } = {};
-    if (config.dnsSuffix !== undefined) cleanConfig.dnsSuffix = config.dnsSuffix;
-    if (config.userSuffix !== undefined) cleanConfig.userSuffix = config.userSuffix;
-    if (config.backendType !== undefined) cleanConfig.backendType = config.backendType;
-    
+    const cleanConfig: {
+      dnsSuffix?: string;
+      userSuffix?: string;
+      backendType?: string;
+    } = {};
+    if (config.dnsSuffix !== undefined)
+      cleanConfig.dnsSuffix = config.dnsSuffix;
+    if (config.userSuffix !== undefined)
+      cleanConfig.userSuffix = config.userSuffix;
+    if (config.backendType !== undefined)
+      cleanConfig.backendType = config.backendType;
+
     if (backend === 'iap') {
-        this.strategy = new IapStrategy(projectId, zone, instanceName, cleanConfig);
+      this.strategy = new IapStrategy(
+        projectId,
+        zone,
+        instanceName,
+        cleanConfig,
+      );
     } else if (backend === 'external') {
-        this.strategy = new ExternalStrategy(projectId, zone, instanceName, cleanConfig);
+      this.strategy = new ExternalStrategy(
+        projectId,
+        zone,
+        instanceName,
+        cleanConfig,
+      );
     } else {
-        this.strategy = new DirectInternalStrategy(projectId, zone, instanceName, cleanConfig);
+      this.strategy = new DirectInternalStrategy(
+        projectId,
+        zone,
+        instanceName,
+        cleanConfig,
+      );
     }
   }
 
@@ -56,7 +82,10 @@ export class GceConnectionManager {
     return this.strategy.getCommonArgs();
   }
 
-  getRunCommand(command: string, options: { interactive?: boolean | undefined } = {}): string {
+  getRunCommand(
+    command: string,
+    options: { interactive?: boolean | undefined } = {},
+  ): string {
     return this.strategy.getRunCommand(command, options);
   }
 
@@ -72,47 +101,77 @@ export class GceConnectionManager {
     await this.strategy.onProvisioned();
   }
 
-  run(command: string, options: { interactive?: boolean | undefined; stdio?: 'pipe' | 'inherit' | undefined; quiet?: boolean | undefined } = {}): { status: number; stdout: string; stderr: string } {
+  run(
+    command: string,
+    options: {
+      interactive?: boolean | undefined;
+      stdio?: 'pipe' | 'inherit' | undefined;
+      quiet?: boolean | undefined;
+    } = {},
+  ): { status: number; stdout: string; stderr: string } {
     const args = this.strategy.getRunArgs(command, options);
-    if (args.length === 0) return { status: 1, stdout: '', stderr: 'No command arguments' };
-    const res = spawnSync(args[0]!, args.slice(1), { stdio: options.stdio || 'pipe', shell: false });
-    
-    const status = (res.status === null) ? 1 : res.status;
+    if (args.length === 0)
+      return { status: 1, stdout: '', stderr: 'No command arguments' };
+    const res = spawnSync(args[0]!, args.slice(1), {
+      stdio: options.stdio || 'pipe',
+      shell: false,
+    });
+
+    const status = res.status === null ? 1 : res.status;
 
     // Differentiate between SSH connection errors (255) and command errors (other)
     if (status === 255) {
       console.error(`   ❌ SSH Connection Failed: ${this.getMagicRemote()}`);
       if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
     } else if (status !== 0 && options.stdio !== 'inherit' && !options.quiet) {
-      console.error(`   ⚠️ Remote Command Failed (Status ${status}): ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`);
+      console.error(
+        `   ⚠️ Remote Command Failed (Status ${status}): ${command.substring(0, 100)}${command.length > 100 ? '...' : ''}`,
+      );
       if (res.stderr) console.error(`   STDERR: ${res.stderr.toString()}`);
     }
 
-    return { 
-      status, 
-      stdout: res.stdout?.toString() || '', 
-      stderr: res.stderr?.toString() || '' 
+    return {
+      status,
+      stdout: res.stdout?.toString() || '',
+      stderr: res.stderr?.toString() || '',
     };
   }
 
-  sync(localPath: string, remotePath: string, options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {}): number {
+  sync(
+    localPath: string,
+    remotePath: string,
+    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+  ): number {
     const fullRemote = this.getMagicRemote();
     const backend = this.getBackendType();
 
-    const rsyncArgs = ['-rvz', '--quiet', '--checksum', '--no-t', '--no-perms', '--no-owner', '--no-group'];
+    const rsyncArgs = [
+      '-rvz',
+      '--quiet',
+      '--checksum',
+      '--no-t',
+      '--no-perms',
+      '--no-owner',
+      '--no-group',
+    ];
     if (options.delete) rsyncArgs.push('--delete');
-    if (options.exclude) options.exclude.forEach(ex => rsyncArgs.push(`--exclude="${ex}"`));
+    if (options.exclude)
+      options.exclude.forEach((ex) => rsyncArgs.push(`--exclude="${ex}"`));
     if (options.sudo) rsyncArgs.push('--rsync-path="sudo rsync"');
 
     let sshCmd: string;
     if (backend === 'iap') {
-        const strat = this.strategy as BaseStrategy;
-        sshCmd = `gcloud compute ssh --project ${strat.projectId} --zone ${strat.zone} --tunnel-through-iap`;
+      const strat = this.strategy as BaseStrategy;
+      sshCmd = `gcloud compute ssh --project ${strat.projectId} --zone ${strat.zone} --tunnel-through-iap`;
     } else {
-        sshCmd = `ssh ${this.getCommonArgs().join(' ')}`;
+      sshCmd = `ssh ${this.getCommonArgs().join(' ')}`;
     }
 
-    const res = spawnSync('rsync', [...rsyncArgs, '-e', sshCmd, localPath, `${fullRemote}:${remotePath}`], { stdio: 'inherit', shell: false });
+    const res = spawnSync(
+      'rsync',
+      [...rsyncArgs, '-e', sshCmd, localPath, `${fullRemote}:${remotePath}`],
+      { stdio: 'inherit', shell: false },
+    );
     return res.status ?? 1;
   }
 }

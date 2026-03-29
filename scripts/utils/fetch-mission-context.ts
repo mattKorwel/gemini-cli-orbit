@@ -11,13 +11,21 @@ import path from 'node:path';
 
 async function run(cmd: string) {
   try {
-    return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+    return execSync(cmd, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim();
   } catch (_e) {
     return null;
   }
 }
 
-async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: number, depth = 0): Promise<any> {
+async function fetchIssueHierarchy(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  depth = 0,
+): Promise<any> {
   if (depth >= 3) return null;
 
   const gqlQuery = `query($owner:String!, $repo:String!, $number:Int!) {
@@ -42,7 +50,9 @@ async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: num
     }
   }`;
 
-  const result = await run(`gh api graphql -F owner="${owner}" -F repo="${repo}" -F number=${issueNumber} -f query='${gqlQuery}'`);
+  const result = await run(
+    `gh api graphql -F owner="${owner}" -F repo="${repo}" -F number=${issueNumber} -f query='${gqlQuery}'`,
+  );
   if (!result) return null;
 
   const data = JSON.parse(result);
@@ -55,13 +65,24 @@ async function fetchIssueHierarchy(owner: string, repo: string, issueNumber: num
     body: issue.body,
     state: issue.state,
     parent: issue.parent,
-    subIssues: []
+    subIssues: [],
   };
 
   if (issue.subIssues?.nodes) {
     for (const sub of issue.subIssues.nodes) {
-      const subHierarchy = await fetchIssueHierarchy(owner, repo, sub.number, depth + 1);
-      hierarchy.subIssues.push(subHierarchy || { number: sub.number, title: sub.title, state: sub.state });
+      const subHierarchy = await fetchIssueHierarchy(
+        owner,
+        repo,
+        sub.number,
+        depth + 1,
+      );
+      hierarchy.subIssues.push(
+        subHierarchy || {
+          number: sub.number,
+          title: sub.title,
+          state: sub.state,
+        },
+      );
     }
   }
 
@@ -75,12 +96,16 @@ async function main() {
   const policyPath = process.argv[5];
 
   if (!prNumber || !logDir) {
-    console.error('Usage: fetch-mission-context <pr_number> <log_dir> <gemini_bin> <policy_path>');
+    console.error(
+      'Usage: fetch-mission-context <pr_number> <log_dir> <gemini_bin> <policy_path>',
+    );
     process.exit(1);
   }
 
   const remoteUrl = await run('git remote get-url origin');
-  const repoMatch = remoteUrl?.match(/github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/);
+  const repoMatch = remoteUrl?.match(
+    /github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/,
+  );
   const owner = repoMatch ? repoMatch[1] : null;
   const repo = repoMatch ? repoMatch[2] : null;
 
@@ -90,14 +115,19 @@ async function main() {
   }
 
   console.log(`📡 Fetching metadata for PR #${prNumber}...`);
-  const prJson = await run(`gh pr view ${prNumber} --json body,closingIssuesReferences,baseRefName,headRefName`);
+  const prJson = await run(
+    `gh pr view ${prNumber} --json body,closingIssuesReferences,baseRefName,headRefName`,
+  );
   if (!prJson) {
     console.error('❌ Could not fetch PR metadata.');
     process.exit(1);
   }
 
   const prMetadata = JSON.parse(prJson);
-  fs.writeFileSync(path.join(logDir, 'pr-metadata.json'), JSON.stringify(prMetadata, null, 2));
+  fs.writeFileSync(
+    path.join(logDir, 'pr-metadata.json'),
+    JSON.stringify(prMetadata, null, 2),
+  );
 
   let issueContext = '# Linked Issue Context\n\n';
   if (prMetadata.closingIssuesReferences?.length > 0) {
@@ -125,9 +155,16 @@ async function main() {
 
   console.log('⚔️ Checking for merge conflicts...');
   const baseBranch = prMetadata.baseRefName || 'main';
-  const conflictCheck = await run(`git fetch origin ${baseBranch} && git merge-tree --write-tree HEAD origin/${baseBranch}`);
-  const hasConflicts = conflictCheck ? conflictCheck.includes('<<<<<<<') : false;
-  fs.writeFileSync(path.join(logDir, 'conflict-status.json'), JSON.stringify({ hasConflicts, baseBranch }, null, 2));
+  const conflictCheck = await run(
+    `git fetch origin ${baseBranch} && git merge-tree --write-tree HEAD origin/${baseBranch}`,
+  );
+  const hasConflicts = conflictCheck
+    ? conflictCheck.includes('<<<<<<<')
+    : false;
+  fs.writeFileSync(
+    path.join(logDir, 'conflict-status.json'),
+    JSON.stringify({ hasConflicts, baseBranch }, null, 2),
+  );
 
   if (geminiBin && policyPath) {
     console.log('🧠 Synthesizing Mission Context...');
@@ -136,18 +173,26 @@ async function main() {
     try {
       execSync(synthesisCmd);
     } catch (_e) {
-       console.error('❌ Failed to synthesize mission context with Gemini. Falling back to raw context.');
-       fs.writeFileSync(path.join(logDir, 'mission-context.md'), `# Mission Context (Raw)\n\n## PR Description\n${prMetadata.body}\n\n${issueContext}`);
+      console.error(
+        '❌ Failed to synthesize mission context with Gemini. Falling back to raw context.',
+      );
+      fs.writeFileSync(
+        path.join(logDir, 'mission-context.md'),
+        `# Mission Context (Raw)\n\n## PR Description\n${prMetadata.body}\n\n${issueContext}`,
+      );
     }
   } else {
-     console.log('⚠️ No Gemini bin/policy provided. Using raw context.');
-     fs.writeFileSync(path.join(logDir, 'mission-context.md'), `# Mission Context (Raw)\n\n## PR Description\n${prMetadata.body}\n\n${issueContext}`);
+    console.log('⚠️ No Gemini bin/policy provided. Using raw context.');
+    fs.writeFileSync(
+      path.join(logDir, 'mission-context.md'),
+      `# Mission Context (Raw)\n\n## PR Description\n${prMetadata.body}\n\n${issueContext}`,
+    );
   }
 
   console.log('✨ Mission context complete.');
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('❌ Error fetching mission context:', err);
   process.exit(1);
 });

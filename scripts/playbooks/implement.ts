@@ -9,21 +9,43 @@ import path from 'path';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 
-export async function runImplementPlaybook(issueNumber: string, targetDir: string, policyPath: string, geminiBin: string, logDir: string, missionHeader: string, guidelinesPath?: string) {
+export async function runImplementPlaybook(
+  issueNumber: string,
+  targetDir: string,
+  policyPath: string,
+  geminiBin: string,
+  logDir: string,
+  missionHeader: string,
+  guidelinesPath?: string,
+) {
   const runner = createTaskRunner(logDir, missionHeader);
 
   // 1. PHASE 0: Parallel Research & Context
   runner.register([
-    { id: 'context', name: 'Deep Context Acquisition', cmd: `tsx scripts/utils/fetch-implement-context.ts ${issueNumber} ${logDir} ${geminiBin} ${policyPath}`, timeout: 300000 },
-    { id: 'analysis', name: 'Codebase Analysis', cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze the codebase for areas relevant to Issue #${issueNumber}. Identify key files and dependencies. Record findings in codebase-analysis.md."`, timeout: 600000 }
+    {
+      id: 'context',
+      name: 'Deep Context Acquisition',
+      cmd: `tsx scripts/utils/fetch-implement-context.ts ${issueNumber} ${logDir} ${geminiBin} ${policyPath}`,
+      timeout: 300000,
+    },
+    {
+      id: 'analysis',
+      name: 'Codebase Analysis',
+      cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze the codebase for areas relevant to Issue #${issueNumber}. Identify key files and dependencies. Record findings in codebase-analysis.md."`,
+      timeout: 600000,
+    },
   ]);
 
   const contextStatus = await runner.runParallel();
   if (contextStatus !== 0) {
-    console.warn('⚠️ Phase 0 research had some failures. Proceeding with caution...');
+    console.warn(
+      '⚠️ Phase 0 research had some failures. Proceeding with caution...',
+    );
   }
 
-  const guidelinesReference = guidelinesPath ? ` and the explicit guidelines in ${guidelinesPath}` : '';
+  const guidelinesReference = guidelinesPath
+    ? ` and the explicit guidelines in ${guidelinesPath}`
+    : '';
 
   // 2. PHASE 1: Mission Planning (Read-Only)
   console.log('\n📝 Phase 1: Planning...');
@@ -35,7 +57,9 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
   - Verification Plan (Test-First)
   Save the plan to ${path.join(logDir, 'implementation-plan.md')}."`;
 
-  const planningStatus = await runner.run(`${planningCmd} > ${path.join(logDir, 'planning.log')} 2>&1`);
+  const planningStatus = await runner.run(
+    `${planningCmd} > ${path.join(logDir, 'planning.log')} 2>&1`,
+  );
   if (planningStatus !== 0) return planningStatus;
 
   // 3. PHASE 2: Automated Critic Review & Revision Loop
@@ -53,9 +77,14 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
   If it is perfect, reply ONLY with 'GO'. 
   Otherwise, provide specific feedback and reply with 'NO-GO' at the end."`;
 
-    await runner.run(`${criticCmd} > ${path.join(logDir, `plan-review-v${planAttempts}.md`)} 2>&1`);
+    await runner.run(
+      `${criticCmd} > ${path.join(logDir, `plan-review-v${planAttempts}.md`)} 2>&1`,
+    );
 
-    const reviewContent = fs.readFileSync(path.join(logDir, `plan-review-v${planAttempts}.md`), 'utf8');
+    const reviewContent = fs.readFileSync(
+      path.join(logDir, `plan-review-v${planAttempts}.md`),
+      'utf8',
+    );
     if (reviewContent.includes('GO') && !reviewContent.includes('NO-GO')) {
       planApproved = true;
       console.log('   ✅ Plan Approved!');
@@ -65,12 +94,16 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
   ${reviewContent}
 
   Save the updated plan to ${path.join(logDir, 'implementation-plan.md')}."`;
-      await runner.run(`${revisionCmd} > ${path.join(logDir, 'revision.log')} 2>&1`);
+      await runner.run(
+        `${revisionCmd} > ${path.join(logDir, 'revision.log')} 2>&1`,
+      );
     }
   }
 
   if (!planApproved) {
-    console.warn('   ⚠️ Plan was not fully approved by critic after several attempts. Proceeding with caution.');
+    console.warn(
+      '   ⚠️ Plan was not fully approved by critic after several attempts. Proceeding with caution.',
+    );
   }
 
   // 4. PHASE 3: Sequential Implementation (Agentic Loop)
@@ -84,14 +117,26 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
   4. DO NOT skip verification.
   5. Record your progress in ${path.join(logDir, 'execution.log')}.`;
 
-  const executionStatus = await runner.run(`${geminiBin} --policy ${policyPath} -p "${executionPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'execution.log')} 2>&1`);
+  const executionStatus = await runner.run(
+    `${geminiBin} --policy ${policyPath} -p "${executionPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'execution.log')} 2>&1`,
+  );
   if (executionStatus !== 0) return executionStatus;
 
   // 5. PHASE 4: Final Quality Control
   runner.register([
     { id: 'build', name: 'Final Build', cmd: `npm run build`, timeout: 600000 },
-    { id: 'review', name: 'Local Code Review', cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'context.log')}${guidelinesReference}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}."`, timeout: 600000 },
-    { id: 'proof', name: 'Behavioral Proof', cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works."`, timeout: 900000 }
+    {
+      id: 'review',
+      name: 'Local Code Review',
+      cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'context.log')}${guidelinesReference}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}."`,
+      timeout: 600000,
+    },
+    {
+      id: 'proof',
+      name: 'Behavioral Proof',
+      cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works."`,
+      timeout: 900000,
+    },
   ]);
 
   const qcStatus = await runner.runParallel();
@@ -100,13 +145,24 @@ export async function runImplementPlaybook(issueNumber: string, targetDir: strin
   console.log('\n✨ Synthesizing final results...');
   const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Merge the implementation results from ${path.join(logDir, 'execution.log')}, ${path.join(logDir, 'review.log')}, and ${path.join(logDir, 'proof.log')} into a final assessment. Then, prepare a Pull Request description based on this work. Save to ${path.join(logDir, 'final-assessment.md')}."`;
 
-  const finalStatus = await runner.run(`${synthesisCmd} > ${path.join(logDir, 'final-assessment.md')} 2>&1`);
+  const finalStatus = await runner.run(
+    `${synthesisCmd} > ${path.join(logDir, 'final-assessment.md')} 2>&1`,
+  );
 
-  
   if (finalStatus === 0) {
-    console.log(`\n✅ Implementation complete! Final assessment ready at: ${path.join(logDir, 'final-assessment.md')}`);
-    spawnSync('sh', ['-c', `printf "\\e]9;Implementation Complete | Issue #${issueNumber} | Final assessment ready.\\a"`]);
+    console.log(
+      `\n✅ Implementation complete! Final assessment ready at: ${path.join(logDir, 'final-assessment.md')}`,
+    );
+    spawnSync('sh', [
+      '-c',
+      `printf "\\e]9;Implementation Complete | Issue #${issueNumber} | Final assessment ready.\\a"`,
+    ]);
   }
 
-  return (finalStatus !== 0 || contextStatus !== 0 || executionStatus !== 0 || qcStatus !== 0) ? 1 : 0;
+  return finalStatus !== 0 ||
+    contextStatus !== 0 ||
+    executionStatus !== 0 ||
+    qcStatus !== 0
+    ? 1
+    : 0;
 }

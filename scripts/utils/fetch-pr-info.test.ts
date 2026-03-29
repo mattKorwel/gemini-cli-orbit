@@ -15,8 +15,10 @@ describe('fetch-pr-info.js utility', () => {
 
   it('should extract owner and repo from remote URL', () => {
     const remoteUrl = 'https://github.com/google-gemini/gemini-cli.git';
-    const repoMatch = remoteUrl.match(/github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/);
-    
+    const repoMatch = remoteUrl.match(
+      /github\.com[\/:]?([^\/]+)\/([^\/.]+)(\.git)?$/,
+    );
+
     expect(repoMatch![1]).toBe('google-gemini');
     expect(repoMatch![2]).toBe('gemini-cli');
   });
@@ -32,7 +34,9 @@ describe('fetch-pr-info.js utility', () => {
       return IGNORE_MESSAGES.some((msg) => body.includes(msg));
     };
 
-    expect(shouldIgnore('thank you so much for your contribution to Gemini CLI!')).toBe(true);
+    expect(
+      shouldIgnore('thank you so much for your contribution to Gemini CLI!'),
+    ).toBe(true);
     expect(shouldIgnore('This is a real comment')).toBe(false);
   });
 });

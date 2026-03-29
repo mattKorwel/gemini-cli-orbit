@@ -25,20 +25,27 @@ export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
  * Configuration Paths
  */
 export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
-export const GLOBAL_SETTINGS_PATH = path.join(GLOBAL_ORBIT_DIR, 'settings.json');
+export const GLOBAL_SETTINGS_PATH = path.join(
+  GLOBAL_ORBIT_DIR,
+  'settings.json',
+);
 export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
 export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 export const DEFAULT_TEMP_DIR = path.join(GLOBAL_ORBIT_DIR, 'tmp');
 
 export const PROJECT_ORBIT_DIR = path.join(REPO_ROOT, '.gemini/orbit');
 export const PROJECT_CONFIG_PATH = path.join(PROJECT_ORBIT_DIR, 'config.json');
-export const LOCAL_SETTINGS_PATH = path.join(PROJECT_ORBIT_DIR, 'settings.json');
+export const LOCAL_SETTINGS_PATH = path.join(
+  PROJECT_ORBIT_DIR,
+  'settings.json',
+);
 export const ORBIT_LOG_PATH = path.join(PROJECT_ORBIT_DIR, 'orbit.log');
 
 /**
  * Repository Metadata
  */
-export const UPSTREAM_REPO_URL = 'https://github.com/google-gemini/gemini-cli.git';
+export const UPSTREAM_REPO_URL =
+  'https://github.com/google-gemini/gemini-cli.git';
 export const DEFAULT_REPO_NAME = 'gemini-cli';
 export const UPSTREAM_ORG = 'google-gemini';
 
@@ -47,7 +54,8 @@ export const UPSTREAM_ORG = 'google-gemini';
  */
 export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
-export const DEFAULT_IMAGE_URI = 'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+export const DEFAULT_IMAGE_URI =
+  'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
 /**
  * Orbit Configuration Interface
@@ -64,7 +72,12 @@ export interface OrbitConfig {
   remoteHost?: string | undefined;
   remoteWorkDir?: string | undefined;
   useContainer?: boolean | undefined;
-  providerType?: 'gce' | 'local-docker' | 'local-worktree' | 'podman' | undefined;
+  providerType?:
+    | 'gce'
+    | 'local-docker'
+    | 'local-worktree'
+    | 'podman'
+    | undefined;
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
   backendType?: 'direct-internal' | 'external' | 'iap' | undefined;

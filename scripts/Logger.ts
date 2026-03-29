@@ -38,7 +38,8 @@ class Logger {
 
   private write(level: LogLevel, tag: string, message: string, ...args: any[]) {
     const formatted = this.formatMessage(level, tag, message);
-    const fullMessage = args.length > 0 ? `${formatted} ${JSON.stringify(args)}` : formatted;
+    const fullMessage =
+      args.length > 0 ? `${formatted} ${JSON.stringify(args)}` : formatted;
 
     if (this.logStream) {
       this.logStream.write(fullMessage + '\n');
@@ -48,7 +49,10 @@ class Logger {
       console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
     } else if (level === LogLevel.WARN) {
       console.warn(`[WARN ] ${tagStr(tag)}${message}`, ...args);
-    } else if (level === LogLevel.INFO || (level === LogLevel.DEBUG && this.verbose)) {
+    } else if (
+      level === LogLevel.INFO ||
+      (level === LogLevel.DEBUG && this.verbose)
+    ) {
       const displayLevel = level === LogLevel.DEBUG ? '[DEBUG]' : '[INFO ]';
       console.log(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
     }
@@ -56,44 +60,44 @@ class Logger {
 
   info(tag: string, message?: string, ...args: any[]) {
     if (message === undefined) {
-        this.write(LogLevel.INFO, 'GENERAL', tag, ...args);
+      this.write(LogLevel.INFO, 'GENERAL', tag, ...args);
     } else {
-        this.write(LogLevel.INFO, tag, message, ...args);
+      this.write(LogLevel.INFO, tag, message, ...args);
     }
   }
 
   debug(tag: string, message?: string, ...args: any[]) {
     if (message === undefined) {
-        this.write(LogLevel.DEBUG, 'GENERAL', tag, ...args);
+      this.write(LogLevel.DEBUG, 'GENERAL', tag, ...args);
     } else {
-        this.write(LogLevel.DEBUG, tag, message, ...args);
+      this.write(LogLevel.DEBUG, tag, message, ...args);
     }
   }
 
   warn(tag: string, message?: string, ...args: any[]) {
     if (message === undefined) {
-        this.write(LogLevel.WARN, 'GENERAL', tag, ...args);
+      this.write(LogLevel.WARN, 'GENERAL', tag, ...args);
     } else {
-        this.write(LogLevel.WARN, tag, message, ...args);
+      this.write(LogLevel.WARN, tag, message, ...args);
     }
   }
 
   error(tag: string, message?: string, ...args: any[]) {
     if (message === undefined) {
-        this.write(LogLevel.ERROR, 'GENERAL', tag, ...args);
+      this.write(LogLevel.ERROR, 'GENERAL', tag, ...args);
     } else {
-        this.write(LogLevel.ERROR, tag, message, ...args);
+      this.write(LogLevel.ERROR, tag, message, ...args);
     }
   }
 
   divider(title?: string) {
     const line = '-'.repeat(80);
     if (title) {
-        const padding = Math.max(0, Math.floor((80 - title.length - 2) / 2));
-        const centered = `${'-'.repeat(padding)} ${title} ${'-'.repeat(80 - padding - title.length - 2)}`;
-        this.info('SETUP', centered);
+      const padding = Math.max(0, Math.floor((80 - title.length - 2) / 2));
+      const centered = `${'-'.repeat(padding)} ${title} ${'-'.repeat(80 - padding - title.length - 2)}`;
+      this.info('SETUP', centered);
     } else {
-        this.info('SETUP', line);
+      this.info('SETUP', line);
     }
   }
 
@@ -108,7 +112,7 @@ class Logger {
 }
 
 function tagStr(tag: string): string {
-    return tag ? `[${tag.padEnd(8)}] ` : '';
+  return tag ? `[${tag.padEnd(8)}] ` : '';
 }
 
 export const logger = new Logger();

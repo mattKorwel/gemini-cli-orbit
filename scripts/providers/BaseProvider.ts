@@ -16,7 +16,10 @@ export interface OrbitProvider {
   /**
    * Provisions the underlying infrastructure station.
    */
-  provision(options?: { setupNetwork?: boolean; sessionId?: string }): Promise<number>;
+  provision(options?: {
+    setupNetwork?: boolean;
+    sessionId?: string;
+  }): Promise<number>;
 
   /**
    * Ensures the station is running and accessible.
@@ -68,7 +71,9 @@ export interface OrbitProvider {
   /**
    * Returns the status of a specific capsule (container) in the station.
    */
-  getCapsuleStatus(name: string): Promise<{ running: boolean; exists: boolean }>;
+  getCapsuleStatus(
+    name: string,
+  ): Promise<{ running: boolean; exists: boolean }>;
 
   /**
    * Returns resource usage stats for a specific capsule.

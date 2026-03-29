@@ -20,7 +20,7 @@ vi.mock('./ConfigManager.ts');
 const mockProvisionWorktree = vi.fn().mockResolvedValue('/remote/path');
 vi.mock('./RemoteProvisioner.ts', () => {
   return {
-    RemoteProvisioner: function() {
+    RemoteProvisioner: function () {
       return {
         provisionWorktree: mockProvisionWorktree,
       };
@@ -33,7 +33,7 @@ describe('runOrchestrator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockProvider = {
       ensureReady: vi.fn().mockResolvedValue(0),
       getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'node' }),
@@ -43,18 +43,18 @@ describe('runOrchestrator', () => {
     };
 
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
-    
+
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-        projectId: 'p',
-        zone: 'z',
-        instanceName: 'i',
-        repoName: 'gemini-cli',
-        terminalTarget: 'tab',
-        userFork: 'u/f',
-        upstreamRepo: 'o/r',
-        remoteHost: 'h',
-        remoteWorkDir: '/w',
+      projectId: 'p',
+      zone: 'z',
+      instanceName: 'i',
+      repoName: 'gemini-cli',
+      terminalTarget: 'tab',
+      userFork: 'u/f',
+      upstreamRepo: 'o/r',
+      remoteHost: 'h',
+      remoteWorkDir: '/w',
     });
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     mockProvisionWorktree.mockResolvedValue('/remote/path');
@@ -80,27 +80,30 @@ describe('runOrchestrator', () => {
 
   it('should return non-zero if credential injection fails', async () => {
     mockProvider.exec.mockResolvedValue(1);
-    const res = await runOrchestrator(['23176', 'open'], { GCLI_ORBIT_GEMINI_API_KEY: 'test-key' });
+    const res = await runOrchestrator(['23176', 'open'], {
+      GCLI_ORBIT_GEMINI_API_KEY: 'test-key',
+    });
     expect(res).toBe(1);
   });
 
   it('should fallback to raw execution if tmux is missing', async () => {
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-        projectId: 'p',
-        zone: 'z',
-        instanceName: 'i',
-        repoName: 'gemini-cli',
-        upstreamRepo: 'o/r',
-        remoteWorkDir: '/w',
+      projectId: 'p',
+      zone: 'z',
+      instanceName: 'i',
+      repoName: 'gemini-cli',
+      upstreamRepo: 'o/r',
+      remoteWorkDir: '/w',
     } as any);
 
     mockProvider.getExecOutput.mockImplementation(async (cmd: string) => {
-        if (cmd === 'tmux -V') return { status: 1, stdout: '', stderr: 'not found' };
-        return { status: 0, stdout: 'node' };
+      if (cmd === 'tmux -V')
+        return { status: 1, stdout: '', stderr: 'not found' };
+      return { status: 0, stdout: 'node' };
     });
 
     await runOrchestrator(['23176']);
-    
+
     expect(mockProvider.getRunCommand).toHaveBeenCalled();
     const lastCall = mockProvider.getRunCommand.mock.calls[0][0];
     expect(lastCall).not.toContain('tmux new-session');
@@ -109,21 +112,24 @@ describe('runOrchestrator', () => {
 
   it('should use raw execution if useTmux is disabled in config', async () => {
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-        projectId: 'p',
-        zone: 'z',
-        instanceName: 'i',
-        repoName: 'gemini-cli',
-        upstreamRepo: 'o/r',
-        remoteWorkDir: '/w',
-        terminalTarget: 'tab',
-        useTmux: false
+      projectId: 'p',
+      zone: 'z',
+      instanceName: 'i',
+      repoName: 'gemini-cli',
+      upstreamRepo: 'o/r',
+      remoteWorkDir: '/w',
+      terminalTarget: 'tab',
+      useTmux: false,
     } as any);
 
     await runOrchestrator(['23176']);
-    
+
     expect(mockProvider.getRunCommand).toHaveBeenCalled();
     const lastCall = mockProvider.getRunCommand.mock.calls[0][0];
     expect(lastCall).not.toContain('tmux new-session');
-    expect(mockProvider.getExecOutput).not.toHaveBeenCalledWith('tmux -V', expect.anything());
+    expect(mockProvider.getExecOutput).not.toHaveBeenCalledWith(
+      'tmux -V',
+      expect.anything(),
+    );
   });
 });

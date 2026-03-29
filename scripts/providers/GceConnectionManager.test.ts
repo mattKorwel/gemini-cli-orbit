@@ -24,17 +24,19 @@ describe('GceConnectionManager', () => {
 
   it('should generate correct internal magic remote', () => {
     manager = new GceConnectionManager(projectId, zone, instanceName, {
-        backendType: 'direct-internal',
-        dnsSuffix: '.gcpnode.com'
+      backendType: 'direct-internal',
+      dnsSuffix: '.gcpnode.com',
     });
     const remote = manager.getMagicRemote();
     const user = `${process.env.USER || 'node'}`;
-    expect(remote).toBe(`${user}@nic0.${instanceName}.${zone}.c.${projectId}.internal.gcpnode.com`);
+    expect(remote).toBe(
+      `${user}@nic0.${instanceName}.${zone}.c.${projectId}.internal.gcpnode.com`,
+    );
   });
 
   it('should support user suffix for corporate identities', () => {
     manager = new GceConnectionManager(projectId, zone, instanceName, {
-        userSuffix: '_google_com'
+      userSuffix: '_google_com',
     });
     const remote = manager.getMagicRemote();
     const user = `${process.env.USER || 'node'}_google_com`;
@@ -43,7 +45,7 @@ describe('GceConnectionManager', () => {
 
   it('should generate IAP gcloud command', () => {
     manager = new GceConnectionManager(projectId, zone, instanceName, {
-        backendType: 'iap'
+      backendType: 'iap',
     });
     const cmd = manager.getRunCommand('uptime');
     expect(cmd).toContain('gcloud compute ssh');
@@ -54,15 +56,15 @@ describe('GceConnectionManager', () => {
   it('should handle rsync with IAP backend', () => {
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     manager = new GceConnectionManager(projectId, zone, instanceName, {
-        backendType: 'iap'
+      backendType: 'iap',
     });
-    
+
     manager.sync('/local', '/remote');
     const firstArg = vi.mocked(spawnSync).mock.calls[0]![0] as string;
     const secondArg = vi.mocked(spawnSync).mock.calls[0]![1] as string[];
-    
+
     expect(firstArg).toBe('rsync');
-    const sshArg = secondArg.find(a => a.includes('gcloud compute ssh'));
+    const sshArg = secondArg.find((a) => a.includes('gcloud compute ssh'));
     expect(sshArg).toBeDefined();
     expect(sshArg).toContain('--tunnel-through-iap');
   });

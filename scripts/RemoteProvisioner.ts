@@ -5,18 +5,25 @@
  */
 
 import { logger } from './Logger.js';
-import { 
-  type OrbitProvider,
-} from './providers/BaseProvider.js';
-import { 
-  ORBIT_ROOT,
-  DEFAULT_IMAGE_URI
-} from './Constants.js';
+import { type OrbitProvider } from './providers/BaseProvider.js';
+import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
 
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
 
-  async provisionWorktree(prNumber: string, action: string, isEvaMode: boolean, ghEnv: string, config: { remoteWorkDir: string, worktreesDir: string, upstreamUrl: string, cpuLimit?: string, memoryLimit?: string }): Promise<string> {
+  async provisionWorktree(
+    prNumber: string,
+    action: string,
+    isEvaMode: boolean,
+    ghEnv: string,
+    config: {
+      remoteWorkDir: string;
+      worktreesDir: string;
+      upstreamUrl: string;
+      cpuLimit?: string;
+      memoryLimit?: string;
+    },
+  ): Promise<string> {
     const remoteWorktreeDir = `${config.worktreesDir}/mission-${prNumber}-${action}`;
     const containerName = `gcli-${prNumber}-${action}`;
     const imageUri = DEFAULT_IMAGE_URI;
@@ -39,22 +46,37 @@ export class RemoteProvisioner {
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
         mounts: [
-          { host: config.remoteWorkDir, capsule: config.remoteWorkDir, readonly: true }, // MOUNT READ-ONLY
-          { host: remoteWorktreeDir, capsule: remoteWorktreeDir, readonly: false }, // Specific Satellite Worktree RW
+          {
+            host: config.remoteWorkDir,
+            capsule: config.remoteWorkDir,
+            readonly: true,
+          }, // MOUNT READ-ONLY
+          {
+            host: remoteWorktreeDir,
+            capsule: remoteWorktreeDir,
+            readonly: false,
+          }, // Specific Satellite Worktree RW
           { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: true }, // Broad mount as RO for shared assets
-          { host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`, capsule: '/home/node/.gemini', readonly: false }
+          {
+            host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
+            capsule: '/home/node/.gemini',
+            readonly: false,
+          },
         ],
-        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`
+        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`,
       });
 
       // Wait for capsule to stabilize
       await this.waitForCapsule(containerName, 10000);
     } else {
-        logger.info(`   ✅ Isolated capsule ${containerName} is already active.`);
+      logger.info(`   ✅ Isolated capsule ${containerName} is already active.`);
     }
 
     // 2. Provision the repository using a reference clone for speed and isolation
-    const check = await this.provider.getExecOutput(`ls -d ${remoteWorktreeDir}/.git`, { wrapCapsule: containerName, quiet: true });
+    const check = await this.provider.getExecOutput(
+      `ls -d ${remoteWorktreeDir}/.git`,
+      { wrapCapsule: containerName, quiet: true },
+    );
     logger.logOutput(check.stdout, check.stderr);
 
     if (check.status !== 0) {
@@ -62,15 +84,21 @@ export class RemoteProvisioner {
       const clearHistoryCmd = `rm -rf /home/node/.gemini/history/mission-${prNumber}-${action}*`;
       await this.provider.exec(clearHistoryCmd, { wrapCapsule: containerName });
 
-      logger.info(`   - Provisioning isolated git repo for PR #${prNumber} (inside capsule via reference)...`);
-      
+      logger.info(
+        `   - Provisioning isolated git repo for PR #${prNumber} (inside capsule via reference)...`,
+      );
+
       // 3.1 Ensure remoteWorktreeDir parent is owned by node on the HOST first
       // Skip sudo if we are local
       const isLocal = (this.provider as any).projectId === 'local';
       const sudoPrefix = isLocal ? '' : 'sudo ';
 
-      await this.provider.exec(`${sudoPrefix}mkdir -p ${config.worktreesDir} && ${sudoPrefix}chown -R 1000:1000 ${config.worktreesDir}`);
-      await this.provider.exec(`${sudoPrefix}mkdir -p ${remoteWorktreeDir} && ${sudoPrefix}chown -R 1000:1000 ${remoteWorktreeDir}`);
+      await this.provider.exec(
+        `${sudoPrefix}mkdir -p ${config.worktreesDir} && ${sudoPrefix}chown -R 1000:1000 ${config.worktreesDir}`,
+      );
+      await this.provider.exec(
+        `${sudoPrefix}mkdir -p ${remoteWorktreeDir} && ${sudoPrefix}chown -R 1000:1000 ${remoteWorktreeDir}`,
+      );
 
       // 3.2 Perform Reference Clone inside the capsule
       // We point to the RO main repo as the reference
@@ -85,10 +113,15 @@ export class RemoteProvisioner {
         gh pr checkout ${prNumber}
       `;
 
-      const setupRes = await this.provider.getExecOutput(cloneCmd.replace(/\n/g, ''), { wrapCapsule: containerName });
+      const setupRes = await this.provider.getExecOutput(
+        cloneCmd.replace(/\n/g, ''),
+        { wrapCapsule: containerName },
+      );
       logger.logOutput(setupRes.stdout, setupRes.stderr);
       if (setupRes.status !== 0) {
-        throw new Error(`Failed to provision isolated repo: ${setupRes.stderr}`);
+        throw new Error(
+          `Failed to provision isolated repo: ${setupRes.stderr}`,
+        );
       }
       logger.info('   ✅ Isolated repository provisioned successfully.');
     } else {
@@ -97,7 +130,10 @@ export class RemoteProvisioner {
 
     const isLocal = (this.provider as any).projectId === 'local';
     const sudoPrefix = isLocal ? '' : 'sudo ';
-    await this.provider.exec(`${sudoPrefix}chown -R 1000:1000 ${remoteWorktreeDir}`, { wrapCapsule: containerName });
+    await this.provider.exec(
+      `${sudoPrefix}chown -R 1000:1000 ${remoteWorktreeDir}`,
+      { wrapCapsule: containerName },
+    );
     return remoteWorktreeDir;
   }
 
@@ -106,16 +142,21 @@ export class RemoteProvisioner {
     process.stdout.write(`   - Waiting for capsule ${name} to stabilize...`);
 
     while (Date.now() - start < timeoutMs) {
-      const res = await this.provider.getExecOutput('echo 1', { wrapCapsule: name, quiet: true });
+      const res = await this.provider.getExecOutput('echo 1', {
+        wrapCapsule: name,
+        quiet: true,
+      });
       if (res.status === 0) {
         process.stdout.write(' ✅ Ready.\n');
         return;
       }
       process.stdout.write('.');
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     process.stdout.write(' ❌ Timeout.\n');
-    throw new Error(`Capsule ${name} failed to stabilize within ${timeoutMs}ms`);
+    throw new Error(
+      `Capsule ${name} failed to stabilize within ${timeoutMs}ms`,
+    );
   }
 }

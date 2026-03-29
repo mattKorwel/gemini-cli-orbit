@@ -20,21 +20,29 @@ vi.mock('./ConfigManager.ts');
 describe('runStation', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from('{"name": "test-repo"}') } as any);
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: Buffer.from('{"name": "test-repo"}'),
+    } as any);
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined as any);
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined as any);
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-        repoName: 'test-repo',
+      repoName: 'test-repo',
     });
   });
 
   it('should dispatch to the correct playbook', async () => {
     vi.mocked(runFixPlaybook).mockResolvedValue(0);
-    
+
     // Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]
-    const res = await runStation(['23176', 'my-branch', '/tmp/policy.toml', 'fix']);
-    
+    const res = await runStation([
+      '23176',
+      'my-branch',
+      '/tmp/policy.toml',
+      'fix',
+    ]);
+
     expect(res).toBe(0);
     expect(runFixPlaybook).toHaveBeenCalled();
   });

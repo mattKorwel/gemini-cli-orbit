@@ -9,7 +9,6 @@ import fs from 'node:fs';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-
 const REPO_ROOT = process.cwd();
 
 const USER = process.env.USER || 'gcli-user';
@@ -33,7 +32,7 @@ async function listStations(): Promise<number> {
     projectId: projectId!,
     zone: config?.zone || DEFAULT_ZONE,
     instanceName: instancePrefix,
-    repoName
+    repoName,
   });
 
   return await provider.listStations();
@@ -42,9 +41,11 @@ async function listStations(): Promise<number> {
 async function launchStation(): Promise<number> {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
-  
+
   if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`);
+    console.error(
+      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
+    );
     return 1;
   }
 
@@ -86,7 +87,7 @@ async function destroyStation(): Promise<number> {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
   if (!config) return 1;
-  
+
   const provider = ProviderFactory.getProvider({
     projectId: config.projectId!,
     zone: config.zone!,
@@ -106,7 +107,7 @@ async function destroyStation(): Promise<number> {
 async function rebuildStation(): Promise<number> {
   const res1 = await destroyStation();
   const res2 = await launchStation();
-  return (res1 === 0 && res2 === 0) ? 0 : 1;
+  return res1 === 0 && res2 === 0 ? 0 : 1;
 }
 
 async function main(): Promise<number> {
@@ -130,8 +131,10 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().then(code => process.exit(code || 0)).catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+  main()
+    .then((code) => process.exit(code || 0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

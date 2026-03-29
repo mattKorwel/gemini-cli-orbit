@@ -12,48 +12,75 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 const COMMANDS: Record<string, { script: string; description: string }> = {
-    mission: { script: 'orchestrator.ts', description: 'Start, resume, or perform maneuvers on a PR mission.' },
-    liftoff: { script: 'setup.ts', description: 'Initial station setup: provision GCE Worker and Docker base.' },
-    ci: { script: 'utils/ci.mjs', description: 'Monitor CI status for a branch with noise filtering.' },
-    pulse: { script: 'status.ts', description: 'Check station health and active mission status.' },
-    uplink: { script: 'uplink.ts', description: 'Quickly connect to an existing mission session.' },
-    splashdown: { script: 'splashdown.ts', description: 'Emergency shutdown of all active remote capsules.' },
-    jettison: { script: 'jettison.ts', description: 'Decommission a specific mission and its worktree.' },
-    constellation: { script: 'fleet.ts', description: 'Manage and coordinate multiple Orbit stations.' },
-    blackbox: { script: 'blackbox.ts', description: 'Retrieve detailed mission telemetry and history logs.' }
+  mission: {
+    script: 'orchestrator.ts',
+    description: 'Start, resume, or perform maneuvers on a PR mission.',
+  },
+  liftoff: {
+    script: 'setup.ts',
+    description: 'Initial station setup: provision GCE Worker and Docker base.',
+  },
+  ci: {
+    script: 'utils/ci.mjs',
+    description: 'Monitor CI status for a branch with noise filtering.',
+  },
+  pulse: {
+    script: 'status.ts',
+    description: 'Check station health and active mission status.',
+  },
+  uplink: {
+    script: 'uplink.ts',
+    description: 'Quickly connect to an existing mission session.',
+  },
+  splashdown: {
+    script: 'splashdown.ts',
+    description: 'Emergency shutdown of all active remote capsules.',
+  },
+  jettison: {
+    script: 'jettison.ts',
+    description: 'Decommission a specific mission and its worktree.',
+  },
+  constellation: {
+    script: 'fleet.ts',
+    description: 'Manage and coordinate multiple Orbit stations.',
+  },
+  blackbox: {
+    script: 'blackbox.ts',
+    description: 'Retrieve detailed mission telemetry and history logs.',
+  },
 };
 
 function showHelp() {
-    console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
-    console.log('Usage: orbit <command> [args]\n');
-    console.log('Available Commands:');
-    
-    const maxLen = Math.max(...Object.keys(COMMANDS).map(k => k.length));
-    for (const [name, info] of Object.entries(COMMANDS)) {
-        console.log(`  ${name.padEnd(maxLen + 2)} ${info.description}`);
-    }
-    
-    console.log('\nFlags:');
-    console.log('  -h, --help    Show this help menu');
-    console.log('\nExample:');
-    console.log('  orbit mission 123 --review');
-    console.log('  orbit ci feat/my-branch');
-    console.log('');
+  console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
+  console.log('Usage: orbit <command> [args]\n');
+  console.log('Available Commands:');
+
+  const maxLen = Math.max(...Object.keys(COMMANDS).map((k) => k.length));
+  for (const [name, info] of Object.entries(COMMANDS)) {
+    console.log(`  ${name.padEnd(maxLen + 2)} ${info.description}`);
+  }
+
+  console.log('\nFlags:');
+  console.log('  -h, --help    Show this help menu');
+  console.log('\nExample:');
+  console.log('  orbit mission 123 --review');
+  console.log('  orbit ci feat/my-branch');
+  console.log('');
 }
 
 const args = process.argv.slice(2);
 const cmd = args[0];
 
 if (!cmd || cmd === '-h' || cmd === '--help') {
-    showHelp();
-    process.exit(0);
+  showHelp();
+  process.exit(0);
 }
 
 const commandInfo = COMMANDS[cmd];
 if (!commandInfo) {
-    console.error(`\n❌ Unknown command: ${cmd}`);
-    showHelp();
-    process.exit(1);
+  console.error(`\n❌ Unknown command: ${cmd}`);
+  showHelp();
+  process.exit(1);
 }
 
 const script = commandInfo.script;
@@ -65,13 +92,15 @@ let useTsx = false;
 
 // Priority: bundle/ (prod) > scripts/ (dev)
 if (!fs.existsSync(bundlePath)) {
-    if (fs.existsSync(scriptPath)) {
-        finalPath = scriptPath;
-        useTsx = script.endsWith('.ts');
-    } else {
-        console.error(`\n❌ Script execution failure: Could not find ${script} in bundle/ or scripts/`);
-        process.exit(1);
-    }
+  if (fs.existsSync(scriptPath)) {
+    finalPath = scriptPath;
+    useTsx = script.endsWith('.ts');
+  } else {
+    console.error(
+      `\n❌ Script execution failure: Could not find ${script} in bundle/ or scripts/`,
+    );
+    process.exit(1);
+  }
 }
 
 // Forward all remaining arguments

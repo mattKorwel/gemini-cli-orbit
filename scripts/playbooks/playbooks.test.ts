@@ -40,8 +40,8 @@ describe('Playbooks', () => {
     mockRunParallel.mockResolvedValue(0);
     vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
     vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
-        if (typeof p === 'string' && p.includes('plan-review-v1.md')) return 'GO';
-        return '';
+      if (typeof p === 'string' && p.includes('plan-review-v1.md')) return 'GO';
+      return '';
     });
     vi.mocked(fs.existsSync).mockReturnValue(true);
   });
@@ -65,7 +65,15 @@ describe('Playbooks', () => {
 
   it('should run review playbook', async () => {
     const { runReviewPlaybook } = await import('./review.js');
-    const res = await runReviewPlaybook(pr, dir, policy, bin, logDir, header, '/tmp/guidelines.md');
+    const res = await runReviewPlaybook(
+      pr,
+      dir,
+      policy,
+      bin,
+      logDir,
+      header,
+      '/tmp/guidelines.md',
+    );
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalled();
     expect(mockRunParallel).toHaveBeenCalled();
@@ -73,7 +81,15 @@ describe('Playbooks', () => {
 
   it('should run implement playbook', async () => {
     const { runImplementPlaybook } = await import('./implement.js');
-    const res = await runImplementPlaybook(pr, dir, policy, bin, logDir, header, '/tmp/guidelines.md');
+    const res = await runImplementPlaybook(
+      pr,
+      dir,
+      policy,
+      bin,
+      logDir,
+      header,
+      '/tmp/guidelines.md',
+    );
     expect(res).toBe(0);
     expect(mockRegister).toHaveBeenCalledTimes(2);
     expect(mockRunParallel).toHaveBeenCalledTimes(2);

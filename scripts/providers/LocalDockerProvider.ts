@@ -27,12 +27,15 @@ export class LocalDockerProvider implements OrbitProvider {
     this.stationName = stationName;
   }
 
-  async provision(options?: { setupNetwork?: boolean; sessionId?: string }): Promise<number> {
+  async provision(options?: {
+    setupNetwork?: boolean;
+    sessionId?: string;
+  }): Promise<number> {
     console.log(`🐳 Verifying local Docker availability...`);
     const res = spawnSync('docker', ['info'], { stdio: 'pipe' });
     if (res.status !== 0) {
-       console.error('❌ Docker is not running or not found in PATH.');
-       return 1;
+      console.error('❌ Docker is not running or not found in PATH.');
+      return 1;
     }
     return 0;
   }
@@ -47,9 +50,17 @@ export class LocalDockerProvider implements OrbitProvider {
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
     let finalCmd = command;
-    const envFlags = options.env ? Object.entries(options.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
-    const sensitiveFlags = options.sensitiveEnv ? Object.entries(options.sensitiveEnv).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
-    
+    const envFlags = options.env
+      ? Object.entries(options.env)
+          .map(([k, v]) => `-e ${k}=${this.quote(v)}`)
+          .join(' ')
+      : '';
+    const sensitiveFlags = options.sensitiveEnv
+      ? Object.entries(options.sensitiveEnv)
+          .map(([k, v]) => `-e ${k}=${this.quote(v)}`)
+          .join(' ')
+      : '';
+
     if (options.wrapCapsule) {
       finalCmd = `docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${envFlags} ${sensitiveFlags} ${options.wrapCapsule} sh -c ${this.quote(command)}`;
     }
@@ -61,17 +72,41 @@ export class LocalDockerProvider implements OrbitProvider {
     return res.status;
   }
 
-  async getExecOutput(command: string, options: ExecOptions = {}): Promise<{ status: number; stdout: string; stderr: string }> {
-    const args = options.wrapCapsule ? 
-        ['docker', 'exec', ...(options.interactive ? ['-it'] : []), ...(options.cwd ? ['-w', options.cwd] : []), ...(options.env ? Object.entries(options.env).flatMap(([k, v]) => ['-e', `${k}=${v}`]) : []), ...(options.sensitiveEnv ? Object.entries(options.sensitiveEnv).flatMap(([k, v]) => ['-e', `${k}=${v}`]) : []), options.wrapCapsule, 'sh', '-c', command] :
-        ['sh', '-c', command];
+  async getExecOutput(
+    command: string,
+    options: ExecOptions = {},
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
+    const args = options.wrapCapsule
+      ? [
+          'docker',
+          'exec',
+          ...(options.interactive ? ['-it'] : []),
+          ...(options.cwd ? ['-w', options.cwd] : []),
+          ...(options.env
+            ? Object.entries(options.env).flatMap(([k, v]) => [
+                '-e',
+                `${k}=${v}`,
+              ])
+            : []),
+          ...(options.sensitiveEnv
+            ? Object.entries(options.sensitiveEnv).flatMap(([k, v]) => [
+                '-e',
+                `${k}=${v}`,
+              ])
+            : []),
+          options.wrapCapsule,
+          'sh',
+          '-c',
+          command,
+        ]
+      : ['sh', '-c', command];
 
-    if (args.length === 0) return { status: 1, stdout: '', stderr: 'No command arguments' };
+    if (args.length === 0)
+      return { status: 1, stdout: '', stderr: 'No command arguments' };
     const res = spawnSync(args[0]!, args.slice(1), {
- 
-        stdio: options.quiet ? 'pipe' : 'inherit', 
-        shell: false,
-        env: { ...process.env, GEMINI_AUTO_UPDATE: '0' }
+      stdio: options.quiet ? 'pipe' : 'inherit',
+      shell: false,
+      env: { ...process.env, GEMINI_AUTO_UPDATE: '0' },
     });
 
     return {
@@ -81,12 +116,19 @@ export class LocalDockerProvider implements OrbitProvider {
     };
   }
 
-  async sync(localPath: string, remotePath: string, _options: SyncOptions = {}): Promise<number> {
-    // For local docker, this is 'docker cp' if remotePath is inside a container, 
+  async sync(
+    localPath: string,
+    remotePath: string,
+    _options: SyncOptions = {},
+  ): Promise<number> {
+    // For local docker, this is 'docker cp' if remotePath is inside a container,
     // but here we are syncing between local host and... well, for local it's often a mount.
     if (path.resolve(localPath) === path.resolve(remotePath)) return 0;
-    
-    const res = spawnSync(`cp -r ${localPath} ${remotePath}`, { shell: true, stdio: 'inherit' });
+
+    const res = spawnSync(`cp -r ${localPath} ${remotePath}`, {
+      shell: true,
+      stdio: 'inherit',
+    });
     return res.status ?? 0;
   }
 
@@ -102,52 +144,82 @@ export class LocalDockerProvider implements OrbitProvider {
     return 0;
   }
 
-  async getCapsuleStatus(name: string): Promise<{ running: boolean; exists: boolean }> {
-    const res = spawnSync(`docker inspect -f '{{.State.Running}}' ${name}`, { shell: true, stdio: 'pipe' });
+  async getCapsuleStatus(
+    name: string,
+  ): Promise<{ running: boolean; exists: boolean }> {
+    const res = spawnSync(`docker inspect -f '{{.State.Running}}' ${name}`, {
+      shell: true,
+      stdio: 'pipe',
+    });
     if (res.status !== 0) return { running: false, exists: false };
     return { running: res.stdout?.toString().trim() === 'true', exists: true };
   }
 
   async getCapsuleStats(name: string): Promise<string> {
-    const res = spawnSync(`docker stats ${name} --no-stream --format 'CPU: {{.CPUPerc}}, Mem: {{.MemUsage}} / {{.MemLimit}}'`, { shell: true, stdio: 'pipe' });
+    const res = spawnSync(
+      `docker stats ${name} --no-stream --format 'CPU: {{.CPUPerc}}, Mem: {{.MemUsage}} / {{.MemLimit}}'`,
+      { shell: true, stdio: 'pipe' },
+    );
     if (res.status !== 0) return 'N/A';
     return res.stdout?.toString().trim() || 'N/A';
   }
 
   async getCapsuleIdleTime(name: string): Promise<number> {
-    const tmuxRes = await this.getExecOutput('stat -c %X /tmp/tmux-1000/default 2>/dev/null', { wrapCapsule: name, quiet: true });
+    const tmuxRes = await this.getExecOutput(
+      'stat -c %X /tmp/tmux-1000/default 2>/dev/null',
+      { wrapCapsule: name, quiet: true },
+    );
     if (tmuxRes.status === 0) {
       const lastActivity = parseInt(tmuxRes.stdout.trim());
       return Math.floor(Date.now() / 1000) - lastActivity;
     }
 
-    const startRes = await this.getExecOutput(`docker inspect -f '{{.State.StartedAt}}' ${name}`, { quiet: true });
+    const startRes = await this.getExecOutput(
+      `docker inspect -f '{{.State.StartedAt}}' ${name}`,
+      { quiet: true },
+    );
     if (startRes.status === 0) {
-        const startTime = new Date(startRes.stdout.trim()).getTime() / 1000;
-        return Math.floor(Date.now() / 1000) - Math.floor(startTime);
+      const startTime = new Date(startRes.stdout.trim()).getTime() / 1000;
+      return Math.floor(Date.now() / 1000) - Math.floor(startTime);
     }
     return 0;
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
-    const mountFlags = config.mounts.map(m => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`).join(' ');
-    const envFlags = config.env ? Object.entries(config.env).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
-    const sensitiveFlags = config.sensitiveEnv ? Object.entries(config.sensitiveEnv).map(([k, v]) => `-e ${k}=${this.quote(v)}`).join(' ') : '';
+    const mountFlags = config.mounts
+      .map((m) => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`)
+      .join(' ');
+    const envFlags = config.env
+      ? Object.entries(config.env)
+          .map(([k, v]) => `-e ${k}=${this.quote(v)}`)
+          .join(' ')
+      : '';
+    const sensitiveFlags = config.sensitiveEnv
+      ? Object.entries(config.sensitiveEnv)
+          .map(([k, v]) => `-e ${k}=${this.quote(v)}`)
+          .join(' ')
+      : '';
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
-    
+
     const dockerCmd = `docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mountFlags} ${envFlags} ${sensitiveFlags} ${config.image} ${config.command || ''}`;
-    
+
     const res = spawnSync(dockerCmd, { shell: true, stdio: 'inherit' });
     return res.status ?? 0;
   }
 
   async removeCapsule(name: string): Promise<number> {
-    const res = spawnSync(`docker rm -f ${name} || true`, { shell: true, stdio: 'inherit' });
+    const res = spawnSync(`docker rm -f ${name} || true`, {
+      shell: true,
+      stdio: 'inherit',
+    });
     return res.status ?? 0;
   }
 
   async capturePane(capsuleName: string): Promise<string> {
-    const res = spawnSync(`tmux capture-pane -pt ${capsuleName} 2>/dev/null`, { shell: true, stdio: 'pipe' });
+    const res = spawnSync(`tmux capture-pane -pt ${capsuleName} 2>/dev/null`, {
+      shell: true,
+      stdio: 'pipe',
+    });
     return res.stdout?.toString() || '';
   }
 
@@ -161,12 +233,17 @@ export class LocalDockerProvider implements OrbitProvider {
   }
 
   async listCapsules(): Promise<string[]> {
-      const res = spawnSync("docker ps --format '{{.Names}}' | grep '^gcli-'", { shell: true, stdio: 'pipe' });
-      if (res.status === 0 && res.stdout) {
-          return res.stdout.toString().trim().split('\n').filter(Boolean);
-      }
-      return [];
+    const res = spawnSync("docker ps --format '{{.Names}}' | grep '^gcli-'", {
+      shell: true,
+      stdio: 'pipe',
+    });
+    if (res.status === 0 && res.stdout) {
+      return res.stdout.toString().trim().split('\n').filter(Boolean);
+    }
+    return [];
   }
 
-  private quote(str: string) { return `'${str.replace(/'/g, "'\\''")}'`; }
+  private quote(str: string) {
+    return `'${str.replace(/'/g, "'\\''")}'`;
+  }
 }

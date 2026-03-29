@@ -16,7 +16,11 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     public projectId: string,
     public zone: string,
     protected instanceName: string,
-    protected config: { dnsSuffix?: string, userSuffix?: string, backendType?: string } = {}
+    protected config: {
+      dnsSuffix?: string;
+      userSuffix?: string;
+      backendType?: string;
+    } = {},
   ) {}
 
   abstract getMagicRemote(): string;
@@ -28,19 +32,32 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
 
   getCommonArgs(): string[] {
     return [
-      '-o', 'StrictHostKeyChecking=no',
-      '-o', 'UserKnownHostsFile=/dev/null',
-      '-o', 'GlobalKnownHostsFile=/dev/null',
-      '-o', 'CheckHostIP=no',
-      '-o', 'LogLevel=ERROR',
-      '-o', 'ConnectTimeout=60',
-      '-o', 'ServerAliveInterval=30',
-      '-o', 'ServerAliveCountMax=3',
-      '-o', 'ControlMaster=auto',
-      '-o', 'ControlPath=~/.ssh/gcli-%C',
-      '-o', 'ControlPersist=10m',
-      '-o', 'SendEnv=USER',
-      '-i', `${os.homedir()}/.ssh/google_compute_engine`,
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      '-o',
+      'GlobalKnownHostsFile=/dev/null',
+      '-o',
+      'CheckHostIP=no',
+      '-o',
+      'LogLevel=ERROR',
+      '-o',
+      'ConnectTimeout=60',
+      '-o',
+      'ServerAliveInterval=30',
+      '-o',
+      'ServerAliveCountMax=3',
+      '-o',
+      'ControlMaster=auto',
+      '-o',
+      'ControlPath=~/.ssh/gcli-%C',
+      '-o',
+      'ControlPersist=10m',
+      '-o',
+      'SendEnv=USER',
+      '-i',
+      `${os.homedir()}/.ssh/google_compute_engine`,
     ];
   }
 
@@ -59,46 +76,119 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
   // Default: Ensure broad corporate SSH rule exists
   setupNetworkInfrastructure(vpcName: string): void {
     const region = this.zone.split('-').slice(0, 2).join('-');
-    logger.info(`   - Ensuring firewall rule 'allow-corporate-ssh' on ${vpcName}...`);
-    const fwCheck = spawnSync('gcloud', ['compute', 'firewall-rules', 'describe', 'allow-corporate-ssh', '--project', this.projectId], { stdio: 'pipe' });
+    logger.info(
+      `   - Ensuring firewall rule 'allow-corporate-ssh' on ${vpcName}...`,
+    );
+    const fwCheck = spawnSync(
+      'gcloud',
+      [
+        'compute',
+        'firewall-rules',
+        'describe',
+        'allow-corporate-ssh',
+        '--project',
+        this.projectId,
+      ],
+      { stdio: 'pipe' },
+    );
     logger.logOutput(fwCheck.stdout, fwCheck.stderr);
     if (fwCheck.status !== 0) {
-        const sourceRanges = (this.config as any).sshSourceRanges?.join(',') || '0.0.0.0/0';
-        spawnSync('gcloud', [
-            'compute', 'firewall-rules', 'create', 'allow-corporate-ssh',
-            '--project', this.projectId,
-            '--network', vpcName,
-            '--allow=tcp:22',
-            `--source-ranges=${sourceRanges}`
-        ], { stdio: 'inherit' });
+      const sourceRanges =
+        (this.config as any).sshSourceRanges?.join(',') || '0.0.0.0/0';
+      spawnSync(
+        'gcloud',
+        [
+          'compute',
+          'firewall-rules',
+          'create',
+          'allow-corporate-ssh',
+          '--project',
+          this.projectId,
+          '--network',
+          vpcName,
+          '--allow=tcp:22',
+          `--source-ranges=${sourceRanges}`,
+        ],
+        { stdio: 'inherit' },
+      );
     }
 
     logger.info(`   - Ensuring Cloud NAT for internet access in ${region}...`);
     const routerName = `${vpcName}-router`;
     const natName = `${vpcName}-nat`;
 
-    const routerCheck = spawnSync('gcloud', ['compute', 'routers', 'describe', routerName, '--project', this.projectId, '--region', region], { stdio: 'pipe' });
+    const routerCheck = spawnSync(
+      'gcloud',
+      [
+        'compute',
+        'routers',
+        'describe',
+        routerName,
+        '--project',
+        this.projectId,
+        '--region',
+        region,
+      ],
+      { stdio: 'pipe' },
+    );
     logger.logOutput(routerCheck.stdout, routerCheck.stderr);
     if (routerCheck.status !== 0) {
-        spawnSync('gcloud', [
-            'compute', 'routers', 'create', routerName,
-            '--project', this.projectId,
-            '--network', vpcName,
-            '--region', region
-        ], { stdio: 'inherit' });
+      spawnSync(
+        'gcloud',
+        [
+          'compute',
+          'routers',
+          'create',
+          routerName,
+          '--project',
+          this.projectId,
+          '--network',
+          vpcName,
+          '--region',
+          region,
+        ],
+        { stdio: 'inherit' },
+      );
     }
 
-    const natCheck = spawnSync('gcloud', ['compute', 'routers', 'nats', 'describe', natName, '--router', routerName, '--project', this.projectId, '--region', region], { stdio: 'pipe' });
+    const natCheck = spawnSync(
+      'gcloud',
+      [
+        'compute',
+        'routers',
+        'nats',
+        'describe',
+        natName,
+        '--router',
+        routerName,
+        '--project',
+        this.projectId,
+        '--region',
+        region,
+      ],
+      { stdio: 'pipe' },
+    );
     logger.logOutput(natCheck.stdout, natCheck.stderr);
     if (natCheck.status !== 0) {
-        spawnSync('gcloud', [
-            'compute', 'routers', 'nats', 'create', natName,
-            '--project', this.projectId,
-            '--router', routerName,
-            '--region', region,
-            '--auto-allocate-nat-external-ips',
-            '--nat-all-subnet-ip-ranges'
-        ], { stdio: 'inherit' });
+      spawnSync(
+        'gcloud',
+        [
+          'compute',
+          'routers',
+          'nats',
+          'create',
+          natName,
+          '--project',
+          this.projectId,
+          '--router',
+          routerName,
+          '--region',
+          region,
+          '--auto-allocate-nat-external-ips',
+          '--nat-all-subnet-ip-ranges',
+        ],
+        { stdio: 'inherit' },
+      );
     }
   }
 

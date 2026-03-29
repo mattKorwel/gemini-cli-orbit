@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * @license
  * Copyright 2026 Google LLC
@@ -12,7 +10,7 @@ const BRANCH =
   process.argv[2] || execSync('git branch --show-current').toString().trim();
 const RUN_ID_OVERRIDE = process.argv[3];
 
-let REPO;
+let REPO: string;
 try {
   const remoteUrl = execSync('git remote get-url origin').toString().trim();
   REPO = remoteUrl
@@ -23,9 +21,7 @@ try {
   REPO = 'google-gemini/gemini-cli';
 }
 
-const _FAILED_FILES = new Set();
-
-function runGh(args) {
+function runGh(args: string): string | null {
   try {
     return execSync(`gh ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -35,7 +31,7 @@ function runGh(args) {
   }
 }
 
-function fetchFailuresViaApi(jobId) {
+function fetchFailuresViaApi(jobId: string): string {
   try {
     const cmd = `gh api repos/${REPO}/actions/jobs/${jobId}/logs | grep -iE " FAIL |❌|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
     return execSync(cmd, {
@@ -47,7 +43,7 @@ function fetchFailuresViaApi(jobId) {
   }
 }
 
-function isNoise(line) {
+function isNoise(line: string): boolean {
   const lower = line.toLowerCase();
   return (
     lower.includes('* [new branch]') ||
@@ -60,19 +56,19 @@ function isNoise(line) {
   );
 }
 
-function extractTestFile(failureText) {
+function extractTestFile(failureText: string): string | null {
   const cleanLine = failureText
     .replace(/[|#\[\]()]/g, ' ')
     .replace(/<[^>]*>/g, ' ')
     .trim();
   const fileMatch = cleanLine.match(/([\w\/._-]+\.test\.[jt]sx?)/);
-  if (fileMatch) return fileMatch[1];
+  if (fileMatch && fileMatch[1]) return fileMatch[1];
   return null;
 }
 
-function generateTestCommand(failedFilesMap) {
-  const orbitToFiles = new Map();
-  for (const [file, _info] of failedFilesMap.entries()) {
+function generateTestCommand(failedFilesMap: Map<string, Set<string>>): string {
+  const orbitToFiles = new Map<string, Set<string>>();
+  for (const [file] of failedFilesMap.entries()) {
     if (
       ['Job Error', 'Unknown File', 'Build Error', 'Lint Error'].includes(file)
     )
@@ -87,9 +83,8 @@ function generateTestCommand(failedFilesMap) {
       relPath = file.replace('packages/cli/', '');
     }
     relPath = relPath.replace(/^.*packages\/[^\/]+\//, '');
-    if (!orbitToFiles.has(orbit))
-      orbitToFiles.set(orbit, new Set());
-    orbitToFiles.get(orbit).add(relPath);
+    if (!orbitToFiles.has(orbit)) orbitToFiles.set(orbit, new Set());
+    orbitToFiles.get(orbit)!.add(relPath);
   }
   const commands = [];
   for (const [orbit, files] of orbitToFiles.entries()) {
@@ -99,68 +94,88 @@ function generateTestCommand(failedFilesMap) {
 }
 
 async function monitor() {
-  let targetRunIds = [];
+  let targetRunIds: number[] = [];
   if (RUN_ID_OVERRIDE) {
-    targetRunIds = [RUN_ID_OVERRIDE];
+    targetRunIds = [parseInt(RUN_ID_OVERRIDE, 10)];
   } else {
-    // 1. Get runs directly associated with the branch
-    const runListOutput = runGh(
-      `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt`,
+    const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
+    console.log(
+      `🔍 Looking for runs associated with commit ${headSha.substring(0, 7)} on branch ${BRANCH}...`,
     );
-    if (runListOutput) {
-      const runs = JSON.parse(runListOutput);
-      const activeRuns = runs.filter((r) => r.status !== 'completed');
-      if (activeRuns.length > 0) {
-        targetRunIds = activeRuns.map((r) => r.databaseId);
-      } else if (runs.length > 0) {
-        const latestTime = new Date(runs[0].createdAt).getTime();
-        targetRunIds = runs
-          .filter((r) => latestTime - new Date(r.createdAt).getTime() < 60000)
-          .map((r) => r.databaseId);
-      }
-    }
 
-    // 2. Get runs associated with commit statuses (handles chained/indirect runs)
-    try {
-      const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
-      const statusOutput = runGh(
-        `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
+    let attempts = 0;
+    const maxAttempts = 20; // Wait up to 5 minutes (20 * 15s)
+
+    while (targetRunIds.length === 0 && attempts < maxAttempts) {
+      if (attempts > 0) {
+        process.stdout.write(
+          `\r⏳ No runs found yet. Waiting for GitHub to register the run (Attempt ${attempts}/${maxAttempts})...`,
+        );
+        await new Promise((r) => setTimeout(r, 15000));
+      }
+      attempts++;
+
+      // 1. Get runs directly associated with the branch and filter by headSha
+      const runListOutput = runGh(
+        `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt,headSha`,
       );
-      if (statusOutput) {
-        const statusRunIds = statusOutput
-          .split('\n')
-          .filter(Boolean)
-          .map((url) => {
-            const match = url.match(/actions\/runs\/(\d+)/);
-            return match ? parseInt(match[1], 10) : null;
-          })
-          .filter(Boolean);
+      if (runListOutput) {
+        const runs = JSON.parse(runListOutput);
+        const latestRuns = runs.filter((r: any) => r.headSha === headSha);
+        if (latestRuns.length > 0) {
+          targetRunIds = latestRuns.map((r: any) => r.databaseId);
+        }
+      }
 
-        for (const runId of statusRunIds) {
-          if (!targetRunIds.includes(runId)) {
-            targetRunIds.push(runId);
+      // 2. Fallback: Get runs associated with commit statuses (handles chained/indirect runs)
+      if (targetRunIds.length === 0) {
+        try {
+          const statusOutput = runGh(
+            `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
+          );
+          if (statusOutput) {
+            const statusRunIds = statusOutput
+              .split('\n')
+              .filter(Boolean)
+              .map((url) => {
+                const match = url.match(/actions\/runs\/(\d+)/);
+                return match && match[1] ? parseInt(match[1], 10) : null;
+              })
+              .filter((id): id is number => id !== null);
+
+            for (const runId of statusRunIds) {
+              if (!targetRunIds.includes(runId)) {
+                targetRunIds.push(runId);
+              }
+            }
           }
+        } catch (_e) {
+          // Ignore if API fails
         }
       }
-    } catch (_e) {
-      // Ignore if branch/SHA not found or API fails
     }
 
-    if (targetRunIds.length > 0) {
-      const runNames = [];
-      for (const runId of targetRunIds) {
-        const runInfo = runGh(`run view "${runId}" --json workflowName`);
-        if (runInfo) {
-          runNames.push(JSON.parse(runInfo).workflowName);
-        }
-      }
-      console.log(`Monitoring workflows: ${[...new Set(runNames)].join(', ')}`);
-    }
+    if (attempts > 1) console.log(''); // New line after polling
   }
 
   if (targetRunIds.length === 0) {
-    console.log(`No runs found for branch ${BRANCH}.`);
+    console.log(
+      `❌ No runs found for branch ${BRANCH} at commit ${execSync(`git rev-parse --short "${BRANCH}"`).toString().trim()} after waiting.`,
+    );
     process.exit(0);
+  }
+
+  if (targetRunIds.length > 0) {
+    const runNames: string[] = [];
+    for (const runId of targetRunIds) {
+      const runInfo = runGh(`run view "${runId}" --json workflowName`);
+      if (runInfo) {
+        runNames.push(JSON.parse(runInfo).workflowName);
+      }
+    }
+    console.log(
+      `🚀 Monitoring workflows: ${[...new Set(runNames)].join(', ')}`,
+    );
   }
 
   while (true) {
@@ -170,7 +185,7 @@ async function monitor() {
       allQueued = 0,
       totalJobs = 0;
     let anyRunInProgress = false;
-    const fileToTests = new Map();
+    const fileToTests = new Map<string, Set<string>>();
     let failuresFoundInLoop = false;
 
     for (const runId of targetRunIds) {
@@ -185,7 +200,7 @@ async function monitor() {
       if (jobsOutput) {
         const { jobs } = JSON.parse(jobsOutput);
         totalJobs += jobs.length;
-        const failedJobs = jobs.filter((j) => j.conclusion === 'failure');
+        const failedJobs = jobs.filter((j: any) => j.conclusion === 'failure');
         if (failedJobs.length > 0) {
           failuresFoundInLoop = true;
           for (const job of failedJobs) {
@@ -207,11 +222,11 @@ async function monitor() {
                 }
                 if (!fileToTests.has(filePath))
                   fileToTests.set(filePath, new Set());
-                fileToTests.get(filePath).add(testName);
+                fileToTests.get(filePath)!.add(testName);
               });
             } else {
               const step =
-                job.steps?.find((s) => s.conclusion === 'failure')?.name ||
+                job.steps?.find((s: any) => s.conclusion === 'failure')?.name ||
                 'unknown';
               const category = step.toLowerCase().includes('lint')
                 ? 'Lint Error'
@@ -221,7 +236,7 @@ async function monitor() {
               if (!fileToTests.has(category))
                 fileToTests.set(category, new Set());
               fileToTests
-                .get(category)
+                .get(category)!
                 .add(`${job.name}: Failed at step "${step}"`);
             }
           }

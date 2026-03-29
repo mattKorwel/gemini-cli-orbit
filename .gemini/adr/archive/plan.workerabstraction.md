@@ -14,8 +14,8 @@ extensible to new backends.
 Create a modular provider system where each infrastructure type implements a
 standard interface.
 
-- **Base Interface**: `StationProvider` (methods for `exec`, `sync`, `provision`,
-  `getStatus`).
+- **Base Interface**: `StationProvider` (methods for `exec`, `sync`,
+  `provision`, `getStatus`).
 - **Implementations**:
   - `GceCosProvider`: Handles COS with Cloud-Init and `docker exec` wrapping.
   - `GceLinuxProvider`: Handles standard Linux VMs with direct execution.

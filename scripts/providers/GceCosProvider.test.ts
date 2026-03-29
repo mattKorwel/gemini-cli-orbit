@@ -19,11 +19,13 @@ const mockConn = {
   getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
   onProvisioned: vi.fn().mockResolvedValue(undefined),
   setupNetworkInfrastructure: vi.fn(),
-  getNetworkInterfaceConfig: vi.fn().mockReturnValue('network=default,no-address'),
+  getNetworkInterfaceConfig: vi
+    .fn()
+    .mockReturnValue('network=default,no-address'),
 };
 
 vi.mock('./GceConnectionManager.ts', () => ({
-  GceConnectionManager: function() {
+  GceConnectionManager: function () {
     return mockConn;
   },
 }));
@@ -40,7 +42,7 @@ describe('GceCosProvider', () => {
     vi.useFakeTimers();
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
-    
+
     mockConn.run.mockResolvedValue({ status: 0, stdout: '', stderr: '' });
     mockConn.sync.mockResolvedValue(0);
 
@@ -55,16 +57,18 @@ describe('GceCosProvider', () => {
     const mockData = {
       name: 'test-i',
       status: 'RUNNING',
-      networkInterfaces: [{
-        networkIP: '10.0.0.1',
-        accessConfigs: [{ natIP: '34.0.0.1' }]
-      }]
+      networkInterfaces: [
+        {
+          networkIP: '10.0.0.1',
+          accessConfigs: [{ natIP: '34.0.0.1' }],
+        },
+      ],
     };
-    vi.mocked(spawnSync).mockReturnValue({ 
-        status: 0, 
-        stdout: Buffer.from(JSON.stringify(mockData)) 
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: Buffer.from(JSON.stringify(mockData)),
     } as any);
-    
+
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
     expect(status.internalIp).toBe('10.0.0.1');
@@ -82,9 +86,15 @@ describe('GceCosProvider', () => {
     const res = await provider.listStations();
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
-        'gcloud',
-        expect.arrayContaining(['compute', 'instances', 'list', '--filter', expect.stringContaining('gcli-station-')]),
-        expect.any(Object)
+      'gcloud',
+      expect.arrayContaining([
+        'compute',
+        'instances',
+        'list',
+        '--filter',
+        expect.stringContaining('gcli-station-'),
+      ]),
+      expect.any(Object),
     );
   });
 
@@ -93,25 +103,25 @@ describe('GceCosProvider', () => {
     const res = await provider.destroy();
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
-        'gcloud',
-        expect.arrayContaining(['compute', 'instances', 'delete', 'test-i']),
-        expect.any(Object)
+      'gcloud',
+      expect.arrayContaining(['compute', 'instances', 'delete', 'test-i']),
+      expect.any(Object),
     );
     expect(spawnSync).toHaveBeenCalledWith(
-        'gcloud',
-        expect.arrayContaining(['compute', 'addresses', 'delete', 'test-i-ip']),
-        expect.any(Object)
+      'gcloud',
+      expect.arrayContaining(['compute', 'addresses', 'delete', 'test-i-ip']),
+      expect.any(Object),
     );
   });
 
   it('should list active orbit capsules', async () => {
     // Mock getExecOutput behavior via mockConn.run
-    mockConn.run.mockResolvedValue({ 
-        status: 0, 
-        stdout: 'gcli-pr-123\ngcli-pr-456\n', 
-        stderr: '' 
+    mockConn.run.mockResolvedValue({
+      status: 0,
+      stdout: 'gcli-pr-123\ngcli-pr-456\n',
+      stderr: '',
     });
-    
+
     const capsules = await provider.listCapsules();
     expect(capsules).toEqual(['gcli-pr-123', 'gcli-pr-456']);
   });
@@ -120,24 +130,39 @@ describe('GceCosProvider', () => {
     const mockData = {
       name: 'test-i',
       status: 'RUNNING',
-      networkInterfaces: [{
-        networkIP: '10.1',
-        accessConfigs: [{ natIP: '34.1' }]
-      }]
+      networkInterfaces: [
+        {
+          networkIP: '10.1',
+          accessConfigs: [{ natIP: '34.1' }],
+        },
+      ],
     };
-    vi.mocked(spawnSync).mockReturnValue({ status: 0, stdout: Buffer.from(JSON.stringify(mockData)) } as any);
-    
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: Buffer.from(JSON.stringify(mockData)),
+    } as any);
+
     // 1. inspect check returns status 1 (capsule missing)
-    mockConn.run.mockResolvedValueOnce({ status: 1, stdout: '', stderr: 'Error: No such object' }); 
+    mockConn.run.mockResolvedValueOnce({
+      status: 1,
+      stdout: '',
+      stderr: 'Error: No such object',
+    });
     // 2. Refresh commands (pull, rm, run) - we'll just mock them all succeeding
-    mockConn.run.mockResolvedValue({ status: 0, stdout: 'true', stderr: '' }); 
+    mockConn.run.mockResolvedValue({ status: 0, stdout: 'true', stderr: '' });
 
     const readyPromise = provider.ensureReady();
     await vi.runAllTimersAsync();
     const res = await readyPromise;
 
     expect(res).toBe(0);
-    expect(mockConn.run).toHaveBeenCalledWith(expect.stringContaining('docker pull'), expect.any(Object));
-    expect(mockConn.run).toHaveBeenCalledWith(expect.stringContaining('docker run -d --name station-supervisor'), expect.any(Object));
+    expect(mockConn.run).toHaveBeenCalledWith(
+      expect.stringContaining('docker pull'),
+      expect.any(Object),
+    );
+    expect(mockConn.run).toHaveBeenCalledWith(
+      expect.stringContaining('docker run -d --name station-supervisor'),
+      expect.any(Object),
+    );
   });
 });
