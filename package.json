@@ -7,6 +7,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
+    "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "sync-docs": "tsx tools/sync-docs.ts",
@@ -15,9 +16,18 @@
     "build": "npm run typecheck && npm run bundle"
   },
   "lint-staged": {
-    "*.ts": [
+    "*.{js,ts}": [
+      "npm run sync-docs",
+      "prettier --write",
       "eslint --fix",
       "npm run build"
+    ],
+    "*.md": [
+      "npm run sync-docs",
+      "prettier --write"
+    ],
+    "*.json": [
+      "prettier --write"
     ]
   },
   "author": "Matt Korwel",
@@ -34,6 +44,7 @@
     "globals": "^17.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "prettier": "^3.8.1",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.57.2",
