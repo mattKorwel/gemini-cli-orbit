@@ -103,64 +103,76 @@ async function monitor() {
   if (RUN_ID_OVERRIDE) {
     targetRunIds = [RUN_ID_OVERRIDE];
   } else {
-    // 1. Get runs directly associated with the branch
-    const runListOutput = runGh(
-      `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt`,
-    );
-    if (runListOutput) {
-      const runs = JSON.parse(runListOutput);
-      const activeRuns = runs.filter((r) => r.status !== 'completed');
-      if (activeRuns.length > 0) {
-        targetRunIds = activeRuns.map((r) => r.databaseId);
-      } else if (runs.length > 0) {
-        const latestTime = new Date(runs[0].createdAt).getTime();
-        targetRunIds = runs
-          .filter((r) => latestTime - new Date(r.createdAt).getTime() < 60000)
-          .map((r) => r.databaseId);
-      }
-    }
+    const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
+    console.log(`🔍 Looking for runs associated with commit ${headSha.substring(0, 7)} on branch ${BRANCH}...`);
+    
+    let attempts = 0;
+    const maxAttempts = 20; // Wait up to 5 minutes (20 * 15s)
 
-    // 2. Get runs associated with commit statuses (handles chained/indirect runs)
-    try {
-      const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
-      const statusOutput = runGh(
-        `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
+    while (targetRunIds.length === 0 && attempts < maxAttempts) {
+      if (attempts > 0) {
+        process.stdout.write(`\r⏳ No runs found yet. Waiting for GitHub to register the run (Attempt ${attempts}/${maxAttempts})...`);
+        await new Promise(r => setTimeout(r, 15000));
+      }
+      attempts++;
+
+      // 1. Get runs directly associated with the branch and filter by headSha
+      const runListOutput = runGh(
+        `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt,headSha`,
       );
-      if (statusOutput) {
-        const statusRunIds = statusOutput
-          .split('\n')
-          .filter(Boolean)
-          .map((url) => {
-            const match = url.match(/actions\/runs\/(\d+)/);
-            return match ? parseInt(match[1], 10) : null;
-          })
-          .filter(Boolean);
+      if (runListOutput) {
+        const runs = JSON.parse(runListOutput);
+        const latestRuns = runs.filter(r => r.headSha === headSha);
+        if (latestRuns.length > 0) {
+          targetRunIds = latestRuns.map(r => r.databaseId);
+        }
+      }
 
-        for (const runId of statusRunIds) {
-          if (!targetRunIds.includes(runId)) {
-            targetRunIds.push(runId);
+      // 2. Fallback: Get runs associated with commit statuses (handles chained/indirect runs)
+      if (targetRunIds.length === 0) {
+        try {
+          const statusOutput = runGh(
+            `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
+          );
+          if (statusOutput) {
+            const statusRunIds = statusOutput
+              .split('\n')
+              .filter(Boolean)
+              .map((url) => {
+                const match = url.match(/actions\/runs\/(\d+)/);
+                return match ? parseInt(match[1], 10) : null;
+              })
+              .filter(Boolean);
+
+            for (const runId of statusRunIds) {
+              if (!targetRunIds.includes(runId)) {
+                targetRunIds.push(runId);
+              }
+            }
           }
+        } catch (_e) {
+          // Ignore if API fails
         }
       }
-    } catch (_e) {
-      // Ignore if branch/SHA not found or API fails
     }
-
-    if (targetRunIds.length > 0) {
-      const runNames = [];
-      for (const runId of targetRunIds) {
-        const runInfo = runGh(`run view "${runId}" --json workflowName`);
-        if (runInfo) {
-          runNames.push(JSON.parse(runInfo).workflowName);
-        }
-      }
-      console.log(`Monitoring workflows: ${[...new Set(runNames)].join(', ')}`);
-    }
+    
+    if (attempts > 1) console.log(''); // New line after polling
   }
 
   if (targetRunIds.length === 0) {
-    console.log(`No runs found for branch ${BRANCH}.`);
+    console.log(`❌ No runs found for branch ${BRANCH} at commit ${execSync(`git rev-parse --short "${BRANCH}"`).toString().trim()} after waiting.`);
     process.exit(0);
+  }
+
+  if (targetRunIds.length > 0) {
+    const runNames = [];
+    for (const runId of targetRunIds) {
+      const runInfo = runGh(`run view "${runId}" --json workflowName`);
+      if (runInfo) {
+        runNames.push(JSON.parse(runInfo).workflowName);
+      }
+    }
+    console.log(`🚀 Monitoring workflows: ${[...new Set(runNames)].join(', ')}`);
   }
 
   while (true) {
