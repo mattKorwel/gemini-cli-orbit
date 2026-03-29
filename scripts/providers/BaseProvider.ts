@@ -133,6 +133,7 @@ export interface ExecOptions {
   quiet?: boolean;
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
+  user?: string;
 }
 
 export interface CapsuleConfig {

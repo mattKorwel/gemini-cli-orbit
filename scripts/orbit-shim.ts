@@ -135,7 +135,7 @@ for (let i = 0; i < rawArgs.length; i++) {
   } else if ((arg === '--repo' || arg === '-r') && rawArgs[i + 1]) {
     process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1];
     i++;
-  } else if (arg === '--profile' && rawArgs[i + 1]) {
+  } else if ((arg === '--profile' || arg === '-p') && rawArgs[i + 1]) {
     process.env.GCLI_ORBIT_PROFILE = rawArgs[i + 1];
     i++;
   } else {

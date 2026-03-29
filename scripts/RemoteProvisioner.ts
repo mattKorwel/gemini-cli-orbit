@@ -5,10 +5,15 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
-import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
+import {
+  ORBIT_ROOT,
+  DEFAULT_IMAGE_URI,
+  getPrimaryRepoRoot,
+} from './Constants.js';
 import { sanitizeName } from './ConfigManager.js';
 
 export class RemoteProvisioner {
@@ -45,12 +50,11 @@ export class RemoteProvisioner {
       image?: string;
     },
   ): Promise<string> {
-    const isLocal = (this.provider as any).isLocal;
+    const isLocalWorktree = this.provider.type === 'local-worktree';
+    const isGce = this.provider.type === 'gce';
     const branch = await this.resolveBranch(identifier);
-    const sBranch = sanitizeName(branch);
 
-    // In local mode, the container name IS the branch name (to match worktree folder)
-    const containerName = isLocal
+    const containerName = isLocalWorktree
       ? branch
       : `gcli-${sanitizeName(identifier)}-${action}`;
     const imageUri = DEFAULT_IMAGE_URI;
@@ -61,17 +65,17 @@ export class RemoteProvisioner {
     if (!capsuleStatus.exists) {
       logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
 
-      const remoteWorktreeDir = isLocal
+      const remoteWorktreeDir = isLocalWorktree
         ? path.join((this.provider as any).worktreesDir, branch)
         : `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
 
       const runRes = await this.provider.runCapsule({
         name: containerName,
         image: config.image || config.remoteWorkDir || imageUri,
-        user: isLocal ? undefined : 'root',
+        user: isGce ? 'root' : undefined,
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
-        mounts: isLocal
+        mounts: isLocalWorktree
           ? []
           : [
               {
@@ -91,7 +95,7 @@ export class RemoteProvisioner {
                 readonly: false,
               },
             ],
-        command: isLocal
+        command: isLocalWorktree
           ? undefined
           : `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`,
       });
@@ -103,7 +107,7 @@ export class RemoteProvisioner {
       }
     }
 
-    if (isLocal) {
+    if (isLocalWorktree) {
       const wtPath = path.join((this.provider as any).worktreesDir, branch);
       logger.info(`   ✅ Local workspace ready: ${wtPath}`);
       return wtPath;
@@ -136,6 +140,7 @@ export class RemoteProvisioner {
         git config --global --add safe.directory '*' && \
         git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
         cd ${remoteWorktreeDir} && \
+        git config --replace-all core.filemode false && \
         git remote add upstream ${config.upstreamUrl} && \
         (gh pr checkout ${identifier} || git checkout ${identifier})
       `;

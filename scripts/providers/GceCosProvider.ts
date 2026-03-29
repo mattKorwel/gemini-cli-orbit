@@ -299,7 +299,7 @@ REAPER_EOF
         '--network-interface',
         networkInterface,
         '--scopes',
-        'https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/serviceaccounts.get',
+        'https://www.googleapis.com/auth/cloud-platform',
         '--quiet',
       ],
       { stdio: 'inherit' },

@@ -72,6 +72,11 @@ export async function runOrchestrator(
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
 
+  const isLocal =
+    !config.projectId ||
+    config.projectId === 'local' ||
+    config.providerType === 'local-worktree';
+
   const promptArgs: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -101,8 +106,7 @@ export async function runOrchestrator(
   const isEvaMode = action === 'eva';
 
   if (!identifier) {
-    const isLocalMode = config?.providerType === 'local-worktree';
-    const cmdPrefix = isLocalMode ? 'gml' : 'gm';
+    const cmdPrefix = isLocal ? 'gml' : 'gm';
 
     console.log(`
 🚀 GEMINI ORBIT: MISSION CONTROL
@@ -123,7 +127,7 @@ EXAMPLES:
   ${cmdPrefix} 20 review
   ${cmdPrefix} feat-mcp fix "fix the lint errors"
 
-${isLocalMode ? '📍 [LOCAL MODE]: Worktrees will be created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions will be offloaded to your Orbit Cloud Station.'}
+${isLocal ? '📍 [LOCAL MODE]: Worktrees will be created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions will be offloaded to your Orbit Cloud Station.'}
 
 Current Repo: ${repoName || 'Not Detected'}
     `);
@@ -184,7 +188,7 @@ Current Repo: ${repoName || 'Not Detected'}
     isEvaMode,
     '',
     {
-      remoteWorkDir: config.remoteWorkDir!,
+      remoteWorkDir: config.remoteWorkDir || getPrimaryRepoRoot(),
       worktreesDir: repoWorktreesDir,
       upstreamUrl,
       cpuLimit: config.cpuLimit,
@@ -204,9 +208,14 @@ Current Repo: ${repoName || 'Not Detected'}
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
     // Use the provider's abstraction instead of hardcoding docker
-    const authRes = await provider.exec(`echo ${q(dotEnvContent)} > .env`, {
-      wrapCapsule: containerName,
-    });
+    const internalEnvPath = isLocalWorktree
+      ? `${remoteWorktreeDir}/.env`
+      : `${remoteWorktreeDir}/.env`;
+
+    const authRes = await provider.exec(
+      `echo ${q(dotEnvContent)} > ${internalEnvPath}`,
+      { wrapCapsule: containerName },
+    );
     if (authRes !== 0) return authRes;
   }
 

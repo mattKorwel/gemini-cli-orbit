@@ -80,6 +80,23 @@ export function detectRepoName(): string {
 }
 
 /**
+ * Resolves a PR number or branch name to a clean branch identifier.
+ */
+export async function resolveBranch(id: string): Promise<string> {
+  if (/^\d+$/.test(id)) {
+    const res = spawnSync(
+      'gh',
+      ['pr', 'view', id, '--json', 'headRefName', '-q', '.headRefName'],
+      { stdio: 'pipe' },
+    );
+    if (res.status === 0) {
+      return res.stdout.toString().trim();
+    }
+  }
+  return id;
+}
+
+/**
  * Loads settings from a specific path.
  */
 export function loadJson(p: string): any {

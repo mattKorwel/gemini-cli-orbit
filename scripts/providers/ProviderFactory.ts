@@ -6,10 +6,8 @@
 
 import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
-import { LocalDockerProvider } from './LocalDockerProvider.js';
 import type { OrbitProvider } from './BaseProvider.js';
-
-const REPO_ROOT = process.cwd();
+import { getPrimaryRepoRoot } from '../Constants.js';
 
 export class ProviderFactory {
   static getProvider(config: {
@@ -28,7 +26,10 @@ export class ProviderFactory {
     machineType?: string | undefined;
     reaperIdleLimit?: number | undefined;
   }): OrbitProvider {
-    const isLocal = !config.projectId || config.projectId === 'local';
+    const isLocal =
+      !config.projectId ||
+      config.projectId === 'local' ||
+      config.providerType === 'local-worktree';
     const effectiveProvider =
       config.providerType || (isLocal ? 'local-worktree' : 'gce');
 
@@ -40,19 +41,12 @@ export class ProviderFactory {
       return new LocalWorktreeProvider(stationName, config.worktreesDir);
     }
 
-    if (
-      effectiveProvider === 'local-docker' ||
-      effectiveProvider === 'podman'
-    ) {
-      return new LocalDockerProvider(stationName);
-    }
-
     // Default to GCE
     return new GceCosProvider(
       config.projectId,
       config.zone,
       config.instanceName,
-      REPO_ROOT,
+      getPrimaryRepoRoot(),
       {
         dnsSuffix: config.dnsSuffix,
         userSuffix: config.userSuffix,
