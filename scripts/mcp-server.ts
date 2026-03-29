@@ -86,7 +86,7 @@ You are an expert in managing high-performance remote missions.
 
 ## Local Worktree Mode
 - Use 'local-worktree' provider for zero-overhead local development.
-- Worktrees are created as siblings in ~/dev/ (e.g., ~/dev/feat-branch).
+- Worktrees are created as siblings in ~/dev/<repo>/ (e.g., ~/dev/orbit/feat-branch).
 - Persistent sessions are managed via tmux: orbit-<branch>.
 - Automatically resolves PR numbers to branch names via GH CLI.
 - **Dependencies**: If 'tmux' or other local tools are missing, you are authorized to attempt installation (e.g., 'brew install tmux' on macOS) to ensure full functionality.
