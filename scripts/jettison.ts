@@ -3,19 +3,21 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import {
+  getRepoConfig,
+  detectRepoName,
+  sanitizeName,
+} from './ConfigManager.js';
 import { SATELLITE_WORKTREES_PATH, CONFIG_DIR } from './Constants.js';
 
-export async function runJettison(
-  args: string[],
-  _env: NodeJS.ProcessEnv = process.env,
-) {
+export async function runJettison(args: string[]) {
   const prNumber = args[0];
-  const actionArg = args[1] || 'open';
+  const actionArg = args[1] || 'mission';
 
   if (!prNumber) {
-    console.error('❌ Usage: jettison <PR_NUMBER> [action]');
+    console.error('❌ Usage: orbit jettison <PR_NUMBER> [action]');
     return 1;
   }
 
@@ -23,50 +25,55 @@ export async function runJettison(
   const config = getRepoConfig(repoName);
 
   if (!config) {
-    console.error(
-      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
-    );
+    console.error(`❌ Settings not found for repo: ${repoName}`);
     return 1;
   }
 
-  const { projectId, zone, dnsSuffix, userSuffix, backendType, instanceName } =
-    config;
+  const isLocal =
+    !config.projectId ||
+    config.projectId === 'local' ||
+    config.providerType === 'local-worktree' ||
+    config.providerType === 'local-docker';
+
+  const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({
-    projectId: projectId!,
-    zone: zone!,
-    instanceName: instanceName!,
-    repoName,
-    dnsSuffix,
-    userSuffix,
-    backendType,
+    ...config,
+    projectId: config.projectId || 'local',
+    zone: config.zone || 'local',
+    instanceName,
   });
 
-  const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
-  const worktreePath = `${repoWorktreesDir}/orbit-${prNumber}-${actionArg}`;
-  const containerName = `gcli-${prNumber}-${actionArg}`;
-
   console.log(
-    `🧹 Surgically jettisoning capsule and worktree for PR #${prNumber} in ${config.repoName}...`,
+    `🧹 Surgically jettisoning capsule and worktree for #${prNumber} in ${repoName}...`,
   );
 
-  // 1. Remove the specific container (capsule)
-  const res1 = await provider.removeCapsule(containerName);
-
-  // 2. Remove specific worktree directory on host station
-  const res2 = await provider.exec(`sudo rm -rf ${worktreePath}`);
-
-  // 3. Clear history files for this mission on host station
-  const res3 = await provider.exec(
-    `sudo rm -rf ${CONFIG_DIR}/history/orbit-${prNumber}-${actionArg}*`,
-  );
-
-  if (res1 !== 0 || res2 !== 0 || res3 !== 0) {
-    console.error('❌ Jettison failed.');
-    return 1;
+  if (isLocal) {
+    // For LocalWorktree, this removes the worktree and kills tmux session
+    const res = await provider.removeCapsule(prNumber);
+    if (res === 0) {
+      console.log(
+        `✅ Successfully jettisoned local workspace for ${prNumber}.`,
+      );
+    }
+    return res;
   }
 
-  console.log(
-    `✅ Jettison complete for PR #${prNumber} in ${config.repoName}.`,
+  // --- REMOTE ONLY LOGIC ---
+  const containerName = `gcli-${sanitizeName(prNumber)}-${actionArg}`;
+  const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
+  const worktreePath = `${repoWorktreesDir}/orbit-${sanitizeName(prNumber)}-${actionArg}`;
+
+  // 1. Remove the specific container (capsule)
+  await provider.removeCapsule(containerName);
+
+  // 2. Remove specific worktree directory on host station
+  await provider.exec(`sudo rm -rf ${worktreePath}`);
+
+  // 3. Clear history files for this mission on host station
+  await provider.exec(
+    `sudo rm -rf ${CONFIG_DIR}/history/orbit-${sanitizeName(prNumber)}-${actionArg}*`,
   );
+
+  console.log(`✅ Mission resources for #${prNumber} have been jettisoned.`);
   return 0;
 }

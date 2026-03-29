@@ -189,7 +189,12 @@ server.registerTool(
     }).shape,
   },
   async ({ threshold, force }) => {
-    const output = await runWithCapture(() => runReap({ threshold, force }));
+    const output = await runWithCapture(() =>
+      runReap({
+        ...(threshold !== undefined ? { threshold } : {}),
+        ...(force !== undefined ? { force } : {}),
+      }),
+    );
     return {
       content: [{ type: 'text', text: output }],
     };

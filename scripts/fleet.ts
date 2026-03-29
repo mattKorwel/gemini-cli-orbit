@@ -3,129 +3,79 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import path from 'node:path';
-import fs from 'node:fs';
 
+import os from 'node:os';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-const REPO_ROOT = process.cwd();
-
-const USER = process.env.USER || 'gcli-user';
-const DEFAULT_ZONE = 'us-west1-a';
-
-export async function listStations(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  const projectId = config?.projectId || process.env.GOOGLE_CLOUD_PROJECT || '';
-
-  if (!projectId) {
-    console.error('❌ Project ID not found. Run "orbit liftoff" first.');
-    return 1;
-  }
-
-  const instancePrefix = `gcli-station-${USER}`;
-  console.log(`🔍 Listing Orbit Stations for ${USER} in ${projectId}...`);
-
-  // We use a dummy provider just to trigger the listStations method which is static-ish in implementation
-  const provider = ProviderFactory.getProvider({
-    projectId: projectId!,
-    zone: config?.zone || DEFAULT_ZONE,
-    instanceName: instancePrefix,
-    repoName,
-  });
-
-  return await provider.listStations();
-}
-
-export async function launchStation(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-
-  if (!config) {
-    console.error(
-      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
-    );
-    return 1;
-  }
-
-  const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    repoName: config.repoName,
-    instanceName: config.instanceName!,
-  });
-
-  const status = await provider.getStatus();
-  if (status.status !== 'UNKNOWN' && status.status !== 'ERROR') {
-    console.log(
-      `✅ Station ${config.instanceName} already exists and is ${status.status}.`,
-    );
-    return 0;
-  }
-
-  return await provider.provision();
-}
-
-export async function stopStation(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  if (!config) return 1;
-
-  const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    repoName: config.repoName,
-    instanceName: config.instanceName!,
-  });
-
-  console.log(`🛑 Stopping orbit station: ${config.instanceName}...`);
-  return await provider.stop();
-}
-
-export async function destroyStation(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  if (!config) return 1;
-
-  const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    repoName: config.repoName,
-    instanceName: config.instanceName!,
-  });
-
-  const knownHostsPath = path.join(REPO_ROOT, '.gemini/orbit/known_hosts');
-  if (fs.existsSync(knownHostsPath)) {
-    console.log(`   - Clearing isolated known_hosts...`);
-    fs.unlinkSync(knownHostsPath);
-  }
-
-  return await provider.destroy();
-}
-
-export async function rebuildStation(): Promise<number> {
-  const res1 = await destroyStation();
-  const res2 = await launchStation();
-  return res1 === 0 && res2 === 0 ? 0 : 1;
-}
-
-export async function runFleet(args: string[]): Promise<number> {
+/**
+ * Fleet Manager: Unified interface for managing remote GCE stations
+ * and local workspace environments.
+ */
+export async function runFleet(args: string[]) {
   const action = args[0] || 'list';
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
 
-  switch (action) {
-    case 'list':
-      return await listStations();
-    case 'provision':
-      return await launchStation();
-    case 'rebuild':
-      return await rebuildStation();
-    case 'destroy':
-      return await destroyStation();
-    case 'stop':
-      return await stopStation();
-    default:
-      console.error(`❌ Unknown constellation action: ${action}`);
-      return 1;
+  const isLocal =
+    !config.projectId ||
+    config.projectId === 'local' ||
+    config.providerType === 'local-worktree' ||
+    config.providerType === 'local-docker';
+
+  const instanceName = config.instanceName || 'local';
+  const provider = ProviderFactory.getProvider({
+    ...config,
+    projectId: config.projectId || 'local',
+    zone: config.zone || 'local',
+    instanceName,
+  });
+
+  if (action === 'list') {
+    if (isLocal) {
+      console.log(`🏠 Orbit Local Workspace (${repoName})`);
+      console.log(`--------------------------------------------------`);
+      const capsules = await provider.listCapsules();
+      console.log(
+        `📍 Path: ${config.worktreesDir || 'Standard sibling folder'}`,
+      );
+      console.log(
+        `📦 Active worktrees: ${capsules.length ? capsules.join(', ') : 'None'}`,
+      );
+      console.log(`--------------------------------------------------`);
+      return 0;
+    }
+    console.log(
+      `🔍 Listing Orbit Stations for ${os.userInfo().username} in ${config.projectId}...`,
+    );
+    return provider.listStations();
   }
+
+  if (
+    action === 'provision' ||
+    action === 'stop' ||
+    action === 'destroy' ||
+    action === 'rebuild'
+  ) {
+    if (isLocal) {
+      console.log(`ℹ️ Action '${action}' is a no-op in local mode.`);
+      return 0;
+    }
+
+    if (action === 'stop') {
+      console.log(`🛑 Stopping Orbit Station: ${instanceName}...`);
+      return provider.stop();
+    }
+    if (action === 'destroy') {
+      console.log(`🔥 Destroying Orbit Station: ${instanceName}...`);
+      return provider.destroy();
+    }
+    if (action === 'provision') {
+      console.log(`🚀 Provisioning Orbit Station: ${instanceName}...`);
+      return provider.provision({ setupNetwork: true });
+    }
+  }
+
+  console.error(`❌ Unknown fleet action: ${action}`);
+  return 1;
 }

@@ -48,6 +48,10 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'blackbox.ts',
     description: 'Retrieve detailed mission telemetry and history logs.',
   },
+  reap: {
+    script: 'reap.ts',
+    description: 'Cleanup idle mission capsules based on inactivity.',
+  },
 };
 
 function showHelp() {

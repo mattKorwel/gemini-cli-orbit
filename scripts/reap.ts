@@ -3,52 +3,38 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import readline from 'node:readline';
+
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { detectRepoName, getRepoConfig } from './ConfigManager.js';
-import { runSplashdown } from './splashdown.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-async function confirm(question: string): Promise<boolean> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  return new Promise((resolve) => {
-    rl.question(`❓ ${question} (y/N): `, (answer) => {
-      rl.close();
-      resolve(answer.trim().toLowerCase() === 'y');
-    });
-  });
-}
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
+/**
+ * Reap Manager: Identifies and removes idle mission capsules.
+ */
 export async function runReap(
-  options: { threshold?: number | undefined; force?: boolean | undefined } = {},
+  options: { threshold?: number; force?: boolean } = {},
   env: NodeJS.ProcessEnv = process.env,
 ) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
+  const threshold = options.threshold ?? 4; // Default 4 hours
 
-  if (!config) {
-    console.error(`❌ Settings not found for repo: ${repoName}.`);
-    return 1;
-  }
+  const isLocal =
+    !config.projectId ||
+    config.projectId === 'local' ||
+    config.providerType === 'local-worktree' ||
+    config.providerType === 'local-docker';
 
-  const provider = ProviderFactory.getProvider(config as any);
-  const statusRes = await provider.getStatus();
+  const instanceName = config.instanceName || 'local';
+  const provider = ProviderFactory.getProvider({
+    ...config,
+    projectId: config.projectId || 'local',
+    zone: config.zone || 'local',
+    instanceName,
+  });
 
-  if (statusRes.status !== 'RUNNING') {
-    console.log(
-      `📡 Station ${provider.stationName} is not running. Nothing to reap.`,
-    );
-    return 0;
-  }
+  console.log(
+    `🧹 Orbit Reaper: Scanning for idle missions (threshold: ${threshold}h)...`,
+  );
 
   const capsules = await provider.listCapsules();
   if (capsules.length === 0) {
@@ -56,81 +42,26 @@ export async function runReap(
     return 0;
   }
 
-  const thresholdHours = options.threshold ?? 4;
-  const thresholdSeconds = thresholdHours * 3600;
-  const force = options.force ?? false;
+  let reapedCount = 0;
 
-  console.log(`\n🧹 ORBIT AUTO-REAPER (Threshold: ${thresholdHours}h)`);
-  console.log(
-    `--------------------------------------------------------------------------------`,
-  );
+  for (const capsule of capsules) {
+    // Avoid reaping the 'main' worktree if it exists
+    if (capsule === 'main' || capsule === 'primary') continue;
 
-  const toReap: string[] = [];
-  for (const name of capsules) {
-    const idleTime = await provider.getCapsuleIdleTime(name);
-    const isIdle = idleTime > thresholdSeconds;
+    const idleTime = await provider.getCapsuleIdleTime(capsule);
+    const shouldReap = options.force || idleTime >= threshold;
 
-    const statusStr = isIdle ? '⚠️  IDLE' : '✅ ACTIVE';
-    console.log(
-      `   ${statusStr.padEnd(10)} ${name.padEnd(25)} | Idle: ${formatDuration(idleTime)}`,
-    );
-
-    if (isIdle) {
-      toReap.push(name);
-    }
-  }
-
-  if (toReap.length === 0) {
-    console.log(
-      `\n✨ All capsules are within activity threshold. No reaping needed.`,
-    );
-    console.log(
-      `--------------------------------------------------------------------------------\n`,
-    );
-    return 0;
-  }
-
-  console.log(
-    `--------------------------------------------------------------------------------`,
-  );
-  console.log(`\nFound ${toReap.length} idle capsule(s).`);
-
-  if (force || (await confirm(`Jettison all idle capsules?`))) {
-    for (const name of toReap) {
-      console.log(`   - Jettisoning ${name}...`);
-      // Extract PR number from name (gcli-<pr>-<action>)
-      const parts = name.split('-');
-      const prNumber = parts[1];
-
-      if (prNumber) {
-        // We can't easily call jettison.ts directly as a function if it's not exported
-        // but we can use the provider directly.
-        await provider.removeCapsule(name);
-        // Worktree cleanup would require knowing the exact path,
-        // but removing the capsule is the primary resource reclaim.
-        console.log(`     ✅ Capsule removed.`);
-      }
-    }
-
-    // Post-reap station check
-    const remaining = await provider.listCapsules();
-    if (remaining.length === 0) {
+    if (shouldReap) {
+      console.log(`🔥 Reaping idle capsule: ${capsule} (Idle: ${idleTime}h)`);
+      const res = await provider.removeCapsule(capsule);
+      if (res === 0) reapedCount++;
+    } else {
       console.log(
-        `\n📊 All capsules have been removed. The station is now empty.`,
+        `💤 Skipping active capsule: ${capsule} (Idle: ${idleTime}h)`,
       );
-      if (
-        force ||
-        (await confirm(
-          `Would you like to splashdown the host station to save costs?`,
-        ))
-      ) {
-        await runSplashdown([], env);
-      }
     }
   }
 
-  console.log(
-    `\n--------------------------------------------------------------------------------\n`,
-  );
+  console.log(`✅ Reaper complete. ${reapedCount} missions decommissioned.`);
   return 0;
 }
