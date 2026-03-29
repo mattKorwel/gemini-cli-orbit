@@ -62,11 +62,16 @@ export function detectRepoName(): string {
   }
 
   const basename = path.basename(REPO_ROOT);
-  if (basename && basename !== 'mattkorwel' && basename !== 'dev') {
+  if (
+    basename &&
+    basename !== 'mattkorwel' &&
+    basename !== 'dev' &&
+    basename !== 'Users'
+  ) {
     return basename;
   }
 
-  return DEFAULT_REPO_NAME || 'gemini-cli';
+  return 'unknown-repo';
 }
 
 /**
