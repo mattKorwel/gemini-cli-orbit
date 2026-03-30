@@ -21,11 +21,15 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'mission.ts',
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
+  schematic: {
+    script: 'fleet.ts',
+    description: 'Manage infrastructure blueprints: <list|create|edit|import>',
+  },
   station: {
     script: 'fleet.ts',
-    description:
-      'Hardware & Blueprint control: <schematic|activate|list|liftoff|delete>',
+    description: 'Hardware control: <activate|list|liftoff|delete>',
   },
+
   liftoff: {
     script: 'setup.ts',
     description: 'Build or wake infrastructure (use --with-station).',
@@ -67,12 +71,8 @@ function showHelp() {
   console.log(
     '  mission   - Start, resume, or perform maneuvers on a PR mission.',
   );
-  console.log('  station   - Manage hardware and blueprints:');
-  console.log('              • schematic : Manage infrastructure blueprints');
-  console.log('              • activate  : Set the global active station');
-  console.log('              • list      : Show all provisioned stations');
-  console.log('              • liftoff   : Build or wake infrastructure');
-  console.log('              • delete    : Decommission and remove station');
+  console.log('  schematic - Manage blueprints: <list|create|edit|import>');
+  console.log('  station   - Manage hardware: <activate|list|liftoff|delete>');
   console.log('  pulse     - Check station health and active mission status.');
   console.log('  ci        - Monitor CI status for a branch.');
   console.log('  uplink    - Quickly connect to an existing mission session.');
