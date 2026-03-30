@@ -222,7 +222,7 @@ Current Repo: ${repoName || 'Not Detected'}
     console.log('   - Injecting mission authentication context...');
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
-    // Use the provider's abstraction instead of hardcoding docker
+    // Use relative path and trust provider.exec to handle the CWD (via wrapCapsule/containerName)
     const authRes = await provider.exec(`echo ${q(dotEnvContent)} > .env`, {
       wrapCapsule: containerName,
     });
@@ -255,9 +255,10 @@ Current Repo: ${repoName || 'Not Detected'}
   // Helper: Check if tmux is installed
   const hasTmux = spawnSync('which', ['tmux'], { stdio: 'pipe' }).status === 0;
 
-  // We wrap in tmux for persistence
+  // We wrap in tmux for persistence ONLY for remote.
+  // LocalWorktreeProvider handles its own tmux wrapping in getRunCommand.
   const missionCmd =
-    config.useTmux !== false && hasTmux
+    !isLocalWorktree && config.useTmux !== false && hasTmux
       ? `tmux new-session -A -s ${q(`orbit-${branch}`)} ${q(remoteWorker)}`
       : remoteWorker;
 
@@ -295,6 +296,7 @@ Current Repo: ${repoName || 'Not Detected'}
       `#!/bin/bash
 echo -e "\\033]50;SetProfile=Orbit\\a"
 clear
+echo "🚀 Station: ${config.instanceName}"
 echo "🚀 Orbit Mission: ${identifier} (${action})"
 echo "--------------------------------------------------"
 ${finalSSH}

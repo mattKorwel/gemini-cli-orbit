@@ -7,16 +7,21 @@
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// This is the root of the Gemini Orbit extension code (dist or src)
+const EXTENSION_ROOT = path.resolve(__dirname, '..');
 
 const REPO_ROOT = process.cwd();
 
 /**
  * Resolves the primary repository root (the 'main' clone) even if currently in a worktree.
- * This is now an exported function to avoid module-load time hangs.
  */
 export function getPrimaryRepoRoot(): string {
-  // If we are explicitly told which repo to use, try to find its main folder
   if (process.env.GCLI_ORBIT_REPO_NAME) {
     const devDir = path.join(os.homedir(), 'dev');
     const possiblePaths = [
@@ -34,19 +39,15 @@ export function getPrimaryRepoRoot(): string {
     });
     if (res.status === 0) {
       const commonDir = res.stdout.toString().trim();
-      // If commonDir is just ".git", we are in the main repo already
       if (commonDir === '.git') return REPO_ROOT;
-      // Otherwise, commonDir is an absolute path to the main .git folder
       return path.dirname(commonDir);
     }
-  } catch (e) {
-    // Fallback to CWD if git fails
-  }
+  } catch (e) {}
   return REPO_ROOT;
 }
 
 /**
- * Standardized paths
+ * Standardized paths on the REMOTE station
  */
 export const ORBIT_ROOT = '/mnt/disks/data';
 export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
@@ -55,12 +56,17 @@ export const POLICIES_PATH = `${ORBIT_ROOT}/policies`;
 export const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
 export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
-
-export const LOCAL_SCRIPTS_PATH = path.join(REPO_ROOT, 'scripts');
-export const LOCAL_POLICIES_PATH = path.join(REPO_ROOT, '.gemini/policies');
-export const LOCAL_BUNDLE_PATH = path.join(REPO_ROOT, 'bundle');
-
 export const BUNDLE_PATH = `${ORBIT_ROOT}/bundle`;
+
+/**
+ * Standardized paths on the LOCAL machine (The Extension itself)
+ */
+export const LOCAL_SCRIPTS_PATH = path.join(EXTENSION_ROOT, 'scripts');
+export const LOCAL_POLICIES_PATH = path.join(
+  EXTENSION_ROOT,
+  '.gemini/policies',
+);
+export const LOCAL_BUNDLE_PATH = path.join(EXTENSION_ROOT, 'bundle');
 
 /**
  * Configuration Paths
@@ -92,7 +98,7 @@ export const DEFAULT_REPO_NAME = 'gemini-cli';
 export const UPSTREAM_ORG = 'google-gemini';
 
 /**
- * Networking Defaults (General GCP standard)
+ * Networking Defaults
  */
 export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
@@ -120,7 +126,7 @@ export interface OrbitConfig {
   imageUri?: string | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;
-  profile?: string | undefined; // Legacy
+  profile?: string | undefined;
   schematic?: string | undefined;
   forStation?: string | undefined;
   worktreesDir?: string | undefined;
