@@ -30,6 +30,10 @@ export async function runFleet(args: string[]) {
   const subCommand = args[0]; // e.g., 'design', 'list', 'liftoff', 'delete'
   const action = args[1]; // Action within subcommand
 
+  // Flags
+  const showMissions = args.includes('--missions') || args.includes('-m');
+  const forceSync = args.includes('--sync') || args.includes('-s');
+
   // --- 📐 STATION DESIGN ---
   if (subCommand === 'design') {
     const designAction = action || 'list';
@@ -79,8 +83,10 @@ export async function runFleet(args: string[]) {
     subCommand === 'fleet'
   ) {
     logger.divider('ORBIT CONSTELLATION');
+
+    // Reality Sync is only performed if forced or for local stations (which is fast)
     const stations = await stationManager.listStations({
-      syncWithReality: true,
+      syncWithReality: forceSync,
     });
 
     if (stations.length === 0) {
@@ -88,17 +94,32 @@ export async function runFleet(args: string[]) {
       return 0;
     }
 
-    for (const s of stations) {
+    // Process missions in parallel for speed if requested
+    const stationData = await Promise.all(
+      stations.map(async (s) => {
+        let missions: string[] = [];
+        if (showMissions) {
+          try {
+            missions = await stationManager.getMissions(s);
+          } catch (e) {
+            // Ignore mission fetch errors for individual stations
+          }
+        }
+        return { ...s, missions };
+      }),
+    );
+
+    stationData.forEach((s) => {
       const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
       console.log(`${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`);
 
-      // Discover Missions in Real-time
-      const missions = await stationManager.getMissions(s);
-      if (missions.length > 0) {
-        console.log('   📦 Active Missions:');
-        missions.forEach((m) => console.log(`      • ${m}`));
-      } else {
-        console.log('   📦 Active Missions: None');
+      if (showMissions) {
+        if (s.missions.length > 0) {
+          console.log('   📦 Active Missions:');
+          s.missions.forEach((m) => console.log(`      • ${m}`));
+        } else {
+          console.log('   📦 Active Missions: None');
+        }
       }
 
       if (s.type === 'gce') {
@@ -108,6 +129,12 @@ export async function runFleet(args: string[]) {
       }
       console.log(`   - Last Seen: ${s.lastSeen}`);
       console.log('');
+    });
+
+    if (!showMissions) {
+      console.log(
+        '💡 Tip: Use "orbit station list --missions" to see active capsules.\n',
+      );
     }
     return 0;
   }
@@ -134,7 +161,7 @@ export async function runFleet(args: string[]) {
       logger.info('CONFIG', `✅ Imported design "${name}" successfully.`);
       return 0;
     } catch (e: any) {
-      console.error(`❌ Import failed: ${e.message}`);
+      console.error(`❌ Import failed: ${e.message}`, { cause: e });
       return 1;
     }
   }
@@ -148,7 +175,7 @@ Usage: orbit station <command> [args]
 COMMANDS:
   design  <list|create|edit|switch>  Manage infrastructure blueprints.
   import  <path|url>                 Import a design from local file or URL.
-  list                               Show all provisioned stations (Synced).
+  list    [--missions] [--sync]      Show provisioned stations (Synced).
   liftoff [--setup-net]              Build or wake the station for this repo.
   delete                             Decommission and remove the station.
   `);
