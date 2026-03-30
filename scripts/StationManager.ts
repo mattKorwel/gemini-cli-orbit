@@ -67,6 +67,20 @@ export class StationManager {
     return receipts;
   }
 
+  async getMissions(receipt: StationReceipt): Promise<string[]> {
+    const provider = ProviderFactory.getProvider({
+      projectId: receipt.projectId,
+      zone: receipt.zone,
+      instanceName: receipt.name,
+      providerType: receipt.type,
+      worktreesDir:
+        receipt.type === 'local-worktree'
+          ? path.dirname(receipt.rootPath || '')
+          : undefined,
+    });
+    return provider.listCapsules();
+  }
+
   private async verifyAlive(receipt: StationReceipt): Promise<boolean> {
     if (receipt.type === 'local-worktree') {
       // For local worktrees, as long as the directory exists and is a git dir, it's alive

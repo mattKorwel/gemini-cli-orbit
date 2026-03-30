@@ -73,7 +73,11 @@ export async function runFleet(args: string[]) {
   }
 
   // --- 📦 STATION LIST (FLEET) ---
-  if (subCommand === 'list' || subCommand === 'constellation') {
+  if (
+    subCommand === 'list' ||
+    subCommand === 'constellation' ||
+    subCommand === 'fleet'
+  ) {
     logger.divider('ORBIT CONSTELLATION');
     const stations = await stationManager.listStations({
       syncWithReality: true,
@@ -84,9 +88,19 @@ export async function runFleet(args: string[]) {
       return 0;
     }
 
-    stations.forEach((s) => {
+    for (const s of stations) {
       const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
       console.log(`${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`);
+
+      // Discover Missions in Real-time
+      const missions = await stationManager.getMissions(s);
+      if (missions.length > 0) {
+        console.log('   📦 Active Missions:');
+        missions.forEach((m) => console.log(`      • ${m}`));
+      } else {
+        console.log('   📦 Active Missions: None');
+      }
+
       if (s.type === 'gce') {
         console.log(`   - Project: ${s.projectId} | Zone: ${s.zone}`);
       } else {
@@ -94,7 +108,7 @@ export async function runFleet(args: string[]) {
       }
       console.log(`   - Last Seen: ${s.lastSeen}`);
       console.log('');
-    });
+    }
     return 0;
   }
 
