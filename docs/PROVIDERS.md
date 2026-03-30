@@ -1,7 +1,7 @@
 # Orbit Mission Providers
 
 Orbit is designed to be environment-agnostic. You can switch between local and
-remote providers by simply changing the `providerType` in your profile.
+remote providers by simply changing the `providerType` in your schematic.
 
 ---
 
@@ -16,7 +16,7 @@ Cloud to act as your high-performance orbital hub.
 - **Scale**: Offload heavy builds and tests to server-grade CPUs.
 - **Isolation**: Every PR mission runs in a dedicated Docker capsule.
 
-### Configuration (`~/.gemini/orbit/profiles/remote.json`):
+### Configuration (`~/.gemini/orbit/schematics/remote.json`):
 
 ```json
 {
@@ -42,7 +42,7 @@ missions on your local filesystem without the overhead of containers.
 - **Persistence**: Uses `tmux` to allow you to close your terminal without
   losing agent state.
 
-### Configuration (`~/.gemini/orbit/profiles/local.json`):
+### Configuration (`~/.gemini/orbit/schematics/local.json`):
 
 ```json
 {
@@ -64,7 +64,7 @@ in a `tmux` session.
 - **Fallback**: If `tmux` is not detected in the environment, Orbit
   automatically falls back to **Raw Execution** (foreground).
 
-To explicitly disable `tmux` for a profile, set:
+To explicitly disable `tmux` for a schematic, set:
 
 ```json
 {

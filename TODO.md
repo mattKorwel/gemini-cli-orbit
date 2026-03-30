@@ -16,13 +16,8 @@
       (~/.gemini/orbit/tokens/) to prevent accidental commits.
 - [x] Resolve disk size warnings on VM creation (boot disk 200GB vs 10GB image
       noise)
-- [x] Orbit: Implement Consolidated "Implement Mission" (ADR 11)
-  - [x] Draft ADR 11
-  - [x] Create implementation plan
-  - [x] Create `fetch-implement-context.ts` for deep hierarchy research
-  - [x] Refactor `implement.ts` playbook to use `TaskRunner` and phased
-        execution
-  - [x] Update `station.ts` to ensure full integration
-  - [x] Update `docs/MISSION_PLANS.md` with new maneuver details
-  - [x] Verify implementation with manual test
-- [ ] CI needs to print info aout where its runnign and waht's it doing
+- [x] Orbit: Implement Consolidated missions (ADR 10, 11)
+  - [x] Implement high-fidelity "Implement" mission.
+  - [x] Implement high-fidelity "Fix" mission.
+  - [x] Consolidate maneuver documentation into `MANEUVERS.md`.
+- [x] CI: Enhanced logging to print branch, repo, and run information.

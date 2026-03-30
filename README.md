@@ -62,34 +62,25 @@ gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
   telemetry.
 - **[Auto-Reaper](scripts/reap.ts)**: Reclaim resources from idle missions
   (`orbit reap`).
-- **[Configuration](docs/CONFIGURATION.md)**: Setting up GCE profiles,
+- **[Configuration](docs/CONFIGURATION.md)**: Setting up GCE schematics,
   networking, and custom images.
 
 ---
 
-## 🚀 Quick Start: Choose Your Mission Profile
+## 🚀 Quick Start: Choose Your Mission Blueprint
 
 Orbit supports two primary mission modes: **Local** (for maximum speed and low
-latency) and **Remote** (for massive scale and persistent persistence).
+latency) and **Remote** (for massive scale and persistent sessions).
 
-### 🏠 The Local Path (Multithreaded Development)
+### 🏠 The Local Path (Isolated Worktrees)
 
 Launch isolated worktrees on your own machine. Perfect for juggling multiple PRs
-without the overhead of the cloud.
+without cloud overhead. Orbit manages these as siblings to your main repository
+and uses `tmux` for session persistence.
 
-_note_: Works best with Tmux installed, but not required.
-
-1.  **Configure Local Profile**:
-
+1.  **Launch Local Mission**:
     ```bash
-    # Create a local profile using worktrees
-    mkdir -p ~/.gemini/orbit/profiles
-    echo '{"providerType": "local-worktree", "worktreesDir": "~/dev/orbit-worktrees"}' > ~/.gemini/orbit/profiles/local.json
-    ```
-
-2.  **Launch Local Mission**:
-    ```bash
-    /orbit:mission <pr-number> --profile=local
+    orbit mission <pr-number> --local
     ```
 
 ### 🛰️ The Remote Path (High-Performance Persistence)
@@ -105,7 +96,7 @@ continues even if you close your laptop.
 
 2.  **Launch Remote Mission**:
     ```bash
-    /orbit:mission <pr-number>
+    orbit mission <pr-number>
     ```
 
 ---
@@ -140,8 +131,8 @@ Orbit doesn't just provide infrastructure; it executes high-fidelity autonomous
 tasks.
 
 - **Review**: Launch a deep, parallelized PR review. Orbit fetches context,
-  detects conflicts, and performs a mandatory "Mustard Test" (behavioral proof)
-  to ensure code actually works before you even look at it.
+  detects conflicts, and performs a mandatory **Behavioral Proof** (empirical
+  verification) to ensure code actually works before you even look at it.
   ```bash
   /orbit:mission <pr-number> review
   ```
@@ -180,7 +171,7 @@ can jump directly into the active processing terminal:
   ```
 
 For details on how these maneuvers are orchestrated, see the
-**[Maneuver Documentation](docs/REVIEW.md)**.
+**[Maneuver Documentation](docs/MANEUVERS.md)**.
 
 ---
 

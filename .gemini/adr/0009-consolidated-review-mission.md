@@ -9,7 +9,7 @@ Proposed
 The current PR review process is fragmented across multiple repositories
 (`gemini-cli` and `orbit`), skills (`code-reviewer`, `review-pr`,
 `async-pr-review`), and slash commands (`/review-frontend`). This leads to
-inconsistent quality, manual overhead, and "The Mustard Gap" (failure to
+inconsistent quality, manual overhead, and "The Verification Gap" (failure to
 physically prove changes work). Furthermore, existing scripts in `main` are
 often repo-specific and not available in the npm package.
 

@@ -1,8 +1,8 @@
 # Plan: PR Review Consolidation
 
 Consolidate fragmented PR review skills and commands into a single,
-high-fidelity, environment-aware `review` skill that meets the "Mustard Test"
-(Behavioral Proof + Strict Rules).
+high-fidelity, environment-aware `review` skill that meets the "Behavioral
+Proof" (Behavioral Proof + Strict Rules).
 
 ## Objective
 

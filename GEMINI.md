@@ -33,12 +33,12 @@ utilize a **Shared Configuration** model:
 - **Concurrency**: Gemini CLI handles concurrent access to this folder via
   atomic writes and file locking.
 
-## ⚙️ Configuration: Profile System
+## ⚙️ Configuration: Schematic System
 
 We support multiple Cloud projects and networking environments (Corporate vs.
-Public) via a **Named Profile** system:
+Public) via a **Named Schematic** system:
 
-- **Profiles**: Stored in `.gemini/orbit/profiles/*.json`.
+- **Schematics**: Stored in `.gemini/orbit/schematics/*.json`.
 - **Backend Types**:
   - `direct-internal`: VPC-internal magic hostname routing (Fastest).
   - `external`: Public IP routing.
@@ -96,7 +96,7 @@ from:
 2. `.gemini/review-rules.md`
 3. `CONTRIBUTING.md`
 
-### 3. "Mustard Test" (Behavioral Proof)
+### 3. Behavioral Proof
 
 Empirical verification is **mandatory**. Every review mission must attempt to
 physically exercise the new code in the terminal and provide logs in the
@@ -108,7 +108,7 @@ fails.
 Use the repo-agnostic utility to monitor branch status locally:
 
 ```bash
-node bundle/ci.js <BRANCH_NAME>
+node bundle/utils/ci.js <BRANCH_NAME>
 ```
 
 ## 🛡️ Security Mandates
@@ -122,5 +122,5 @@ node bundle/ci.js <BRANCH_NAME>
     (`/mnt/disks/data`) to prevent Git metadata corruption.
 4.  **Least Privilege**: Always use granular IAM scopes for GCE instances. Avoid
     `cloud-platform` scope.
-5.  **Input Sanitization**: Always sanitize user-provided names for profiles,
+5.  **Input Sanitization**: Always sanitize user-provided names for schematics,
     stations, and repositories using the `sanitizeName` helper.

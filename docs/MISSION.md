@@ -26,10 +26,12 @@ Execute specialized autonomous tasks on your mission:
 
 - `/orbit:mission 123 fix`: Execute an automated fix playbook. The agent will
   attempt to identify and correct issues within the PR.
+  [Learn more](./MANEUVERS.md#maneuver-fix).
 - `/orbit:mission 123 review`: Launch a deep PR review.
-  [Learn more about the Review maneuver](./REVIEW.md).
+  [Learn more](./MANEUVERS.md#maneuver-review).
 - `/orbit:mission 123 implement`: Direct the agent to implement a specific
   feature or change request based on PR descriptions.
+  [Learn more](./MANEUVERS.md#maneuver-implement).
 
 > [!NOTE] **Compatibility**: While Orbit infrastructure is language-agnostic,
 > high-fidelity maneuvers (`review`, `fix`, `implement`) are currently

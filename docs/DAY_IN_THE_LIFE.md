@@ -68,8 +68,8 @@ Before you merge, you want a high-fidelity review.
 orbit mission review <pr-number>
 ```
 
-- **The Mustard Test**: Orbit won't just look at the code; it will physically
-  execute it in the capsule and provide logs.
+- **The Behavioral Proof**: Orbit won't just look at the code; it will
+  physically execute it in the capsule and provide logs.
 - **CI Monitoring**: It watches the actual GitHub Actions status in parallel.
 - **Synthesis**: You get a `final-assessment.md` with everything you need to
   know.

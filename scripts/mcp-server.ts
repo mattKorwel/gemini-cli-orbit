@@ -75,7 +75,7 @@ You are an expert in managing high-performance remote missions.
 ## Core Mandates
 1. **Host-Capsule Separation**: Always maintain the distinction between the persistent Host Station and ephemeral Job Capsules.
 2. **Read-Only Source**: Never mount the main host mirror as Read-Write into capsules.
-3. **Behavioral Proof (Mustard Test)**: Every implementation or review MUST attempt a physical verification in the remote terminal.
+3. **Behavioral Proof (Behavioral Proof)**: Every implementation or review MUST attempt a physical verification in the remote terminal.
 4. **Path Parity**: Use absolute paths (/mnt/disks/data/...) to ensure consistency across environments.
 
 ## Available Mission Types

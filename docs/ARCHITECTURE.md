@@ -94,8 +94,8 @@ and you own the data.
 
 ### Defensive Execution
 
-- **Input Sanitization**: All user-provided names for profiles and stations are
-  sanitized to prevent path traversal and shell injection.
+- **Input Sanitization**: All user-provided names for schematics and stations
+  are sanitized to prevent path traversal and shell injection.
 - **Safe Command Execution**: Remote commands are executed using argument arrays
   rather than raw shell strings, eliminating entire classes of shell injection
   vulnerabilities.

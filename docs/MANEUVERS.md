@@ -1,12 +1,17 @@
-# Orbit Mission Plans: Consolidated Maneuvers
+# Orbit Mission Maneuvers: Consolidated Autonomous Missions
 
 This document details the high-performance, phased missions implemented in
-Gemini Orbit. These maneuvers are designed to bridge "The Mustard Gap" by
+Gemini Orbit. These maneuvers are designed to bridge "The Verification Gap" by
 enforcing mandatory behavioral proof and deep context alignment.
+
+> [!NOTE] Currently **optimized for NPM/Node.js**. Automated build, test, and
+> behavioral proof phases currently rely on standard Node.js project patterns
+> (`package.json`, `npm` scripts). These steps will be automatically skipped or
+> downgraded on non-Node repositories.
 
 ---
 
-## 🏗️ Maneuver: Consolidated Review
+## Maneuver: Review
 
 The **Review Mission** provides a high-fidelity, parallelized PR review that
 ensures consistent quality and reduces manual overhead.
@@ -40,16 +45,22 @@ Once Phase 0 context is ready, N parallel tasks are launched:
   Guidelines and the synthesized Mission Context.
 - **Task Feedback (Comments)**: Analyzes all unresolved PR comment threads via
   GraphQL.
-- **Task Proof (Mustard)**: **Mandatory**. Physically exercises the code in the
+- **Behavioral Proof**: **Mandatory**. Physically exercises the code in the
   terminal using the build logs and diff.
 
 #### Phase 2: Final Synthesis (Sequential)
 
 A supervisor merges all findings into a high-fidelity `final-assessment.md`.
 
+### 🚀 Usage
+
+```bash
+orbit mission <PR_NUMBER> review
+```
+
 ---
 
-## 🛠️ Maneuver: Consolidated Fix
+## Maneuver: Fix
 
 The **Fix Mission** provides an automated, iterative remediation loop that moves
 a Pull Request to a "Ready to Merge" state.
@@ -83,14 +94,20 @@ conditions:
 
 - **Final Verification Build**: Ensures the repository remains in a buildable
   state.
-- **Mustard Test (Proof)**: Physically verifies the fixes in the terminal and
-  provide logs.
+- **Behavioral Proof (Proof)**: Physically verifies the fixes in the terminal
+  and provide logs.
 - **Synthesis**: Merges all remediation logs and proof into a standardized
   `final-fix-assessment.md`.
 
+### 🚀 Usage
+
+```bash
+orbit mission <PR_NUMBER> fix
+```
+
 ---
 
-## 🏗️ Maneuver: Consolidated Implement
+## Maneuver: Implement
 
 The **Implement Mission** provides a high-fidelity, phased approach to feature
 development and bug fixing based on GitHub issues. It enforces a "Think Before
@@ -133,30 +150,26 @@ The agent implements the plan in small chunks (~10-15 minutes).
 - **Final Build & Test**: Runs the full project test suite.
 - **Local Review**: An automated review of the changes against the mission
   context.
-- **Mustard Test (Proof)**: Physically verifies the implementation in the
+- **Behavioral Proof (Proof)**: Physically verifies the implementation in the
   terminal with logs.
 - **Final Assessment**: Merges all logs and proof into a
   `final-implementation-assessment.md`.
 
----
-
-## 🚀 Triggering Maneuvers
-
-Missions can be triggered from within an Orbit station or locally:
+### 🚀 Usage
 
 ```bash
-# Start a consolidated review
-orbit mission <PR_NUMBER> review
-
-# Start a consolidated fix mission
-orbit mission <PR_NUMBER> fix
-
-# Start a consolidated implementation
 orbit mission <ISSUE_NUMBER> implement
 ```
+
+---
 
 ## 📊 Determinism & Reporting
 
 All task states are tracked via deterministic Markdown logs in
 `.gemini/logs/orbit-<action>-<PR>/`. The user is notified via terminal escape
 sequences (OSC 9) upon mission completion.
+
+To monitor progress, use the telemetry commands:
+
+- `orbit uplink <PR> [action]`: Stream real-time logs from a remote capsule.
+- `orbit blackbox <PR> [action]`: Inspect recorded local mission logs.

@@ -4,15 +4,15 @@ Orbit utilizes a sophisticated configuration system designed for flexibility and
 security. Settings are merged from multiple sources to determine the final
 mission parameters.
 
-## 🏗️ Configuration Split: Design vs. Station
+## 🏗️ Configuration Split: Schematic vs. Station
 
 To ensure reusable infrastructure and maintainable repository settings, Orbit
 separates configuration into two distinct layers:
 
-1.  **Orbit Design (Environment)**: Global infrastructure templates (e.g.,
+1.  **Orbit Schematic (Environment)**: Global infrastructure templates (e.g.,
     `corp`, `sandbox`) that define _where_ missions run.
-2.  **Station Design (Repository)**: Repository-specific links and overrides
-    that define _how_ a specific repo interacts with a Design.
+2.  **Station Schematic (Repository)**: Repository-specific links and overrides
+    that define _how_ a specific repo interacts with a Schematic.
 
 ---
 
@@ -45,32 +45,37 @@ export const DEFAULT_IMAGE_URI =
 ### 2. Global Registry (`~/.gemini/orbit/settings.json`)
 
 This file tracks your personal stations across all repositories and manages your
-active Design.
+active Station.
 
 ```json
 {
   "activeRepo": "gemini-cli",
-  "activeProfile": "corp",
+  "activeStation": "gcli-station-mattkorwel",
   "repos": {
     "gemini-cli": {
       "instanceName": "gcli-station-mattkorwel",
-      "design": "corp"
+      "schematic": "corp"
     }
   }
 }
 ```
 
-### 3. Orbit Designs (`~/.gemini/orbit/profiles/*.json`)
+### 3. Orbit Schematics (`~/.gemini/orbit/schematics/*.json`)
 
-Designs allow you to switch between different infrastructure environments (e.g.,
-`corp`, `sandbox`, `local-lab`).
+Schematics allow you to switch between different infrastructure environments
+(e.g., `corp`, `sandbox`, `local-lab`).
 
-**Managing Designs via CLI**:
+**Managing Schematics via CLI**:
 
-- **List available designs**: `orbit station design list`
-- **Create/Edit a design**: `orbit station design create <name>`
-- **Switch active design**: `orbit station design switch <name>`
-- **Import a design**: `orbit station import <path|url>`
+- **List available schematics**: `orbit schematic list`
+- **Create/Edit a schematic**: `orbit schematic create <name>`
+- **Import a schematic**: `orbit schematic import <path|url>`
+
+**Managing Stations via CLI**:
+
+- **List active stations**: `orbit station list`
+- **Activate a station**: `orbit station activate <name>`
+- **Initial station setup**: `orbit station liftoff`
 
 **Key Attributes**:
 
@@ -122,7 +127,7 @@ You can create custom providers by extending the `OrbitProvider` interface:
 
 1.  Create a new provider class in `scripts/providers/`.
 2.  Register it in `ProviderFactory.ts`.
-3.  Specify your provider type in your Design:
+3.  Specify your provider type in your Schematic:
     ```json
     {
       "providerType": "my-custom-provider"

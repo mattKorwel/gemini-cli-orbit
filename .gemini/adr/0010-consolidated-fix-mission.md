@@ -36,7 +36,7 @@ the Review Mission.
     - **Task: Feedback**: Address outstanding PR comments and reviewer feedback.
 3.  **Phase 2: Verification (Parallel)**
     - Perform a final verification build.
-    - **Task: Mustard Test (Proof)**: Physically verify the fixes in the
+    - **Task: Behavioral Proof (Proof)**: Physically verify the fixes in the
       terminal and provide logs.
 4.  **Phase 3: Final Synthesis (Sequential)**
     - Merge all remediation logs, build results, and proof into a standardized
@@ -58,8 +58,8 @@ the Review Mission.
   "re-discover" known failures.
 - **Visibility**: Provide the developer with a clear UI showing exactly which
   remediation step is being attempted.
-- **High Fidelity**: Enforces the same "Mustard Test" mandate for fixes that we
-  require for reviews.
+- **High Fidelity**: Enforces the same "Behavioral Proof" mandate for fixes that
+  we require for reviews.
 
 ## Consequences
 
