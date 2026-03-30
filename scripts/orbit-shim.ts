@@ -117,12 +117,14 @@ if (!cmd || cmd === '-h' || cmd === '--help') {
 
 const commandInfo = COMMANDS[cmd];
 if (!commandInfo) {
-  console.error(`\n❌ Unknown command: ${cmd}`);
-  showHelp();
-  process.exit(1);
+  // Shorthand: If cmd is not a known command, assume it's a mission identifier
+  // e.g., 'orbit 123 review' -> 'orbit mission 123 review'
+  args.unshift('mission');
+  cmd = 'mission';
 }
 
-const scriptName = commandInfo.script;
+const finalCommandInfo = COMMANDS[cmd]!;
+const scriptName = finalCommandInfo.script;
 const bundleBinPath = path.join(
   ROOT,
   'bundle/bin',

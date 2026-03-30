@@ -34,11 +34,16 @@ export class LocalWorktreeProvider implements OrbitProvider {
     // Default to parent of primary repo (e.g., ~/dev/gemini-cli-orbit/)
     // so worktrees are siblings to 'main'
     this.worktreesDir = worktreesDir || path.dirname(getPrimaryRepoRoot());
+
+    // Safety check: Never try to mkdir /mnt/disks/data locally
+    if (this.worktreesDir.startsWith('/mnt/disks/data')) {
+      this.worktreesDir = path.dirname(getPrimaryRepoRoot());
+    }
+
     if (!fs.existsSync(this.worktreesDir)) {
       fs.mkdirSync(this.worktreesDir, { recursive: true });
     }
   }
-
   private hasTmux(): boolean {
     const res = spawnSync('which', ['tmux'], { stdio: 'pipe' });
     return res.status === 0;
