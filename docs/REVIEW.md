@@ -38,6 +38,17 @@ analysis:
   alignment into a standardized `final-assessment.md`.
 - **User Notification**: Notifies the user of completion via the terminal.
 
+## 🏗️ Project Compatibility
+
+Currently, the Review Mission's automated execution phases are **optimized for
+NPM/Node.js**.
+
+- **Agostic Analysis**: Diff analysis, conflict detection, and metadata fetching
+  work on any repository.
+- **Node-Specific Verification**: The **Single-Source Build** and **Behavioral
+  Proof** currently expect a `package.json` and standard Node build/test
+  commands. These steps will be automatically skipped on non-Node repositories.
+
 ---
 
 ## 🛠️ Technical Standards

@@ -1,5 +1,8 @@
 # Maneuver: Fix 🔧
 
+> [!NOTE] Currently **optimized for NPM/Node.js**. Autonomous repair relies on
+> standard Node CI and testing patterns.
+
 The **Fix Mission** is an automated, iterative remediation loop designed to move
 a Pull Request from a failing state (merge conflicts, CI failures, or
 unaddressed comments) to a "Ready to Merge" state. It reuses the diagnostic

@@ -31,6 +31,11 @@ Execute specialized autonomous tasks on your mission:
 - `/orbit:mission 123 implement`: Direct the agent to implement a specific
   feature or change request based on PR descriptions.
 
+> [!NOTE] **Compatibility**: While Orbit infrastructure is language-agnostic,
+> high-fidelity maneuvers (`review`, `fix`, `implement`) are currently
+> **optimized for NPM/Node.js**. Advanced phases like automated builds and
+> behavioral proofs will be skipped on non-Node repositories.
+
 ### 3. Extra-Vehicular Activity (EVA)
 
 For direct manual control without the Gemini agent:

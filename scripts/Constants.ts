@@ -13,8 +13,15 @@ import { spawnSync } from 'node:child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// This is the root of the Gemini Orbit extension code (dist or src)
-const EXTENSION_ROOT = path.resolve(__dirname, '..');
+// This is the root of the Gemini Orbit extension code (the folder containing package.json)
+// When running from bundle/bin/X.js, root is 2 levels up.
+// When running from scripts/bin/X.ts (tsx), root is 2 levels up.
+// When running from bundle/X.js, root is 1 level up.
+let EXTENSION_ROOT = path.resolve(__dirname, '..');
+if (!fs.existsSync(path.join(EXTENSION_ROOT, 'package.json'))) {
+  // Fallback if the above logic fails due to different entry points
+  EXTENSION_ROOT = path.resolve(__dirname, '../..');
+}
 
 const REPO_ROOT = process.cwd();
 

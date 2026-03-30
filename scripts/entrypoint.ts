@@ -6,93 +6,97 @@
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import { logger } from './Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = process.cwd();
 
 /**
- * Entrypoint for Orbit missions.
- * This script runs INSIDE the mission capsule/worktree.
- * It performs basic health checks, launches the parallel worker,
- * and then hands off to an interactive Gemini session.
+ * Entrypoint for Orbit missions inside the capsule/worktree.
+ * Orchestrates doctor checks, parallel worker launch, and interactive handover.
  */
 async function main() {
   const args = process.argv.slice(2);
-  const prNumber = args[0] || '';
-  const branchName = args[1] || '';
-  const policyPath = args[2] || '';
-  const action = args[3] || 'review';
+  const identifier = args[0];
+  const workDir = args[1] || '.';
+  const policyPath = args[2] || '.';
+  const action = args[3] || 'mission';
   const customPrompt = args.slice(4).join(' ');
 
-  const targetDir = REPO_ROOT;
-  const geminiBin = 'gemini';
-
-  logger.info('🩺 Running Orbit Doctor...');
-
-  // 1. Check disk health
-  logger.info(`   ✅ Disk usage verified for ${targetDir}`);
-
-  // 2. Check git health
-  if (!fs.existsSync(path.join(targetDir, '.git'))) {
-    logger.error('❌ Not a git repository.');
+  if (!identifier) {
+    console.error(
+      'Usage: entrypoint <identifier> [workDir] [policyPath] [action] [prompt]',
+    );
     process.exit(1);
   }
-  logger.info('   ✅ Git worktree health verified.');
 
-  if (action !== 'mission' && action !== 'eva') {
-    logger.info(`\n🚀 Launching Parallel ${action} Worker...`);
+  logger.divider('ORBIT DOCTOR');
 
-    let workerScript = path.join(__dirname, '../station.js');
-    if (!fs.existsSync(workerScript)) {
-      workerScript = path.join(__dirname, 'station.js');
-    }
+  // 1. Doctor Checks
+  logger.info('GENERAL', '🩺 Running Orbit Doctor...');
+  const absWorkDir = path.resolve(workDir);
+  if (!fs.existsSync(absWorkDir)) {
+    logger.error('GENERAL', `❌ Work directory missing: ${absWorkDir}`);
+    process.exit(1);
+  }
+  logger.info('GENERAL', `   ✅ Disk usage verified for ${absWorkDir}`);
 
-    logger.info(`   - Script: ${workerScript}`);
-    logger.info(`   - Action: ${action}`);
+  const gitCheck = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    cwd: absWorkDir,
+  });
+  if (gitCheck.status !== 0) {
+    logger.error('GENERAL', '❌ Work directory is not a valid git worktree.');
+    process.exit(1);
+  }
+  logger.info('GENERAL', '   ✅ Git worktree health verified.');
 
-    const workerResult = spawnSync(
-      'node',
-      [workerScript, action, prNumber, branchName, policyPath],
-      {
-        stdio: 'inherit',
-        env: { ...process.env },
-      },
+  // 2. Launch Worker (Station Manager)
+  logger.info('GENERAL', '');
+  logger.info('GENERAL', `🚀 Launching Parallel ${action} Worker...`);
+  const workerScript = path.join(__dirname, 'station.js');
+  logger.info('GENERAL', `   - Script: ${workerScript}`);
+  logger.info('GENERAL', `   - Action: ${action}`);
+
+  const workerRes = spawnSync(
+    'node',
+    [workerScript, identifier, absWorkDir, policyPath, action, customPrompt],
+    {
+      stdio: 'inherit',
+      cwd: absWorkDir,
+    },
+  );
+
+  if (workerRes.status !== 0) {
+    logger.error(
+      'GENERAL',
+      `❌ Worker failed with exit code ${workerRes.status}.`,
     );
-
-    if (workerResult.status !== 0) {
-      logger.error(`❌ Worker failed with exit code ${workerResult.status}.`);
-      if (workerResult.error)
-        logger.error('   Error:', workerResult.error.message);
-    }
+    // We don't exit here, we still want to hand over to the human
   }
 
-  // 2. Launch the Interactive Gemini Session (Local Nightly)
-  logger.info('\n✨ Orbit ready. Joining interactive session...');
+  // 3. Interactive Handover
+  logger.info('GENERAL', '');
+  logger.info('GENERAL', '✨ Orbit ready. Joining interactive session...');
 
-  const geminiArgs: string[] = ['--policy', policyPath];
-  let initialPrompt = '';
+  // Start Gemini CLI with the project context and policy
+  const geminiArgs = [
+    '--approval-mode',
+    'auto_edit',
+    '--policy',
+    policyPath,
+    '--prompt-interactive',
+    `I am continuing the ${action} mission for ${identifier}. Please review the logs in .gemini/orbit/ and provide your assessment.`,
+  ];
 
-  if (customPrompt) {
-    initialPrompt = customPrompt;
-  } else if (action !== 'open') {
-    initialPrompt = `I've jumped into this orbit for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
-  }
-
-  if (initialPrompt) {
-    geminiArgs.push('--prompt-interactive', initialPrompt);
-  }
-
-  process.chdir(targetDir);
-  spawnSync(geminiBin, geminiArgs, {
+  spawnSync('gemini', geminiArgs, {
     stdio: 'inherit',
-    env: { ...process.env },
+    cwd: absWorkDir,
+    env: { ...process.env, GEMINI_AUTO_UPDATE: '0' },
   });
 }
 
 main().catch((err) => {
-  logger.error('FATAL', err);
+  console.error(err);
   process.exit(1);
 });

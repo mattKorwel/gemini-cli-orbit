@@ -1,5 +1,8 @@
 # Maneuver: Implement 🏗️
 
+> [!NOTE] Currently **optimized for NPM/Node.js**. Autonomous "Test-First"
+> implementation relies on standard Node testing and build patterns.
+
 The **Implement Mission** is a high-fidelity, autonomous workflow designed to
 transform GitHub issues into verified code implementations. It enforces a "Think
 Before Code" philosophy through deep context acquisition, structured planning,
