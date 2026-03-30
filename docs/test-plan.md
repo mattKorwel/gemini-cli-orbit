@@ -88,10 +88,7 @@ and Env Vars correctly, and supports the 'rswitch' style local workflow.
 
 ### 3.2 Connectivity Backends
 
-1.  **IAP (Secure Tunnel)**:
-    - Set `backendType: "iap"` in a design.
-    - [ ] `node bundle/status.js` connects successfully without a public IP.
-2.  **Direct Internal (VPC)**:
+1.  **Direct Internal (VPC)**:
     - Set `backendType: "direct-internal"` in a design.
     - [ ] `node bundle/status.js` uses the `.internal` or `.gcpnode.com` DNS
           name.

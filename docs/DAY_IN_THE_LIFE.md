@@ -114,7 +114,7 @@ orbit pulse
 
 1. **Shared Config**: Any extension you link or alias you create in `.gemini/`
    is instantly available in _all_ capsules.
-2. **Design Profiles**: Switch between `direct-internal` (fastest) and `iap`
-   (most secure) using `orbit liftoff --profile=iap`.
+2. **Design Profiles**: Switch between `direct-internal` (fastest) and
+   `external` (standard) using `orbit liftoff --profile=corp`.
 3. **Bulk Cleanup**: Use `orbit splashdown --bulk` to wipe out multiple stale
    missions at once.

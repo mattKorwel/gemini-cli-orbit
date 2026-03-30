@@ -18,8 +18,8 @@ export async function runSplashdown(args: string[]) {
   const isLocal =
     !config.projectId ||
     config.projectId === 'local' ||
-    config.providerType === 'local-worktree' ||
-    config.providerType === 'local-docker';
+    (config.providerType as any) === 'local-worktree' ||
+    (config.providerType as any) === 'local-worktree';
 
   const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({

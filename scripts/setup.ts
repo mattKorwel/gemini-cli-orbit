@@ -124,6 +124,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
 
   // 3. Save Settings
   const updatedGlobal = { ...globalSettings };
+  if (!updatedGlobal.repos) updatedGlobal.repos = {};
   updatedGlobal.repos[repoName] = {
     profile: selectedDesign || config.profile,
     projectId: config.projectId,

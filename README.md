@@ -196,13 +196,11 @@ fits your current mission:
 
 - **`local-worktree`**: (Default Local) Uses `git worktree` to create isolated,
   zero-overhead environments on your local disk. Compatible with the popular
-  `go` worktree management workflow.
+  `rswitch` worktree management workflow.
 - **`gce`**: (Default Remote) Launches a persistent "Station" in Google Compute
   Engine using Capsule-Optimized OS.
-- **`local-docker` / `podman`**: Runs isolated containers directly on your local
-  machine.
-- **`iap` / `direct-internal` / `external`**: Multiple connectivity strategies
-  to reach your remote station across any network.
+- **`direct-internal` / `external`**: Multiple connectivity strategies to reach
+  your remote station across any network.
 
 ---
 
@@ -237,7 +235,7 @@ or monthly costs on your connected GCP billing account. You are responsible for
 monitoring and managing your cloud usage.
 
 **Security & Liability:** This software connects to remote virtual machines via
-SSH/IAP and manages Docker environments. You are responsible for ensuring that
-your network boundaries (VPC, firewall rules) and IAM permissions meet your
+SSH and manages mission environments. You are responsible for ensuring that your
+network boundaries (VPC, firewall rules) and IAM permissions meet your
 organization's security standards. As per the Apache 2.0 License, this software
 is provided "AS IS" without warranties of any kind.

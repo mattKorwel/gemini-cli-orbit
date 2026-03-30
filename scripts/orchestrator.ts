@@ -162,7 +162,7 @@ Current Repo: ${repoName || 'Not Detected'}
       ['pr', 'view', identifier, '--json', 'headRefName', '-q', '.headRefName'],
       { stdio: 'pipe' },
     );
-    if (res.status === 0) branch = res.stdout.toString().trim();
+    if (res.status === 0 && res.stdout) branch = res.stdout.toString().trim();
   }
 
   const sessionName = sessionId; // Standardize on sessionId

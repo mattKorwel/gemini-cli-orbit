@@ -42,7 +42,6 @@ Public) via a **Named Profile** system:
 - **Backend Types**:
   - `direct-internal`: VPC-internal magic hostname routing (Fastest).
   - `external`: Public IP routing.
-  - `iap`: Secure tunnel access (Secure fallback).
 - **Networking Suffixes**:
   - `userSuffix`: Appended to OS Login username (e.g., `_google_com`).
   - `dnsSuffix`: Appended to the standard `.internal` DNS zone (e.g.,

@@ -20,8 +20,7 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
   const isLocal =
     !config.projectId ||
     config.projectId === 'local' ||
-    config.providerType === 'local-worktree' ||
-    config.providerType === 'local-docker';
+    (config.providerType as any) === 'local-worktree';
 
   if (!isLocal && !config.instanceName) {
     console.error(

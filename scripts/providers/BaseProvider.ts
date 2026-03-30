@@ -9,7 +9,7 @@
  * mission environments (GCE Station, Local Docker, etc.).
  */
 export interface OrbitProvider {
-  readonly type: 'gce' | 'local-docker' | 'local-worktree' | 'podman';
+  readonly type: 'gce' | 'local-worktree';
   readonly isLocal: boolean;
   projectId: string;
   zone: string;

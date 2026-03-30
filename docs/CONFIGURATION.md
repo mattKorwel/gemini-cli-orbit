@@ -70,11 +70,11 @@ Designs allow you to switch between different infrastructure environments (e.g.,
 - `projectId`: The GCP Project ID.
 - `zone`: The GCE Zone (e.g., `us-west1-a`).
 - `machineType`: The GCE Machine Type (e.g., `n2-standard-8`).
-- `backendType`: Connectivity method (`direct-internal`, `external`, `iap`).
+- `backendType`: Connectivity method (`direct-internal`, `external`).
 - `vpcName`: The target VPC.
 - `subnetName`: The target Subnet.
-- `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH
-  (e.g., `["35.235.240.0/20"]` for IAP). Defaults to `["0.0.0.0/0"]`.
+- `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH.
+  Defaults to `["0.0.0.0/0"]`.
 
 ### 4. Environment Variables
 

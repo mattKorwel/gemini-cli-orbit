@@ -21,8 +21,8 @@ export async function runReap(
   const isLocal =
     !config.projectId ||
     config.projectId === 'local' ||
-    config.providerType === 'local-worktree' ||
-    config.providerType === 'local-docker';
+    (config.providerType as any) === 'local-worktree' ||
+    (config.providerType as any) === 'local-worktree';
 
   const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({
@@ -48,16 +48,19 @@ export async function runReap(
     // Avoid reaping the 'main' worktree if it exists
     if (capsule === 'main' || capsule === 'primary') continue;
 
-    const idleTime = await provider.getCapsuleIdleTime(capsule);
-    const shouldReap = options.force || idleTime >= threshold;
+    const idleTimeSeconds = await provider.getCapsuleIdleTime(capsule);
+    const idleTimeHours = Math.floor(idleTimeSeconds / 3600);
+    const shouldReap = options.force || idleTimeHours >= threshold;
 
     if (shouldReap) {
-      console.log(`🔥 Reaping idle capsule: ${capsule} (Idle: ${idleTime}h)`);
+      console.log(
+        `🔥 Reaping idle capsule: ${capsule} (Idle: ${idleTimeHours}h)`,
+      );
       const res = await provider.removeCapsule(capsule);
       if (res === 0) reapedCount++;
     } else {
       console.log(
-        `💤 Skipping active capsule: ${capsule} (Idle: ${idleTime}h)`,
+        `💤 Skipping active capsule: ${capsule} (Idle: ${idleTimeHours}h)`,
       );
     }
   }

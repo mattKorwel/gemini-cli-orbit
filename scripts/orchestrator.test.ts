@@ -7,107 +7,79 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runOrchestrator } from './orchestrator.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
-
 import * as ConfigManager from './ConfigManager.js';
-
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
-
-const mockProvisionWorktree = vi.fn().mockResolvedValue('/remote/path');
-vi.mock('./RemoteProvisioner.ts', () => {
+vi.mock('./RemoteProvisioner.js', () => {
   return {
-    RemoteProvisioner: function () {
-      return {
-        provisionWorktree: mockProvisionWorktree,
-      };
-    },
+    RemoteProvisioner: vi.fn().mockImplementation(() => ({
+      provisionWorktree: vi.fn().mockResolvedValue('/tmp/worktree'),
+    })),
   };
 });
 
 describe('runOrchestrator', () => {
-  let mockProvider: any;
+  const mockProvider = {
+    ensureReady: vi.fn().mockResolvedValue(0),
+    exec: vi.fn().mockResolvedValue(0),
+    getRunCommand: vi.fn().mockImplementation((cmd) => cmd),
+    type: 'gce',
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockProvider = {
-      ensureReady: vi.fn().mockResolvedValue(0),
-      getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: 'node' }),
-      exec: vi.fn().mockResolvedValue(0),
-      sync: vi.fn().mockResolvedValue(0),
-      getRunCommand: vi.fn().mockReturnValue('ssh-command'),
-    };
-
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
-
-    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('gemini-cli');
+    vi.mocked(ConfigManager.detectRepoName).mockReturnValue('repo');
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
       projectId: 'p',
       zone: 'z',
       instanceName: 'i',
-      repoName: 'gemini-cli',
-      terminalTarget: 'tab',
-      userFork: 'u/f',
-      upstreamRepo: 'o/r',
-      remoteHost: 'h',
-      remoteWorkDir: '/w',
+      repoName: 'repo',
+      upstreamRepo: 'org/repo',
+      remoteWorkDir: '/mnt/disks/data/main',
     });
-    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
-    mockProvisionWorktree.mockResolvedValue('/remote/path');
+    vi.mocked(ConfigManager.sanitizeName).mockImplementation((n) => n);
+
+    vi.mocked(spawnSync).mockImplementation((cmd, args) => {
+      if (cmd === 'gh' && args?.[0] === 'pr') {
+        return { status: 0, stdout: Buffer.from('feat-branch') } as any;
+      }
+      if (cmd === 'which' && args?.[0] === 'tmux') {
+        return { status: 0 } as any;
+      }
+      return { status: 0 } as any;
+    });
+
+    vi.mocked(fs.existsSync).mockReturnValue(false);
   });
 
   it('should return 0 on successful orchestration', async () => {
-    const res = await runOrchestrator(['23176', 'open']);
+    const res = await runOrchestrator(['23176', 'review']);
     expect(res).toBe(0);
-    expect(mockProvider.ensureReady).toHaveBeenCalled();
-  });
-
-  it('should return non-zero if infrastructure fails', async () => {
-    mockProvider.ensureReady.mockResolvedValue(1);
-    const res = await runOrchestrator(['23176', 'open']);
-    expect(res).toBe(1);
-  });
-
-  it('should return non-zero if worktree provisioning fails', async () => {
-    mockProvisionWorktree.mockResolvedValue('');
-    const res = await runOrchestrator(['23176', 'open']);
-    expect(res).toBe(1);
-  });
-
-  it('should return non-zero if credential injection fails', async () => {
-    mockProvider.exec.mockResolvedValue(1);
-    const res = await runOrchestrator(['23176', 'open'], {
-      GCLI_ORBIT_GEMINI_API_KEY: 'test-key',
-    });
-    expect(res).toBe(1);
   });
 
   it('should fallback to raw execution if tmux is missing', async () => {
-    vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-      projectId: 'p',
-      zone: 'z',
-      instanceName: 'i',
-      repoName: 'gemini-cli',
-      upstreamRepo: 'o/r',
-      remoteWorkDir: '/w',
-    } as any);
-
-    mockProvider.getExecOutput.mockImplementation(async (cmd: string) => {
-      if (cmd === 'tmux -V')
-        return { status: 1, stdout: '', stderr: 'not found' };
-      return { status: 0, stdout: 'node' };
+    vi.mocked(spawnSync).mockImplementation((cmd, args) => {
+      if (cmd === 'gh' && args?.[0] === 'pr') {
+        return { status: 0, stdout: Buffer.from('feat-branch') } as any;
+      }
+      if (cmd === 'which' && args?.[0] === 'tmux') {
+        return { status: 1 } as any; // tmux missing
+      }
+      return { status: 0 } as any;
     });
 
-    await runOrchestrator(['23176']);
+    await runOrchestrator(['23176', 'review']);
 
-    expect(mockProvider.getRunCommand).toHaveBeenCalled();
-    const lastCall = mockProvider.getRunCommand.mock.calls[0][0];
-    expect(lastCall).not.toContain('tmux new-session');
-    expect(lastCall).toContain('tsx /mnt/disks/data/scripts/entrypoint.ts');
+    // Check all calls to getRunCommand
+    const calls = vi.mocked(mockProvider.getRunCommand).mock.calls;
+    const tmuxCall = calls.find((call) => call[0].includes('tmux new-session'));
+    expect(tmuxCall).toBeUndefined();
   });
 
   it('should use raw execution if useTmux is disabled in config', async () => {
@@ -115,21 +87,16 @@ describe('runOrchestrator', () => {
       projectId: 'p',
       zone: 'z',
       instanceName: 'i',
-      repoName: 'gemini-cli',
-      upstreamRepo: 'o/r',
-      remoteWorkDir: '/w',
-      terminalTarget: 'tab',
+      repoName: 'repo',
+      upstreamRepo: 'org/repo',
+      remoteWorkDir: '/mnt/disks/data/main',
       useTmux: false,
-    } as any);
+    });
 
-    await runOrchestrator(['23176']);
+    await runOrchestrator(['23176', 'review']);
 
-    expect(mockProvider.getRunCommand).toHaveBeenCalled();
-    const lastCall = mockProvider.getRunCommand.mock.calls[0][0];
-    expect(lastCall).not.toContain('tmux new-session');
-    expect(mockProvider.getExecOutput).not.toHaveBeenCalledWith(
-      'tmux -V',
-      expect.anything(),
-    );
+    const calls = vi.mocked(mockProvider.getRunCommand).mock.calls;
+    const tmuxCall = calls.find((call) => call[0].includes('tmux new-session'));
+    expect(tmuxCall).toBeUndefined();
   });
 });

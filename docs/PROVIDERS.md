@@ -53,25 +53,6 @@ missions on your local filesystem without the overhead of containers.
 
 ---
 
-## 🐳 Local Docker / Podman (`local-docker`, `podman`) - Local
-
-Provides container isolation on your local machine.
-
-### Capabilities:
-
-- **Isolation**: Ensures mission dependencies don't pollute your host machine.
-- **Parity**: Matches the environment of the remote GCE capsules.
-
-### Configuration:
-
-```json
-{
-  "providerType": "local-docker"
-}
-```
-
----
-
 ## 📟 Persistence Layer: Tmux
 
 By default, all mission providers (both local and remote) wrap the Gemini agent

@@ -112,15 +112,10 @@ export interface OrbitConfig {
   remoteHost?: string | undefined;
   remoteWorkDir?: string | undefined;
   useContainer?: boolean | undefined;
-  providerType?:
-    | 'gce'
-    | 'local-docker'
-    | 'local-worktree'
-    | 'podman'
-    | undefined;
+  providerType?: 'gce' | 'local-worktree' | undefined;
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
-  backendType?: 'direct-internal' | 'external' | 'iap' | undefined;
+  backendType?: 'direct-internal' | 'external' | undefined;
   imageUri?: string | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;

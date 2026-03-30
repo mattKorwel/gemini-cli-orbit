@@ -20,8 +20,7 @@ export async function runFleet(args: string[]) {
   const isLocal =
     !config.projectId ||
     config.projectId === 'local' ||
-    config.providerType === 'local-worktree' ||
-    config.providerType === 'local-docker';
+    config.providerType === 'local-worktree';
 
   const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({

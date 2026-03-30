@@ -41,23 +41,37 @@ export class ProviderFactory {
       return new LocalWorktreeProvider(stationName, config.worktreesDir);
     }
 
+    const gceConfig = {
+      ...(config.dnsSuffix !== undefined
+        ? { dnsSuffix: config.dnsSuffix }
+        : {}),
+      ...(config.userSuffix !== undefined
+        ? { userSuffix: config.userSuffix }
+        : {}),
+      ...(config.backendType !== undefined
+        ? { backendType: config.backendType as 'direct-internal' | 'external' }
+        : {}),
+      ...(config.imageUri !== undefined ? { imageUri: config.imageUri } : {}),
+      ...(config.vpcName !== undefined ? { vpcName: config.vpcName } : {}),
+      ...(config.subnetName !== undefined
+        ? { subnetName: config.subnetName }
+        : {}),
+      ...(config.machineType !== undefined
+        ? { machineType: config.machineType }
+        : {}),
+      ...(config.reaperIdleLimit !== undefined
+        ? { reaperIdleLimit: config.reaperIdleLimit }
+        : {}),
+      stationName,
+    };
+
     // Default to GCE
     return new GceCosProvider(
       config.projectId,
       config.zone,
       config.instanceName,
       getPrimaryRepoRoot(),
-      {
-        dnsSuffix: config.dnsSuffix,
-        userSuffix: config.userSuffix,
-        backendType: config.backendType,
-        imageUri: config.imageUri,
-        vpcName: config.vpcName,
-        subnetName: config.subnetName,
-        machineType: config.machineType,
-        reaperIdleLimit: config.reaperIdleLimit,
-        stationName,
-      },
+      gceConfig,
     );
   }
 }
