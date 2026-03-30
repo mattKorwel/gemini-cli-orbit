@@ -21,6 +21,8 @@ vi.mock('./Constants.ts', () => ({
   PROFILES_DIR: '/Users/mattkorwel/.gemini/orbit/profiles',
   GLOBAL_ORBIT_DIR: '/Users/mattkorwel/.gemini/orbit',
   GLOBAL_SETTINGS_PATH: '/Users/mattkorwel/.gemini/orbit/settings.json',
+  SCHEMATICS_DIR: '/Users/mattkorwel/.gemini/orbit/schematics',
+  STATIONS_DIR: '/Users/mattkorwel/.gemini/orbit/stations',
   PROJECT_ORBIT_DIR: '/work-dir/.gemini/orbit',
   PROJECT_CONFIG_PATH: '/work-dir/.gemini/orbit/config.json',
   ORBIT_LOG_PATH: '/work-dir/.gemini/orbit/orbit.log',
@@ -74,6 +76,8 @@ describe('runSetup', () => {
       repoName: 'gemini-cli',
       instanceName: 'test-i',
     });
+    vi.mocked(ConfigManager.parseFlags).mockReturnValue({});
+    vi.mocked(ConfigManager.loadSchematic).mockReturnValue({});
 
     // Default mock for readline
     vi.mocked(readline.createInterface).mockReturnValue({

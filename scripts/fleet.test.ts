@@ -12,8 +12,11 @@ import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 
+import { StationManager } from './StationManager.js';
+
 vi.mock('./ConfigManager.js');
 vi.mock('./SchematicManager.js');
+vi.mock('./StationManager.js');
 vi.mock('./setup.js');
 vi.mock('./splashdown.js');
 vi.mock('./providers/ProviderFactory.js');
@@ -23,7 +26,7 @@ describe('runFleet', () => {
     vi.clearAllMocks();
     vi.mocked(ConfigManager.detectRepoName).mockReturnValue('repo');
     vi.mocked(ConfigManager.loadSettings).mockReturnValue({
-      activeProfile: 'default',
+      activeStation: 'inst',
     } as any);
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
       instanceName: 'inst',
@@ -39,20 +42,21 @@ describe('runFleet', () => {
   });
 
   it('should route liftoff subcommand to runSetup', async () => {
-    await runFleet(['liftoff']);
+    await runFleet(['station', 'liftoff']);
     expect(runSetup).toHaveBeenCalled();
   });
 
   it('should route delete subcommand to runSplashdown with --all', async () => {
-    await runFleet(['delete']);
+    await runFleet(['station', 'delete']);
     expect(runSplashdown).toHaveBeenCalledWith(['--all']);
   });
 
-  it('should route list subcommand to provider.listStations', async () => {
-    const mockProvider = { listStations: vi.fn().mockResolvedValue(0) };
-    vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
+  it('should route list subcommand to stationManager.listStations', async () => {
+    const listSpy = vi
+      .spyOn(StationManager.prototype, 'listStations')
+      .mockResolvedValue([]);
 
-    await runFleet(['list']);
-    expect(mockProvider.listStations).toHaveBeenCalled();
+    await runFleet(['station', 'list']);
+    expect(listSpy).toHaveBeenCalled();
   });
 });
