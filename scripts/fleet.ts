@@ -183,7 +183,7 @@ Usage:
 
 EXAMPLES:
   orbit schematic create corp
-  orbit station liftoff --setup-net
+  orbit station liftoff corp --setup-net
   orbit station activate station-supervisor
   `);
 

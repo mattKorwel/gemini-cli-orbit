@@ -1,15 +1,15 @@
-# Gemini Orbit: End-to-End Test Plan (v1.6)
+# Gemini Orbit: End-to-End Test Plan (v6.0)
 
 This document provides a structured protocol for validating the **Orbit**
-platform (v1.6+). It ensures that decoupled Schematics, bundled scripts, and
-surgical updates are fully functional.
+platform (v6.0+). It ensures that decoupled Schematics, hardened security, and
+phased autonomous maneuvers are fully functional.
 
 ---
 
 ## 📋 Pre-Flight: Manual Schematic Verification
 
 **Goal**: Ensure the global environment is correctly seeded before running
-automated tests.
+manual or automated tests.
 
 1.  **Check Global Directory**:
     - [ ] `ls -d ~/.gemini/orbit` exists.
@@ -22,103 +22,125 @@ automated tests.
 3.  **Verify Global Registry**:
     - [ ] `cat ~/.gemini/orbit/settings.json` exists.
     - [ ] `activeStation` points to a valid station name.
-    - [ ] `repos` contains a link for the current repository.
 
 ---
 
-## ⚙️ 1. Core Integrity (Automated)
+## 🛡️ 1. Security & Integrity (High Priority)
+
+**Goal**: Verify that sensitive credentials and paths are protected.
+
+### 1.1 Path Traversal Prevention
+
+1.  **Input**: `orbit schematic edit ../../malicious`
+2.  **Expected**: The name should be sanitized to `------malicious` and saved
+    safely within the `schematics/` directory, or rejected.
+3.  **Input**: `orbit schematic import https://example.com/bad.json` (where
+    `bad.json` has `schematicName: "../../bad"`)
+4.  **Expected**: Sanitized name `------bad` used for the local file.
+
+### 1.2 RAM-based Credential Injection (ADR 12)
+
+1.  **Input**: Launch a remote mission: `orbit mission <PR> review`.
+2.  **Verification (On Remote Station)**:
+    - [ ] `ls /dev/shm/.gcli-env-*` exists on the Host VM.
+    - [ ] `cat /mnt/disks/data/worktrees/mission-<ID>/.env` **DOES NOT** exist
+          (or does not contain the API Key).
+    - [ ] `docker inspect gcli-<ID>-review` shows the mount:
+          `Source: /dev/shm/.gcli-env-<ID>, Destination: /mnt/disks/data/worktrees/mission-<ID>/.env, ReadOnly: true`.
+
+### 1.3 Schematic Schema Validation
+
+1.  **Input**: Create a dummy JSON missing `projectId`:
+    `echo '{"zone":"us-central1-a"}' > /tmp/bad.json`.
+2.  **Action**: `orbit schematic import /tmp/bad.json`
+3.  **Expected**: Fails with "Schematic is missing required infrastructure
+    fields".
+
+---
+
+## ⚙️ 2. Core Integrity & Terminology
 
 **Goal**: Verify build, bundle, and basic logic integrity.
 
 1.  **Build & Bundle**:
     - `npm run build`
     - [ ] `bundle/` is populated with ESM `.js` files.
-    - [ ] No `.test.js` files are present in `bundle/`.
-2.  **Linting**:
-    - `npm run lint`
-    - [ ] Output is clean (0 errors, 0 warnings).
+2.  **Terminology Sync**:
+    - [ ] `orbit pulse` shows the "ORBIT PULSE" header.
+    - [ ] `orbit schematic list` works (legacy `orbit design` should still work
+          but be hidden).
 3.  **Unit Tests**:
     - `npm test`
-    - [ ] All 40+ tests pass across all providers and strategies.
-4.  **Documentation Sync**:
-    - `npm run sync-docs`
-    - [ ] `docs/CONFIGURATION.md` is updated with the latest code snippets.
+    - [ ] All 60+ tests pass across all providers and strategies.
 
 ---
 
-## 🎚️ 2. Tiered Configuration & Local Worktree Management
+## 🎚️ 3. Tiered Configuration & Local Missions
 
 **Goal**: Verify the system merges Project Defaults, Global Registry,
-Schematics, and Env Vars correctly, and supports the 'rswitch' style local
-workflow.
+Schematics, and Env Vars correctly.
 
-### 2.1 Resolution Hierarchy
+### 3.1 Resolution Hierarchy
 
-1.  **Input**:
-    - Create a temporary test schematic:
-      `echo '{"projectId": "schematic-p"}' > ~/.gemini/orbit/schematics/test-resolution.json`.
-    - Set an env var: `export GCLI_ORBIT_PROJECT_ID=env-p`.
-2.  **Automated Check**:
-    - `node bundle/bin/status.js`
-    - [ ] **Expected**: Config uses `env-p` (Environment variables have
-          priority).
+1.  **Input**: `orbit pulse --for-station=my-custom-station`
+2.  **Expected**: Pulse attempts to connect to `my-custom-station` even if
+    another station is marked active in settings.
 
-### 2.2 Smart Local Worktrees
+### 3.2 Local Mission Maneuvers
 
-1.  **Input**: Run `orbit mission <PR_NUMBER> review` with
-    `GCLI_ORBIT_PROVIDER=local-worktree`.
+1.  **Input**: `orbit mission <PR_NUMBER> review --local`
 2.  **Expected Behavior**:
-    - [ ] Automatically resolves PR number to branch name via `gh pr view`.
-    - [ ] Detects if the branch is already checked out in another worktree.
-    - [ ] Creates a sibling worktree in `~/dev/` if missing.
-    - [ ] Launches a persistent session via `tmux` (or falls back gracefully).
+    - [ ] Creates a sibling worktree in your project's parent directory.
+    - [ ] Launches a persistent `tmux` session named `orbit-<branch>`.
+    - [ ] Successfully executes the "Review" maneuver phases (Phase 0, 1, 2).
 
 ---
 
-## 🛰️ 3. Remote Mission Control (Manual/Cloud)
+## 🛰️ 4. Remote Mission Control (Cloud)
 
-**Goal**: Verify connectivity and orchestration with the latest developer image.
+**Goal**: Verify connectivity and orchestration on a GCE Station.
 
-### 3.1 Station Liftoff (GCE)
+### 4.1 Station Liftoff
 
-1.  **Input**: `orbit station liftoff --setup-net`
+1.  **Input**: `orbit station liftoff corp --setup-net` (using a schematic named
+    'corp').
 2.  **Expected Output**:
-    - [ ] Correctly identifies the `upstreamRepo` and `userFork`.
-    - [ ] Uses the active **Schematic**.
-    - [ ] Successfully provisions/wakes the GCE station.
+    - [ ] Provisions/wakes the GCE station defined in the 'corp' schematic.
+    - [ ] Sets the 'activeStation' in global settings.
 
-### 3.2 Connectivity Backends
+### 4.2 Autonomous Maneuvers (Remote)
 
-1.  **Direct Internal (VPC)**:
-    - Set `backendType: "direct-internal"` in a schematic.
-    - [ ] `orbit pulse` uses the `.internal` or `.gcpnode.com` DNS name.
+1.  **Input**: `orbit mission <PR> review`
+2.  **Verification**:
+    - [ ] `orbit uplink <PR>` allows you to watch the phased execution.
+    - [ ] `orbit pulse` shows the mission as `🧠 [THINKING]` during execution.
+    - [ ] `orbit pulse` shows the mission as `✋ [WAITING]` if it requires
+          approval or input.
 
 ---
 
-## 🧹 4. Mission Cleanup
+## 🧹 5. Mission Cleanup
 
 **Goal**: Ensure surgical and global cleanup works as intended.
 
-1.  **Jettison (PR-specific)**:
-    - [ ] `orbit jettison <PR_NUMBER>` removes the specific capsule and its
-          worktree.
-2.  **Splashdown (Global)**:
-    - [ ] `orbit splashdown --all` terminates the station supervisor and clears
-          all remote resources.
+1.  **Jettison**: `orbit jettison <PR>`
+    - [ ] Removes the remote Docker capsule.
+    - [ ] Removes the remote Git worktree.
+2.  **Splashdown**: `orbit splashdown --all`
+    - [ ] Terminates the GCE station.
+    - [ ] Clears the active station pointer.
 
 ---
 
-## 🛠️ Automated Verification Suite
-
-Run this suite to perform a high-level health check:
+## 🛠️ Automated Health Check
 
 ```bash
 # Full Build & Test
 npm run build && npm test
 
-# Verify Resolution Hierarchy (Requires 'test-resolution' schematic)
-node -e "import { getRepoConfig } from './bundle/ConfigManager.js'; console.log('Resolved Project:', getRepoConfig().projectId)"
+# Verify Pulse CLI
+node bundle/bin/status.js
 
-# Verify GitHub Variable Access
-gh variable get GCLI_PROJECT_ID || echo "No team variables set on GitHub"
+# Verify Schematic Management
+node bundle/bin/fleet.js schematic list
 ```

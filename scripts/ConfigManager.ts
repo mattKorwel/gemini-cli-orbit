@@ -139,7 +139,7 @@ export function loadProjectConfig(): Partial<OrbitConfig> {
 }
 
 export function loadSchematic(name: string): Partial<OrbitConfig> {
-  const p = path.join(SCHEMATICS_DIR, `${name}.json`);
+  const p = path.join(SCHEMATICS_DIR, `${sanitizeName(name)}.json`);
   return loadJson(p) || {};
 }
 
@@ -147,7 +147,7 @@ export function saveSchematic(name: string, config: any): void {
   if (!fs.existsSync(SCHEMATICS_DIR)) {
     fs.mkdirSync(SCHEMATICS_DIR, { recursive: true });
   }
-  const p = path.join(SCHEMATICS_DIR, `${name}.json`);
+  const p = path.join(SCHEMATICS_DIR, `${sanitizeName(name)}.json`);
   fs.writeFileSync(p, JSON.stringify(config, null, 2));
 }
 

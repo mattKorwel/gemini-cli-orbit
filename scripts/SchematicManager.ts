@@ -9,7 +9,12 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { SCHEMATICS_DIR } from './Constants.js';
-import { saveSchematic, loadJson, parseFlags } from './ConfigManager.js';
+import {
+  saveSchematic,
+  loadJson,
+  parseFlags,
+  sanitizeName,
+} from './ConfigManager.js';
 import { logger } from './Logger.js';
 
 function ask(query: string): Promise<string> {
@@ -127,10 +132,23 @@ export class SchematicManager {
 
     try {
       const config = JSON.parse(content);
-      const name =
+
+      // --- 🛡️ BASIC SCHEMA VALIDATION ---
+      const required = ['projectId', 'zone', 'backendType'];
+      const missing = required.filter((f) => !config[f]);
+      if (missing.length > 0) {
+        throw new Error(
+          `Schematic is missing required infrastructure fields: ${missing.join(', ')}`,
+        );
+      }
+
+      // Sanitize the source for name derivation
+      const name = sanitizeName(
         config.schematicName ||
-        config.profileName ||
-        path.basename(source, '.json').replace(/[^a-z0-9]/g, '-');
+          config.profileName ||
+          path.basename(source, '.json'),
+      );
+
       saveSchematic(name, config);
       return name;
     } catch (e: any) {

@@ -114,7 +114,7 @@ orbit pulse
 
 1. **Shared Config**: Any extension you link or alias you create in `.gemini/`
    is instantly available in _all_ capsules.
-2. **Station Management**: Use `orbit station design` to manage your blueprints
-   and `orbit station liftoff` to build them.
+2. **Station Management**: Use `orbit schematic` to manage your blueprints and
+   `orbit station liftoff` to build them.
 3. **Bulk Cleanup**: Use `orbit splashdown --bulk` to wipe out multiple stale
    missions at once.

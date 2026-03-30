@@ -17,7 +17,7 @@ import { runSplashdown } from './splashdown.js';
 import { runCI } from './ci.js';
 import { runUplink } from './uplink.js';
 import { runBlackbox } from './blackbox.js';
-import { runDesign } from './fleet.js';
+import { runFleet, runDesign } from './fleet.js';
 
 /**
  * Helper to capture stdout/stderr during a tool's execution.
@@ -172,7 +172,9 @@ server.registerTool(
     }).shape,
   },
   async ({ action }) => {
-    const output = await runWithCapture(() => runDesign(['schematic', action]));
+    // Map MCP actions to fleet actions
+    const fleetAction = action === 'provision' ? 'create' : action;
+    const output = await runWithCapture(() => runDesign([fleetAction]));
     return {
       content: [{ type: 'text', text: output }],
     };

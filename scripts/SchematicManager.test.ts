@@ -21,6 +21,9 @@ describe('SchematicManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     manager = new SchematicManager();
+    vi.mocked(ConfigManager.sanitizeName).mockImplementation((n) =>
+      n.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+    );
   });
 
   it('should list available schematics', () => {
@@ -37,7 +40,11 @@ describe('SchematicManager', () => {
   it('should import a local schematic file', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue(
-      JSON.stringify({ projectId: 'test-p' }),
+      JSON.stringify({
+        projectId: 'test-p',
+        zone: 'us-central1-a',
+        backendType: 'external',
+      }),
     );
 
     const name = await manager.importSchematic('./test.json');
@@ -52,7 +59,12 @@ describe('SchematicManager', () => {
     vi.mocked(spawnSync).mockReturnValue({
       status: 0,
       stdout: Buffer.from(
-        JSON.stringify({ profileName: 'remote-corp', projectId: 'remote-p' }),
+        JSON.stringify({
+          profileName: 'remote-corp',
+          projectId: 'remote-p',
+          zone: 'us-central1-b',
+          backendType: 'direct-internal',
+        }),
       ),
     } as any);
 

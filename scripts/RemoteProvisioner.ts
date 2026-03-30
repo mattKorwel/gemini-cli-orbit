@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
+import { SessionManager } from './utils/SessionManager.js';
 import {
   ORBIT_ROOT,
   DEFAULT_IMAGE_URI,
@@ -69,6 +70,9 @@ export class RemoteProvisioner {
         ? path.join((this.provider as any).worktreesDir, branch)
         : `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
 
+      const sessionId = SessionManager.generateSessionId(identifier, action);
+      const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+
       const runRes = await this.provider.runCapsule({
         name: containerName,
         image: config.image || config.remoteWorkDir || imageUri,
@@ -93,6 +97,12 @@ export class RemoteProvisioner {
                 host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
                 capsule: '/home/node/.gemini',
                 readonly: false,
+              },
+              // RAM-disk secret mount (ADR 12)
+              {
+                host: secretPath,
+                capsule: `${remoteWorktreeDir}/.env`,
+                readonly: true,
               },
             ],
         command: isLocalWorktree

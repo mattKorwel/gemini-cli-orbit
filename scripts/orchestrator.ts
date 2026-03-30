@@ -217,15 +217,19 @@ Current Repo: ${repoName || 'Not Detected'}
     });
   }
 
-  // AUTH: Inject credentials directly into the worktree .env
+  // AUTH: Inject credentials into a RAM-based temporary file (ADR 12)
   if (localApiKey) {
-    console.log('   - Injecting mission authentication context...');
+    console.log('   - Injecting mission authentication context (RAM-disk)...');
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
-    // Use relative path and trust provider.exec to handle the CWD (via wrapCapsule/containerName)
-    const authRes = await provider.exec(`echo ${q(dotEnvContent)} > .env`, {
-      wrapCapsule: containerName,
-    });
+    // Write to /dev/shm on the station
+    const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+    const authRes = await provider.exec(
+      `echo ${q(dotEnvContent)} > ${secretPath}`,
+      {
+        // Execute on station, not in capsule yet
+      },
+    );
     if (authRes !== 0) return authRes;
   }
 

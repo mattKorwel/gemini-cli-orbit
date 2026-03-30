@@ -26,7 +26,10 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   const setupNet = args.includes('--setup-net');
   const flags = parseFlags(args);
 
-  const schematicName = flags.schematic || 'default';
+  const schematicName =
+    args[2] && !args[2].startsWith('--')
+      ? args[2]
+      : flags.schematic || 'default';
   const schematic = loadSchematic(schematicName);
 
   logger.divider('ORBIT MISSION LIFTOFF');
@@ -39,7 +42,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   if (!config.projectId) {
     console.log('\n❌ No active infrastructure schematic found.');
     console.log(
-      `👉 Please run "orbit station schematic create ${schematicName}" to set up your blueprints.\n`,
+      `👉 Please run "orbit schematic create ${schematicName}" to set up your blueprints.\n`,
     );
     return 1;
   }
