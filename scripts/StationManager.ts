@@ -69,7 +69,12 @@ export class StationManager {
 
   private async verifyAlive(receipt: StationReceipt): Promise<boolean> {
     if (receipt.type === 'local-worktree') {
-      return !!receipt.rootPath && fs.existsSync(receipt.rootPath);
+      // For local worktrees, as long as the directory exists and is a git dir, it's alive
+      return (
+        !!receipt.rootPath &&
+        fs.existsSync(receipt.rootPath) &&
+        fs.existsSync(path.join(receipt.rootPath, '.git'))
+      );
     }
 
     if (receipt.type === 'gce') {

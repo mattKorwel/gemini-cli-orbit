@@ -207,12 +207,12 @@ Current Repo: ${repoName || 'Not Detected'}
   if (isLocalWorktree) {
     const stationManager = new StationManager();
     stationManager.saveReceipt({
-      name: `local-${config.repoName}`,
+      name: `local-${repoName}`,
       type: 'local-worktree',
       projectId: 'local',
       zone: 'localhost',
       repo: repoName,
-      ...(remoteWorktreeDir ? { rootPath: remoteWorktreeDir } : {}),
+      rootPath: getPrimaryRepoRoot(),
       lastSeen: new Date().toISOString(),
     });
   }
@@ -223,14 +223,9 @@ Current Repo: ${repoName || 'Not Detected'}
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
     // Use the provider's abstraction instead of hardcoding docker
-    const internalEnvPath = isLocalWorktree
-      ? `${remoteWorktreeDir}/.env`
-      : '/home/node/.env';
-
-    const authRes = await provider.exec(
-      `echo ${q(dotEnvContent)} > ${internalEnvPath}`,
-      { ...(isLocalWorktree ? {} : { wrapCapsule: containerName }) },
-    );
+    const authRes = await provider.exec(`echo ${q(dotEnvContent)} > .env`, {
+      wrapCapsule: containerName,
+    });
     if (authRes !== 0) return authRes;
   }
 
