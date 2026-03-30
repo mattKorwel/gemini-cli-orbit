@@ -9,7 +9,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { PROFILES_DIR } from './Constants.js';
-import { saveProfile, loadJson } from './ConfigManager.js';
+import { saveProfile, loadJson, parseFlags } from './ConfigManager.js';
 import { logger } from './Logger.js';
 
 function ask(query: string): Promise<string> {
@@ -29,59 +29,66 @@ function ask(query: string): Promise<string> {
 export class DesignManager {
   /**
    * Runs the interactive wizard to create or edit a station design (profile).
+   * Supports surgical overrides via CLI flags.
    */
   async runWizard(name: string): Promise<void> {
     const profilePath = path.join(PROFILES_DIR, `${name}.json`);
     const existingConfig = loadJson(profilePath) || {};
+    const flags = parseFlags(process.argv.slice(2));
+
+    // Merge existing config with any surgical flags provided
+    const base = { ...existingConfig, ...flags };
 
     logger.divider(`ORBIT DESIGN WIZARD: ${name.toUpperCase()}`);
-    console.log('Fill in your infrastructure blueprints below.\n');
+    console.log('Fill in your infrastructure blueprints below.');
+    console.log('(Surgical flags detected and will be pre-filled)\n');
 
     const projectId =
-      (await ask(`GCP Project ID [${existingConfig.projectId || ''}]: `)) ||
-      existingConfig.projectId;
+      base.projectId ||
+      (await ask(`GCP Project ID [${base.projectId || ''}]: `));
     const zone =
-      (await ask(`GCE Zone [${existingConfig.zone || 'us-central1-a'}]: `)) ||
-      existingConfig.zone ||
+      base.zone ||
+      (await ask(`GCE Zone [${base.zone || 'us-central1-a'}]: `)) ||
       'us-central1-a';
 
-    console.log('\nConnectivity Backends:');
-    console.log(
-      '  1. direct-internal (VPC-internal, requires corporate network/VPN)',
-    );
-    console.log('  2. external        (Public IP, standard GCE access)');
-    const backendChoice = await ask(
-      `\nSelect backend [${existingConfig.backendType === 'external' ? '2' : '1'}]: `,
-    );
-    const backendType =
-      backendChoice === '2'
-        ? 'external'
-        : backendChoice === '1'
-          ? 'direct-internal'
-          : existingConfig.backendType || 'direct-internal';
+    let backendType = base.backendType;
+    if (!backendType) {
+      console.log('\nConnectivity Backends:');
+      console.log(
+        '  1. direct-internal (VPC-internal, requires corporate network/VPN)',
+      );
+      console.log('  2. external        (Public IP, standard GCE access)');
+      const backendChoice = await ask(
+        `\nSelect backend [${base.backendType === 'external' ? '2' : '1'}]: `,
+      );
+      backendType =
+        backendChoice === '2'
+          ? 'external'
+          : backendChoice === '1'
+            ? 'direct-internal'
+            : base.backendType || 'direct-internal';
+    }
 
     const dnsSuffix =
-      (await ask(
-        `DNS Suffix (e.g. gcpnode.com) [${existingConfig.dnsSuffix || ''}]: `,
-      )) || existingConfig.dnsSuffix;
+      base.dnsSuffix ||
+      (await ask(`DNS Suffix (e.g. gcpnode.com) [${base.dnsSuffix || ''}]: `));
     const userSuffix =
+      base.userSuffix ||
       (await ask(
-        `User Suffix (e.g. _google_com) [${existingConfig.userSuffix || ''}]: `,
-      )) || existingConfig.userSuffix;
+        `User Suffix (e.g. _google_com) [${base.userSuffix || ''}]: `,
+      ));
 
     const vpcName =
-      (await ask(
-        `VPC Network Name [${existingConfig.vpcName || 'orbit'}]: `,
-      )) ||
-      existingConfig.vpcName ||
+      base.vpcName ||
+      (await ask(`VPC Network Name [${base.vpcName || 'orbit'}]: `)) ||
       'orbit';
     const subnetName =
-      (await ask(`Subnet Name [${existingConfig.subnetName || 'orbit'}]: `)) ||
-      existingConfig.subnetName ||
+      base.subnetName ||
+      (await ask(`Subnet Name [${base.subnetName || 'orbit'}]: `)) ||
       'orbit';
 
     const newConfig = {
-      ...existingConfig,
+      ...base,
       projectId,
       zone,
       backendType,
@@ -89,8 +96,8 @@ export class DesignManager {
       userSuffix,
       vpcName,
       subnetName,
-      instanceName: existingConfig.instanceName || 'station-supervisor',
-      machineType: existingConfig.machineType || 'n2-standard-8',
+      instanceName: base.instanceName || 'station-supervisor',
+      machineType: base.machineType || 'n2-standard-8',
     };
 
     saveProfile(name, newConfig);

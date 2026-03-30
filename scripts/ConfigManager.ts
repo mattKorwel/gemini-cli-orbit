@@ -119,6 +119,31 @@ export function saveSettings(settings: any): void {
 }
 
 /**
+ * Parses CLI flags into a partial OrbitConfig object.
+ */
+export function parseFlags(args: string[]): Partial<OrbitConfig> {
+  const config: any = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (!arg) continue;
+
+    if (arg.startsWith('--projectId=')) config.projectId = arg.split('=')[1];
+    if (arg.startsWith('--zone=')) config.zone = arg.split('=')[1];
+    if (arg.startsWith('--instanceName='))
+      config.instanceName = arg.split('=')[1];
+    if (arg.startsWith('--backend=')) config.backendType = arg.split('=')[1];
+    if (arg.startsWith('--dnsSuffix=')) config.dnsSuffix = arg.split('=')[1];
+    if (arg.startsWith('--userSuffix=')) config.userSuffix = arg.split('=')[1];
+    if (arg.startsWith('--vpcName=')) config.vpcName = arg.split('=')[1];
+    if (arg.startsWith('--subnetName=')) config.subnetName = arg.split('=')[1];
+    if (arg.startsWith('--machineType='))
+      config.machineType = arg.split('=')[1];
+    if (arg.startsWith('--image=')) config.imageUri = arg.split('=')[1];
+  }
+  return config;
+}
+
+/**
  * Loads settings from a specific path.
  */
 export function loadJson(p: string): any {

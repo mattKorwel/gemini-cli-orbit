@@ -17,6 +17,7 @@ import {
 import type { ExecOptions } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { TempManager } from './utils/TempManager.js';
+import { StationManager } from './StationManager.js';
 import {
   ORBIT_ROOT,
   SATELLITE_WORKTREES_PATH,
@@ -202,6 +203,20 @@ Current Repo: ${repoName || 'Not Detected'}
     return 1;
   }
 
+  // Save Terrestrial Station Receipt for Local Worktrees
+  if (isLocalWorktree) {
+    const stationManager = new StationManager();
+    stationManager.saveReceipt({
+      name: `local-${config.repoName}`,
+      type: 'local-worktree',
+      projectId: 'local',
+      zone: 'localhost',
+      repo: repoName,
+      ...(remoteWorktreeDir ? { rootPath: remoteWorktreeDir } : {}),
+      lastSeen: new Date().toISOString(),
+    });
+  }
+
   // AUTH: Inject credentials directly into the worktree .env
   if (localApiKey) {
     console.log('   - Injecting mission authentication context...');
@@ -210,11 +225,11 @@ Current Repo: ${repoName || 'Not Detected'}
     // Use the provider's abstraction instead of hardcoding docker
     const internalEnvPath = isLocalWorktree
       ? `${remoteWorktreeDir}/.env`
-      : `${remoteWorktreeDir}/.env`;
+      : '/home/node/.env';
 
     const authRes = await provider.exec(
       `echo ${q(dotEnvContent)} > ${internalEnvPath}`,
-      { wrapCapsule: containerName },
+      { ...(isLocalWorktree ? {} : { wrapCapsule: containerName }) },
     );
     if (authRes !== 0) return authRes;
   }

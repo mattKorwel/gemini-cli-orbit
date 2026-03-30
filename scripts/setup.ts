@@ -6,8 +6,9 @@
 
 import { spawnSync } from 'node:child_process';
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import { getRepoConfig, detectRepoName, parseFlags } from './ConfigManager.js';
 import { logger } from './Logger.js';
+import { StationManager } from './StationManager.js';
 
 /**
  * Setup Orbit: Initial configuration and station provisioning.
@@ -17,11 +18,14 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   const repoName = detectRepoName();
   const withStation = args.includes('--with-station');
   const setupNet = args.includes('--setup-net');
+  const flags = parseFlags(args);
 
   logger.divider('ORBIT MISSION LIFTOFF');
 
-  // 1. Finalize Configuration
-  const config = getRepoConfig(repoName);
+  // 1. Resolve Config & Merge Flags
+  const baseConfig = getRepoConfig(repoName);
+  const config = { ...baseConfig, ...flags };
+  const stationManager = new StationManager();
 
   if (!config.projectId) {
     console.log('\n❌ No active infrastructure design found.');
@@ -65,6 +69,22 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
       `✅ Station is already active at ${status.internalIp || 'internal IP'}`,
     );
     await provider.ensureReady(); // Fast-check supervisor
+  }
+
+  const isLocal =
+    config.projectId === 'local' || config.providerType === 'local-worktree';
+
+  // Save/Update Station Receipt
+  if (status.status !== 'NOT_FOUND' && !isLocal) {
+    stationManager.saveReceipt({
+      name: config.instanceName || 'station-supervisor',
+      type: 'gce',
+      projectId: config.projectId!,
+      zone: config.zone!,
+      repo: repoName,
+      ...(config.profile ? { design: config.profile } : {}),
+      lastSeen: new Date().toISOString(),
+    });
   }
 
   logger.info('SETUP', '✨ Orbit is ready for mission deployment.');

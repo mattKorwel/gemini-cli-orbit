@@ -71,6 +71,7 @@ export const GLOBAL_SETTINGS_PATH = path.join(
   'settings.json',
 );
 export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
+export const STATIONS_DIR = path.join(GLOBAL_ORBIT_DIR, 'stations');
 export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 export const DEFAULT_TEMP_DIR = path.join(GLOBAL_ORBIT_DIR, 'tmp');
 

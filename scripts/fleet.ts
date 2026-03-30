@@ -15,6 +15,7 @@ import { logger } from './Logger.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
+import { StationManager } from './StationManager.js';
 
 /**
  * Fleet: Manage and coordinate Orbit stations.
@@ -24,6 +25,7 @@ export async function runFleet(args: string[]) {
   const config = getRepoConfig(repoName);
   const settings = loadSettings();
   const manager = new DesignManager();
+  const stationManager = new StationManager();
 
   const subCommand = args[0]; // e.g., 'design', 'list', 'liftoff', 'delete'
   const action = args[1]; // Action within subcommand
@@ -72,26 +74,43 @@ export async function runFleet(args: string[]) {
 
   // --- 📦 STATION LIST (FLEET) ---
   if (subCommand === 'list' || subCommand === 'constellation') {
-    const provider = ProviderFactory.getProvider(config as any);
     logger.divider('ORBIT CONSTELLATION');
-    return provider.listStations();
+    const stations = await stationManager.listStations({
+      syncWithReality: true,
+    });
+
+    if (stations.length === 0) {
+      console.log('✅ No provisioned stations found.');
+      return 0;
+    }
+
+    stations.forEach((s) => {
+      const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
+      console.log(`${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`);
+      if (s.type === 'gce') {
+        console.log(`   - Project: ${s.projectId} | Zone: ${s.zone}`);
+      } else {
+        console.log(`   - Path: ${s.rootPath}`);
+      }
+      console.log(`   - Last Seen: ${s.lastSeen}`);
+      console.log('');
+    });
+    return 0;
   }
 
   // --- 🚀 STATION LIFTOFF ---
   if (subCommand === 'liftoff') {
-    // Forward to setup script but with shifted args
     return runSetup();
   }
 
   // --- 🔥 STATION DELETE ---
   if (subCommand === 'delete') {
-    // Forward to splashdown but specifically for the station
     return runSplashdown(['--all']);
   }
 
   // --- 📥 STATION IMPORT ---
   if (subCommand === 'import') {
-    const source = action; // orbit station import <source>
+    const source = action;
     if (!source) {
       console.error('❌ Please specify a source (path or URL).');
       return 1;
@@ -115,7 +134,7 @@ Usage: orbit station <command> [args]
 COMMANDS:
   design  <list|create|edit|switch>  Manage infrastructure blueprints.
   import  <path|url>                 Import a design from local file or URL.
-  list                               Show all provisioned stations in project.
+  list                               Show all provisioned stations (Synced).
   liftoff [--setup-net]              Build or wake the station for this repo.
   delete                             Decommission and remove the station.
   `);
@@ -124,10 +143,9 @@ COMMANDS:
 }
 
 /**
- * Legacy support for 'design' and 'fleet' entry points
+ * Legacy support
  */
 export async function runDesign(args: string[]) {
-  // If called via 'orbit design station ...' we shift
   if (args[0] === 'station') {
     return runFleet(['design', ...args.slice(1)]);
   }
