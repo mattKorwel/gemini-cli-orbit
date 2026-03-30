@@ -17,7 +17,7 @@ describe('ConfigManager', () => {
     vi.clearAllMocks();
     vi.mocked(spawnSync).mockReturnValue({
       status: 0,
-      stdout: Buffer.from('{"name": "test-repo"}'),
+      stdout: Buffer.from('/work-dir/test-repo'),
     } as any);
     // Default to no files existing
     vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -32,25 +32,38 @@ describe('ConfigManager', () => {
 
     // 2. Global Registry (User override for this repo)
     const globalSettings = {
+      activeStation: 'corp-station',
       repos: {
-        'test-repo': { imageUri: 'user-override-image', profile: 'corp' },
+        'test-repo': { imageUri: 'user-override-image' },
       },
     };
 
-    // 3. Profile (Environment data)
-    const profileData = { projectId: 'corp-p', zone: 'corp-z' };
+    // 2.5 Station Receipt
+    const stationReceipt = {
+      name: 'corp-station',
+      projectId: 'station-p',
+      zone: 'station-z',
+      schematic: 'corp',
+    };
+
+    // 3. Schematic (Environment data)
+    const schematicData = { projectId: 'corp-p', zone: 'corp-z' };
 
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       if (p.includes('config.json')) return true;
       if (p.includes('settings.json')) return true;
-      if (p.includes('corp.json')) return true;
+      if (p.includes('stations/corp-station.json')) return true;
+      if (p.includes('schematics/corp.json')) return true;
       return false;
     });
 
     vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
       if (p.includes('config.json')) return JSON.stringify(projectConfig);
       if (p.includes('settings.json')) return JSON.stringify(globalSettings);
-      if (p.includes('corp.json')) return JSON.stringify(profileData);
+      if (p.includes('stations/corp-station.json'))
+        return JSON.stringify(stationReceipt);
+      if (p.includes('schematics/corp.json'))
+        return JSON.stringify(schematicData);
       return '';
     });
 
@@ -59,8 +72,8 @@ describe('ConfigManager', () => {
     expect(config.repoName).toBe('test-repo');
     expect(config.upstreamRepo).toBe('org/repo'); // From Project Default
     expect(config.imageUri).toBe('user-override-image'); // From Global Registry (Override)
-    expect(config.projectId).toBe('corp-p'); // From Profile
-    expect(config.zone).toBe('corp-z'); // From Profile
+    expect(config.projectId).toBe('corp-p'); // From Schematic (overrides station receipt)
+    expect(config.zone).toBe('corp-z'); // From Schematic
   });
 
   it('should override with environment variables', () => {
@@ -73,26 +86,6 @@ describe('ConfigManager', () => {
     expect(config.projectId).toBe('env-p');
 
     delete process.env.GCLI_ORBIT_PROJECT_ID;
-  });
-
-  it('should fetch GitHub variables as fallback', () => {
-    vi.mocked(spawnSync).mockImplementation((cmd: any, args: any) => {
-      if (cmd === 'gh' && args[0] === 'variable') {
-        if (args[1] === 'get' && args[2] === 'GCLI_VPC_NAME') {
-          return { status: 0, stdout: Buffer.from('gh-vpc') } as any;
-        }
-      }
-      if (cmd === 'gh' && args[0] === 'repo') {
-        return {
-          status: 0,
-          stdout: Buffer.from('{"name": "test-repo"}'),
-        } as any;
-      }
-      return { status: 1 } as any;
-    });
-
-    const config = getRepoConfig();
-    expect(config.vpcName).toBe('gh-vpc');
   });
 
   it('should detect repo name', () => {

@@ -35,7 +35,12 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
   // 1. Start with Project Defaults
   let config: OrbitConfig = { ...projectConfig, repoName: rName };
 
-  // 2. Determine target station
+  // 2. Global Registry (User override for this specific repo)
+  if (settings.repos[rName]) {
+    config = { ...config, ...settings.repos[rName] };
+  }
+
+  // 3. Determine target station
   const flags = parseFlags(process.argv.slice(2));
   const targetStation =
     flags.forStation ||
