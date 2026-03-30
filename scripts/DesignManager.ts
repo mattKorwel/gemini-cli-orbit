@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { spawnSync } from 'node:child_process';
 import { PROFILES_DIR } from './Constants.js';
 import { saveProfile, loadJson } from './ConfigManager.js';
 import { logger } from './Logger.js';
@@ -97,6 +98,37 @@ export class DesignManager {
       'CONFIG',
       `✨ Design "${name}" saved to ${PROFILES_DIR}/${name}.json`,
     );
+  }
+
+  async importDesign(source: string): Promise<string> {
+    let content: string;
+
+    if (source.startsWith('http')) {
+      logger.info('CONFIG', `🌐 Fetching remote design from ${source}...`);
+      const res = spawnSync('curl', ['-sL', source], { stdio: 'pipe' });
+      if (res.status !== 0) {
+        const errorMsg = res.stderr.toString();
+        throw new Error(`Failed to fetch remote design: ${errorMsg}`, {
+          cause: new Error(errorMsg),
+        });
+      }
+      content = res.stdout.toString();
+    } else {
+      const p = path.resolve(source);
+      if (!fs.existsSync(p)) throw new Error(`Local file not found: ${p}`);
+      content = fs.readFileSync(p, 'utf8');
+    }
+
+    try {
+      const config = JSON.parse(content);
+      const name =
+        config.profileName ||
+        path.basename(source, '.json').replace(/[^a-z0-9]/g, '-');
+      saveProfile(name, config);
+      return name;
+    } catch (e: any) {
+      throw new Error(`Invalid JSON design: ${e.message}`, { cause: e });
+    }
   }
 
   listDesigns(): string[] {

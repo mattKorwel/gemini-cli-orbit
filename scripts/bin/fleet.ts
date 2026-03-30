@@ -5,11 +5,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { runDesign } from '../fleet.js';
+import { runFleet } from '../fleet.js';
 
 const args = process.argv.slice(2);
 
-runDesign(args)
+runFleet(args)
   .then((code) => {
     if (code !== 0) process.exit(code);
   })

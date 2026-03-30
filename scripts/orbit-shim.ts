@@ -16,13 +16,17 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'mission.ts',
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
-  design: {
-    script: 'fleet.ts',
-    description: 'Manage infrastructure blueprints (profiles).',
+  station: {
+    script: 'fleet.ts', // Root for station management
+    description: 'Hardware & Blueprint control: <design|list|liftoff|delete>',
   },
   liftoff: {
     script: 'setup.ts',
-    description: 'Build or wake infrastructure (use --with-station).',
+    description: 'Alias for "station liftoff".',
+  },
+  design: {
+    script: 'fleet.ts',
+    description: 'Alias for "station design".',
   },
   ci: {
     script: 'ci.ts',
@@ -61,12 +65,28 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
 function showHelp() {
   console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
   console.log('Usage: orbit <command> [args]\n');
-  console.log('Available Commands:');
-
-  const maxLen = Math.max(...Object.keys(COMMANDS).map((k) => k.length));
-  for (const [name, info] of Object.entries(COMMANDS)) {
-    console.log(`  ${name.padEnd(maxLen + 2)} ${info.description}`);
-  }
+  console.log('Main Commands:');
+  console.log(
+    '  mission   - Start, resume, or perform maneuvers on a PR mission.',
+  );
+  console.log(
+    '  station   - Manage hardware and blueprints (design|list|liftoff|delete).',
+  );
+  console.log('  pulse     - Check station health and active mission status.');
+  console.log('  ci        - Monitor CI status for a branch.');
+  console.log('  uplink    - Quickly connect to an existing mission session.');
+  console.log(
+    '  splashdown- Emergency shutdown of all active remote capsules.',
+  );
+  console.log(
+    '  jettison  - Decommission a specific mission and its worktree.',
+  );
+  console.log(
+    '  reap      - Cleanup idle mission capsules based on inactivity.',
+  );
+  console.log(
+    '  blackbox  - Retrieve detailed mission telemetry and history logs.',
+  );
 
   console.log('\nFlags:');
   console.log('  -h, --help    Show this help menu');
