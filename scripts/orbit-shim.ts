@@ -16,9 +16,13 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'mission.ts',
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
+  design: {
+    script: 'fleet.ts',
+    description: 'Manage infrastructure blueprints (profiles).',
+  },
   liftoff: {
     script: 'setup.ts',
-    description: 'Initial station setup: provision GCE Worker and Docker base.',
+    description: 'Build or wake infrastructure (use --with-station).',
   },
   ci: {
     script: 'ci.ts',

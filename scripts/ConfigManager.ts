@@ -17,6 +17,7 @@ import {
   PROJECT_CONFIG_PATH,
   PROJECT_ORBIT_DIR,
   PROFILES_DIR,
+  GLOBAL_ORBIT_DIR,
 } from './Constants.js';
 
 const REPO_ROOT = process.cwd();
@@ -94,6 +95,27 @@ export async function resolveBranch(id: string): Promise<string> {
     }
   }
   return id;
+}
+
+/**
+ * Saves a named profile.
+ */
+export function saveProfile(name: string, config: any): void {
+  if (!fs.existsSync(PROFILES_DIR)) {
+    fs.mkdirSync(PROFILES_DIR, { recursive: true });
+  }
+  const p = path.join(PROFILES_DIR, `${name}.json`);
+  fs.writeFileSync(p, JSON.stringify(config, null, 2));
+}
+
+/**
+ * Saves global settings.
+ */
+export function saveSettings(settings: any): void {
+  if (!fs.existsSync(GLOBAL_ORBIT_DIR)) {
+    fs.mkdirSync(GLOBAL_ORBIT_DIR, { recursive: true });
+  }
+  fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
 /**

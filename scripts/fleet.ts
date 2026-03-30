@@ -4,77 +4,71 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import os from 'node:os';
-import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import { loadSettings, saveSettings } from './ConfigManager.js';
+import { DesignManager } from './DesignManager.js';
+import { logger } from './Logger.js';
 
 /**
- * Fleet Manager: Unified interface for managing remote GCE stations
- * and local workspace environments.
+ * Design: Manage and switch between infrastructure designs (profiles).
  */
-export async function runFleet(args: string[]) {
-  const action = args[0] || 'list';
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
+export async function runDesign(args: string[]) {
+  const manager = new DesignManager();
+  const settings = loadSettings();
+  const designs = manager.listDesigns();
 
-  const isLocal =
-    !config.projectId ||
-    config.projectId === 'local' ||
-    config.providerType === 'local-worktree';
+  const subCommand = args[0]; // e.g., 'station'
+  const action = args[1]; // e.g., 'list', 'create', 'edit'
+  const name = args[2]; // e.g., 'corp'
 
-  const instanceName = config.instanceName || 'local';
-  const provider = ProviderFactory.getProvider({
-    ...config,
-    projectId: config.projectId || 'local',
-    zone: config.zone || 'local',
-    instanceName,
-  });
-
-  if (action === 'list') {
-    if (isLocal) {
-      console.log(`🏠 Orbit Local Workspace (${repoName})`);
-      console.log(`--------------------------------------------------`);
-      const capsules = await provider.listCapsules();
-      console.log(
-        `📍 Path: ${config.worktreesDir || 'Standard sibling folder'}`,
-      );
-      console.log(
-        `📦 Active worktrees: ${capsules.length ? capsules.join(', ') : 'None'}`,
-      );
-      console.log(`--------------------------------------------------`);
-      return 0;
-    }
+  if (subCommand !== 'station') {
     console.log(
-      `🔍 Listing Orbit Stations for ${os.userInfo().username} in ${config.projectId}...`,
+      '\nUsage: orbit design station <list|create|edit|switch> [name]\n',
     );
-    return provider.listStations();
+    return 0;
   }
 
-  if (
-    action === 'provision' ||
-    action === 'stop' ||
-    action === 'destroy' ||
-    action === 'rebuild'
-  ) {
-    if (isLocal) {
-      console.log(`ℹ️ Action '${action}' is a no-op in local mode.`);
-      return 0;
-    }
-
-    if (action === 'stop') {
-      console.log(`🛑 Stopping Orbit Station: ${instanceName}...`);
-      return provider.stop();
-    }
-    if (action === 'destroy') {
-      console.log(`🔥 Destroying Orbit Station: ${instanceName}...`);
-      return provider.destroy();
-    }
-    if (action === 'provision') {
-      console.log(`🚀 Provisioning Orbit Station: ${instanceName}...`);
-      return provider.provision({ setupNetwork: true });
-    }
+  if (!action || action === 'list') {
+    console.log('\n📐 ORBIT INFRASTRUCTURE DESIGNS');
+    console.log('--------------------------------------------------');
+    designs.forEach((d) => {
+      const isActive = d === settings.activeProfile;
+      console.log(`${isActive ? '➡️ ' : '  '} ${d}`);
+    });
+    console.log('--------------------------------------------------');
+    console.log(
+      'Use "orbit design station switch <name>" to change active profile.',
+    );
+    console.log(
+      'Use "orbit design station create <name>" to run the wizard.\n',
+    );
+    return 0;
   }
 
-  console.error(`❌ Unknown fleet action: ${action}`);
-  return 1;
+  if (action === 'create' || action === 'edit') {
+    if (!name) {
+      console.error(
+        '❌ Please specify a design name (e.g., orbit design station create corp)',
+      );
+      return 1;
+    }
+    await manager.runWizard(name);
+    return 0;
+  }
+
+  if (action === 'switch') {
+    if (!name) {
+      console.error('❌ Please specify a design name to switch to.');
+      return 1;
+    }
+    if (!designs.includes(name)) {
+      console.error(`❌ Design "${name}" not found.`);
+      return 1;
+    }
+    settings.activeProfile = name;
+    saveSettings(settings);
+    logger.info('CONFIG', `✨ Switched active design to: ${name}`);
+    return 0;
+  }
+
+  return 0;
 }
