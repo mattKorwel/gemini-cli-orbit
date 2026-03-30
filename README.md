@@ -100,7 +100,7 @@ continues even if you close your laptop.
 1.  **Liftoff**: Initialize your persistent **Orbital Station**.
 
     ```bash
-    /orbit:liftoff
+    orbit station liftoff --setup-net
     ```
 
 2.  **Launch Remote Mission**:

@@ -65,6 +65,13 @@ active Design.
 Designs allow you to switch between different infrastructure environments (e.g.,
 `corp`, `sandbox`, `local-lab`).
 
+**Managing Designs via CLI**:
+
+- **List available designs**: `orbit station design list`
+- **Create/Edit a design**: `orbit station design create <name>`
+- **Switch active design**: `orbit station design switch <name>`
+- **Import a design**: `orbit station import <path|url>`
+
 **Key Attributes**:
 
 - `projectId`: The GCP Project ID.
