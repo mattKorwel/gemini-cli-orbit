@@ -7,13 +7,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runFleet } from './fleet.js';
 import * as ConfigManager from './ConfigManager.js';
-import { DesignManager } from './DesignManager.js';
+import { SchematicManager } from './SchematicManager.js';
 import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 
 vi.mock('./ConfigManager.js');
-vi.mock('./DesignManager.js');
+vi.mock('./SchematicManager.js');
 vi.mock('./setup.js');
 vi.mock('./splashdown.js');
 vi.mock('./providers/ProviderFactory.js');
@@ -30,11 +30,11 @@ describe('runFleet', () => {
     } as any);
   });
 
-  it('should route design subcommand to DesignManager', async () => {
+  it('should route schematic subcommand to SchematicManager', async () => {
     const managerSpy = vi
-      .spyOn(DesignManager.prototype, 'listDesigns')
+      .spyOn(SchematicManager.prototype, 'listSchematics')
       .mockReturnValue(['d1']);
-    await runFleet(['design', 'list']);
+    await runFleet(['schematic', 'list']);
     expect(managerSpy).toHaveBeenCalled();
   });
 

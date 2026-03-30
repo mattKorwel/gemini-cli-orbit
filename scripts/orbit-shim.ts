@@ -3,7 +3,12 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { spawnSync } from 'node:child_process';
+
+/**
+ * Orbit CLI Shim
+ * Standardizes argument parsing and routes commands to bundled entrypoints.
+ */
+
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -17,16 +22,13 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
   station: {
-    script: 'fleet.ts', // Root for station management
-    description: 'Hardware & Blueprint control: <design|list|liftoff|delete>',
+    script: 'fleet.ts',
+    description:
+      'Hardware & Blueprint control: <schematic|activate|list|liftoff|delete>',
   },
   liftoff: {
     script: 'setup.ts',
-    description: 'Alias for "station liftoff".',
-  },
-  design: {
-    script: 'fleet.ts',
-    description: 'Alias for "station design".',
+    description: 'Build or wake infrastructure (use --with-station).',
   },
   ci: {
     script: 'ci.ts',
@@ -48,17 +50,13 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'jettison.ts',
     description: 'Decommission a specific mission and its worktree.',
   },
-  constellation: {
-    script: 'fleet.ts',
-    description: 'Manage and coordinate multiple Orbit stations.',
+  reap: {
+    script: 'reap.ts',
+    description: 'Cleanup idle mission capsules based on inactivity.',
   },
   blackbox: {
     script: 'blackbox.ts',
     description: 'Retrieve detailed mission telemetry and history logs.',
-  },
-  reap: {
-    script: 'reap.ts',
-    description: 'Cleanup idle mission capsules based on inactivity.',
   },
 };
 
@@ -69,9 +67,12 @@ function showHelp() {
   console.log(
     '  mission   - Start, resume, or perform maneuvers on a PR mission.',
   );
-  console.log(
-    '  station   - Manage hardware and blueprints (design|list|liftoff|delete).',
-  );
+  console.log('  station   - Manage hardware and blueprints:');
+  console.log('              • schematic : Manage infrastructure blueprints');
+  console.log('              • activate  : Set the global active station');
+  console.log('              • list      : Show all provisioned stations');
+  console.log('              • liftoff   : Build or wake infrastructure');
+  console.log('              • delete    : Decommission and remove station');
   console.log('  pulse     - Check station health and active mission status.');
   console.log('  ci        - Monitor CI status for a branch.');
   console.log('  uplink    - Quickly connect to an existing mission session.');
@@ -89,12 +90,13 @@ function showHelp() {
   );
 
   console.log('\nFlags:');
-  console.log('  -h, --help    Show this help menu');
-  console.log('  -l, --local   Force local worktree mode');
-  console.log('  --profile <p> Use a specific Orbit profile');
+  console.log('  -h, --help        Show this help menu');
+  console.log('  -l, --local       Force local worktree mode');
+  console.log('  --for-station <s> Target a specific station');
+  console.log('  --schematic <s>   Use a specific schematic for liftoff');
   console.log('\nExample:');
-  console.log('  orbit mission 123 --review');
-  console.log('  gm 123 review --local');
+  console.log('  orbit mission 123 review');
+  console.log('  orbit station activate my-sandbox');
   console.log('');
 }
 
@@ -148,9 +150,8 @@ const exec = useTsx ? 'npx tsx' : 'node';
 
 // Process flags that should be converted to environment variables
 const rawArgs = args.slice(1);
-const filteredArgs: string[] = [];
 for (let i = 0; i < rawArgs.length; i++) {
-  let arg = rawArgs[i];
+  const arg = rawArgs[i];
   if (arg === undefined) continue;
 
   if (arg === '--local' || arg === '-l') {
@@ -159,26 +160,30 @@ for (let i = 0; i < rawArgs.length; i++) {
   } else if ((arg === '--repo' || arg === '-r') && rawArgs[i + 1]) {
     process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1];
     i++;
-  } else if ((arg === '--profile' || arg === '-p') && rawArgs[i + 1]) {
-    process.env.GCLI_ORBIT_PROFILE = rawArgs[i + 1];
-    i++;
-  } else {
-    // Handle repo:id shorthand (e.g., gm orbit:20)
-    if (cmd === 'mission' && arg.includes(':')) {
-      const [repo, id] = arg.split(':');
-      process.env.GCLI_ORBIT_REPO_NAME = repo;
-      arg = id;
-    }
-    if (arg !== undefined) {
-      filteredArgs.push(arg);
-    }
+  } else if (
+    arg.startsWith('--for-station=') ||
+    (arg === '--for-station' && rawArgs[i + 1])
+  ) {
+    const val = arg.includes('=') ? arg.split('=')[1] : rawArgs[i + 1];
+    process.env.GCLI_ORBIT_INSTANCE_NAME = val;
+    if (!arg.includes('=')) i++;
+  } else if (
+    arg.startsWith('--schematic=') ||
+    (arg === '--schematic' && rawArgs[i + 1])
+  ) {
+    const val = arg.includes('=') ? arg.split('=')[1] : rawArgs[i + 1];
+    process.env.GCLI_ORBIT_SCHEMATIC = val;
+    if (!arg.includes('=')) i++;
   }
 }
 
-const res = spawnSync(exec, [finalPath, ...filteredArgs], {
+// Ensure shim knows it is a command to bypass interactive UI
+process.env.GCLI_ORBIT_SHIM = '1';
+
+import { spawnSync } from 'node:child_process';
+const finalRes = spawnSync(exec, [finalPath, ...args.slice(1)], {
   stdio: 'inherit',
-  env: process.env,
-  shell: useTsx, // Need shell for npx
+  shell: true,
 });
 
-process.exit(res.status ?? 0);
+process.exit(finalRes.status ?? 0);

@@ -42,8 +42,9 @@ export async function runJettison(args: string[]) {
     instanceName,
   });
 
+  console.log(`\n🛰️  Station: ${config.instanceName}`);
   console.log(
-    `🧹 Surgically jettisoning capsule and worktree for #${prNumber} in ${repoName}...`,
+    `🧹 Surgically jettisoning capsule and worktree for #${prNumber} in ${repoName}...\n`,
   );
 
   if (isLocal) {

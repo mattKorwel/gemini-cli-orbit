@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   UPSTREAM_REPO_URL,
   DEFAULT_REPO_NAME,
-  PROFILES_DIR,
+  SCHEMATICS_DIR,
 } from './Constants.js';
 
 describe('Constants', () => {
@@ -19,8 +19,8 @@ describe('Constants', () => {
     expect(DEFAULT_REPO_NAME).toBe('gemini-cli');
   });
 
-  it('should have a valid profiles directory path', () => {
-    expect(PROFILES_DIR).toContain('.gemini/orbit/profiles');
-    expect(PROFILES_DIR).not.toContain('.gemini/orbit/profiles/.gemini'); // Should be top-level in home
+  it('should have a valid schematics directory path', () => {
+    expect(SCHEMATICS_DIR).toContain('.gemini/orbit/schematics');
+    expect(SCHEMATICS_DIR).not.toContain('.gemini/orbit/schematics/.gemini'); // Should be top-level in home
   });
 });

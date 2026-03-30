@@ -320,6 +320,7 @@ ${finalSSH}
   }
 
   // DEFAULT: Run in-place
-  console.log(`\n🚀 Launching Orbit Mission: ${identifier} (${action})...\n`);
+  console.log(`\n🛰️  Station: ${config.instanceName}`);
+  console.log(`🚀 Launching Orbit Mission: ${identifier} (${action})...\n`);
   return provider.exec(fullCommand, execOptions);
 }

@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
-import { PROFILES_DIR } from './Constants.js';
-import { saveProfile, loadJson, parseFlags } from './ConfigManager.js';
+import { SCHEMATICS_DIR } from './Constants.js';
+import { saveSchematic, loadJson, parseFlags } from './ConfigManager.js';
 import { logger } from './Logger.js';
 
 function ask(query: string): Promise<string> {
@@ -26,20 +26,19 @@ function ask(query: string): Promise<string> {
   );
 }
 
-export class DesignManager {
+export class SchematicManager {
   /**
-   * Runs the interactive wizard to create or edit a station design (profile).
-   * Supports surgical overrides via CLI flags.
+   * Runs the interactive wizard to create or edit an infrastructure schematic.
    */
   async runWizard(name: string): Promise<void> {
-    const profilePath = path.join(PROFILES_DIR, `${name}.json`);
-    const existingConfig = loadJson(profilePath) || {};
+    const schematicPath = path.join(SCHEMATICS_DIR, `${name}.json`);
+    const existingConfig = loadJson(schematicPath) || {};
     const flags = parseFlags(process.argv.slice(2));
 
     // Merge existing config with any surgical flags provided
     const base = { ...existingConfig, ...flags };
 
-    logger.divider(`ORBIT DESIGN WIZARD: ${name.toUpperCase()}`);
+    logger.divider(`ORBIT SCHEMATIC WIZARD: ${name.toUpperCase()}`);
     console.log('Fill in your infrastructure blueprints below.');
     console.log('(Surgical flags detected and will be pre-filled)\n');
 
@@ -100,22 +99,22 @@ export class DesignManager {
       machineType: base.machineType || 'n2-standard-8',
     };
 
-    saveProfile(name, newConfig);
+    saveSchematic(name, newConfig);
     logger.info(
       'CONFIG',
-      `✨ Design "${name}" saved to ${PROFILES_DIR}/${name}.json`,
+      `✨ Schematic "${name}" saved to ${SCHEMATICS_DIR}/${name}.json`,
     );
   }
 
-  async importDesign(source: string): Promise<string> {
+  async importSchematic(source: string): Promise<string> {
     let content: string;
 
     if (source.startsWith('http')) {
-      logger.info('CONFIG', `🌐 Fetching remote design from ${source}...`);
+      logger.info('CONFIG', `🌐 Fetching remote schematic from ${source}...`);
       const res = spawnSync('curl', ['-sL', source], { stdio: 'pipe' });
       if (res.status !== 0) {
         const errorMsg = res.stderr.toString();
-        throw new Error(`Failed to fetch remote design: ${errorMsg}`, {
+        throw new Error(`Failed to fetch remote schematic: ${errorMsg}`, {
           cause: new Error(errorMsg),
         });
       }
@@ -129,19 +128,20 @@ export class DesignManager {
     try {
       const config = JSON.parse(content);
       const name =
+        config.schematicName ||
         config.profileName ||
         path.basename(source, '.json').replace(/[^a-z0-9]/g, '-');
-      saveProfile(name, config);
+      saveSchematic(name, config);
       return name;
     } catch (e: any) {
-      throw new Error(`Invalid JSON design: ${e.message}`, { cause: e });
+      throw new Error(`Invalid JSON schematic: ${e.message}`, { cause: e });
     }
   }
 
-  listDesigns(): string[] {
-    if (!fs.existsSync(PROFILES_DIR)) return [];
+  listSchematics(): string[] {
+    if (!fs.existsSync(SCHEMATICS_DIR)) return [];
     return fs
-      .readdirSync(PROFILES_DIR)
+      .readdirSync(SCHEMATICS_DIR)
       .filter((f) => f.endsWith('.json'))
       .map((f) => f.replace('.json', ''));
   }

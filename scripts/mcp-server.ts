@@ -172,7 +172,7 @@ server.registerTool(
     }).shape,
   },
   async ({ action }) => {
-    const output = await runWithCapture(() => runDesign(['station', action]));
+    const output = await runWithCapture(() => runDesign(['schematic', action]));
     return {
       content: [{ type: 'text', text: output }],
     };

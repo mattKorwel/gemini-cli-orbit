@@ -16,111 +16,149 @@ import {
   GLOBAL_SETTINGS_PATH,
   PROJECT_CONFIG_PATH,
   PROJECT_ORBIT_DIR,
-  PROFILES_DIR,
+  SCHEMATICS_DIR,
+  STATIONS_DIR,
   GLOBAL_ORBIT_DIR,
 } from './Constants.js';
 
 const REPO_ROOT = process.cwd();
 
 /**
- * Sanitizes a name (profile, station, repo) to prevent path traversal.
+ * Resolves the final Orbit configuration for a repository.
+ * Tiered Resolution: CLI Flags (--for-station) > Env Vars > Global activeStation > Dynamic Default
  */
-export function sanitizeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9\-_]/g, '');
+export function getRepoConfig(repoName?: string): OrbitConfig {
+  const rName = repoName || detectRepoName();
+  const settings = loadSettings();
+  const projectConfig = loadProjectConfig();
+
+  // 1. Start with Project Defaults
+  let config: OrbitConfig = { ...projectConfig, repoName: rName };
+
+  // 2. Determine target station
+  const flags = parseFlags(process.argv.slice(2));
+  const targetStation =
+    flags.forStation ||
+    process.env.GCLI_ORBIT_INSTANCE_NAME ||
+    settings.activeStation;
+
+  // 3. Resolve Station details from Registry if targeted
+  if (targetStation) {
+    const receiptPath = path.join(STATIONS_DIR, `${targetStation}.json`);
+    const receipt = loadJson(receiptPath);
+    if (receipt) {
+      config.instanceName = receipt.name;
+      config.projectId = receipt.projectId;
+      config.zone = receipt.zone;
+      config.providerType = receipt.type;
+
+      // Merge in the schematic used to build this station if it exists
+      if (receipt.schematic) {
+        const schematic = loadSchematic(receipt.schematic);
+        config = { ...config, ...schematic };
+      }
+    } else {
+      // If station not in registry, assume name is literal
+      config.instanceName = targetStation;
+    }
+  }
+
+  // 4. Global Overrides
+  if (settings.tempDir) config.tempDir = settings.tempDir;
+  if (settings.autoClean !== undefined) config.autoClean = settings.autoClean;
+
+  // 5. Environment Overrides
+  config = {
+    ...config,
+    projectId: process.env.GCLI_ORBIT_PROJECT_ID || config.projectId,
+    zone: process.env.GCLI_ORBIT_ZONE || config.zone,
+    instanceName: process.env.GCLI_ORBIT_INSTANCE_NAME || config.instanceName,
+    backendType: (process.env.GCLI_ORBIT_BACKEND as any) || config.backendType,
+    imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
+    providerType:
+      (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
+  };
+
+  // 6. Merge final CLI Flags
+  config = { ...config, ...flags };
+
+  // 7. Dynamic Defaults (Final Fallback)
+  if (!config.instanceName && config.projectId !== 'local') {
+    config.instanceName = `gcli-station-${rName}`;
+  }
+  if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
+  if (!config.worktreesDir) config.worktreesDir = '/mnt/disks/data/worktrees';
+
+  return config;
 }
 
-let cachedRepoName: string | null = null;
-let isWithinGit: boolean | null = null;
-
-/**
- * Helper: Checks if the current CWD is within a git repository.
- */
-function checkGitStatus(): boolean {
-  if (isWithinGit !== null) return isWithinGit;
-  const res = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
-    stdio: 'pipe',
-  });
-  isWithinGit = res.status === 0;
-  return isWithinGit;
-}
-
-/**
- * Detects the current repository name using gh cli.
- */
 export function detectRepoName(): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
-  if (cachedRepoName) return cachedRepoName;
 
-  if (checkGitStatus()) {
-    const res = spawnSync('gh', ['repo', 'view', '--json', 'name'], {
+  try {
+    const res = spawnSync('git', ['rev-parse', '--show-toplevel'], {
       stdio: 'pipe',
     });
     if (res.status === 0) {
-      try {
-        cachedRepoName = JSON.parse(res.stdout.toString()).name;
-        return cachedRepoName!;
-      } catch {}
+      return path.basename(res.stdout.toString().trim());
     }
-  }
+  } catch (e) {}
 
-  const basename = path.basename(REPO_ROOT);
-  const currentUser = os.userInfo().username;
-  const ignoredNames = new Set([
-    'dev',
-    'Users',
-    'home',
-    'workspace',
-    currentUser,
-  ]);
-
-  if (basename && !ignoredNames.has(basename)) {
-    return basename;
-  }
-
-  return 'unknown-repo';
+  return DEFAULT_REPO_NAME;
 }
 
-/**
- * Resolves a PR number or branch name to a clean branch identifier.
- */
-export async function resolveBranch(id: string): Promise<string> {
-  if (/^\d+$/.test(id)) {
-    const res = spawnSync(
-      'gh',
-      ['pr', 'view', id, '--json', 'headRefName', '-q', '.headRefName'],
-      { stdio: 'pipe' },
-    );
-    if (res.status === 0) {
-      return res.stdout.toString().trim();
-    }
+export function loadSettings(): OrbitSettings {
+  const defaultSettings: OrbitSettings = { repos: {} };
+  if (!fs.existsSync(GLOBAL_SETTINGS_PATH)) return defaultSettings;
+  try {
+    return JSON.parse(fs.readFileSync(GLOBAL_SETTINGS_PATH, 'utf8'));
+  } catch (e) {
+    return defaultSettings;
   }
-  return id;
 }
 
-/**
- * Saves a named profile.
- */
-export function saveProfile(name: string, config: any): void {
-  if (!fs.existsSync(PROFILES_DIR)) {
-    fs.mkdirSync(PROFILES_DIR, { recursive: true });
-  }
-  const p = path.join(PROFILES_DIR, `${name}.json`);
-  fs.writeFileSync(p, JSON.stringify(config, null, 2));
-}
-
-/**
- * Saves global settings.
- */
-export function saveSettings(settings: any): void {
+export function saveSettings(settings: OrbitSettings): void {
   if (!fs.existsSync(GLOBAL_ORBIT_DIR)) {
     fs.mkdirSync(GLOBAL_ORBIT_DIR, { recursive: true });
   }
   fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-/**
- * Parses CLI flags into a partial OrbitConfig object.
- */
+export function loadProjectConfig(): Partial<OrbitConfig> {
+  if (!fs.existsSync(PROJECT_CONFIG_PATH)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(PROJECT_CONFIG_PATH, 'utf8'));
+  } catch (e) {
+    return {};
+  }
+}
+
+export function loadSchematic(name: string): Partial<OrbitConfig> {
+  const p = path.join(SCHEMATICS_DIR, `${name}.json`);
+  return loadJson(p) || {};
+}
+
+export function saveSchematic(name: string, config: any): void {
+  if (!fs.existsSync(SCHEMATICS_DIR)) {
+    fs.mkdirSync(SCHEMATICS_DIR, { recursive: true });
+  }
+  const p = path.join(SCHEMATICS_DIR, `${name}.json`);
+  fs.writeFileSync(p, JSON.stringify(config, null, 2));
+}
+
+export function loadJson(p: string): any {
+  if (fs.existsSync(p)) {
+    try {
+      return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch (e) {}
+  }
+  return null;
+}
+
+export function sanitizeName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase();
+}
+
 export function parseFlags(args: string[]): Partial<OrbitConfig> {
   const config: any = {};
   for (let i = 0; i < args.length; i++) {
@@ -139,158 +177,9 @@ export function parseFlags(args: string[]): Partial<OrbitConfig> {
     if (arg.startsWith('--machineType='))
       config.machineType = arg.split('=')[1];
     if (arg.startsWith('--image=')) config.imageUri = arg.split('=')[1];
+    if (arg.startsWith('--profile=')) config.schematic = arg.split('=')[1];
+    if (arg.startsWith('--schematic=')) config.schematic = arg.split('=')[1];
+    if (arg.startsWith('--for-station=')) config.forStation = arg.split('=')[1];
   }
   return config;
-}
-
-/**
- * Loads settings from a specific path.
- */
-export function loadJson(p: string): any {
-  if (fs.existsSync(p)) {
-    try {
-      return JSON.parse(fs.readFileSync(p, 'utf8'));
-    } catch (e) {
-      console.error(`⚠️ Failed to parse ${p}:`, e);
-    }
-  }
-  return {};
-}
-
-/**
- * Loads the global orbit settings.
- */
-export function loadGlobalSettings(): OrbitSettings {
-  const data = loadJson(GLOBAL_SETTINGS_PATH);
-  if (!data.repos) return { repos: {}, ...data };
-  return data;
-}
-
-/**
- * Loads the project-wide defaults.
- */
-export function loadProjectConfig(): OrbitConfig {
-  return loadJson(PROJECT_CONFIG_PATH);
-}
-
-/**
- * Fetches a GitHub repository variable using gh cli.
- */
-function getGhVariable(name: string): string | undefined {
-  if (
-    !checkGitStatus() ||
-    process.env.GCLI_ORBIT_PROVIDER === 'local-worktree'
-  ) {
-    return undefined;
-  }
-
-  const res = spawnSync('gh', ['variable', 'get', name], { stdio: 'pipe' });
-  if (res.status === 0) {
-    return res.stdout.toString().trim();
-  }
-  return undefined;
-}
-
-/**
- * Resolves the final configuration for a repository by merging all layers.
- */
-export function getRepoConfig(repoName?: string): OrbitConfig {
-  const targetRepo = repoName || detectRepoName();
-  const globalSettings = loadGlobalSettings();
-  const projectConfig = loadProjectConfig();
-
-  // 1. Start with Project Defaults (TRACKED)
-  let config: OrbitConfig = { ...projectConfig };
-
-  // 2. Merge Global General Defaults
-  const {
-    repos: _,
-    activeRepo: __,
-    activeProfile: ___,
-    ...globalDefaults
-  } = globalSettings;
-  config = { ...config, ...globalDefaults };
-
-  // 3. Merge GitHub Team Config (Shared variables)
-  const ghConfig: OrbitConfig = {};
-  const projectId = getGhVariable('GCLI_PROJECT_ID');
-  if (projectId) ghConfig.projectId = projectId;
-  const zone = getGhVariable('GCLI_ZONE');
-  if (zone) ghConfig.zone = zone;
-  const vpcName = getGhVariable('GCLI_VPC_NAME');
-  if (vpcName) ghConfig.vpcName = vpcName;
-  const subnetName = getGhVariable('GCLI_SUBNET_NAME');
-  if (subnetName) ghConfig.subnetName = subnetName;
-  const dnsSuffix = getGhVariable('GCLI_DNS_SUFFIX');
-  if (dnsSuffix) ghConfig.dnsSuffix = dnsSuffix;
-  const userSuffix = getGhVariable('GCLI_USER_SUFFIX');
-  if (userSuffix) ghConfig.userSuffix = userSuffix;
-
-  config = { ...config, ...ghConfig };
-
-  // 4. Resolve Profile
-  const profileName =
-    process.env.GCLI_ORBIT_PROFILE ||
-    globalSettings.repos?.[targetRepo]?.profile ||
-    globalSettings.activeProfile ||
-    projectConfig.profile;
-
-  if (profileName) {
-    const profilePath = path.join(
-      PROFILES_DIR,
-      profileName.endsWith('.json') ? profileName : `${profileName}.json`,
-    );
-    const profileData = loadJson(profilePath);
-    config = { ...config, ...profileData };
-  }
-
-  // 5. Merge Global Repo Registry (User's project settings)
-  if (globalSettings.repos?.[targetRepo]) {
-    config = { ...config, ...globalSettings.repos[targetRepo] };
-  }
-
-  // 6. Merge Environment Variables (Highest Priority)
-  const envConfig: OrbitConfig = {};
-  if (process.env.GCLI_ORBIT_PROJECT_ID)
-    envConfig.projectId = process.env.GCLI_ORBIT_PROJECT_ID;
-  if (process.env.GCLI_ORBIT_ZONE) envConfig.zone = process.env.GCLI_ORBIT_ZONE;
-  if (process.env.GCLI_ORBIT_INSTANCE_NAME)
-    envConfig.instanceName = process.env.GCLI_ORBIT_INSTANCE_NAME;
-  if (process.env.GCLI_ORBIT_BACKEND)
-    envConfig.backendType = process.env.GCLI_ORBIT_BACKEND as any;
-  if (process.env.GCLI_ORBIT_PROVIDER)
-    envConfig.providerType = process.env.GCLI_ORBIT_PROVIDER as any;
-  if (process.env.GCLI_ORBIT_IMAGE)
-    envConfig.imageUri = process.env.GCLI_ORBIT_IMAGE;
-  if (process.env.GCLI_ORBIT_TEMP_DIR)
-    envConfig.tempDir = process.env.GCLI_ORBIT_TEMP_DIR;
-  if (process.env.GCLI_ORBIT_AUTO_CLEAN)
-    envConfig.autoClean = process.env.GCLI_ORBIT_AUTO_CLEAN === 'true';
-  if (process.env.GCLI_ORBIT_CPU_LIMIT)
-    envConfig.cpuLimit = process.env.GCLI_ORBIT_CPU_LIMIT;
-  if (process.env.GCLI_ORBIT_MEMORY_LIMIT)
-    envConfig.memoryLimit = process.env.GCLI_ORBIT_MEMORY_LIMIT;
-
-  config = { ...config, ...envConfig };
-
-  // Ensure repoName is set
-  config.repoName = targetRepo;
-
-  return config;
-}
-
-/**
- * Legacy support for loadSettings (Migration helper)
- */
-export function loadSettings(): OrbitSettings {
-  const global = loadGlobalSettings();
-  if (Object.keys(global.repos).length > 0) return global;
-
-  const projectLocalPath = path.join(PROJECT_ORBIT_DIR, 'settings.json');
-  if (fs.existsSync(projectLocalPath)) {
-    const local = loadJson(projectLocalPath);
-    if (local.orbit) return { repos: { [detectRepoName()]: local.orbit } };
-    if (local.repos) return local;
-  }
-  return { repos: {} };
 }

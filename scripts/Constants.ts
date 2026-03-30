@@ -70,7 +70,7 @@ export const GLOBAL_SETTINGS_PATH = path.join(
   GLOBAL_ORBIT_DIR,
   'settings.json',
 );
-export const PROFILES_DIR = path.join(GLOBAL_ORBIT_DIR, 'profiles');
+export const SCHEMATICS_DIR = path.join(GLOBAL_ORBIT_DIR, 'schematics');
 export const STATIONS_DIR = path.join(GLOBAL_ORBIT_DIR, 'stations');
 export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 export const DEFAULT_TEMP_DIR = path.join(GLOBAL_ORBIT_DIR, 'tmp');
@@ -120,7 +120,9 @@ export interface OrbitConfig {
   imageUri?: string | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;
-  profile?: string | undefined;
+  profile?: string | undefined; // Legacy
+  schematic?: string | undefined;
+  forStation?: string | undefined;
   worktreesDir?: string | undefined;
   useTmux?: boolean | undefined;
   autoSetupNet?: boolean | undefined;
@@ -139,8 +141,7 @@ export interface OrbitConfig {
 export interface OrbitSettings {
   repos: Record<string, OrbitConfig>;
   activeRepo?: string;
-  activeProfile?: string;
+  activeStation?: string;
   tempDir?: string;
   autoClean?: boolean;
-  orbit?: OrbitConfig;
 }

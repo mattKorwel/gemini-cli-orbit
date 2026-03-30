@@ -4,9 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName, parseFlags } from './ConfigManager.js';
+import {
+  getRepoConfig,
+  detectRepoName,
+  parseFlags,
+  loadSettings,
+  saveSettings,
+  loadSchematic,
+} from './ConfigManager.js';
 import { logger } from './Logger.js';
 import { StationManager } from './StationManager.js';
 
@@ -20,17 +26,20 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   const setupNet = args.includes('--setup-net');
   const flags = parseFlags(args);
 
-  logger.divider('ORBIT MISSION LIFTOFF');
+  const schematicName = flags.schematic || 'default';
+  const schematic = loadSchematic(schematicName);
 
-  // 1. Resolve Config & Merge Flags
-  const baseConfig = getRepoConfig(repoName);
-  const config = { ...baseConfig, ...flags };
+  logger.divider('ORBIT MISSION LIFTOFF');
+  console.log(`📡 Schematic: ${schematicName}`);
+
+  // 1. Resolve Config (CLI Flags > Schematic > Project Defaults)
+  const config = { ...getRepoConfig(repoName), ...schematic, ...flags };
   const stationManager = new StationManager();
 
   if (!config.projectId) {
-    console.log('\n❌ No active infrastructure design found.');
+    console.log('\n❌ No active infrastructure schematic found.');
     console.log(
-      '👉 Please run "orbit design station create default" to set up your blueprints.\n',
+      `👉 Please run "orbit station schematic create ${schematicName}" to set up your blueprints.\n`,
     );
     return 1;
   }
@@ -49,7 +58,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
     if (!setupNet && !withStation) {
       console.log(`\nℹ️  Station "${config.instanceName}" not found.`);
       console.log(
-        '👉 To provision the full network and station, run: orbit liftoff --setup-net --with-station\n',
+        '👉 To provision the full network and station, run: orbit station liftoff --setup-net --with-station\n',
       );
       return 1;
     }
@@ -74,15 +83,25 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   const isLocal =
     config.projectId === 'local' || config.providerType === 'local-worktree';
 
-  // Save/Update Station Receipt
+  // 3. Update Global Registry & Active Station
   if (status.status !== 'NOT_FOUND' && !isLocal) {
+    const settings = loadSettings();
+    const stationName = config.instanceName!;
+
+    // Update global active station pointer
+    settings.activeStation = stationName;
+    saveSettings(settings);
+
+    logger.info('SETUP', `🎯 Active Station set to: ${stationName}`);
+
+    // 4. Save/Update Station Receipt
     stationManager.saveReceipt({
-      name: config.instanceName || 'station-supervisor',
+      name: stationName,
       type: 'gce',
       projectId: config.projectId!,
       zone: config.zone!,
       repo: repoName,
-      ...(config.profile ? { design: config.profile } : {}),
+      schematic: schematicName,
       lastSeen: new Date().toISOString(),
     });
   }

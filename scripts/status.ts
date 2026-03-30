@@ -46,7 +46,7 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
   }
 
   console.log(
-    `\n🛰️  ORBIT MISSION CONTROL: ${instanceName || 'local'} (${repoName})`,
+    `\n🛰️  ORBIT MISSION CONTROL: ${config.instanceName} (${repoName})`,
   );
   console.log(
     `--------------------------------------------------------------------------------`,

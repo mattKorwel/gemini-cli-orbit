@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DesignManager } from './DesignManager.js';
+import { SchematicManager } from './SchematicManager.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -15,40 +15,40 @@ vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('./ConfigManager.js');
 
-describe('DesignManager', () => {
-  let manager: DesignManager;
+describe('SchematicManager', () => {
+  let manager: SchematicManager;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    manager = new DesignManager();
+    manager = new SchematicManager();
   });
 
-  it('should list available designs', () => {
+  it('should list available schematics', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readdirSync).mockReturnValue([
       'corp.json',
       'sandbox.json',
     ] as any);
 
-    const designs = manager.listDesigns();
-    expect(designs).toEqual(['corp', 'sandbox']);
+    const schematics = manager.listSchematics();
+    expect(schematics).toEqual(['corp', 'sandbox']);
   });
 
-  it('should import a local design file', async () => {
+  it('should import a local schematic file', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue(
       JSON.stringify({ projectId: 'test-p' }),
     );
 
-    const name = await manager.importDesign('./test.json');
+    const name = await manager.importSchematic('./test.json');
     expect(name).toBe('test');
-    expect(ConfigManager.saveProfile).toHaveBeenCalledWith(
+    expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
       'test',
       expect.objectContaining({ projectId: 'test-p' }),
     );
   });
 
-  it('should import a remote design via curl', async () => {
+  it('should import a remote schematic via curl', async () => {
     vi.mocked(spawnSync).mockReturnValue({
       status: 0,
       stdout: Buffer.from(
@@ -56,14 +56,14 @@ describe('DesignManager', () => {
       ),
     } as any);
 
-    const name = await manager.importDesign('https://example.com/corp.json');
+    const name = await manager.importSchematic('https://example.com/corp.json');
     expect(name).toBe('remote-corp');
     expect(spawnSync).toHaveBeenCalledWith(
       'curl',
       expect.arrayContaining(['-sL', 'https://example.com/corp.json']),
       expect.any(Object),
     );
-    expect(ConfigManager.saveProfile).toHaveBeenCalledWith(
+    expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
       'remote-corp',
       expect.objectContaining({ projectId: 'remote-p' }),
     );
@@ -73,8 +73,8 @@ describe('DesignManager', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue('invalid-json');
 
-    await expect(manager.importDesign('./bad.json')).rejects.toThrow(
-      'Invalid JSON design',
+    await expect(manager.importSchematic('./bad.json')).rejects.toThrow(
+      'Invalid JSON schematic',
     );
   });
 });

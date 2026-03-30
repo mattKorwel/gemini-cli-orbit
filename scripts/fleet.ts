@@ -10,7 +10,7 @@ import {
   getRepoConfig,
   detectRepoName,
 } from './ConfigManager.js';
-import { DesignManager } from './DesignManager.js';
+import { SchematicManager } from './SchematicManager.js';
 import { logger } from './Logger.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { runSetup } from './setup.js';
@@ -22,69 +22,93 @@ import { StationManager } from './StationManager.js';
  */
 export async function runFleet(args: string[]) {
   const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
   const settings = loadSettings();
-  const manager = new DesignManager();
+  const manager = new SchematicManager();
   const stationManager = new StationManager();
 
-  const subCommand = args[0]; // e.g., 'design', 'list', 'liftoff', 'delete'
+  const subCommand = args[0]; // e.g., 'schematic', 'list', 'liftoff', 'delete', 'activate'
   const action = args[1]; // Action within subcommand
 
   // Flags
   const showMissions = args.includes('--missions') || args.includes('-m');
   const forceSync = args.includes('--sync') || args.includes('-s');
 
-  // --- 📐 STATION DESIGN ---
-  if (subCommand === 'design') {
-    const designAction = action || 'list';
+  // --- 📐 STATION SCHEMATIC ---
+  if (subCommand === 'schematic') {
+    const schematicAction = action || 'list';
     const name = args[2];
 
-    if (designAction === 'list') {
-      const designs = manager.listDesigns();
-      console.log('\n📐 ORBIT INFRASTRUCTURE DESIGNS');
+    if (schematicAction === 'list') {
+      const schematics = manager.listSchematics();
+      console.log('\n📐 ORBIT INFRASTRUCTURE SCHEMATICS');
       console.log('--------------------------------------------------');
-      designs.forEach((d) => {
-        const isActive = d === settings.activeProfile;
-        console.log(`${isActive ? '➡️ ' : '  '} ${d}`);
+      schematics.forEach((s) => {
+        console.log(`   ${s}`);
       });
       console.log('--------------------------------------------------');
-      console.log('Use "orbit station design create <name>" to run wizard.');
       console.log(
-        'Use "orbit station design switch <name>" to change active profile.\n',
+        'Use "orbit station schematic create <name>" to run wizard.\n',
       );
       return 0;
     }
 
-    if (designAction === 'create' || designAction === 'edit') {
+    if (schematicAction === 'create' || schematicAction === 'edit') {
       if (!name) {
-        console.error('❌ Please specify a design name.');
+        console.error('❌ Please specify a schematic name.');
         return 1;
       }
       await manager.runWizard(name);
       return 0;
     }
 
-    if (designAction === 'switch') {
-      if (!name) {
-        console.error('❌ Please specify a design name to switch to.');
+    if (schematicAction === 'import') {
+      const source = name;
+      if (!source) {
+        console.error('❌ Please specify a source (path or URL).');
         return 1;
       }
-      settings.activeProfile = name;
-      saveSettings(settings);
-      logger.info('CONFIG', `✨ Switched active design to: ${name}`);
-      return 0;
+      try {
+        const importedName = await manager.importSchematic(source);
+        logger.info(
+          'CONFIG',
+          `✅ Imported schematic "${importedName}" successfully.`,
+        );
+        return 0;
+      } catch (e: any) {
+        console.error(`❌ Import failed: ${e.message}`, { cause: e });
+        return 1;
+      }
     }
   }
 
-  // --- 📦 STATION LIST (FLEET) ---
+  // --- 🎯 STATION ACTIVATE ---
+  if (subCommand === 'activate') {
+    const target = action;
+    if (!target) {
+      console.error('❌ Please specify a station name to activate.');
+      return 1;
+    }
+
+    const stations = await stationManager.listStations();
+    const station = stations.find((s) => s.name === target);
+    if (!station) {
+      console.error(`❌ Station "${target}" not found in registry.`);
+      return 1;
+    }
+
+    settings.activeStation = station.name;
+    saveSettings(settings);
+    logger.info('CONFIG', `🎯 Active Station set to: ${station.name}`);
+    return 0;
+  }
+
+  // --- 📦 STATION LIST ---
   if (
     subCommand === 'list' ||
     subCommand === 'constellation' ||
     subCommand === 'fleet'
   ) {
     logger.divider('ORBIT CONSTELLATION');
-
-    // Reality Sync is only performed if forced or for local stations (which is fast)
     const stations = await stationManager.listStations({
       syncWithReality: forceSync,
     });
@@ -94,24 +118,24 @@ export async function runFleet(args: string[]) {
       return 0;
     }
 
-    // Process missions in parallel for speed if requested
     const stationData = await Promise.all(
       stations.map(async (s) => {
         let missions: string[] = [];
         if (showMissions) {
           try {
             missions = await stationManager.getMissions(s);
-          } catch (e) {
-            // Ignore mission fetch errors for individual stations
-          }
+          } catch (e) {}
         }
         return { ...s, missions };
       }),
     );
 
     stationData.forEach((s) => {
+      const isActive = settings.activeStation === s.name;
       const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
-      console.log(`${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`);
+      console.log(
+        `${isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`,
+      );
 
       if (showMissions) {
         if (s.missions.length > 0) {
@@ -131,11 +155,6 @@ export async function runFleet(args: string[]) {
       console.log('');
     });
 
-    if (!showMissions) {
-      console.log(
-        '💡 Tip: Use "orbit station list --missions" to see active capsules.\n',
-      );
-    }
     return 0;
   }
 
@@ -146,24 +165,22 @@ export async function runFleet(args: string[]) {
 
   // --- 🔥 STATION DELETE ---
   if (subCommand === 'delete') {
-    return runSplashdown(['--all']);
-  }
-
-  // --- 📥 STATION IMPORT ---
-  if (subCommand === 'import') {
-    const source = action;
-    if (!source) {
-      console.error('❌ Please specify a source (path or URL).');
-      return 1;
-    }
-    try {
-      const name = await manager.importDesign(source);
-      logger.info('CONFIG', `✅ Imported design "${name}" successfully.`);
+    const targetStation = action; // orbit station delete <name>
+    if (targetStation) {
+      // targeted delete
+      const provider = ProviderFactory.getProvider({
+        instanceName: targetStation,
+        providerType: 'gce', // assume GCE for remote delete
+      } as any);
+      await provider.destroy();
+      stationManager.deleteReceipt(targetStation);
+      if (settings.activeStation === targetStation)
+        delete settings.activeStation;
+      saveSettings(settings);
       return 0;
-    } catch (e: any) {
-      console.error(`❌ Import failed: ${e.message}`, { cause: e });
-      return 1;
     }
+    // default delete current
+    return runSplashdown(['--all']);
   }
 
   // --- DEFAULT (HELP) ---
@@ -173,11 +190,11 @@ export async function runFleet(args: string[]) {
 Usage: orbit station <command> [args]
 
 COMMANDS:
-  design  <list|create|edit|switch>  Manage infrastructure blueprints.
-  import  <path|url>                 Import a design from local file or URL.
-  list    [--missions] [--sync]      Show provisioned stations (Synced).
-  liftoff [--setup-net]              Build or wake the station for this repo.
-  delete                             Decommission and remove the station.
+  schematic <list|create|edit|import> Manage infrastructure blueprints.
+  activate  <name>                    Set the global active station.
+  list      [--missions] [--sync]     Show provisioned stations.
+  liftoff   [--setup-net]             Build infrastructure from blueprints.
+  delete    [name]                    Decommission and remove station.
   `);
 
   return 0;
@@ -187,8 +204,5 @@ COMMANDS:
  * Legacy support
  */
 export async function runDesign(args: string[]) {
-  if (args[0] === 'station') {
-    return runFleet(['design', ...args.slice(1)]);
-  }
-  return runFleet(['design', ...args]);
+  return runFleet(['schematic', ...args]);
 }
