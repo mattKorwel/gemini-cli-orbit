@@ -43,7 +43,7 @@ Update `scripts/playbooks/implement.ts`:
   - Verify: Run tests.
 - **Phase 4 (Final Quality Control)**:
   - Local Review: Automated check against mission context.
-  - Mustard Test: Behavioral proof in terminal.
+  - Behavioral Proof: Behavioral proof in terminal.
   - Synthesis: Generate `final-implementation-assessment.md`.
 
 ### 3. Orchestration & Wiring

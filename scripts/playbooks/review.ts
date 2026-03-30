@@ -5,9 +5,10 @@
  */
 
 import { createTaskRunner } from '../TaskRunner.js';
-import path from 'path';
-import fs from 'fs';
-import { spawnSync } from 'child_process';
+import path from 'node:path';
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { LOCAL_BUNDLE_PATH, BUNDLE_PATH } from '../Constants.js';
 
 export async function runReviewPlaybook(
   prNumber: string,
@@ -20,24 +21,36 @@ export async function runReviewPlaybook(
 ) {
   const runner = createTaskRunner(logDir, missionHeader);
 
+  // Resolve the effective bundle directory based on environment
+  const isRemote =
+    geminiBin.includes('docker') || process.env.GCLI_ORBIT_INSTANCE_NAME;
+  const effectiveBundle = isRemote ? BUNDLE_PATH : LOCAL_BUNDLE_PATH;
+
+  // Detect project type
+  const hasPackageJson = fs.existsSync(path.join(targetDir, 'package.json'));
+
   // 1. PHASE 0: Parallel Context Acquisition
   runner.register([
     {
       id: 'context',
       name: 'PR Mission Context',
-      cmd: `tsx scripts/utils/fetch-mission-context.ts ${prNumber} ${logDir} ${geminiBin} ${policyPath}`,
+      cmd: `node ${effectiveBundle}/utils/fetch-mission-context.js ${prNumber} ${logDir} ${geminiBin} ${policyPath}`,
       timeout: 300000,
     },
     {
       id: 'diff',
       name: 'Fetch PR Diff',
-      cmd: `gh pr diff ${prNumber}`,
+      // Fallback: if gh pr diff fails, use git diff against main
+      cmd: `gh pr diff ${prNumber} || git diff origin/main...HEAD`,
       timeout: 60000,
     },
     {
       id: 'build',
       name: 'Single-Source Build',
-      cmd: `cd ${targetDir} && npm ci && npm run build`,
+      // Only build if it's a node project
+      cmd: hasPackageJson
+        ? `cd ${targetDir} && npm ci && npm run build`
+        : `echo "Non-Node project detected. Skipping build."`,
       timeout: 600000,
     },
   ]);
@@ -70,7 +83,7 @@ export async function runReviewPlaybook(
     {
       id: 'ci',
       name: 'CI Monitor',
-      cmd: `node scripts/utils/ci.mjs`,
+      cmd: `node ${effectiveBundle}/utils/ci.mjs`,
       timeout: 300000,
     },
     {
@@ -82,7 +95,7 @@ export async function runReviewPlaybook(
     {
       id: 'feedback',
       name: 'Feedback Analysis',
-      cmd: `node scripts/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} -p "Summarize the unresolved PR feedback provided on stdin. If no feedback is provided, simply reply with 'No unresolved feedback' and exit immediately."`,
+      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} -p "Summarize the unresolved PR feedback provided on stdin. If no feedback is provided, simply reply with 'No unresolved feedback' and exit immediately."`,
       timeout: 600000,
     },
     {

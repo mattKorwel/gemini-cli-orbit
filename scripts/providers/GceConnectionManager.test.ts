@@ -4,68 +4,52 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { GceConnectionManager } from './GceConnectionManager.js';
-import { spawnSync } from 'child_process';
-
-vi.mock('child_process', () => ({
-  spawnSync: vi.fn(),
-}));
 
 describe('GceConnectionManager', () => {
-  const projectId = 'test-project';
-  const zone = 'us-west1-a';
-  const instanceName = 'test-instance';
-  let manager: GceConnectionManager;
+  const mockConfig = {
+    repoName: 'test-repo',
+    projectId: 'test-project',
+    zone: 'us-central1-a',
+    instanceName: 'test-instance',
+    upstreamRepo: 'google/test-repo',
+  };
 
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it('should generate correct internal magic remote', () => {
-    manager = new GceConnectionManager(projectId, zone, instanceName, {
-      backendType: 'direct-internal',
-      dnsSuffix: '.gcpnode.com',
-    });
-    const remote = manager.getMagicRemote();
-    const user = `${process.env.USER || 'node'}`;
-    expect(remote).toBe(
-      `${user}@nic0.${instanceName}.${zone}.c.${projectId}.internal.gcpnode.com`,
+  it('should default to direct-internal strategy', () => {
+    const manager = new GceConnectionManager(
+      'test-project',
+      'us-central1-a',
+      'test-instance',
+      mockConfig,
+    );
+    const cmd = manager.getRunCommand('ls');
+    expect(cmd).toContain(
+      'nic0.test-instance.us-central1-a.c.test-project.internal',
     );
   });
 
-  it('should support user suffix for corporate identities', () => {
-    manager = new GceConnectionManager(projectId, zone, instanceName, {
-      userSuffix: '_google_com',
-    });
-    const remote = manager.getMagicRemote();
-    const user = `${process.env.USER || 'node'}_google_com`;
-    expect(remote).toContain(user);
+  it('should use external strategy when specified', () => {
+    const manager = new GceConnectionManager(
+      'test-project',
+      'us-central1-a',
+      'test-instance',
+      { ...mockConfig, backendType: 'external' },
+    );
+    const cmd = manager.getRunCommand('ls');
+    // External uses gcloud compute ssh <name> without nic0 prefix
+    expect(cmd).toContain('gcloud compute ssh test-instance');
+    expect(cmd).not.toContain('nic0');
   });
 
-  it('should generate IAP gcloud command', () => {
-    manager = new GceConnectionManager(projectId, zone, instanceName, {
-      backendType: 'iap',
-    });
-    const cmd = manager.getRunCommand('uptime');
-    expect(cmd).toContain('gcloud compute ssh');
-    expect(cmd).toContain('--tunnel-through-iap');
-    expect(cmd).toContain(instanceName);
-  });
-
-  it('should handle rsync with IAP backend', () => {
-    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
-    manager = new GceConnectionManager(projectId, zone, instanceName, {
-      backendType: 'iap',
-    });
-
-    manager.sync('/local', '/remote');
-    const firstArg = vi.mocked(spawnSync).mock.calls[0]![0] as string;
-    const secondArg = vi.mocked(spawnSync).mock.calls[0]![1] as string[];
-
-    expect(firstArg).toBe('rsync');
-    const sshArg = secondArg.find((a) => a.includes('gcloud compute ssh'));
-    expect(sshArg).toBeDefined();
-    expect(sshArg).toContain('--tunnel-through-iap');
+  it('should generate rsync ssh args for direct-internal', () => {
+    const manager = new GceConnectionManager(
+      'test-project',
+      'us-central1-a',
+      'test-instance',
+      mockConfig,
+    );
+    const arg = manager.getRsyncSshArg();
+    expect(arg).toContain('StrictHostKeyChecking=no');
   });
 });

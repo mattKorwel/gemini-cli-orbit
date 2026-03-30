@@ -19,9 +19,7 @@ services managing your code or credentials.
   the data, preventing cross-user data leakage.
 - **Process Isolation**: Every orbit mission runs in a dedicated Docker capsule.
 - **Network Sovereignty**: SSH access is restricted via configurable firewall
-  rules. Orbit supports **IAP (Identity-Aware Proxy)** as a secure fallback,
-  which allows connecting to instances without a public IP or open port 22 to
-  the world.
+  rules.
 
 ### 3. Secure Secret Management
 
@@ -48,7 +46,6 @@ services managing your code or credentials.
 
 ## 🛠️ Security Best Practices for Developers
 
-- **Use IAP**: Prefer the `iap` backend type for maximum security.
 - **Restrict SSH Ranges**: When using `external` or `direct-internal` backends,
   always specify your corporate or home IP range in the `sshSourceRanges`
   configuration.

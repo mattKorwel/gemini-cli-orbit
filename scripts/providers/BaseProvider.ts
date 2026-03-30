@@ -9,6 +9,8 @@
  * mission environments (GCE Station, Local Docker, etc.).
  */
 export interface OrbitProvider {
+  readonly type: 'gce' | 'local-worktree';
+  readonly isLocal: boolean;
   projectId: string;
   zone: string;
   stationName: string;
@@ -131,6 +133,7 @@ export interface ExecOptions {
   quiet?: boolean;
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
+  user?: string;
 }
 
 export interface CapsuleConfig {
@@ -141,8 +144,8 @@ export interface CapsuleConfig {
   sensitiveEnv?: Record<string, string>;
   cpuLimit?: string;
   memoryLimit?: string;
-  command?: string;
-  user?: string;
+  command?: string | undefined;
+  user?: string | undefined;
 }
 
 export interface SyncOptions {

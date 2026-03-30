@@ -51,7 +51,7 @@ patterns of the Review (ADR 9) and Fix (ADR 10) missions.
     - **Task A (Build & Test)**: Run the full project test suite and build.
     - **Task B (Local Review)**: Perform an automated local code review of the
       changes against the Mission Context and guidelines.
-    - **Task C (Mustard Test)**: Physically exercise the new feature in the
+    - **Task C (Behavioral Proof)**: Physically exercise the new feature in the
       terminal and provide logs.
 
 5.  **Phase 4: Synthesis & Submission**

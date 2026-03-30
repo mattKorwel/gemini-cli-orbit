@@ -192,6 +192,8 @@ async function monitor() {
     process.exit(0);
   }
 
+  console.log(`📡 Monitoring ${REPO} on branch ${BRANCH}...`);
+
   while (true) {
     let allPassed = 0,
       allFailed = 0,

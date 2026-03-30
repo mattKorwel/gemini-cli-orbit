@@ -35,20 +35,10 @@ files once a mission is complete.
 
 ## 🛸 Maneuvers
 
-### 1. [Maneuver: Review](./REVIEW.md)
+### [Autonomous Maneuvers (Review, Fix, Implement)](./MANEUVERS.md)
 
-The consolidated review mission provides high-fidelity, parallelized PR review
-with mandatory behavioral proof.
-
-### 2. [Maneuver: Fix](./FIX.md)
-
-The consolidated fix mission provides an automated, iterative remediation loop
-to resolve conflicts, CI failures, and reviewer comments.
-
-### 3. [Maneuver: Implement](./IMPLEMENT.md)
-
-The consolidated implement mission provides a phased, autonomous workflow to
-transform issues into verified implementations.
+Learn how to trigger high-fidelity autonomous missions like parallel PR reviews,
+automated remediation, and issue-to-implementation workflows.
 
 ---
 
@@ -61,7 +51,7 @@ isolated capsules.
 
 ### [Mission Providers](./PROVIDERS.md)
 
-Deep dive into Local vs Remote providers (GCE, Worktrees, Docker, Podman).
+Deep dive into Local vs Remote providers (GCE, Worktrees).
 
 ### [Configuration Hierarchy](./CONFIGURATION.md)
 

@@ -1,6 +1,0 @@
-description = "Jettison a specific satellite session, capsule, and worktree."
-prompt = """
-Ejecting session for PR #{{args}}...
-
-!{node bundle/jettison.js {{args}} }
-"""

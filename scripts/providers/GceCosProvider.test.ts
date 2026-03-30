@@ -43,7 +43,7 @@ describe('GceCosProvider', () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
 
-    mockConn.run.mockResolvedValue({ status: 0, stdout: '', stderr: '' });
+    mockConn.run.mockReturnValue({ status: 0, stdout: '', stderr: '' });
     mockConn.sync.mockResolvedValue(0);
 
     provider = new GceCosProvider(projectId, zone, instanceName, repoRoot);
@@ -87,14 +87,16 @@ describe('GceCosProvider', () => {
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
       'gcloud',
-      expect.arrayContaining([
+      [
         'compute',
         'instances',
         'list',
+        '--project',
+        'test-p',
         '--filter',
-        expect.stringContaining('gcli-station-'),
-      ]),
-      expect.any(Object),
+        'labels.orbit-managed=true',
+      ],
+      { stdio: 'inherit' },
     );
   });
 
@@ -104,22 +106,27 @@ describe('GceCosProvider', () => {
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
       'gcloud',
-      expect.arrayContaining(['compute', 'instances', 'delete', 'test-i']),
-      expect.any(Object),
-    );
-    expect(spawnSync).toHaveBeenCalledWith(
-      'gcloud',
-      expect.arrayContaining(['compute', 'addresses', 'delete', 'test-i-ip']),
-      expect.any(Object),
+      [
+        'compute',
+        'instances',
+        'delete',
+        'test-i',
+        '--project',
+        'test-p',
+        '--zone',
+        'us-west1-a',
+        '--quiet',
+      ],
+      { stdio: 'inherit' },
     );
   });
 
   it('should list active orbit capsules', async () => {
     // Mock getExecOutput behavior via mockConn.run
-    mockConn.run.mockResolvedValue({
+    mockConn.run.mockReturnValue({
       status: 0,
-      stdout: 'gcli-pr-123\ngcli-pr-456\n',
-      stderr: '',
+      stdout: Buffer.from('gcli-pr-123\ngcli-pr-456\n'),
+      stderr: Buffer.from(''),
     });
 
     const capsules = await provider.listCapsules();
@@ -143,13 +150,17 @@ describe('GceCosProvider', () => {
     } as any);
 
     // 1. inspect check returns status 1 (capsule missing)
-    mockConn.run.mockResolvedValueOnce({
+    mockConn.run.mockReturnValueOnce({
       status: 1,
-      stdout: '',
-      stderr: 'Error: No such object',
+      stdout: Buffer.from(''),
+      stderr: Buffer.from('Error: No such object'),
     });
     // 2. Refresh commands (pull, rm, run) - we'll just mock them all succeeding
-    mockConn.run.mockResolvedValue({ status: 0, stdout: 'true', stderr: '' });
+    mockConn.run.mockReturnValue({
+      status: 0,
+      stdout: Buffer.from('true'),
+      stderr: Buffer.from(''),
+    });
 
     const readyPromise = provider.ensureReady();
     await vi.runAllTimersAsync();

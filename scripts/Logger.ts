@@ -45,6 +45,8 @@ class Logger {
       this.logStream.write(fullMessage + '\n');
     }
 
+    const isMcp = !!process.env.GCLI_MCP;
+
     if (level === LogLevel.ERROR) {
       console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
     } else if (level === LogLevel.WARN) {
@@ -54,7 +56,11 @@ class Logger {
       (level === LogLevel.DEBUG && this.verbose)
     ) {
       const displayLevel = level === LogLevel.DEBUG ? '[DEBUG]' : '[INFO ]';
-      console.log(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
+      if (isMcp) {
+        console.error(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
+      } else {
+        console.log(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
+      }
     }
   }
 

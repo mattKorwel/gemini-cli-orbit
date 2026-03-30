@@ -1,6 +1,0 @@
-description = "Mission Blackbox: Inspect recorded local mission logs."
-prompt = """
-I am retrieving the blackbox recordings for mission PR #{{args}}.
-
-!{node bundle/blackbox.js {{args}} }
-"""

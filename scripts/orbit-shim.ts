@@ -3,7 +3,12 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { spawnSync } from 'node:child_process';
+
+/**
+ * Orbit CLI Shim
+ * Standardizes argument parsing and routes commands to bundled entrypoints.
+ */
+
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -13,15 +18,24 @@ const ROOT = path.resolve(__dirname, '..');
 
 const COMMANDS: Record<string, { script: string; description: string }> = {
   mission: {
-    script: 'orchestrator.ts',
+    script: 'mission.ts',
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
+  schematic: {
+    script: 'fleet.ts',
+    description: 'Manage infrastructure blueprints: <list|create|edit|import>',
+  },
+  station: {
+    script: 'fleet.ts',
+    description: 'Hardware control: <activate|list|liftoff|delete>',
+  },
+
   liftoff: {
     script: 'setup.ts',
-    description: 'Initial station setup: provision GCE Worker and Docker base.',
+    description: 'Build or wake infrastructure (use --with-station).',
   },
   ci: {
-    script: 'utils/ci.mjs',
+    script: 'ci.ts',
     description: 'Monitor CI status for a branch with noise filtering.',
   },
   pulse: {
@@ -40,9 +54,9 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'jettison.ts',
     description: 'Decommission a specific mission and its worktree.',
   },
-  constellation: {
-    script: 'fleet.ts',
-    description: 'Manage and coordinate multiple Orbit stations.',
+  reap: {
+    script: 'reap.ts',
+    description: 'Cleanup idle mission capsules based on inactivity.',
   },
   blackbox: {
     script: 'blackbox.ts',
@@ -53,23 +67,48 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
 function showHelp() {
   console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
   console.log('Usage: orbit <command> [args]\n');
-  console.log('Available Commands:');
-
-  const maxLen = Math.max(...Object.keys(COMMANDS).map((k) => k.length));
-  for (const [name, info] of Object.entries(COMMANDS)) {
-    console.log(`  ${name.padEnd(maxLen + 2)} ${info.description}`);
-  }
+  console.log('Main Commands:');
+  console.log(
+    '  mission   - Start, resume, or perform maneuvers on a PR mission.',
+  );
+  console.log('  schematic - Manage blueprints: <list|create|edit|import>');
+  console.log('  station   - Manage hardware: <activate|list|liftoff|delete>');
+  console.log('  pulse     - Check station health and active mission status.');
+  console.log('  ci        - Monitor CI status for a branch.');
+  console.log('  uplink    - Quickly connect to an existing mission session.');
+  console.log(
+    '  splashdown- Emergency shutdown of all active remote capsules.',
+  );
+  console.log(
+    '  jettison  - Decommission a specific mission and its worktree.',
+  );
+  console.log(
+    '  reap      - Cleanup idle mission capsules based on inactivity.',
+  );
+  console.log(
+    '  blackbox  - Retrieve detailed mission telemetry and history logs.',
+  );
 
   console.log('\nFlags:');
-  console.log('  -h, --help    Show this help menu');
+  console.log('  -h, --help        Show this help menu');
+  console.log('  -l, --local       Force local worktree mode');
+  console.log('  --for-station <s> Target a specific station');
+  console.log('  --schematic <s>   Use a specific schematic for liftoff');
   console.log('\nExample:');
-  console.log('  orbit mission 123 --review');
-  console.log('  orbit ci feat/my-branch');
+  console.log('  orbit mission 123 review');
+  console.log('  orbit station activate my-sandbox');
   console.log('');
 }
 
 const args = process.argv.slice(2);
-const cmd = args[0];
+let cmd = args[0];
+
+// Handle universal repo:cmd shorthand (e.g., orbit dotfiles:pulse)
+if (cmd && cmd.includes(':')) {
+  const [repo, actualCmd] = cmd.split(':');
+  process.env.GCLI_ORBIT_REPO_NAME = repo;
+  cmd = actualCmd;
+}
 
 if (!cmd || cmd === '-h' || cmd === '--help') {
   showHelp();
@@ -78,35 +117,75 @@ if (!cmd || cmd === '-h' || cmd === '--help') {
 
 const commandInfo = COMMANDS[cmd];
 if (!commandInfo) {
-  console.error(`\n❌ Unknown command: ${cmd}`);
-  showHelp();
-  process.exit(1);
+  // Shorthand: If cmd is not a known command, assume it's a mission identifier
+  // e.g., 'orbit 123 review' -> 'orbit mission 123 review'
+  args.unshift('mission');
+  cmd = 'mission';
 }
 
-const script = commandInfo.script;
-const bundlePath = path.join(ROOT, 'bundle', script.replace('.ts', '.js'));
-const scriptPath = path.join(ROOT, 'scripts', script);
+const finalCommandInfo = COMMANDS[cmd]!;
+const scriptName = finalCommandInfo.script;
+const bundleBinPath = path.join(
+  ROOT,
+  'bundle/bin',
+  scriptName.replace('.ts', '.js'),
+);
+const scriptPath = path.join(ROOT, 'scripts/bin', scriptName);
 
-let finalPath = bundlePath;
+let finalPath = bundleBinPath;
 let useTsx = false;
 
-// Priority: bundle/ (prod) > scripts/ (dev)
-if (!fs.existsSync(bundlePath)) {
+// Priority: bundle/bin/ (prod) > scripts/bin/ (dev)
+if (!fs.existsSync(bundleBinPath)) {
   if (fs.existsSync(scriptPath)) {
     finalPath = scriptPath;
-    useTsx = script.endsWith('.ts');
+    useTsx = true;
   } else {
     console.error(
-      `\n❌ Script execution failure: Could not find ${script} in bundle/ or scripts/`,
+      `\n❌ Script execution failure: Could not find ${scriptName} in bundle/bin/ or scripts/bin/`,
     );
     process.exit(1);
   }
 }
 
-// Forward all remaining arguments
-const forwardArgs = args.slice(1);
-const exec = useTsx ? 'tsx' : 'node';
+const exec = useTsx ? 'npx tsx' : 'node';
 
-// We use spawnSync to keep the process interactive and wait for completion
-const res = spawnSync(exec, [finalPath, ...forwardArgs], { stdio: 'inherit' });
-process.exit(res.status ?? 0);
+// Process flags that should be converted to environment variables
+const rawArgs = args.slice(1);
+for (let i = 0; i < rawArgs.length; i++) {
+  const arg = rawArgs[i];
+  if (arg === undefined) continue;
+
+  if (arg === '--local' || arg === '-l') {
+    process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
+    process.env.GCLI_MCP = '0';
+  } else if ((arg === '--repo' || arg === '-r') && rawArgs[i + 1]) {
+    process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1];
+    i++;
+  } else if (
+    arg.startsWith('--for-station=') ||
+    (arg === '--for-station' && rawArgs[i + 1])
+  ) {
+    const val = arg.includes('=') ? arg.split('=')[1] : rawArgs[i + 1];
+    process.env.GCLI_ORBIT_INSTANCE_NAME = val;
+    if (!arg.includes('=')) i++;
+  } else if (
+    arg.startsWith('--schematic=') ||
+    (arg === '--schematic' && rawArgs[i + 1])
+  ) {
+    const val = arg.includes('=') ? arg.split('=')[1] : rawArgs[i + 1];
+    process.env.GCLI_ORBIT_SCHEMATIC = val;
+    if (!arg.includes('=')) i++;
+  }
+}
+
+// Ensure shim knows it is a command to bypass interactive UI
+process.env.GCLI_ORBIT_SHIM = '1';
+
+import { spawnSync } from 'node:child_process';
+const finalRes = spawnSync(exec, [finalPath, ...args.slice(1)], {
+  stdio: 'inherit',
+  shell: true,
+});
+
+process.exit(finalRes.status ?? 0);

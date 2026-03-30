@@ -3,138 +3,196 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import path from 'node:path';
-import fs from 'node:fs';
 
+import {
+  loadSettings,
+  saveSettings,
+  getRepoConfig,
+  detectRepoName,
+} from './ConfigManager.js';
+import { SchematicManager } from './SchematicManager.js';
+import { logger } from './Logger.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import { runSetup } from './setup.js';
+import { runSplashdown } from './splashdown.js';
+import { StationManager } from './StationManager.js';
 
-const REPO_ROOT = process.cwd();
-
-const USER = process.env.USER || 'gcli-user';
-const DEFAULT_ZONE = 'us-west1-a';
-
-async function listStations(): Promise<number> {
+/**
+ * Fleet: Manage and coordinate Orbit stations.
+ */
+export async function runFleet(args: string[]) {
   const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  const projectId = config?.projectId || process.env.GOOGLE_CLOUD_PROJECT || '';
+  const settings = loadSettings();
+  const schematicManager = new SchematicManager();
+  const stationManager = new StationManager();
 
-  if (!projectId) {
-    console.error('❌ Project ID not found. Run "orbit liftoff" first.');
-    return 1;
+  const command = args[0]; // 'schematic' or 'station'
+  const action = args[1] || 'list';
+  const name = args[2];
+
+  // --- 📐 SCHEMATIC MANAGEMENT ---
+  if (command === 'schematic') {
+    if (action === 'list') {
+      const schematics = schematicManager.listSchematics();
+      console.log('\n📐 ORBIT INFRASTRUCTURE SCHEMATICS');
+      console.log('--------------------------------------------------');
+      schematics.forEach((s) => {
+        console.log(`   ${s}`);
+      });
+      console.log('--------------------------------------------------');
+      console.log('Use "orbit schematic create <name>" to run wizard.\n');
+      return 0;
+    }
+
+    if (action === 'create' || action === 'edit') {
+      if (!name) {
+        console.error('❌ Please specify a schematic name.');
+        return 1;
+      }
+      await schematicManager.runWizard(name);
+      return 0;
+    }
+
+    if (action === 'import') {
+      const source = name;
+      if (!source) {
+        console.error('❌ Please specify a source (path or URL).');
+        return 1;
+      }
+      try {
+        const importedName = await schematicManager.importSchematic(source);
+        logger.info(
+          'CONFIG',
+          `✅ Imported schematic "${importedName}" successfully.`,
+        );
+        return 0;
+      } catch (e: any) {
+        console.error(`❌ Import failed: ${e.message}`, { cause: e });
+        return 1;
+      }
+    }
   }
 
-  const instancePrefix = `gcli-station-${USER}`;
-  console.log(`🔍 Listing Orbit Stations for ${USER} in ${projectId}...`);
+  // --- 🛰️ STATION MANAGEMENT ---
+  if (command === 'station') {
+    // TARGET ACTIVATE
+    if (action === 'activate') {
+      if (!name) {
+        console.error('❌ Please specify a station name to activate.');
+        return 1;
+      }
 
-  // We use a dummy provider just to trigger the listStations method which is static-ish in implementation
-  const provider = ProviderFactory.getProvider({
-    projectId: projectId!,
-    zone: config?.zone || DEFAULT_ZONE,
-    instanceName: instancePrefix,
-    repoName,
-  });
+      const stations = await stationManager.listStations();
+      const station = stations.find((s) => s.name === name);
+      if (!station) {
+        console.error(`❌ Station "${name}" not found in registry.`);
+        return 1;
+      }
 
-  return await provider.listStations();
-}
+      settings.activeStation = station.name;
+      saveSettings(settings);
+      logger.info('CONFIG', `🎯 Active Station set to: ${station.name}`);
+      return 0;
+    }
 
-async function launchStation(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
+    // TARGET LIST
+    if (action === 'list') {
+      const showMissions = args.includes('--missions') || args.includes('-m');
+      const forceSync = args.includes('--sync') || args.includes('-s');
 
-  if (!config) {
-    console.error(
-      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
-    );
-    return 1;
+      logger.divider('ORBIT CONSTELLATION');
+      const stations = await stationManager.listStations({
+        syncWithReality: forceSync,
+      });
+
+      if (stations.length === 0) {
+        console.log('✅ No provisioned stations found.');
+        return 0;
+      }
+
+      const stationData = await Promise.all(
+        stations.map(async (s) => {
+          let missions: string[] = [];
+          if (showMissions) {
+            try {
+              missions = await stationManager.getMissions(s);
+            } catch (e) {}
+          }
+          return { ...s, missions };
+        }),
+      );
+
+      stationData.forEach((s) => {
+        const isActive = settings.activeStation === s.name;
+        const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
+        console.log(
+          `${isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`,
+        );
+
+        if (showMissions) {
+          if (s.missions.length > 0) {
+            console.log('   📦 Active Missions:');
+            s.missions.forEach((m) => console.log(`      • ${m}`));
+          } else {
+            console.log('   📦 Active Missions: None');
+          }
+        }
+
+        if (s.type === 'gce') {
+          console.log(`   - Project: ${s.projectId} | Zone: ${s.zone}`);
+        } else {
+          console.log(`   - Path: ${s.rootPath}`);
+        }
+        console.log(`   - Last Seen: ${s.lastSeen}`);
+        console.log('');
+      });
+      return 0;
+    }
+
+    // TARGET LIFTOFF
+    if (action === 'liftoff') {
+      return runSetup();
+    }
+
+    // TARGET DELETE
+    if (action === 'delete') {
+      const targetStation = name;
+      if (targetStation) {
+        const provider = ProviderFactory.getProvider({
+          instanceName: targetStation,
+          providerType: 'gce',
+        } as any);
+        await provider.destroy();
+        stationManager.deleteReceipt(targetStation);
+        if (settings.activeStation === targetStation)
+          delete settings.activeStation;
+        saveSettings(settings);
+        return 0;
+      }
+      return runSplashdown(['--all']);
+    }
   }
 
-  const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    repoName: config.repoName,
-    instanceName: config.instanceName!,
-  });
+  // --- DEFAULT (HELP) ---
+  console.log(`
+🚀 ORBIT COMMAND CENTER
 
-  const status = await provider.getStatus();
-  if (status.status !== 'UNKNOWN' && status.status !== 'ERROR') {
-    console.log(
-      `✅ Station ${config.instanceName} already exists and is ${status.status}.`,
-    );
-    return 0;
-  }
+Usage:
+  orbit schematic <list|create|edit|import>  Manage blueprints.
+  orbit station <activate|list|liftoff|delete> Manage hardware.
 
-  return await provider.provision();
+EXAMPLES:
+  orbit schematic create corp
+  orbit station liftoff --setup-net
+  orbit station activate station-supervisor
+  `);
+
+  return 0;
 }
 
-async function stopStation(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  if (!config) return 1;
-
-  const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    repoName: config.repoName,
-    instanceName: config.instanceName!,
-  });
-
-  console.log(`🛑 Stopping orbit station: ${config.instanceName}...`);
-  return await provider.stop();
-}
-
-async function destroyStation(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  if (!config) return 1;
-
-  const provider = ProviderFactory.getProvider({
-    projectId: config.projectId!,
-    zone: config.zone!,
-    repoName: config.repoName,
-    instanceName: config.instanceName!,
-  });
-
-  const knownHostsPath = path.join(REPO_ROOT, '.gemini/orbit/known_hosts');
-  if (fs.existsSync(knownHostsPath)) {
-    console.log(`   - Clearing isolated known_hosts...`);
-    fs.unlinkSync(knownHostsPath);
-  }
-
-  return await provider.destroy();
-}
-
-async function rebuildStation(): Promise<number> {
-  const res1 = await destroyStation();
-  const res2 = await launchStation();
-  return res1 === 0 && res2 === 0 ? 0 : 1;
-}
-
-async function main(): Promise<number> {
-  const action = process.argv[2] || 'list';
-
-  switch (action) {
-    case 'list':
-      return await listStations();
-    case 'provision':
-      return await launchStation();
-    case 'rebuild':
-      return await rebuildStation();
-    case 'destroy':
-      return await destroyStation();
-    case 'stop':
-      return await stopStation();
-    default:
-      console.error(`❌ Unknown constellation action: ${action}`);
-      return 1;
-  }
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main()
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
+/**
+ * Legacy support
+ */
+export async function runDesign(args: string[]) {
+  return runFleet(['schematic', ...args]);
 }

@@ -19,7 +19,7 @@ consolidation to ensure consistency and high fidelity.
 | `pr-address-comments` Skill | Main         | Address PR feedback     | **Basic.** Only handles existing comments, no CI/conflict loop.      |
 | `implement` Playbook        | Orbit        | Issue to Implementation | **Unique.** A powerful "Self-Healing" loop (Repro -> Fix -> Verify). |
 
-## 2. The Problem: "The Mustard Gap"
+## 2. The Problem: "The Verification Gap"
 
 The current fragmented approach leads to several issues:
 

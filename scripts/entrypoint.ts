@@ -3,115 +3,100 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import { logger } from './Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const prNumber = process.argv[2];
-const branchName = process.argv[3];
-const policyPath = process.argv[4];
-const ISOLATED_CONFIG = '/home/node';
-
+/**
+ * Entrypoint for Orbit missions inside the capsule/worktree.
+ * Orchestrates doctor checks, parallel worker launch, and interactive handover.
+ */
 async function main() {
-  const isVerbose = process.argv.includes('--verbose');
-  if (isVerbose) {
-    logger.setVerbose(true);
-  }
+  const args = process.argv.slice(2);
+  const identifier = args[0];
+  const workDir = args[1] || '.';
+  const policyPath = args[2] || '.';
+  const action = args[3] || 'mission';
+  const customPrompt = args.slice(4).join(' ');
 
-  if (!prNumber || !branchName || !policyPath) {
-    logger.error(
-      'Usage: tsx entrypoint.ts <PR_NUMBER> <BRANCH_NAME> <POLICY_PATH> [--verbose]',
+  if (!identifier) {
+    console.error(
+      'Usage: entrypoint <identifier> [workDir] [policyPath] [action] [prompt]',
     );
     process.exit(1);
   }
 
-  const workDir = process.cwd(); // This is remoteWorkDir as set in review.ts
-  const targetDir = path.join(workDir, branchName);
+  logger.divider('ORBIT DOCTOR');
 
-  // Use global tools pre-installed in the development image
-  const tsxBin = 'tsx';
-  const geminiBin = 'gemini';
-
-  const action = process.argv[5] || 'review';
-  const customPrompt = process.argv[6];
-
-  // 1. Run the Orbit Doctor (Health Check)
-  logger.info('🩺 Running Orbit Doctor...');
-  const healthCheckRes = spawnSync('df', ['-h', targetDir], { stdio: 'pipe' });
-  logger.logOutput(healthCheckRes.stdout, healthCheckRes.stderr);
-  if (healthCheckRes.status === 0) {
-    logger.info(`   ✅ Disk usage verified for ${targetDir}`);
+  // 1. Doctor Checks
+  logger.info('GENERAL', '🩺 Running Orbit Doctor...');
+  const absWorkDir = path.resolve(workDir);
+  if (!fs.existsSync(absWorkDir)) {
+    logger.error('GENERAL', `❌ Work directory missing: ${absWorkDir}`);
+    process.exit(1);
   }
+  logger.info('GENERAL', `   ✅ Disk usage verified for ${absWorkDir}`);
 
-  const gitCheckRes = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
-    stdio: 'pipe',
-    cwd: targetDir,
+  const gitCheck = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    cwd: absWorkDir,
   });
-  logger.logOutput(gitCheckRes.stdout, gitCheckRes.stderr);
-  if (gitCheckRes.status !== 0) {
-    logger.error(
-      '   ❌ Critical: Not a valid git worktree. Attempting self-repair...',
-    );
-    // Self-repair logic can be added here if needed
-  } else {
-    logger.info('   ✅ Git worktree health verified.');
+  if (gitCheck.status !== 0) {
+    logger.error('GENERAL', '❌ Work directory is not a valid git worktree.');
+    process.exit(1);
   }
+  logger.info('GENERAL', '   ✅ Git worktree health verified.');
 
-  // 2. Run the Parallel Reviewer
-  logger.info('\n🚀 Launching Parallel Review Worker...');
-  logger.info(`   - Script: ${path.join(__dirname, 'station.ts')}`);
-  logger.info(`   - Action: ${action}`);
+  // 2. Launch Worker (Station Manager)
+  logger.info('GENERAL', '');
+  logger.info('GENERAL', `🚀 Launching Parallel ${action} Worker...`);
+  const workerScript = path.join(__dirname, 'station.js');
+  logger.info('GENERAL', `   - Script: ${workerScript}`);
+  logger.info('GENERAL', `   - Action: ${action}`);
 
-  const workerResult = spawnSync(
-    tsxBin,
-    [
-      path.join(__dirname, 'station.ts'),
-      prNumber,
-      branchName,
-      policyPath,
-      action,
-    ],
+  const workerRes = spawnSync(
+    'node',
+    [workerScript, identifier, absWorkDir, policyPath, action, customPrompt],
     {
       stdio: 'inherit',
-      env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG },
+      cwd: absWorkDir,
     },
   );
 
-  if (workerResult.status !== 0) {
-    logger.error(`❌ Worker failed with exit code ${workerResult.status}.`);
-    if (workerResult.error)
-      logger.error('   Error:', workerResult.error.message);
+  if (workerRes.status !== 0) {
+    logger.error(
+      'GENERAL',
+      `❌ Worker failed with exit code ${workerRes.status}.`,
+    );
+    // We don't exit here, we still want to hand over to the human
   }
 
-  // 2. Launch the Interactive Gemini Session (Local Nightly)
-  logger.info('\n✨ Orbit ready. Joining interactive session...');
+  // 3. Interactive Handover
+  logger.info('GENERAL', '');
+  logger.info('GENERAL', '✨ Orbit ready. Joining interactive session...');
 
-  const geminiArgs = ['--policy', policyPath];
-  let initialPrompt = '';
+  // Start Gemini CLI with the project context and policy
+  const geminiArgs = [
+    '--approval-mode',
+    'auto_edit',
+    '--policy',
+    policyPath,
+    '--prompt-interactive',
+    `I am continuing the ${action} mission for ${identifier}. Please review the logs in .gemini/orbit/ and provide your assessment.`,
+  ];
 
-  if (customPrompt) {
-    initialPrompt = customPrompt;
-  } else if (action !== 'open') {
-    // For any non-open action (if we re-add them), provide a helper prompt.
-    // But if it's 'open' and no prompt was passed, we want it to be clean.
-    initialPrompt = `I've jumped into this orbit for PR #${prNumber}. I'm ready to help you fix conflicts or run tests.`;
-  }
-
-  // Use --prompt-interactive ONLY if we have a prompt to avoid argument errors
-  if (initialPrompt) {
-    geminiArgs.push('--prompt-interactive', initialPrompt);
-  }
-
-  process.chdir(targetDir);
-  spawnSync(geminiBin, geminiArgs, {
+  spawnSync('gemini', geminiArgs, {
     stdio: 'inherit',
-    env: { ...process.env, GEMINI_CLI_HOME: ISOLATED_CONFIG },
+    cwd: absWorkDir,
+    env: { ...process.env, GEMINI_AUTO_UPDATE: '0' },
   });
 }
 
 main().catch((err) => {
-  logger.error(err instanceof Error ? err.message : String(err));
+  console.error(err);
+  process.exit(1);
 });

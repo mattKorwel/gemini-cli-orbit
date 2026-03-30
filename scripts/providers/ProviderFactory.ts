@@ -6,10 +6,8 @@
 
 import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
-import { LocalDockerProvider } from './LocalDockerProvider.js';
 import type { OrbitProvider } from './BaseProvider.js';
-
-const REPO_ROOT = process.cwd();
+import { getPrimaryRepoRoot } from '../Constants.js';
 
 export class ProviderFactory {
   static getProvider(config: {
@@ -28,38 +26,52 @@ export class ProviderFactory {
     machineType?: string | undefined;
     reaperIdleLimit?: number | undefined;
   }): OrbitProvider {
+    const isLocal =
+      !config.projectId ||
+      config.projectId === 'local' ||
+      config.providerType === 'local-worktree';
+    const effectiveProvider =
+      config.providerType || (isLocal ? 'local-worktree' : 'gce');
+
     const stationName = config.repoName
       ? `gcli-station-${config.repoName}`
       : 'station-supervisor';
 
-    if (config.providerType === 'local-worktree') {
+    if (effectiveProvider === 'local-worktree') {
       return new LocalWorktreeProvider(stationName, config.worktreesDir);
     }
 
-    if (
-      config.providerType === 'local-docker' ||
-      config.providerType === 'podman'
-    ) {
-      return new LocalDockerProvider(stationName);
-    }
+    const gceConfig = {
+      ...(config.dnsSuffix !== undefined
+        ? { dnsSuffix: config.dnsSuffix }
+        : {}),
+      ...(config.userSuffix !== undefined
+        ? { userSuffix: config.userSuffix }
+        : {}),
+      ...(config.backendType !== undefined
+        ? { backendType: config.backendType as 'direct-internal' | 'external' }
+        : {}),
+      ...(config.imageUri !== undefined ? { imageUri: config.imageUri } : {}),
+      ...(config.vpcName !== undefined ? { vpcName: config.vpcName } : {}),
+      ...(config.subnetName !== undefined
+        ? { subnetName: config.subnetName }
+        : {}),
+      ...(config.machineType !== undefined
+        ? { machineType: config.machineType }
+        : {}),
+      ...(config.reaperIdleLimit !== undefined
+        ? { reaperIdleLimit: config.reaperIdleLimit }
+        : {}),
+      stationName,
+    };
 
     // Default to GCE
     return new GceCosProvider(
       config.projectId,
       config.zone,
       config.instanceName,
-      REPO_ROOT,
-      {
-        dnsSuffix: config.dnsSuffix,
-        userSuffix: config.userSuffix,
-        backendType: config.backendType,
-        imageUri: config.imageUri,
-        vpcName: config.vpcName,
-        subnetName: config.subnetName,
-        machineType: config.machineType,
-        reaperIdleLimit: config.reaperIdleLimit,
-        stationName,
-      },
+      getPrimaryRepoRoot(),
+      gceConfig,
     );
   }
 }

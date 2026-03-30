@@ -1,27 +1,27 @@
 # Gemini Orbit: End-to-End Test Plan (v1.6)
 
 This document provides a structured protocol for validating the **Orbit**
-platform (v1.6+). It ensures that decoupled Designs, bundled scripts, and
+platform (v1.6+). It ensures that decoupled Schematics, bundled scripts, and
 surgical updates are fully functional.
 
 ---
 
-## 📋 Pre-Flight: Manual Design Verification
+## 📋 Pre-Flight: Manual Schematic Verification
 
 **Goal**: Ensure the global environment is correctly seeded before running
 automated tests.
 
 1.  **Check Global Directory**:
     - [ ] `ls -d ~/.gemini/orbit` exists.
-    - [ ] `ls ~/.gemini/orbit/profiles` contains at least one `.json` design
-          (e.g., `default.json`, `corp.json`).
-2.  **Verify Design Content**:
-    - [ ] Open a design (e.g., `cat ~/.gemini/orbit/profiles/corp.json`).
+    - [ ] `ls ~/.gemini/orbit/schematics` contains at least one `.json`
+          schematic (e.g., `default.json`, `corp.json`).
+2.  **Verify Schematic Content**:
+    - [ ] Open a schematic (e.g., `cat ~/.gemini/orbit/schematics/corp.json`).
     - [ ] Ensure it contains valid infrastructure keys: `projectId`, `zone`,
           `machineType`, `vpcName`, `subnetName`, and `backendType`.
 3.  **Verify Global Registry**:
     - [ ] `cat ~/.gemini/orbit/settings.json` exists.
-    - [ ] `activeProfile` points to a valid design name.
+    - [ ] `activeStation` points to a valid station name.
     - [ ] `repos` contains a link for the current repository.
 
 ---
@@ -46,30 +46,32 @@ automated tests.
 
 ---
 
-## 🎚️ 2. Tiered Configuration & Surgical Mode
+## 🎚️ 2. Tiered Configuration & Local Worktree Management
 
-**Goal**: Verify the system merges Project Defaults, Global Registry, Designs,
-and Env Vars correctly.
+**Goal**: Verify the system merges Project Defaults, Global Registry,
+Schematics, and Env Vars correctly, and supports the 'rswitch' style local
+workflow.
 
 ### 2.1 Resolution Hierarchy
 
 1.  **Input**:
-    - Create a temporary test design:
-      `echo '{"projectId": "design-p"}' > ~/.gemini/orbit/profiles/test-resolution.json`.
+    - Create a temporary test schematic:
+      `echo '{"projectId": "schematic-p"}' > ~/.gemini/orbit/schematics/test-resolution.json`.
     - Set an env var: `export GCLI_ORBIT_PROJECT_ID=env-p`.
 2.  **Automated Check**:
-    - `node -e "import { getRepoConfig } from './bundle/ConfigManager.js'; console.log(getRepoConfig('gemini-cli').projectId)"`
-    - [ ] **Expected**: `env-p` (Environment variables have the highest
+    - `node bundle/bin/status.js`
+    - [ ] **Expected**: Config uses `env-p` (Environment variables have
           priority).
 
-### 2.2 Surgical Updates
+### 2.2 Smart Local Worktrees
 
-1.  **Input**: Run `orbit liftoff --gce-machine-type=n2-highmem-16` (using the
-    bundled script).
-2.  **Expected Output**:
-    - [ ] The script should **NOT** prompt for confirmation (Surgical Mode).
-    - [ ] `~/.gemini/orbit/settings.json` is updated with the new machine type
-          for the current repo.
+1.  **Input**: Run `orbit mission <PR_NUMBER> review` with
+    `GCLI_ORBIT_PROVIDER=local-worktree`.
+2.  **Expected Behavior**:
+    - [ ] Automatically resolves PR number to branch name via `gh pr view`.
+    - [ ] Detects if the branch is already checked out in another worktree.
+    - [ ] Creates a sibling worktree in `~/dev/` if missing.
+    - [ ] Launches a persistent session via `tmux` (or falls back gracefully).
 
 ---
 
@@ -79,21 +81,17 @@ and Env Vars correctly.
 
 ### 3.1 Station Liftoff (GCE)
 
-1.  **Input**: `node bundle/setup.js --reconfigure`
+1.  **Input**: `orbit station liftoff --setup-net`
 2.  **Expected Output**:
     - [ ] Correctly identifies the `upstreamRepo` and `userFork`.
-    - [ ] Prompts for **Design** selection.
+    - [ ] Uses the active **Schematic**.
     - [ ] Successfully provisions/wakes the GCE station.
 
 ### 3.2 Connectivity Backends
 
-1.  **IAP (Secure Tunnel)**:
-    - Set `backendType: "iap"` in a design.
-    - [ ] `node bundle/status.js` connects successfully without a public IP.
-2.  **Direct Internal (VPC)**:
-    - Set `backendType: "direct-internal"` in a design.
-    - [ ] `node bundle/status.js` uses the `.internal` or `.gcpnode.com` DNS
-          name.
+1.  **Direct Internal (VPC)**:
+    - Set `backendType: "direct-internal"` in a schematic.
+    - [ ] `orbit pulse` uses the `.internal` or `.gcpnode.com` DNS name.
 
 ---
 
@@ -102,11 +100,11 @@ and Env Vars correctly.
 **Goal**: Ensure surgical and global cleanup works as intended.
 
 1.  **Jettison (PR-specific)**:
-    - [ ] `node bundle/jettison.js <PR_NUMBER>` removes the specific capsule and
-          its worktree.
+    - [ ] `orbit jettison <PR_NUMBER>` removes the specific capsule and its
+          worktree.
 2.  **Splashdown (Global)**:
-    - [ ] `node bundle/splashdown.js --all` terminates the station supervisor
-          and clears all remote resources.
+    - [ ] `orbit splashdown --all` terminates the station supervisor and clears
+          all remote resources.
 
 ---
 
@@ -118,7 +116,7 @@ Run this suite to perform a high-level health check:
 # Full Build & Test
 npm run build && npm test
 
-# Verify Resolution Hierarchy (Requires 'test-resolution' design)
+# Verify Resolution Hierarchy (Requires 'test-resolution' schematic)
 node -e "import { getRepoConfig } from './bundle/ConfigManager.js'; console.log('Resolved Project:', getRepoConfig().projectId)"
 
 # Verify GitHub Variable Access

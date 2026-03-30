@@ -68,8 +68,8 @@ Before you merge, you want a high-fidelity review.
 orbit mission review <pr-number>
 ```
 
-- **The Mustard Test**: Orbit won't just look at the code; it will physically
-  execute it in the capsule and provide logs.
+- **The Behavioral Proof**: Orbit won't just look at the code; it will
+  physically execute it in the capsule and provide logs.
 - **CI Monitoring**: It watches the actual GitHub Actions status in parallel.
 - **Synthesis**: You get a `final-assessment.md` with everything you need to
   know.
@@ -114,7 +114,7 @@ orbit pulse
 
 1. **Shared Config**: Any extension you link or alias you create in `.gemini/`
    is instantly available in _all_ capsules.
-2. **Design Profiles**: Switch between `direct-internal` (fastest) and `iap`
-   (most secure) using `orbit liftoff --profile=iap`.
+2. **Station Management**: Use `orbit station design` to manage your blueprints
+   and `orbit station liftoff` to build them.
 3. **Bulk Cleanup**: Use `orbit splashdown --bulk` to wipe out multiple stale
    missions at once.

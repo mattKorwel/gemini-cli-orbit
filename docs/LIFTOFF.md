@@ -1,59 +1,52 @@
-# Orbit Mission: Liftoff (/orbit:liftoff)
+# Orbit Mission: Liftoff
 
-The **Liftoff** command is your initial gateway to the Orbital environment. It
-provisions your Host Station and establishes your persistent digital presence.
+The **Liftoff** command is your bridge from an abstract **Schematic** to
+physical **Infrastructure**. It builds the VPCs, firewalls, and GCE instances
+required for your missions.
 
 ## 🚀 Liftoff Process
 
-Run the command in your local repository to begin the initialization:
+Run the command in your local repository to build your infrastructure:
 
 ```bash
-/orbit:liftoff
+orbit station liftoff --setup-net
 ```
 
-### 1. Orbit Design Selection
+### 1. Resolve Schematic
 
-Liftoff will ask you to select an **Orbit Design** (Infrastructure Template). If
-no designs exist, it will guide you through creating your `default` environment
-(Project, Zone, VPC).
+Orbit looks at your currently active schematic (set via
+`orbit schematic activate`). It identifies the target GCP Project, Zone, and
+Network configuration.
 
-### 2. Station Configuration
+### 2. Infrastructure Construction
 
-Once the environment is selected, Liftoff configures your repo-specific
-**Station**:
+- **Networking (`--setup-net`)**: If this flag is provided, Orbit ensures the
+  VPC Network, Subnet, Cloud Router, and Cloud NAT exist. It also sets up the
+  firewall rules required for corporate SSH and SUP traffic.
+- **Station**: Orbit provisions the GCE instance (using Capsule-Optimized OS)
+  and attaches the persistent data disk.
 
-- **Station Name**: The unique identifier for your remote VM.
-- **Machine Type**: Choose the performance tier (e.g., `n2-standard-8`).
-- **Image**: Select the Orbit Docker image for your capsules.
+### 3. Station Initialization
 
-### 3. Identity & Repository Mirroring
+Once the VM starts, it automatically:
 
-Your local credentials and configuration are mirrored to the station:
+- Mounts and formats the data disk at `/mnt/disks/data`.
+- Initializes the Docker daemon.
+- Launches the `gcli-station` supervisor container.
 
-- **Gemini Auth**: Syncs your `google_accounts` or API keys.
-- **GitHub Auth**: Securely stores your repository PAT in global storage
-  (`~/.gemini/orbit/tokens/`).
-- **Source Mirror**: Creates a "Source of Truth" mirror of your repo on the Host
-  Station for fast capsule creation.
+## 🛠️ Command Reference
 
-## 🛠️ Reconfiguring
-
-If you need to change your station settings (e.g., switching to a bigger
-machine), run:
-
-```bash
-/orbit:liftoff --reconfigure
-```
-
-To update the global infrastructure template itself, use the dedicated command:
-
-```bash
-/orbit:profile
-```
+| Flag                 | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `--setup-net`        | Create/Verify the VPC network and Cloud NAT.     |
+| `--schematic=<name>` | Override the active schematic for this run only. |
 
 ## ✨ Quick Tips
 
-- **Designs**: Reusable infrastructure templates that can be shared across
-  multiple repositories.
-- **Surgical Mode**: Provide any flag (e.g., `--gce-machine-type=n2-highmem-16`)
-  to skip interactive prompts and apply the change immediately.
+- **Prerequisites**: Ensure you have an active schematic first
+  (`orbit schematic create default`).
+- **One-Time Setup**: You typically only need `--setup-net` once per project.
+  After that, simple `orbit station liftoff` is enough to wake up a stopped
+  instance.
+- **Verification**: Use `orbit pulse` to verify the station reached a `RUNNING`
+  state.

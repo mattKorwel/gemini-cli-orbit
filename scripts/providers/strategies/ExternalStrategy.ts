@@ -20,6 +20,35 @@ export class ExternalStrategy extends BaseStrategy {
       : `${user}@nic0.${this.instanceName}.${this.zone}.c.${this.projectId}.internal`;
   }
 
+  getRunCommand(
+    command: string,
+    options: { interactive?: boolean } = {},
+  ): string {
+    // For external, gcloud is preferred as it handles auth better
+    return `gcloud compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t"' : ''}`;
+  }
+
+  getRunArgs(
+    command: string,
+    options: { interactive?: boolean } = {},
+  ): string[] {
+    const args = [
+      'compute',
+      'ssh',
+      this.instanceName,
+      '--project',
+      this.projectId,
+      '--zone',
+      this.zone,
+      '--command',
+      command,
+    ];
+    if (options.interactive) {
+      args.push('--ssh-flag="-t"');
+    }
+    return args;
+  }
+
   getNetworkInterfaceConfig(vpcName: string, subnetName: string): string {
     const addressName = `${this.instanceName}-ip`;
     const region = this.zone.split('-').slice(0, 2).join('-');

@@ -1,6 +1,0 @@
-description = "Manage the entire mission constellation of stations across projects and zones."
-prompt = """
-Managing constellation...
-
-!{node bundle/fleet.js {{args}} }
-"""

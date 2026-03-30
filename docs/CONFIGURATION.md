@@ -4,15 +4,15 @@ Orbit utilizes a sophisticated configuration system designed for flexibility and
 security. Settings are merged from multiple sources to determine the final
 mission parameters.
 
-## 🏗️ Configuration Split: Design vs. Station
+## 🏗️ Configuration Split: Schematic vs. Station
 
 To ensure reusable infrastructure and maintainable repository settings, Orbit
 separates configuration into two distinct layers:
 
-1.  **Orbit Design (Environment)**: Global infrastructure templates (e.g.,
+1.  **Orbit Schematic (Environment)**: Global infrastructure templates (e.g.,
     `corp`, `sandbox`) that define _where_ missions run.
-2.  **Station Design (Repository)**: Repository-specific links and overrides
-    that define _how_ a specific repo interacts with a Design.
+2.  **Station Schematic (Repository)**: Repository-specific links and overrides
+    that define _how_ a specific repo interacts with a Schematic.
 
 ---
 
@@ -45,36 +45,48 @@ export const DEFAULT_IMAGE_URI =
 ### 2. Global Registry (`~/.gemini/orbit/settings.json`)
 
 This file tracks your personal stations across all repositories and manages your
-active Design.
+active Station.
 
 ```json
 {
   "activeRepo": "gemini-cli",
-  "activeProfile": "corp",
+  "activeStation": "gcli-station-mattkorwel",
   "repos": {
     "gemini-cli": {
       "instanceName": "gcli-station-mattkorwel",
-      "design": "corp"
+      "schematic": "corp"
     }
   }
 }
 ```
 
-### 3. Orbit Designs (`~/.gemini/orbit/profiles/*.json`)
+### 3. Orbit Schematics (`~/.gemini/orbit/schematics/*.json`)
 
-Designs allow you to switch between different infrastructure environments (e.g.,
-`corp`, `sandbox`, `local-lab`).
+Schematics allow you to switch between different infrastructure environments
+(e.g., `corp`, `sandbox`, `local-lab`).
+
+**Managing Schematics via CLI**:
+
+- **List available schematics**: `orbit schematic list`
+- **Create/Edit a schematic**: `orbit schematic create <name>`
+- **Import a schematic**: `orbit schematic import <path|url>`
+
+**Managing Stations via CLI**:
+
+- **List active stations**: `orbit station list`
+- **Activate a station**: `orbit station activate <name>`
+- **Initial station setup**: `orbit station liftoff`
 
 **Key Attributes**:
 
 - `projectId`: The GCP Project ID.
 - `zone`: The GCE Zone (e.g., `us-west1-a`).
 - `machineType`: The GCE Machine Type (e.g., `n2-standard-8`).
-- `backendType`: Connectivity method (`direct-internal`, `external`, `iap`).
+- `backendType`: Connectivity method (`direct-internal`, `external`).
 - `vpcName`: The target VPC.
 - `subnetName`: The target Subnet.
-- `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH
-  (e.g., `["35.235.240.0/20"]` for IAP). Defaults to `["0.0.0.0/0"]`.
+- `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH.
+  Defaults to `["0.0.0.0/0"]`.
 
 ### 4. Environment Variables
 
@@ -115,7 +127,7 @@ You can create custom providers by extending the `OrbitProvider` interface:
 
 1.  Create a new provider class in `scripts/providers/`.
 2.  Register it in `ProviderFactory.ts`.
-3.  Specify your provider type in your Design:
+3.  Specify your provider type in your Schematic:
     ```json
     {
       "providerType": "my-custom-provider"

@@ -27,11 +27,6 @@ describe('runReap', () => {
     stationName: 'test-station',
   };
 
-  const mockRl = {
-    question: vi.fn(),
-    close: vi.fn(),
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ProviderFactory.getProvider).mockReturnValue(mockProvider as any);
@@ -39,7 +34,6 @@ describe('runReap', () => {
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
       projectId: 'p',
     } as any);
-    vi.mocked(readline.createInterface).mockReturnValue(mockRl as any);
   });
 
   it('should return 0 when no capsules exist', async () => {
@@ -54,11 +48,8 @@ describe('runReap', () => {
       'gcli-456-mission',
     ]);
     // 123 is active (1 hour idle), 456 is idle (5 hours idle > 4h default)
-    mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(3600);
-    mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(18000);
-
-    // Mock confirmation for reaping
-    mockRl.question.mockImplementation((_q, cb) => cb('y'));
+    mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(3600); // 1h in seconds
+    mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(18000); // 5h in seconds
 
     const res = await runReap();
     expect(res).toBe(0);
@@ -68,33 +59,12 @@ describe('runReap', () => {
     );
   });
 
-  it('should offer to splashdown if all capsules are reaped', async () => {
-    mockProvider.listCapsules.mockResolvedValueOnce(['gcli-456-mission']); // Initial
-    mockProvider.listCapsules.mockResolvedValueOnce([]); // After reap check
-    mockProvider.getCapsuleIdleTime.mockResolvedValue(18000); // 5 hours
-
-    // Confirmation for reaping AND for splashdown
-    mockRl.question.mockImplementation((_q, cb) => cb('y'));
-    vi.mocked(Splashdown.runSplashdown).mockResolvedValue(0);
-
-    const res = await runReap();
-    expect(res).toBe(0);
-    expect(Splashdown.runSplashdown).toHaveBeenCalled();
-  });
-
   it('should respect custom threshold flag', async () => {
-    process.argv = ['node', 'scripts/reap.js', '--threshold=1']; // 1 hour threshold
     mockProvider.listCapsules.mockResolvedValue(['gcli-123-mission']);
-    mockProvider.getCapsuleIdleTime.mockResolvedValue(7200); // 2 hours > 1 hour
+    mockProvider.getCapsuleIdleTime.mockResolvedValue(7200); // 2 hours
 
-    mockRl.question.mockImplementation((_q, cb) => cb('n')); // Decline reap
-
-    await runReap();
-    // Verify threshold was calculated as 1 hour (3600s)
-    // If it used 4h default, it wouldn't have asked to reap.
-    expect(mockRl.question).toHaveBeenCalledWith(
-      expect.stringContaining('Jettison all idle capsules?'),
-      expect.any(Function),
-    );
+    await runReap({ threshold: 1 });
+    // Verify it reaped because threshold is 1h and idle is 2h
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-123-mission');
   });
 });

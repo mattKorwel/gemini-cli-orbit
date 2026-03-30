@@ -4,12 +4,14 @@
   "description": "High-performance remote missions with capsule-level isolation and automated station supervisor loops.",
   "author": "Matt Korwel",
   "license": "Apache-2.0",
-  "skills": [
-    "skills/orbit/SKILL.md",
-    "skills/orbit/review/SKILL.md",
-    "skills/orbit/fix/SKILL.md",
-    "skills/orbit/implement/SKILL.md",
-    "skills/orbit/ci/SKILL.md"
-  ],
+  "mcpServers": {
+    "orbit": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "node \"$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || ls -d . 2>/dev/null)/bundle/bin/mcp-server.js\""
+      ]
+    }
+  },
   "contextFileName": "docs/GEMINI.md"
 }

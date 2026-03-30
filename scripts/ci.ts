@@ -5,23 +5,10 @@
  */
 
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const BRANCH =
-  process.argv[2] || execSync('git branch --show-current').toString().trim();
-const RUN_ID_OVERRIDE = process.argv[3];
-
-let REPO: string;
-try {
-  const remoteUrl = execSync('git remote get-url origin').toString().trim();
-  REPO = remoteUrl
-    .replace(/.*github\.com[\/:]/, '')
-    .replace(/\.git$/, '')
-    .trim();
-} catch (_e) {
-  REPO = 'google-gemini/gemini-cli';
-}
-
-function runGh(args: string): string | null {
+function runGh(args: string, repo: string): string | null {
   try {
     return execSync(`gh ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -31,9 +18,9 @@ function runGh(args: string): string | null {
   }
 }
 
-function fetchFailuresViaApi(jobId: string): string {
+function fetchFailuresViaApi(jobId: string, repo: string): string {
   try {
-    const cmd = `gh api repos/${REPO}/actions/jobs/${jobId}/logs | grep -iE " FAIL |❌|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
+    const cmd = `gh api repos/${repo}/actions/jobs/${jobId}/logs | grep -iE " FAIL |❌|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
     return execSync(cmd, {
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 10 * 1024 * 1024,
@@ -42,7 +29,6 @@ function fetchFailuresViaApi(jobId: string): string {
     return '';
   }
 }
-
 function isNoise(line: string): boolean {
   const lower = line.toLowerCase();
   return (
@@ -66,116 +52,146 @@ function extractTestFile(failureText: string): string | null {
   return null;
 }
 
+/**
+ * Dynamically detects workspace for a given file by looking for the nearest package.json
+ */
+function findWorkspaceForFile(file: string): string | null {
+  let currentDir = path.dirname(file);
+  while (currentDir !== '.' && currentDir !== '/') {
+    if (fs.existsSync(path.join(currentDir, 'package.json'))) {
+      try {
+        const pkg = JSON.parse(
+          fs.readFileSync(path.join(currentDir, 'package.json'), 'utf8'),
+        );
+        if (pkg.name) return pkg.name;
+      } catch {
+        // Continue searching
+      }
+    }
+    currentDir = path.dirname(currentDir);
+  }
+  return null;
+}
+
 function generateTestCommand(failedFilesMap: Map<string, Set<string>>): string {
-  const orbitToFiles = new Map<string, Set<string>>();
+  const workspaceToFiles = new Map<string, Set<string>>();
   for (const [file] of failedFilesMap.entries()) {
     if (
       ['Job Error', 'Unknown File', 'Build Error', 'Lint Error'].includes(file)
     )
       continue;
-    let orbit = '@google/gemini-cli';
-    let relPath = file;
-    if (file.startsWith('packages/core/')) {
-      orbit = '@google/gemini-cli-core';
-      relPath = file.replace('packages/core/', '');
-    } else if (file.startsWith('packages/cli/')) {
-      orbit = '@google/gemini-cli';
-      relPath = file.replace('packages/cli/', '');
-    }
-    relPath = relPath.replace(/^.*packages\/[^\/]+\//, '');
-    if (!orbitToFiles.has(orbit)) orbitToFiles.set(orbit, new Set());
-    orbitToFiles.get(orbit)!.add(relPath);
+
+    const workspace = findWorkspaceForFile(file);
+    const relPath = file;
+
+    if (!workspaceToFiles.has(workspace || 'root'))
+      workspaceToFiles.set(workspace || 'root', new Set());
+    workspaceToFiles.get(workspace || 'root')!.add(relPath);
   }
+
   const commands = [];
-  for (const [orbit, files] of orbitToFiles.entries()) {
-    commands.push(`npm test -w ${orbit} -- ${Array.from(files).join(' ')}`);
+  for (const [workspace, files] of workspaceToFiles.entries()) {
+    const fileList = Array.from(files).join(' ');
+    if (workspace === 'root') {
+      commands.push(`npm test -- ${fileList}`);
+    } else {
+      commands.push(`npm test -w ${workspace} -- ${fileList}`);
+    }
   }
   return commands.join(' && ');
 }
 
-async function monitor() {
-  let targetRunIds: number[] = [];
+export async function runCI(args: string[]) {
+  const BRANCH =
+    args[0] || execSync('git branch --show-current').toString().trim();
+  const RUN_ID_OVERRIDE = args[1];
+
+  let REPO: string;
+  try {
+    const remoteUrl = execSync('git remote get-url origin').toString().trim();
+    REPO = remoteUrl
+      .replace(/.*github\.com[\/:]/, '')
+      .replace(/\.git$/, '')
+      .trim();
+  } catch (_e) {
+    // Fallback to local package.json if git fails
+    try {
+      const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      REPO =
+        pkg.repository?.url
+          ?.replace(/.*github\.com[\/:]/, '')
+          .replace(/\.git$/, '') || 'unknown/repo';
+    } catch (_e) {
+      REPO = 'unknown/repo';
+    }
+  }
+
+  let targetRunIds: string[] = [];
   if (RUN_ID_OVERRIDE) {
-    targetRunIds = [parseInt(RUN_ID_OVERRIDE, 10)];
+    targetRunIds = [RUN_ID_OVERRIDE];
   } else {
-    const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
-    console.log(
-      `🔍 Looking for runs associated with commit ${headSha.substring(0, 7)} on branch ${BRANCH}...`,
+    // 1. Get runs directly associated with the branch
+    const runListOutput = runGh(
+      `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt`,
+      REPO,
     );
-
-    let attempts = 0;
-    const maxAttempts = 20; // Wait up to 5 minutes (20 * 15s)
-
-    while (targetRunIds.length === 0 && attempts < maxAttempts) {
-      if (attempts > 0) {
-        process.stdout.write(
-          `\r⏳ No runs found yet. Waiting for GitHub to register the run (Attempt ${attempts}/${maxAttempts})...`,
-        );
-        await new Promise((r) => setTimeout(r, 15000));
-      }
-      attempts++;
-
-      // 1. Get runs directly associated with the branch and filter by headSha
-      const runListOutput = runGh(
-        `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt,headSha`,
-      );
-      if (runListOutput) {
-        const runs = JSON.parse(runListOutput);
-        const latestRuns = runs.filter((r: any) => r.headSha === headSha);
-        if (latestRuns.length > 0) {
-          targetRunIds = latestRuns.map((r: any) => r.databaseId);
-        }
-      }
-
-      // 2. Fallback: Get runs associated with commit statuses (handles chained/indirect runs)
-      if (targetRunIds.length === 0) {
-        try {
-          const statusOutput = runGh(
-            `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
-          );
-          if (statusOutput) {
-            const statusRunIds = statusOutput
-              .split('\n')
-              .filter(Boolean)
-              .map((url) => {
-                const match = url.match(/actions\/runs\/(\d+)/);
-                return match && match[1] ? parseInt(match[1], 10) : null;
-              })
-              .filter((id): id is number => id !== null);
-
-            for (const runId of statusRunIds) {
-              if (!targetRunIds.includes(runId)) {
-                targetRunIds.push(runId);
-              }
-            }
-          }
-        } catch (_e) {
-          // Ignore if API fails
-        }
+    if (runListOutput) {
+      const runs = JSON.parse(runListOutput);
+      const activeRuns = runs.filter((r: any) => r.status !== 'completed');
+      if (activeRuns.length > 0) {
+        targetRunIds = activeRuns.map((r: any) => r.databaseId);
+      } else if (runs.length > 0) {
+        const latestTime = new Date(runs[0].createdAt).getTime();
+        targetRunIds = runs
+          .filter(
+            (r: any) => latestTime - new Date(r.createdAt).getTime() < 60000,
+          )
+          .map((r: any) => r.databaseId);
       }
     }
 
-    if (attempts > 1) console.log(''); // New line after polling
+    // 2. Get runs associated with commit statuses (handles chained/indirect runs)
+    try {
+      const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
+      const statusOutput = runGh(
+        `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
+        REPO,
+      );
+      if (statusOutput) {
+        const statusRunIds = statusOutput
+          .split('\n')
+          .filter(Boolean)
+          .map((url) => {
+            const match = url.match(/actions\/runs\/(\d+)/);
+            return match ? match[1] : null;
+          })
+          .filter((id): id is string => id !== null);
+
+        for (const runId of statusRunIds) {
+          if (!targetRunIds.includes(runId)) {
+            targetRunIds.push(runId);
+          }
+        }
+      }
+    } catch (_e) {
+      // Ignore if branch/SHA not found or API fails
+    }
+
+    if (targetRunIds.length > 0) {
+      const runNames: string[] = [];
+      for (const runId of targetRunIds) {
+        const runInfo = runGh(`run view "${runId}" --json workflowName`, REPO);
+        if (runInfo) {
+          runNames.push(JSON.parse(runInfo).workflowName);
+        }
+      }
+      console.log(`Monitoring workflows: ${[...new Set(runNames)].join(', ')}`);
+    }
   }
 
   if (targetRunIds.length === 0) {
-    console.log(
-      `❌ No runs found for branch ${BRANCH} at commit ${execSync(`git rev-parse --short "${BRANCH}"`).toString().trim()} after waiting.`,
-    );
-    process.exit(0);
-  }
-
-  if (targetRunIds.length > 0) {
-    const runNames: string[] = [];
-    for (const runId of targetRunIds) {
-      const runInfo = runGh(`run view "${runId}" --json workflowName`);
-      if (runInfo) {
-        runNames.push(JSON.parse(runInfo).workflowName);
-      }
-    }
-    console.log(
-      `🚀 Monitoring workflows: ${[...new Set(runNames)].join(', ')}`,
-    );
+    console.log(`No runs found for branch ${BRANCH}.`);
+    return 0;
   }
 
   while (true) {
@@ -191,12 +207,13 @@ async function monitor() {
     for (const runId of targetRunIds) {
       const runOutput = runGh(
         `run view "${runId}" --json databaseId,status,conclusion,workflowName`,
+        REPO,
       );
       if (!runOutput) continue;
       const run = JSON.parse(runOutput);
       if (run.status !== 'completed') anyRunInProgress = true;
 
-      const jobsOutput = runGh(`run view "${runId}" --json jobs`);
+      const jobsOutput = runGh(`run view "${runId}" --json jobs`, REPO);
       if (jobsOutput) {
         const { jobs } = JSON.parse(jobsOutput);
         totalJobs += jobs.length;
@@ -204,7 +221,7 @@ async function monitor() {
         if (failedJobs.length > 0) {
           failuresFoundInLoop = true;
           for (const job of failedJobs) {
-            const failures = fetchFailuresViaApi(job.databaseId);
+            const failures = fetchFailuresViaApi(job.databaseId, REPO);
             if (failures.trim()) {
               failures.split('\n').forEach((line) => {
                 if (!line.trim() || isNoise(line)) return;
@@ -275,7 +292,7 @@ async function monitor() {
         console.log('\n🚀 Run this to verify lint fixes:\nnpm run lint:all');
       }
       console.log('---------------------------------');
-      process.exit(1);
+      return 1;
     }
 
     const completed = allPassed + allFailed;
@@ -284,13 +301,8 @@ async function monitor() {
     );
     if (!anyRunInProgress) {
       console.log('\n✅ All workflows passed!');
-      process.exit(0);
+      return 0;
     }
     await new Promise((r) => setTimeout(r, 15000));
   }
 }
-
-monitor().catch((err) => {
-  console.error('\nMonitor error:', err.message);
-  process.exit(1);
-});

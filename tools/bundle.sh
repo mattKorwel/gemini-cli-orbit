@@ -1,11 +1,14 @@
 #!/bin/bash
-# bundle.sh - Bundles the Orbit extension entry points, ignoring any extra arguments (like from lint-staged)
+# bundle.sh - Bundles the Orbit extension entry points
 
-# Find all .ts files in scripts/ (non-recursive, excluding tests)
+# Find all .ts files in relevant directories (excluding tests)
 FILES=$(find scripts -maxdepth 1 -name "*.ts" ! -name "*.test.ts")
+BIN_FILES=$(find scripts/bin -name "*.ts" ! -name "*.test.ts" 2>/dev/null)
+UTIL_FILES=$(find scripts/utils -name "*.ts" ! -name "*.test.ts" ! -name "*.js" 2>/dev/null)
+PLAYBOOK_FILES=$(find scripts/playbooks -name "*.ts" ! -name "*.test.ts" 2>/dev/null)
 
-# Execute esbuild
-npx esbuild $FILES \
+# Execute esbuild for all entrypoints
+npx esbuild $FILES $BIN_FILES $UTIL_FILES $PLAYBOOK_FILES \
   --bundle \
   --platform=node \
   --format=esm \
