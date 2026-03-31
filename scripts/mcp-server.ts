@@ -122,7 +122,7 @@ server.registerTool(
 );
 
 server.registerTool(
-  'get_logs',
+  'get_uplink_logs',
   {
     description: 'Inspect local or remote mission telemetry.',
     inputSchema: z.object({
@@ -433,7 +433,7 @@ server.registerPrompt(
 );
 
 server.registerPrompt(
-  'logs',
+  'uplink',
   {
     description: 'Inspect local or remote mission telemetry.',
     argsSchema: {
@@ -447,7 +447,7 @@ server.registerPrompt(
         role: 'user',
         content: {
           type: 'text',
-          text: `Show me the logs for orbit mission ${identifier}${action ? ` (${action})` : ''}.`,
+          text: `Show me the uplink logs for orbit mission ${identifier}${action ? ` (${action})` : ''}.`,
         },
       },
     ],

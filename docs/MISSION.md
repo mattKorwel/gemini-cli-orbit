@@ -47,5 +47,5 @@ Execute specialized autonomous tasks on your mission:
 - `oml <PR>`: Force **Local** worktree mission.
 - `omr <PR>`: Force **Remote** mission.
 - `orbit pulse`: Monitor host and capsule health.
-- `orbit uplink <PR> [action]`: Stream real-time logs from a remote capsule.
-- `orbit blackbox <PR> [action]`: Inspect recorded local mission logs.
+- `orbit uplink <PR> [action]`: (Uplink) Inspect local or remote mission
+  telemetry.

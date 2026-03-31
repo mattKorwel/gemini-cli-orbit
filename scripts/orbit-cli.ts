@@ -71,7 +71,7 @@ const COMMANDS: Record<string, { run: Runner; description: string }> = {
     run: (_args) => runStatus(),
     description: 'Check station health and active mission status.',
   },
-  logs: {
+  uplink: {
     run: runLogs,
     description: 'Inspect local or remote mission telemetry.',
   },
@@ -123,7 +123,7 @@ function showHelp() {
   );
 
   console.log('\nTelemetry & Progress:');
-  console.log('  logs         - Inspect local or remote mission telemetry.');
+  console.log('  uplink       - Inspect local or remote mission telemetry.');
   console.log(
     '  ci           - Monitor CI status for a branch with noise filtering.',
   );

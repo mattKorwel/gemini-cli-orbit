@@ -177,7 +177,7 @@ export class ShellIntegration {
     const header = '# Gemini Orbit Shell Integration';
     const footer = '# End Gemini Orbit Shell Integration';
     const commands =
-      'ci install-shell jettison liftoff logs mission pulse schematic splashdown station';
+      'ci install-shell jettison liftoff mission pulse schematic splashdown station uplink';
     const quotedShim = `"${shimPath}"`;
 
     // Determine if we should use node or tsx
@@ -193,7 +193,7 @@ function omr { $env:GCLI_ORBIT_PROFILE='default'; & om @args }
 function gm { om @args }
 function gml { oml @args }
 function gmr { omr @args }
-$orbit_completions = @('ci', 'install-shell', 'jettison', 'liftoff', 'logs', 'mission', 'pulse', 'schematic', 'splashdown', 'station')
+$orbit_completions = @('ci', 'install-shell', 'jettison', 'liftoff', 'mission', 'pulse', 'schematic', 'splashdown', 'station', 'uplink')
 Register-ArgumentCompleter -CommandName orbit -ParameterName args -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
     $orbit_completions | Where-Object { $_ -like "$wordToComplete*" }
@@ -218,12 +218,12 @@ _orbit() {
     'install-shell:Install Orbit shell aliases and tab-completion.'
     'jettison:Decommission a specific mission and its worktree.'
     'liftoff:Build or wake infrastructure (use --with-station).'
-    'logs:Inspect local or remote mission telemetry.'
     'mission:Start, resume, or perform maneuvers on a PR mission.'
     'pulse:Check station health and active mission status.'
     'schematic:Manage infrastructure blueprints: <list|create|edit|import>'
     'splashdown:Emergency shutdown of all active remote capsules.'
     'station:Hardware control: <activate|list|liftoff|delete>'
+    'uplink:Inspect local or remote mission telemetry.'
   )
   _describe 'orbit' commands
 }
@@ -242,7 +242,7 @@ alias gm='om'
 alias gml='oml'
 alias gmr='omr'
 complete -c orbit -f
-complete -c orbit -a 'ci install-shell jettison liftoff logs mission pulse schematic splashdown station'
+complete -c orbit -a 'ci install-shell jettison liftoff mission pulse schematic splashdown station uplink'
 ${footer}`;
     }
 

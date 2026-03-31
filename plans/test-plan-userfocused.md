@@ -22,8 +22,8 @@ messing up my current `main` branch state."_
       worktree in your project's parent directory?
     - **The "Review" Story**: Watch it go through Phase 0 (Context), Phase 1
       (Evaluation), and Phase 2 (Synthesis).
-3.  **Inspect the "Blackbox"**:
-    - Command: `orbit blackbox 21`
+3.  **Inspect the logs**:
+    - Command: `orbit uplink 21`
     - **Check**: Does it show you the log files generated? Can you see the
       `final-assessment.md`?
 4.  **Take the Helm**:
