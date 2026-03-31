@@ -13,7 +13,7 @@ export async function runBlackbox(args: string[]) {
   const action = args[1] || 'review';
 
   if (!prNumber) {
-    console.error('Usage: orbit blackbox <PR_NUMBER> [action]');
+    console.error('Usage: orbit blackbox <IDENTIFIER> [action]');
     return 1;
   }
 

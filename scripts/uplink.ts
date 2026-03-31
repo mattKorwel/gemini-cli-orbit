@@ -13,7 +13,7 @@ export async function runUplink(args: string[]) {
   const action = args[1] || 'review';
 
   if (!prNumber) {
-    console.error('Usage: orbit uplink <PR_NUMBER> [action]');
+    console.error('Usage: orbit uplink <IDENTIFIER> [action]');
     return 1;
   }
 
