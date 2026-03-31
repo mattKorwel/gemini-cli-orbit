@@ -101,9 +101,12 @@ const COMMANDS: Record<string, Command> = {
   uplink: {
     run: runLogs,
     category: 'Telemetry',
-    description: 'Inspect local or remote mission telemetry.',
+    description: 'Inspect latest local or remote mission telemetry.',
     usage: 'orbit uplink <IDENTIFIER> [action]',
-    examples: ['orbit uplink 21', 'orbit uplink 21 fix'],
+    examples: [
+      'orbit uplink 21          (View latest review logs)',
+      'orbit uplink 21 fix      (Target specific fix maneuver)',
+    ],
   },
   ci: {
     run: runCI,
