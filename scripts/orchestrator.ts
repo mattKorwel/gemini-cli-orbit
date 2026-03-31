@@ -90,6 +90,33 @@ export async function runOrchestrator(
   }
 
   const identifier = promptArgs[0];
+
+  // SAFETY: Check if the identifier is actually another Orbit command
+  const reserved = [
+    'schematic',
+    'station',
+    'liftoff',
+    'pulse',
+    'uplink',
+    'jettison',
+    'reap',
+    'splashdown',
+    'ci',
+    'logs',
+    'blackbox',
+    'install-shell',
+    'install_shell',
+  ];
+  if (identifier && reserved.includes(identifier)) {
+    console.error(
+      `\n❌ Error: "${identifier}" is an Orbit command, not a mission identifier.`,
+    );
+    console.error(
+      `👉 Did you mean to run "orbit ${identifier}" instead of a mission?\n`,
+    );
+    return 1;
+  }
+
   const actionArg = promptArgs[1];
   let action = 'chat'; // New Default: Interactive Gemini
   let customPrompt = '';
