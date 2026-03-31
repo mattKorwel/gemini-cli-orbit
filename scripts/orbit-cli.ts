@@ -112,21 +112,56 @@ const COMMANDS: Record<string, { run: Runner; description: string }> = {
 function showHelp() {
   console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
   console.log('Usage: orbit <command> [args]\n');
-  console.log('Main Commands:');
-  Object.entries(COMMANDS)
-    .filter(([name]) => !name.includes('_')) // Hide aliases
-    .forEach(([name, info]) => {
-      console.log(`  ${name.padEnd(12)} - ${info.description}`);
-    });
+
+  console.log('Primary Commands:');
+  console.log(
+    '  mission      - Start, resume, or perform maneuvers on a PR mission.',
+  );
+  console.log(
+    '  schematic    - Manage infrastructure blueprints: <list|create|edit|import>',
+  );
+  console.log(
+    '  station      - Hardware control: <activate|list|liftoff|delete>',
+  );
+  console.log(
+    '  pulse        - Check station health and active mission status.',
+  );
+
+  console.log('\nTelemetry & Progress:');
+  console.log(
+    '  uplink       - Quickly connect to an existing mission session.',
+  );
+  console.log(
+    '  blackbox     - Retrieve detailed mission telemetry and history logs.',
+  );
+  console.log(
+    '  ci           - Monitor CI status for a branch with noise filtering.',
+  );
+
+  console.log('\nCleanup & Maintenance:');
+  console.log(
+    '  jettison     - Decommission a specific mission and its worktree.',
+  );
+  console.log(
+    '  reap         - Cleanup idle mission capsules based on inactivity.',
+  );
+  console.log(
+    '  splashdown   - Emergency shutdown of all active remote capsules.',
+  );
+
+  console.log('\nSetup:');
+  console.log('  install-shell- Install shell aliases and tab-completion.');
 
   console.log('\nGlobal Flags:');
   console.log('  -h, --help        Show this help menu');
   console.log('  -l, --local       Force local worktree mode');
   console.log('  --for-station <s> Target a specific station');
   console.log('  --schematic <s>   Use a specific schematic for liftoff');
+
   console.log('\nExample:');
-  console.log('  orbit mission 123 review');
-  console.log('  orbit station activate my-sandbox');
+  console.log('  om 21 review      (Autonomous PR review)');
+  console.log('  om 21             (Interactive chat session)');
+  console.log('  orbit schematic create corp');
   console.log('');
 }
 
