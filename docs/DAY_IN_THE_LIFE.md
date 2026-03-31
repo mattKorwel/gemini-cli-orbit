@@ -13,7 +13,7 @@ When you start your day (or work on a new repository), you need to ensure your
 
 ```bash
 # Provision or wake up your station
-orbit liftoff
+orbit station liftoff
 ```
 
 - **What happens**: Orbit checks if your GCE instance exists. If not, it creates
@@ -31,7 +31,7 @@ environment.
 
 ```bash
 # Start a new mission for an issue
-orbit mission implement <issue-number>
+orbit mission <issue-number> implement
 ```
 
 - **Isolation**: Orbit creates a dedicated **Capsule** (Docker container) and a
@@ -48,11 +48,11 @@ orbit mission implement <issue-number>
 You are now working inside your capsule. You can attach to it at any time:
 
 ```bash
-# Attach to the mission terminal
-orbit uplink <pr-number>
+# Attach to the active mission session
+orbit attach <pr-number>
 ```
 
-- **Persistence**: Uplink uses TMUX. You can disconnect, lose your internet
+- **Persistence**: Attach uses TMUX. You can disconnect, lose your internet
   connection, or switch machines—your terminal state is preserved.
 - **Native Experience**: Use your local VS Code or editor. Changes are synced
   (or mounted) automatically.
@@ -65,7 +65,7 @@ Before you merge, you want a high-fidelity review.
 
 ```bash
 # Run a consolidated review mission
-orbit mission review <pr-number>
+orbit mission <pr-number> review
 ```
 
 - **The Behavioral Proof**: Orbit won't just look at the code; it will
@@ -116,5 +116,5 @@ orbit pulse
    is instantly available in _all_ capsules.
 2. **Station Management**: Use `orbit schematic` to manage your blueprints and
    `orbit station liftoff` to build them.
-3. **Bulk Cleanup**: Use `orbit splashdown --bulk` to wipe out multiple stale
-   missions at once.
+3. **Bulk Cleanup**: Use `orbit splashdown --all` to wipe out all active remote
+   capsules at once.

@@ -20,7 +20,8 @@ describe('Constants', () => {
   });
 
   it('should have a valid schematics directory path', () => {
-    expect(SCHEMATICS_DIR).toContain('.gemini/orbit/schematics');
-    expect(SCHEMATICS_DIR).not.toContain('.gemini/orbit/schematics/.gemini'); // Should be top-level in home
+    const normalized = SCHEMATICS_DIR.replace(/\\/g, '/');
+    expect(normalized).toContain('.gemini/orbit/schematics');
+    expect(normalized).not.toContain('.gemini/orbit/schematics/.gemini'); // Should be top-level in home
   });
 });

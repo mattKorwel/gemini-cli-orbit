@@ -18,7 +18,7 @@ export async function runLogs(args: string[]) {
   const action = args[1] || 'review';
 
   if (!identifier) {
-    console.error('Usage: orbit logs <IDENTIFIER> [action]');
+    console.error('Usage: orbit uplink <IDENTIFIER> [action]');
     return 1;
   }
 

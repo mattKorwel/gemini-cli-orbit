@@ -47,7 +47,7 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
     process.env.GCLI_ORBIT_INSTANCE_NAME ||
     settings.activeStation;
 
-  // 3. Resolve Station details from Registry if targeted
+  // 4. Resolve Station details from Registry if targeted
   if (targetStation) {
     const receiptPath = path.join(STATIONS_DIR, `${targetStation}.json`);
     const receipt = loadJson(receiptPath);

@@ -43,9 +43,6 @@ function resolveRoot(): string {
   return path.resolve(__dirname, '..');
 }
 
-// Resolve the root folder
-resolveRoot();
-
 type Runner = (args: string[]) => Promise<number | void>;
 
 interface Command {
@@ -201,16 +198,21 @@ function showHelp(cmdName?: string) {
   });
 
   console.log('Global Flags:');
-  console.log('  -h, --help        Show this help menu');
-  console.log('  -l, --local       Force local worktree mode');
-  console.log('  --for-station <s> Target a specific station');
-  console.log('  --schematic <s>   Use a specific schematic for liftoff');
+  console.log('  -h, --help          Show this help menu');
+  console.log('  -l, --local         Force local worktree mode');
+  console.log('  -r, --repo <name>   Override the detected repository name');
+  console.log('  --for-station <s>   Target a specific station');
+  console.log('  --schematic <s>     Use a specific schematic for liftoff');
 
   console.log('\nTip: Use "orbit <command> --help" for detailed usage.\n');
 }
 
-async function main() {
-  const rawArgs = process.argv.slice(2);
+/**
+ * Core dispatch logic. Exported for testing.
+ * Returns an exit code; does NOT call process.exit().
+ */
+export async function dispatch(argv: string[]): Promise<number> {
+  const rawArgs = [...argv];
   let cmd = rawArgs[0];
 
   // Handle universal repo:cmd shorthand (e.g., orbit dotfiles:pulse)
@@ -225,19 +227,19 @@ async function main() {
 
   if (!cmd || cmd === '-h' || cmd === '--help') {
     showHelp();
-    process.exit(0);
+    return 0;
   }
 
   const commandInfo = COMMANDS[cmd];
   if (!commandInfo && cmd && !cmd.startsWith('-')) {
     console.error(`\n❌ Unrecognized command: "${cmd}"`);
     showHelp();
-    process.exit(1);
+    return 1;
   }
 
   if (!commandInfo) {
     showHelp();
-    process.exit(1);
+    return 1;
   }
 
   // --- 🧼 GLOBAL FLAG CONSUMPTION ---
@@ -278,7 +280,7 @@ async function main() {
     cleanArgs.length === 0
   ) {
     showHelp(cmd);
-    process.exit(0);
+    return 0;
   }
 
   // Ensure CLI knows it is a command to bypass interactive UI
@@ -286,11 +288,19 @@ async function main() {
 
   try {
     const code = await commandInfo.run(cleanArgs);
-    process.exit(code ?? 0);
+    return code ?? 0;
   } catch (err) {
     console.error(err);
-    process.exit(1);
+    return 1;
   }
 }
 
-main();
+async function main() {
+  const code = await dispatch(process.argv.slice(2));
+  process.exit(code);
+}
+
+// Only auto-run when invoked directly as the CLI entry point
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  main();
+}

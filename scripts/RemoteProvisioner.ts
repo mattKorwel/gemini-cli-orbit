@@ -98,7 +98,7 @@ export class RemoteProvisioner {
                 capsule: '/home/node/.gemini',
                 readonly: false,
               },
-              // RAM-disk secret mount (ADR 12)
+              // RAM-disk secret mount (ADR 14)
               {
                 host: secretPath,
                 capsule: `${remoteWorktreeDir}/.env`,

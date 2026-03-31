@@ -38,15 +38,19 @@ manual or automated tests.
     `bad.json` has `schematicName: "../../bad"`)
 4.  **Expected**: Sanitized name `------bad` used for the local file.
 
-### 1.2 RAM-based Credential Injection (ADR 12)
+### 1.2 RAM-based Credential Injection (ADR 14)
 
 1.  **Input**: Launch a remote mission: `orbit mission <PR> review`.
-2.  **Verification (On Remote Station)**:
-    - [ ] `ls /dev/shm/.gcli-env-*` exists on the Host VM.
+2.  **Verification (On Remote Station, while mission is actively running)**:
+    - [ ] `ls /dev/shm/.gcli-env-*` exists on the Host VM (file is present while
+          mission is active; automatically cleaned up when mission exits).
     - [ ] `cat /mnt/disks/data/worktrees/mission-<ID>/.env` **DOES NOT** exist
           (or does not contain the API Key).
     - [ ] `docker inspect gcli-<ID>-review` shows the mount:
           `Source: /dev/shm/.gcli-env-<ID>, Destination: /mnt/disks/data/worktrees/mission-<ID>/.env, ReadOnly: true`.
+3.  **Post-mission cleanup verification**:
+    - [ ] After the mission exits, `ls /dev/shm/.gcli-env-*` should return no
+          results — file is cleaned up in the `finally` block.
 
 ### 1.3 Schematic Schema Validation
 
@@ -67,11 +71,10 @@ manual or automated tests.
     - [ ] `bundle/` is populated with ESM `.js` files.
 2.  **Terminology Sync**:
     - [ ] `orbit pulse` shows the "ORBIT PULSE" header.
-    - [ ] `orbit schematic list` works (legacy `orbit design` should still work
-          but be hidden).
+    - [ ] `orbit schematic list` works.
 3.  **Unit Tests**:
     - `npm test`
-    - [ ] All 60+ tests pass across all providers and strategies.
+    - [ ] All 83+ tests pass across all providers and strategies.
 
 ---
 
@@ -138,9 +141,9 @@ Schematics, and Env Vars correctly.
 # Full Build & Test
 npm run build && npm test
 
-# Verify Pulse CLI
-node bundle/bin/status.js
+# Verify Pulse CLI (bin/ directory removed in Release 6 — use orbit CLI)
+orbit pulse
 
 # Verify Schematic Management
-node bundle/bin/fleet.js schematic list
+orbit schematic list
 ```

@@ -80,7 +80,7 @@ _Scenario: "I'm juggling two things at once."_
 
 1.  **Parallel Launch**:
     - Run `orbit mission 21 fix`
-    - In a new tab, run `om 5 implement` (assuming an issue #5 exists).
+    - In a new tab, run `orbit mission 5 implement` (assuming an issue #5 exists).
 2.  **Monitor the Constellation**:
     - Command: `orbit pulse`
     - **Check**: Do you see BOTH capsules? Does it show different CPU/Mem stats
@@ -98,6 +98,6 @@ _Scenario: "I'm juggling two things at once."_
 # Verify the build is still clean after all experiments
 npm run build && npm test
 
-# Verify MCP server integrity
-node bundle/bin/mcp-server.js
+# Verify MCP server integrity (bin/ directory removed in Release 6)
+node bundle/mcp-server.js
 ```

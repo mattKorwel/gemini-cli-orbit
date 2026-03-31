@@ -25,8 +25,13 @@ const __dirname = path.dirname(__filename);
 /**
  * Helper to capture stdout/stderr during a tool's execution.
  * This ensures the main protocol stream (stdout) remains pure.
+ *
+ * Calls are serialized via a promise queue to prevent concurrent invocations
+ * from corrupting each other's stdout/stderr patches.
  */
-async function runWithCapture(fn: () => Promise<any>): Promise<string> {
+let _captureQueue: Promise<any> = Promise.resolve();
+
+async function _runWithCaptureImpl(fn: () => Promise<any>): Promise<string> {
   const buffer: string[] = [];
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
@@ -53,6 +58,12 @@ async function runWithCapture(fn: () => Promise<any>): Promise<string> {
   }
 
   return buffer.join('');
+}
+
+function runWithCapture(fn: () => Promise<any>): Promise<string> {
+  const result = _captureQueue.then(() => _runWithCaptureImpl(fn));
+  _captureQueue = result.catch(() => {});
+  return result;
 }
 
 const server = new McpServer({
@@ -142,8 +153,8 @@ server.registerTool(
     inputSchema: z.object({
       identifier: z.string(),
       action: z
-        .enum(['mission', 'fix', 'review', 'implement', 'eva'])
-        .default('mission'),
+        .enum(['chat', 'fix', 'review', 'implement', 'eva'])
+        .default('chat'),
       prompt: z.string().optional(),
     }).shape,
   },

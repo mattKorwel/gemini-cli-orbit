@@ -216,12 +216,13 @@ export async function runOrchestrator(
   }
 
   // AUTH: Inject credentials for remote missions (ADR 14)
+  let secretPath: string | null = null;
   if (localApiKey && !isLocalWorktree) {
     console.log('   - Injecting mission authentication context (RAM-disk)...');
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
     // Write to /dev/shm on the station
-    const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+    secretPath = `/dev/shm/.gcli-env-${sessionId}`;
     const authRes = await provider.exec(
       `echo ${q(dotEnvContent)} > ${secretPath}`,
       {
@@ -337,5 +338,12 @@ ${finalSSH}
   // DEFAULT: Run in-place
   console.log(`\n🛰️  Station: ${config.instanceName}`);
   console.log(`🚀 Launching Orbit Mission: ${identifier} (${action})...\n`);
-  return provider.exec(fullCommand, execOptions);
+  try {
+    return await provider.exec(fullCommand, execOptions);
+  } finally {
+    // Cleanup RAM-disk credential file after mission exits (ADR 14)
+    if (secretPath) {
+      await provider.exec(`rm -f ${secretPath}`, {}).catch(() => {});
+    }
+  }
 }

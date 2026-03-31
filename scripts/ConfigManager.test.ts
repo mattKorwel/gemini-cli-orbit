@@ -49,20 +49,23 @@ describe('ConfigManager', () => {
     // 3. Schematic (Environment data)
     const schematicData = { projectId: 'corp-p', zone: 'corp-z' };
 
+    const norm = (p: any) => String(p).replace(/\\/g, '/');
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
-      if (p.includes('config.json')) return true;
-      if (p.includes('settings.json')) return true;
-      if (p.includes('stations/corp-station.json')) return true;
-      if (p.includes('schematics/corp.json')) return true;
+      const n = norm(p);
+      if (n.includes('config.json')) return true;
+      if (n.includes('settings.json')) return true;
+      if (n.includes('stations/corp-station.json')) return true;
+      if (n.includes('schematics/corp.json')) return true;
       return false;
     });
 
     vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
-      if (p.includes('config.json')) return JSON.stringify(projectConfig);
-      if (p.includes('settings.json')) return JSON.stringify(globalSettings);
-      if (p.includes('stations/corp-station.json'))
+      const n = norm(p);
+      if (n.includes('config.json')) return JSON.stringify(projectConfig);
+      if (n.includes('settings.json')) return JSON.stringify(globalSettings);
+      if (n.includes('stations/corp-station.json'))
         return JSON.stringify(stationReceipt);
-      if (p.includes('schematics/corp.json'))
+      if (n.includes('schematics/corp.json'))
         return JSON.stringify(schematicData);
       return '';
     });

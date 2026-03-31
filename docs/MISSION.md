@@ -43,9 +43,6 @@ Execute specialized autonomous tasks on your mission:
 ## ✨ Quick Commands
 
 - `orbit mission <PR> [action]`: Launch a mission (fix, review, implement).
-- `om <PR>`: Punchy shorthand for a mission chat session.
-- `oml <PR>`: Force **Local** worktree mission.
-- `omr <PR>`: Force **Remote** mission.
 - `orbit pulse`: Monitor host and capsule health.
 - `orbit uplink <PR> [action]`: (Uplink) Inspect local or remote mission
   telemetry.
