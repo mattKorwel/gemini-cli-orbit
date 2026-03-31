@@ -9,18 +9,21 @@ import { fileURLToPath } from 'node:url';
 import { ShellIntegration } from './utils/ShellIntegration.js';
 import { logger } from './Logger.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCRIPTS_PATH = __dirname;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function runInstallShell() {
   logger.divider('ORBIT SHELL INTEGRATION');
 
-  // Priority: bundle/orbit-cli.js > scripts/orbit-cli.ts
-  const bundleShim = path.join(
-    path.dirname(SCRIPTS_PATH),
-    'bundle/orbit-cli.js',
-  );
-  const sourceShim = path.join(SCRIPTS_PATH, 'orbit-cli.ts');
+  // Find the project root by looking for package.json
+  let projectRoot = __dirname;
+  while (projectRoot !== path.parse(projectRoot).root) {
+    if (fs.existsSync(path.join(projectRoot, 'package.json'))) break;
+    projectRoot = path.dirname(projectRoot);
+  }
+
+  const bundleShim = path.join(projectRoot, 'bundle/orbit-cli.js');
+  const sourceShim = path.join(projectRoot, 'scripts/orbit-cli.ts');
   const shimPath = fs.existsSync(bundleShim) ? bundleShim : sourceShim;
 
   logger.info('SHELL', `Targeting shim: ${shimPath}`);
