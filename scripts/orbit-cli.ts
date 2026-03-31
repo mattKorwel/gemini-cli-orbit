@@ -149,8 +149,8 @@ function showHelp() {
   console.log('  --schematic <s>   Use a specific schematic for liftoff');
 
   console.log('\nExample:');
-  console.log('  om 21 review      (Autonomous PR review)');
-  console.log('  om 21             (Interactive chat session)');
+  console.log('  orbit mission 21 review   (Autonomous PR review)');
+  console.log('  orbit mission 21          (Interactive chat session)');
   console.log('  orbit schematic create corp');
   console.log('');
 }
