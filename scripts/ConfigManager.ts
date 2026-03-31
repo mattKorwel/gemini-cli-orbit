@@ -174,31 +174,51 @@ export function loadJson(p: string): any {
   return null;
 }
 
+/**
+ * Central Registry of supported configuration flags.
+ */
+export const ACCEPTED_FLAGS = [
+  { flag: 'projectId', desc: 'Google Cloud Project ID' },
+  { flag: 'zone', desc: 'Google Compute Engine Zone' },
+  { flag: 'instanceName', desc: 'Station VM Name' },
+  {
+    flag: 'backend',
+    target: 'backendType',
+    desc: 'Networking backend (direct-internal | external)',
+  },
+  { flag: 'dnsSuffix', desc: 'Custom DNS zone suffix' },
+  { flag: 'userSuffix', desc: 'OS Login username suffix' },
+  { flag: 'vpcName', desc: 'VPC network name' },
+  { flag: 'subnetName', desc: 'Subnet name' },
+  { flag: 'machineType', desc: 'GCE machine type' },
+  { flag: 'image', target: 'imageUri', desc: 'Container image URI' },
+  { flag: 'schematic', desc: 'Infrastructure blueprint name' },
+  {
+    flag: 'for-station',
+    target: 'forStation',
+    desc: 'Target a specific station',
+  },
+];
+
 export function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase();
 }
 
 export function parseFlags(args: string[]): Partial<OrbitConfig> {
   const config: any = {};
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (!arg) continue;
 
-    if (arg.startsWith('--projectId=')) config.projectId = arg.split('=')[1];
-    if (arg.startsWith('--zone=')) config.zone = arg.split('=')[1];
-    if (arg.startsWith('--instanceName='))
-      config.instanceName = arg.split('=')[1];
-    if (arg.startsWith('--backend=')) config.backendType = arg.split('=')[1];
-    if (arg.startsWith('--dnsSuffix=')) config.dnsSuffix = arg.split('=')[1];
-    if (arg.startsWith('--userSuffix=')) config.userSuffix = arg.split('=')[1];
-    if (arg.startsWith('--vpcName=')) config.vpcName = arg.split('=')[1];
-    if (arg.startsWith('--subnetName=')) config.subnetName = arg.split('=')[1];
-    if (arg.startsWith('--machineType='))
-      config.machineType = arg.split('=')[1];
-    if (arg.startsWith('--image=')) config.imageUri = arg.split('=')[1];
-    if (arg.startsWith('--profile=')) config.schematic = arg.split('=')[1];
-    if (arg.startsWith('--schematic=')) config.schematic = arg.split('=')[1];
-    if (arg.startsWith('--for-station=')) config.forStation = arg.split('=')[1];
+  for (const arg of args) {
+    if (!arg || !arg.startsWith('--')) continue;
+
+    const [rawKey, val] = arg.slice(2).split('=');
+    if (!rawKey || val === undefined) continue;
+
+    const match = ACCEPTED_FLAGS.find((f) => f.flag === rawKey);
+    if (match) {
+      const targetKey = match.target || match.flag;
+      config[targetKey] = val;
+    }
   }
+
   return config;
 }

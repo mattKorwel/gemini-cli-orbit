@@ -45,51 +45,57 @@ export class SchematicManager {
 
     logger.divider(`ORBIT SCHEMATIC WIZARD: ${name.toUpperCase()}`);
     console.log('Fill in your infrastructure blueprints below.');
-    console.log('(Surgical flags detected and will be pre-filled)\n');
+    console.log('Press [Enter] to keep the current value shown in brackets.\n');
 
     const projectId =
-      base.projectId ||
-      (await ask(`GCP Project ID [${base.projectId || ''}]: `));
+      (await ask(`GCP Project ID [${base.projectId || ''}]: `)) ||
+      base.projectId;
+
     const zone =
-      base.zone ||
       (await ask(`GCE Zone [${base.zone || 'us-central1-a'}]: `)) ||
+      base.zone ||
       'us-central1-a';
 
-    let backendType = base.backendType;
-    if (!backendType) {
-      console.log('\nConnectivity Backends:');
-      console.log(
-        '  1. direct-internal (VPC-internal, requires corporate network/VPN)',
-      );
-      console.log('  2. external        (Public IP, standard GCE access)');
-      const backendChoice = await ask(
-        `\nSelect backend [${base.backendType === 'external' ? '2' : '1'}]: `,
-      );
-      backendType =
-        backendChoice === '2'
-          ? 'external'
-          : backendChoice === '1'
-            ? 'direct-internal'
-            : base.backendType || 'direct-internal';
-    }
+    let backendType = base.backendType || 'direct-internal';
+    const backendChoice = await ask(
+      `Backend Type (1: direct-internal, 2: external) [${backendType === 'external' ? '2' : '1'}]: `,
+    );
+    if (backendChoice === '1') backendType = 'direct-internal';
+    if (backendChoice === '2') backendType = 'external';
 
     const dnsSuffix =
-      base.dnsSuffix ||
-      (await ask(`DNS Suffix (e.g. gcpnode.com) [${base.dnsSuffix || ''}]: `));
+      (await ask(
+        `DNS Suffix (e.g. internal.zone.com) [${base.dnsSuffix || ''}]: `,
+      )) || base.dnsSuffix;
+
     const userSuffix =
-      base.userSuffix ||
       (await ask(
         `User Suffix (e.g. _google_com) [${base.userSuffix || ''}]: `,
-      ));
+      )) || base.userSuffix;
 
     const vpcName =
-      base.vpcName ||
       (await ask(`VPC Network Name [${base.vpcName || 'orbit'}]: `)) ||
+      base.vpcName ||
       'orbit';
+
     const subnetName =
-      base.subnetName ||
       (await ask(`Subnet Name [${base.subnetName || 'orbit'}]: `)) ||
+      base.subnetName ||
       'orbit';
+
+    const instanceName =
+      (await ask(
+        `Station VM Name [${base.instanceName || 'station-supervisor'}]: `,
+      )) ||
+      base.instanceName ||
+      'station-supervisor';
+
+    const machineType =
+      (await ask(
+        `GCE Machine Type [${base.machineType || 'n2-standard-8'}]: `,
+      )) ||
+      base.machineType ||
+      'n2-standard-8';
 
     const newConfig = {
       ...base,
@@ -100,8 +106,8 @@ export class SchematicManager {
       userSuffix,
       vpcName,
       subnetName,
-      instanceName: base.instanceName || 'station-supervisor',
-      machineType: base.machineType || 'n2-standard-8',
+      instanceName,
+      machineType,
     };
 
     saveSchematic(name, newConfig);

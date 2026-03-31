@@ -44,8 +44,7 @@ Public) via a **Named Schematic** system:
   - `external`: Public IP routing.
 - **Networking Suffixes**:
   - `userSuffix`: Appended to OS Login username (e.g., `_google_com`).
-  - `dnsSuffix`: Appended to the standard `.internal` DNS zone (e.g.,
-    `.gcpnode.com`).
+  - `dnsSuffix`: Appended to the standard `.internal` DNS zone.
 
 ## 🛠️ Development Workflow
 

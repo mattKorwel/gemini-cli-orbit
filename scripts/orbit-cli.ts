@@ -25,6 +25,7 @@ import { runCI } from './ci.js';
 import { runLogs } from './logs.js';
 import { runAttach } from './attach.js';
 import { runInstallShell } from './install-shell.js';
+import { ACCEPTED_FLAGS } from './ConfigManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,117 +43,167 @@ function resolveRoot(): string {
   return path.resolve(__dirname, '..');
 }
 
-const ROOT = resolveRoot();
+// Resolve the root folder
+resolveRoot();
 
 type Runner = (args: string[]) => Promise<number | void>;
 
-const COMMANDS: Record<string, { run: Runner; description: string }> = {
+interface Command {
+  run: Runner;
+  description: string;
+  category?: 'Primary' | 'Telemetry' | 'Cleanup' | 'Setup';
+  usage?: string;
+  examples?: string[];
+}
+
+const COMMANDS: Record<string, Command> = {
   mission: {
     run: runOrchestrator,
-    description: 'Start, resume, or perform maneuvers on a PR mission.',
+    category: 'Primary',
+    description: 'Launch or resume an isolated developer presence.',
+    usage: 'orbit mission <PR | ExistingBranch | NewBranch> [action|prompt...]',
+    examples: [
+      'orbit mission 21          (Interactive chat session)',
+      'orbit mission 21 review   (Autonomous PR review)',
+      'orbit mission 21 fix      (Iterative CI repair)',
+      'orbit mission 21 shell    (Raw bash shell)',
+    ],
   },
   schematic: {
     run: (args) => runFleet(['schematic', ...args]),
+    category: 'Primary',
     description: 'Manage infrastructure blueprints: <list|create|edit|import>',
+    usage: 'orbit schematic <list|create|edit|import> [name]',
+    examples: [
+      'orbit schematic list',
+      'orbit schematic create corp',
+      'orbit schematic import ./blueprint.json',
+    ],
   },
   station: {
     run: (args) => runFleet(['station', ...args]),
+    category: 'Primary',
     description: 'Hardware control: <activate|list|liftoff|delete>',
-  },
-  liftoff: {
-    run: (args) => runSetup(args),
-    description: 'Build or wake infrastructure (use --with-station).',
-  },
-  ci: {
-    run: runCI,
-    description: 'Monitor CI status for a branch with noise filtering.',
+    usage: 'orbit station <list|activate|liftoff|delete> [name]',
+    examples: [
+      'orbit station list',
+      'orbit station activate corp-vm',
+      'orbit station liftoff corp --setup-net',
+      'orbit station delete corp-vm',
+    ],
   },
   pulse: {
     run: (_args) => runStatus(),
+    category: 'Primary',
     description: 'Check station health and active mission status.',
+    usage: 'orbit pulse',
   },
   uplink: {
     run: runLogs,
+    category: 'Telemetry',
     description: 'Inspect local or remote mission telemetry.',
+    usage: 'orbit uplink <IDENTIFIER> [action]',
+    examples: ['orbit uplink 21', 'orbit uplink 21 fix'],
   },
-  splashdown: {
-    run: runSplashdown,
-    description: 'Emergency shutdown of all active remote capsules.',
+  ci: {
+    run: runCI,
+    category: 'Telemetry',
+    description: 'Monitor CI status for a branch with noise filtering.',
+    usage: 'orbit ci [branch]',
   },
   jettison: {
     run: runJettison,
+    category: 'Cleanup',
     description: 'Decommission a specific mission and its worktree.',
+    usage: 'orbit jettison <IDENTIFIER> [action]',
   },
   reap: {
-    run: (args) => {
-      // Reap expects options object, we can adapt here or in reap.ts
-      return runReap();
-    },
+    run: (_args) => runReap(),
+    category: 'Cleanup',
     description: 'Cleanup idle mission capsules based on inactivity.',
+    usage: 'orbit reap',
+  },
+  splashdown: {
+    run: runSplashdown,
+    category: 'Cleanup',
+    description: 'Emergency shutdown of all active remote capsules.',
+    usage: 'orbit splashdown [--all]',
   },
   attach: {
     run: runAttach,
+    category: 'Telemetry',
     description: 'Attach to an active mission session.',
+    usage: 'orbit attach <IDENTIFIER> [action]',
   },
   'install-shell': {
     run: () => runInstallShell(),
+    category: 'Setup',
     description: 'Install Orbit shell aliases and tab-completion.',
+    usage: 'orbit install-shell',
   },
+  // Aliases (Hidden from main help)
   install_shell: {
     run: () => runInstallShell(),
-    description: 'Install Orbit shell aliases and tab-completion.',
+    description: 'Alias for install-shell',
+  },
+  liftoff: {
+    run: (args) => runSetup(args),
+    description: 'Alias for station liftoff',
   },
 };
 
-function showHelp() {
+function showHelp(cmdName?: string) {
+  if (cmdName && COMMANDS[cmdName]) {
+    const cmd = COMMANDS[cmdName];
+    console.log(`\n🚀 ORBIT COMMAND: ${cmdName.toUpperCase()}`);
+    console.log(`--------------------------------------------------`);
+    console.log(`Description: ${cmd.description}`);
+    if (cmd.usage) console.log(`Usage:       ${cmd.usage}`);
+
+    // Dynamic Flags for schematic/station
+    if (cmdName === 'schematic' || cmdName === 'station') {
+      console.log('\nAccepted Configuration Flags:');
+      ACCEPTED_FLAGS.forEach((f) => {
+        console.log(`  --${f.flag.padEnd(15)} ${f.desc}`);
+      });
+      console.log('  (Use --key=value syntax)');
+    }
+
+    if (cmd.examples && cmd.examples.length > 0) {
+      console.log(`\nExamples:`);
+      cmd.examples.forEach((ex) => console.log(`  ${ex}`));
+    }
+    console.log('');
+    return;
+  }
+
   console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
   console.log('Usage: orbit <command> [args]\n');
 
-  console.log('Primary Commands:');
-  console.log(
-    '  mission      - Start, resume, or perform maneuvers on a PR mission.',
-  );
-  console.log(
-    '  schematic    - Manage infrastructure blueprints: <list|create|edit|import>',
-  );
-  console.log(
-    '  station      - Hardware control: <activate|list|liftoff|delete>',
-  );
-  console.log(
-    '  pulse        - Check station health and active mission status.',
-  );
+  const categories: Command['category'][] = [
+    'Primary',
+    'Telemetry',
+    'Cleanup',
+    'Setup',
+  ];
 
-  console.log('\nTelemetry & Progress:');
-  console.log('  uplink       - Inspect local or remote mission telemetry.');
-  console.log(
-    '  ci           - Monitor CI status for a branch with noise filtering.',
-  );
+  categories.forEach((cat) => {
+    console.log(`${cat} Commands:`);
+    Object.entries(COMMANDS)
+      .filter(([_, info]) => info.category === cat)
+      .forEach(([name, info]) => {
+        console.log(`  ${name.padEnd(12)} - ${info.description}`);
+      });
+    console.log('');
+  });
 
-  console.log('\nCleanup & Maintenance:');
-  console.log(
-    '  jettison     - Decommission a specific mission and its worktree.',
-  );
-  console.log(
-    '  reap         - Cleanup idle mission capsules based on inactivity.',
-  );
-  console.log(
-    '  splashdown   - Emergency shutdown of all active remote capsules.',
-  );
-
-  console.log('\nSetup:');
-  console.log('  install-shell- Install shell aliases and tab-completion.');
-
-  console.log('\nGlobal Flags:');
+  console.log('Global Flags:');
   console.log('  -h, --help        Show this help menu');
   console.log('  -l, --local       Force local worktree mode');
   console.log('  --for-station <s> Target a specific station');
   console.log('  --schematic <s>   Use a specific schematic for liftoff');
 
-  console.log('\nExample:');
-  console.log('  orbit mission 21 review   (Autonomous PR review)');
-  console.log('  orbit mission 21          (Interactive chat session)');
-  console.log('  orbit schematic create corp');
-  console.log('');
+  console.log('\nTip: Use "orbit <command> --help" for detailed usage.\n');
 }
 
 async function main() {
@@ -186,6 +237,12 @@ async function main() {
     process.exit(1);
   }
 
+  // Handle --help for specific command
+  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+    showHelp(cmd);
+    process.exit(0);
+  }
+
   // --- 🧼 GLOBAL FLAG CONSUMPTION ---
   const cleanArgs: string[] = [];
   for (let i = 1; i < rawArgs.length; i++) {
@@ -196,7 +253,7 @@ async function main() {
       process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
       process.env.GCLI_MCP = '0';
     } else if ((arg === '--repo' || arg === '-r') && rawArgs[i + 1]) {
-      process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1];
+      process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1]!;
       i++;
     } else if (
       arg.startsWith('--for-station=') ||

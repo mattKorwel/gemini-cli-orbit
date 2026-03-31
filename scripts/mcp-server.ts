@@ -12,13 +12,10 @@ import { runOrchestrator } from './orchestrator.js';
 import { runStatus } from './status.js';
 import { runJettison } from './jettison.js';
 import { runReap } from './reap.js';
-import { runSetup } from './setup.js';
-import { runSplashdown } from './splashdown.js';
 import { runCI } from './ci.js';
 import { runLogs } from './logs.js';
-import { runFleet, runDesign } from './fleet.js';
+import { runFleet } from './fleet.js';
 import { runInstallShell } from './install-shell.js';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 

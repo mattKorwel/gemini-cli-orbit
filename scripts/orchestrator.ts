@@ -73,11 +73,6 @@ export async function runOrchestrator(
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
 
-  const isLocal =
-    !config.projectId ||
-    config.projectId === 'local' ||
-    config.providerType === 'local-worktree';
-
   const promptArgs: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -139,37 +134,7 @@ export async function runOrchestrator(
   const isEvaMode = action === 'eva' || action === 'chat';
 
   if (!identifier) {
-    const cmdPrefix = 'orbit mission';
-
-    console.log(`
-🚀 GEMINI ORBIT: MISSION CONTROL
-
-Usage: ${cmdPrefix} <IDENTIFIER> [action|prompt...]
-
-IDENTIFIER:
-  - A Pull Request number (e.g., 20)
-  - A branch name (e.g., feat-mcp)
-
-INTERACTIONS (Drop-in):
-  chat      - (Default) Interactive Gemini session. (Use quotes for prompts).
-  shell     - Raw bash session inside the capsule worktree.
-
-MANEUVERS (Autonomous):
-  review    - Parallel analysis, build, and behavioral proof.
-  fix       - Iterative CI repair and conflict resolution.
-  implement - Autonomous feature execution with test-first logic.
-
-EXAMPLES:
-  ${cmdPrefix} 20             (Interactive Chat)
-  ${cmdPrefix} 20 "how is it" (Exec prompt and stay)
-  ${cmdPrefix} 20 review      (Run maneuver)
-  ${cmdPrefix} 20 shell       (Raw bash shell)
-
-${isLocal ? '📍 [LOCAL MODE]: Worktrees created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions offloaded to your Orbit Cloud Station.'}
-
-Current Repo: ${repoName || 'Not Detected'}
-    `);
-    return 0;
+    return 0; // Handled by orbit-cli.ts
   }
 
   const instanceName = config.instanceName || 'local';
@@ -203,16 +168,12 @@ Current Repo: ${repoName || 'Not Detected'}
     if (res.status === 0 && res.stdout) branch = res.stdout.toString().trim();
   }
 
-  const sessionName = sessionId; // Standardize on sessionId
   const containerName = isLocalWorktree
     ? branch
     : `gcli-${sanitizeName(identifier)}-${action}`;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
-  const effectiveScriptsPath = isLocalWorktree
-    ? LOCAL_SCRIPTS_PATH
-    : SCRIPTS_PATH;
   const effectiveBundlePath = isLocalWorktree ? LOCAL_BUNDLE_PATH : BUNDLE_PATH;
 
   // 3. Remote Preparation

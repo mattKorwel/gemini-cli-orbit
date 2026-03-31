@@ -4,12 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  loadSettings,
-  saveSettings,
-  getRepoConfig,
-  detectRepoName,
-} from './ConfigManager.js';
+import { loadSettings, saveSettings } from './ConfigManager.js';
 import { SchematicManager } from './SchematicManager.js';
 import { logger } from './Logger.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
@@ -29,7 +24,6 @@ function divider(text: string) {
  * Fleet: Manage and coordinate Orbit stations.
  */
 export async function runFleet(args: string[]) {
-  const repoName = detectRepoName();
   const settings = loadSettings();
   const schematicManager = new SchematicManager();
   const stationManager = new StationManager();
@@ -78,29 +72,20 @@ export async function runFleet(args: string[]) {
           `✅ Imported schematic "${importedName}" successfully.`,
         );
         return 0;
-      } catch (e: any) {
-        console.error(`❌ Import failed: ${e.message}`, { cause: e });
+      } catch (_e: any) {
+        console.error(`❌ Import failed: ${_e.message}`, { cause: _e });
         return 1;
       }
     }
 
-    // Command-specific help for schematic
+    // Command-specific help fallback
     if (
       !action ||
       action === 'help' ||
       action === '-h' ||
       action === '--help'
     ) {
-      console.log(`
-📐 ORBIT SCHEMATIC MANAGEMENT
-
-Usage:
-  orbit schematic list              List all blueprints.
-  orbit schematic create <name>     Run interactive wizard.
-  orbit schematic edit <name>       Modify existing blueprint.
-  orbit schematic import <source>   Import from local file or URL.
-    `);
-      return 0;
+      return 0; // orbit-cli.ts handles this
     }
   }
 
@@ -203,46 +188,16 @@ Usage:
       return runSplashdown(['--all']);
     }
 
-    // Command-specific help for station
+    // Command-specific help fallback
     if (
       !action ||
       action === 'help' ||
       action === '-h' ||
       action === '--help'
     ) {
-      console.log(`
-🛰️  ORBIT STATION MANAGEMENT
-
-Usage:
-  orbit station list                List all provisioned stations.
-  orbit station activate <name>     Set the active target station.
-  orbit station liftoff [schematic] Provision new infrastructure.
-  orbit station delete [name]       Destroy a station (defaults to --all).
-    `);
-      return 0;
+      return 0; // orbit-cli.ts handles this
     }
   }
 
-  // --- DEFAULT (HELP) ---
-  console.log(`
-🚀 ORBIT COMMAND CENTER
-
-Usage:
-  orbit schematic <list|create|edit|import>  Manage blueprints.
-  orbit station <activate|list|liftoff|delete> Manage hardware.
-
-EXAMPLES:
-  orbit schematic create corp
-  orbit station liftoff corp --setup-net
-  orbit station activate station-supervisor
-  `);
-
   return 0;
-}
-
-/**
- * Legacy support
- */
-export async function runDesign(args: string[]) {
-  return runFleet(['schematic', ...args]);
 }
