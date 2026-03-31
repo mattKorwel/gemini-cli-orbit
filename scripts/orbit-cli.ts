@@ -52,11 +52,11 @@ const COMMANDS: Record<string, { run: Runner; description: string }> = {
     description: 'Start, resume, or perform maneuvers on a PR mission.',
   },
   schematic: {
-    run: runFleet,
+    run: (args) => runFleet(['schematic', ...args]),
     description: 'Manage infrastructure blueprints: <list|create|edit|import>',
   },
   station: {
-    run: runFleet,
+    run: (args) => runFleet(['station', ...args]),
     description: 'Hardware control: <activate|list|liftoff|delete>',
   },
   liftoff: {

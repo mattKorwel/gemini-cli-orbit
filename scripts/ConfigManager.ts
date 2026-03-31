@@ -101,11 +101,25 @@ export function detectRepoName(): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
 
   try {
-    const res = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+    // 1. Try to get the repo name from the remote URL (most accurate)
+    const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
       stdio: 'pipe',
+      encoding: 'utf8',
     });
-    if (res.status === 0) {
-      return path.basename(res.stdout.toString().trim());
+    if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
+      const url = remoteRes.stdout.trim();
+      // Matches both https and git@ styles, extracting the name before .git
+      const match = url.match(/\/([^\/]+)\.git$/);
+      if (match && match[1]) return match[1];
+    }
+
+    // 2. Fallback to the basename of the git root
+    const rootRes = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    if (rootRes.status === 0 && rootRes.stdout.trim()) {
+      return path.basename(rootRes.stdout.trim());
     }
   } catch (e) {}
 

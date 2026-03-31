@@ -35,7 +35,7 @@ export async function runFleet(args: string[]) {
   const stationManager = new StationManager();
 
   const command = args[0]; // 'schematic' or 'station'
-  const action = args[1] || 'list';
+  const action = args[1];
   const name = args[2];
 
   // --- 📐 SCHEMATIC MANAGEMENT ---
@@ -44,9 +44,13 @@ export async function runFleet(args: string[]) {
       const schematics = schematicManager.listSchematics();
       console.log('\n📐 ORBIT INFRASTRUCTURE SCHEMATICS');
       console.log('--------------------------------------------------');
-      schematics.forEach((s) => {
-        console.log(`   ${s}`);
-      });
+      if (schematics.length === 0) {
+        console.log('   (No schematics found)');
+      } else {
+        schematics.forEach((s) => {
+          console.log(`   ${s}`);
+        });
+      }
       console.log('--------------------------------------------------');
       console.log('Use "orbit schematic create <name>" to run wizard.\n');
       return 0;
@@ -54,7 +58,7 @@ export async function runFleet(args: string[]) {
 
     if (action === 'create' || action === 'edit') {
       if (!name) {
-        console.error('❌ Please specify a schematic name.');
+        console.error('\n❌ Usage: orbit schematic <create|edit> <name>\n');
         return 1;
       }
       await schematicManager.runWizard(name);
@@ -64,7 +68,7 @@ export async function runFleet(args: string[]) {
     if (action === 'import') {
       const source = name;
       if (!source) {
-        console.error('❌ Please specify a source (path or URL).');
+        console.error('\n❌ Usage: orbit schematic import <path|url>\n');
         return 1;
       }
       try {
@@ -79,6 +83,25 @@ export async function runFleet(args: string[]) {
         return 1;
       }
     }
+
+    // Command-specific help for schematic
+    if (
+      !action ||
+      action === 'help' ||
+      action === '-h' ||
+      action === '--help'
+    ) {
+      console.log(`
+📐 ORBIT SCHEMATIC MANAGEMENT
+
+Usage:
+  orbit schematic list              List all blueprints.
+  orbit schematic create <name>     Run interactive wizard.
+  orbit schematic edit <name>       Modify existing blueprint.
+  orbit schematic import <source>   Import from local file or URL.
+    `);
+      return 0;
+    }
   }
 
   // --- 🛰️ STATION MANAGEMENT ---
@@ -86,7 +109,7 @@ export async function runFleet(args: string[]) {
     // TARGET ACTIVATE
     if (action === 'activate') {
       if (!name) {
-        console.error('❌ Please specify a station name to activate.');
+        console.error('\n❌ Usage: orbit station activate <name>\n');
         return 1;
       }
 
@@ -159,7 +182,7 @@ export async function runFleet(args: string[]) {
 
     // TARGET LIFTOFF
     if (action === 'liftoff') {
-      return runSetup();
+      return runSetup(args.slice(1));
     }
 
     // TARGET DELETE
@@ -178,6 +201,25 @@ export async function runFleet(args: string[]) {
         return 0;
       }
       return runSplashdown(['--all']);
+    }
+
+    // Command-specific help for station
+    if (
+      !action ||
+      action === 'help' ||
+      action === '-h' ||
+      action === '--help'
+    ) {
+      console.log(`
+🛰️  ORBIT STATION MANAGEMENT
+
+Usage:
+  orbit station list                List all provisioned stations.
+  orbit station activate <name>     Set the active target station.
+  orbit station liftoff [schematic] Provision new infrastructure.
+  orbit station delete [name]       Destroy a station (defaults to --all).
+    `);
+      return 0;
     }
   }
 
