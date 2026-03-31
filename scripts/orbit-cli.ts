@@ -22,8 +22,7 @@ import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { runReap } from './reap.js';
 import { runCI } from './ci.js';
-import { runUplink } from './uplink.js';
-import { runBlackbox } from './blackbox.js';
+import { runLogs } from './logs.js';
 import { runAttach } from './attach.js';
 import { runInstallShell } from './install-shell.js';
 
@@ -72,9 +71,9 @@ const COMMANDS: Record<string, { run: Runner; description: string }> = {
     run: (_args) => runStatus(),
     description: 'Check station health and active mission status.',
   },
-  uplink: {
-    run: runUplink,
-    description: 'Quickly connect to an existing mission session.',
+  logs: {
+    run: runLogs,
+    description: 'Inspect local or remote mission telemetry.',
   },
   splashdown: {
     run: runSplashdown,
@@ -90,10 +89,6 @@ const COMMANDS: Record<string, { run: Runner; description: string }> = {
       return runReap();
     },
     description: 'Cleanup idle mission capsules based on inactivity.',
-  },
-  blackbox: {
-    run: runBlackbox,
-    description: 'Retrieve detailed mission telemetry and history logs.',
   },
   attach: {
     run: runAttach,
@@ -128,12 +123,7 @@ function showHelp() {
   );
 
   console.log('\nTelemetry & Progress:');
-  console.log(
-    '  uplink       - Quickly connect to an existing mission session.',
-  );
-  console.log(
-    '  blackbox     - Retrieve detailed mission telemetry and history logs.',
-  );
+  console.log('  logs         - Inspect local or remote mission telemetry.');
   console.log(
     '  ci           - Monitor CI status for a branch with noise filtering.',
   );

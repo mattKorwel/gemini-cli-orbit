@@ -15,8 +15,7 @@ import { runReap } from './reap.js';
 import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { runCI } from './ci.js';
-import { runUplink } from './uplink.js';
-import { runBlackbox } from './blackbox.js';
+import { runLogs } from './logs.js';
 import { runFleet, runDesign } from './fleet.js';
 import { runInstallShell } from './install-shell.js';
 import { spawnSync } from 'node:child_process';
@@ -123,6 +122,23 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_logs',
+  {
+    description: 'Inspect local or remote mission telemetry.',
+    inputSchema: z.object({
+      identifier: z.string(),
+      action: z.string().default('review'),
+    }).shape,
+  },
+  async ({ identifier, action }) => {
+    const output = await runWithCapture(() => runLogs([identifier, action]));
+    return {
+      content: [{ type: 'text', text: output }],
+    };
+  },
+);
+
+server.registerTool(
   'provision_mission',
   {
     description: 'Start or resume an Orbit mission for a PR or branch.',
@@ -181,7 +197,9 @@ server.registerTool(
   async ({ action }) => {
     // Map MCP actions to fleet actions
     const fleetAction = action === 'provision' ? 'create' : action;
-    const output = await runWithCapture(() => runDesign([fleetAction]));
+    const output = await runWithCapture(() =>
+      runFleet(['station', fleetAction]),
+    );
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -415,42 +433,21 @@ server.registerPrompt(
 );
 
 server.registerPrompt(
-  'uplink',
+  'logs',
   {
-    description: 'Establish a real-time connection to a remote mission.',
+    description: 'Inspect local or remote mission telemetry.',
     argsSchema: {
-      pr: z.string(),
+      identifier: z.string(),
       action: z.string().optional(),
     },
   },
-  ({ pr, action }) => ({
+  ({ identifier, action }) => ({
     messages: [
       {
         role: 'user',
         content: {
           type: 'text',
-          text: `Uplink to orbit mission PR ${pr}${action ? ` (${action})` : ''}.`,
-        },
-      },
-    ],
-  }),
-);
-
-server.registerPrompt(
-  'blackbox',
-  {
-    description: 'Inspect recorded local mission logs.',
-    argsSchema: {
-      pr: z.string(),
-    },
-  },
-  ({ pr }) => ({
-    messages: [
-      {
-        role: 'user',
-        content: {
-          type: 'text',
-          text: `Show blackbox logs for mission PR ${pr}`,
+          text: `Show me the logs for orbit mission ${identifier}${action ? ` (${action})` : ''}.`,
         },
       },
     ],
