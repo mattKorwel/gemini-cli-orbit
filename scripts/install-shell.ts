@@ -15,12 +15,12 @@ const SCRIPTS_PATH = __dirname;
 export async function runInstallShell() {
   logger.divider('ORBIT SHELL INTEGRATION');
 
-  // Priority: bundle/orbit-shim.js > scripts/orbit-shim.ts
+  // Priority: bundle/orbit-cli.js > scripts/orbit-cli.ts
   const bundleShim = path.join(
     path.dirname(SCRIPTS_PATH),
-    'bundle/orbit-shim.js',
+    'bundle/orbit-cli.js',
   );
-  const sourceShim = path.join(SCRIPTS_PATH, 'orbit-shim.ts');
+  const sourceShim = path.join(SCRIPTS_PATH, 'orbit-cli.ts');
   const shimPath = fs.existsSync(bundleShim) ? bundleShim : sourceShim;
 
   logger.info('SHELL', `Targeting shim: ${shimPath}`);

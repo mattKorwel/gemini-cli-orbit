@@ -5,7 +5,7 @@
  */
 
 /**
- * Orbit CLI Shim
+ * Orbit CLI
  * Unified entry point that routes commands to core functions.
  */
 
@@ -192,7 +192,7 @@ async function main() {
     }
   }
 
-  // Ensure shim knows it is a command to bypass interactive UI
+  // Ensure CLI knows it is a command to bypass interactive UI
   process.env.GCLI_ORBIT_SHIM = '1';
 
   try {

@@ -16,7 +16,7 @@ way to interact with Orbit directly from their terminal.
 Implement a dedicated `orbit` CLI dispatcher and an automated shell integration
 system.
 
-### 1. The `orbit` Shim Dispatcher (`scripts/orbit-shim.ts`)
+### 1. The `orbit` CLI Dispatcher (`scripts/orbit-cli.ts`)
 
 - **Central Entrypoint**: A single TypeScript script that maps subcommands
   (`mission`, `ci`, `pulse`, etc.) to their respective implementation scripts.
@@ -64,6 +64,6 @@ system.
 
 - **Positive**: Significantly improved developer ergonomics and faster command
   execution.
-- **Neutral**: Adds a small dependency on `tsx` for the shim when running from
+- **Neutral**: Adds a small dependency on `tsx` for the CLI when running from
   source, which is already a project requirement.
 - **Neutral**: Modifies the user's shell profile (with explicit consent).

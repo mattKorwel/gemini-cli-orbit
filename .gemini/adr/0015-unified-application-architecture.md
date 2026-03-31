@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 Gemini Orbit previously operated as a collection of independent TypeScript
-scripts, coordinated by a CLI shim that spawned new Node.js processes for every
+scripts, coordinated by a Orbit CLI that spawned new Node.js processes for every
 command. This "Multi-Process" model led to complex argument passing, fragmented
 state management, and platform-specific bugs (e.g., shell expansion differences
 between macOS and Linux).
@@ -28,13 +28,13 @@ Transition Gemini Orbit into a **Unified Functional Core** architecture.
 
 ### 2. Direct-Import Dispatchers
 
-- Both the **CLI Dispatcher (`orbit-shim.ts`)** and the **MCP Server
+- Both the **CLI Dispatcher (`orbit-cli.ts`)** and the **MCP Server
   (`mcp-server.ts`)** now import core functions directly.
 - The use of `spawnSync('node', ...)` for internal coordination is abolished.
 
 ### 3. Centralized Flag Consumption
 
-- `orbit-shim.ts` acts as the primary "Front Door" for CLI users. It consumes
+- `orbit-cli.ts` acts as the primary "Front Door" for CLI users. It consumes
   global flags (`-l`, `--repo`, `--schematic`) and manages the environment
   **once** before passing a clean array of positional arguments to the core
   functions.
@@ -42,7 +42,7 @@ Transition Gemini Orbit into a **Unified Functional Core** architecture.
 ### 4. Deprecation of Wrapper Binaries
 
 - The `scripts/bin/` directory is removed. Redundant wrappers that merely called
-  `process.argv` are replaced by the unified shim's routing logic.
+  `process.argv` are replaced by the unified CLI's routing logic.
 
 ## Rationale
 

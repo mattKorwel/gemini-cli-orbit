@@ -22,7 +22,7 @@ vi.mock('./status.js', () => ({
 // Since the shim runs automatically on import (top-level await/call), we'll mock process.argv
 // and re-import or use a similar strategy.
 
-describe('orbit-shim (Unified Dispatcher)', () => {
+describe('orbit-cli (Unified Dispatcher)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset environment variables modified by shim

@@ -130,7 +130,7 @@ for local worktree missions.
 **Decision**: Transition from a collection of multi-process scripts to a unified
 Node.js application core.
 
-- **Rationale**: Both the CLI Shim and the MCP Server now import core logic as
+- **Rationale**: Both the Orbit CLI and the MCP Server now import core logic as
   functions. This eliminates the overhead and fragmentation of spawning child
   processes, solves long-standing argument parsing bugs through centralized flag
   consumption, and ensures total behavioral parity between CLI and LLM
