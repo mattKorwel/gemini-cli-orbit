@@ -44,8 +44,7 @@ Public) via a **Named Schematic** system:
   - `external`: Public IP routing.
 - **Networking Suffixes**:
   - `userSuffix`: Appended to OS Login username (e.g., `_google_com`).
-  - `dnsSuffix`: Appended to the standard `.internal` DNS zone (e.g.,
-    `.gcpnode.com`).
+  - `dnsSuffix`: Appended to the standard `.internal` DNS zone.
 
 ## 🛠️ Development Workflow
 
@@ -67,8 +66,7 @@ We use **Vitest** for unit testing and **ESLint** for code quality.
 ### Adding Commands & Playbooks
 
 - **Commands**: Custom slash commands are registered via TOML files in
-  `commands/orbit/`. These wrap the bundled JavaScript entry points in
-  `bundle/`.
+  `commands/orbit/`. These route through the unified `orbit-cli.ts` dispatcher.
 - **Playbooks**: Complex multi-step missions (like `review` or `fix`) should be
   implemented in `scripts/playbooks/` using the parallel `TaskRunner`.
 
@@ -108,8 +106,15 @@ fails.
 Use the repo-agnostic utility to monitor branch status locally:
 
 ```bash
-node bundle/utils/ci.js <BRANCH_NAME>
+orbit ci <BRANCH_NAME>
 ```
+
+## 📐 Architecture Decisions
+
+Key decisions governing this codebase are documented in `.gemini/adr/`:
+
+- **[ADR 0014](/.gemini/adr/0014-secure-credential-injection.md)**: RAM-disk credential injection — secrets are written to `/dev/shm` on the Host VM, mounted read-only into capsules, and cleaned up when the mission exits. Never written to persistent disk.
+- **[ADR 0015](/.gemini/adr/0015-unified-application-architecture.md)**: Unified functional core — all scripts export a `runX(args)` function; both the CLI (`orbit-cli.ts`) and MCP server (`mcp-server.ts`) import them directly. No more spawning Node subprocesses for internal commands.
 
 ## 🛡️ Security Mandates
 

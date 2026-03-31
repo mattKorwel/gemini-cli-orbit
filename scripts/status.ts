@@ -5,6 +5,7 @@
  */
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import { StationManager } from './StationManager.js';
 
 export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
   const repoName = detectRepoName();
@@ -45,9 +46,7 @@ export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
     return 1;
   }
 
-  console.log(
-    `\n🛰️  ORBIT MISSION CONTROL: ${config.instanceName} (${repoName})`,
-  );
+  console.log(`\n🛰️  ORBIT PULSE: ${config.instanceName} (${repoName})`);
   console.log(
     `--------------------------------------------------------------------------------`,
   );

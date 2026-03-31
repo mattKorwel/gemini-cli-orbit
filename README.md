@@ -1,232 +1,166 @@
 # Gemini Orbit 🚀
 
 ![CI](https://github.com/mattKorwel/gemini-cli-orbit/actions/workflows/test.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-38%20passed-green)
+![Tests](https://img.shields.io/badge/tests-91%20passed-green)
 
 **Escape the gravity of terrestrial constraints.**
 
-Gemini Orbit launches your development presence into orbit around you — a
-persistent, high-performance environment that transcends the physical limits of
-your laptop's CPU, battery life, and sleep cycles. Your work should never stop
-just because your terrestrial machine did.
-
-Orbit provides a **Persistent Orbital Presence**—a high-performance digital
-outpost that maintains its mission trajectory even when your terrestrial
-keyboard is powered down.
+Orbit is a [Gemini CLI](https://github.com/google-gemini/gemini-cli) extension that launches your development presence into a persistent, isolated orbital environment — running on your local machine or a cloud station. Launch an autonomous mission, close your laptop, and re-attach hours later exactly where you left off.
 
 ## 🌌 Why Orbit?
 
-- **Terrestrial Freedom**: Decouple your work from your physical hardware. Run
-  heavy builds, exhaustive test suites, and complex tasks without spinning up
-  local fans or being tethered to a power outlet.
-- **Persistent Orbital Presence**: Your environment stays alive in orbit.
-  Disconnect from your terrestrial machine, close your laptop, and re-attach
-  later from any device. Your shells, state, and progress remain in safe orbit
-  exactly where you left them.
-- **Autonomous Missions**: Launch high-intelligence, autonomous missions that
-  work for you while you're offline. Whether it's a multi-file refactor or a
-  deep PR review, your Orbit executes independently and notifies you upon
-  completion.
-- **Parallel Productivity**: Launch multiple "Mission Capsules" for different
-  workstreams. Work on three things at once without your terrestrial machine
-  slowing to a crawl.
+- **Terrestrial Freedom**: Decouple your work from your physical hardware. Run heavy builds, exhaustive test suites, and complex tasks without spinning up local fans or being tethered to a power outlet.
+- **Persistent Orbital Presence**: Your environment stays alive in orbit. Disconnect from your terrestrial machine, close your laptop, and re-attach later from any device — your shells, state, and progress are exactly where you left them.
+- **Autonomous Missions**: Launch high-intelligence missions that work for you while you're offline. Whether it's a multi-file refactor or a deep PR review, your Orbit executes independently and surfaces results when complete.
+- **Parallel Productivity**: Run multiple isolated Mission Capsules for different workstreams simultaneously — without your terrestrial machine slowing to a crawl.
 
-## Goals
+---
 
-Orbit is first and foremost a developer-centric, hands-on command line power-up.
-Intended to allow persistent remote shell connections, Orbit does not try to
-solve the connectivity issues of remote agents and autonomous processes. It can,
-depending on what you do with your shell, be those things for you, but at its
-heart, it's infrastructure management, compute processing power, and persistent
-configuration.
+## 📋 Prerequisites
+
+| What | Why |
+|---|---|
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Required — Orbit is an extension of it |
+| `tmux` | Required for local worktree sessions (`brew install tmux`) |
+| GCP project + credentials | Required only for the **Remote** path |
 
 ---
 
 ## 📦 Installation
 
-Install the Orbit extension directly via the Gemini CLI:
-
 ```bash
+# 1. Install the extension
 gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
+
+# 2. Enable the orbit command and tab-completion
+orbit install-shell
+
+# Restart your terminal (or source ~/.zshrc / ~/.bashrc)
 ```
 
 ---
 
-## 📖 Documentation
+## 🚀 First Launch (Local, no cloud needed)
 
-- **[Day in the Life of an Orbit Engineer](docs/DAY_IN_THE_LIFE.md)**: A
-  step-by-step guide to the common developer workflow.
-- **[Architecture](docs/ARCHITECTURE.md)**: Deep dive into the Hub & Spoke
-  model, persistent stations, and isolated capsules.
-- **[Pulse](docs/PULSE.md)**: How to monitor your orbital health and mission
-  telemetry.
-- **[Auto-Reaper](scripts/reap.ts)**: Reclaim resources from idle missions
-  (`orbit reap`).
-- **[Configuration](docs/CONFIGURATION.md)**: Setting up GCE schematics,
-  networking, and custom images.
-
----
-
-## 🚀 Quick Start: Choose Your Mission Blueprint
-
-Orbit supports two primary mission modes: **Local** (for maximum speed and low
-latency) and **Remote** (for massive scale and persistent sessions).
-
-### 🏠 The Local Path (Isolated Worktrees)
-
-Launch isolated worktrees on your own machine. Perfect for juggling multiple PRs
-without cloud overhead. Orbit manages these as siblings to your main repository
-and uses `tmux` for session persistence.
-
-1.  **Launch Local Mission**:
-    ```bash
-    orbit mission <pr-number> --local
-    ```
-
-### 🛰️ The Remote Path (High-Performance Persistence)
-
-Delegate heavy tasks to a persistent, high-performance GCE station. Your mission
-continues even if you close your laptop.
-
-1.  **Liftoff**: Initialize your persistent **Orbital Station**.
-
-    ```bash
-    orbit station liftoff --setup-net
-    ```
-
-2.  **Launch Remote Mission**:
-    ```bash
-    orbit mission <pr-number>
-    ```
-
----
-
-## 📡 Mission Control Commands
-
-- **Pulse**: Monitor your **Orbital Presence**. See which missions (Local &
-  Remote) are active and check station health.
-
-  ```bash
-  /orbit:pulse
-  ```
-
-- **Attach**: Jump directly into a running mission capsule or worktree to take
-  manual control.
-
-  ```bash
-  /orbit:attach <pr-number>
-  ```
-
-- **Blackbox**: Stream live logs and monitor autonomous progress for a specific
-  PR.
-  ```bash
-  /orbit:blackbox <pr-number>
-  ```
-
----
-
-## 🛸 Mission Maneuvers: Autonomous Intelligence
-
-Orbit doesn't just provide infrastructure; it executes high-fidelity autonomous
-tasks.
-
-- **Review**: Launch a deep, parallelized PR review. Orbit fetches context,
-  detects conflicts, and performs a mandatory **Behavioral Proof** (empirical
-  verification) to ensure code actually works before you even look at it.
-  ```bash
-  /orbit:mission <pr-number> review
-  ```
-- **Fix**: Direct the agent to autonomously identify and correct issues within a
-  PR.
-  ```bash
-  /orbit:mission <pr-number> fix
-  ```
-- **Implement**: Have Orbit implement features or change requests based on PR
-  descriptions and linked issues.
-  ```bash
-  /orbit:mission <pr-number> implement
-  ```
-
----
-
-## 🛰️ Take the Helm: Manual Intervention
-
-One of Orbit's core strengths is the ability to **"take the helm"** of an active
-mission. You are never locked out of an autonomous process.
-
-If a mission hits a complex roadblock or if you just want to get hands-on, you
-can jump directly into the active processing terminal:
-
-- **Attach to the Active Bridge**: Jump into the live `tmux` session where the
-  agent is working. You can watch the agent in real-time or take manual control
-  of the shell.
-  ```bash
-  /orbit:attach <pr-number>
-  ```
-- **Extra-Vehicular Activity (EVA)**: Need to run a quick manual command without
-  interrupting the agent's flow? Launch an EVA shell directly into the mission
-  capsule.
-  ```bash
-  /orbit:mission <pr-number> eva
-  ```
-
-For details on how these maneuvers are orchestrated, see the
-**[Maneuver Documentation](docs/MANEUVERS.md)**.
-
----
-
-## 🏗️ The Architecture of Orbit: Sovereign & Agnostic
-
-Orbit is built on a **Hub & Spoke** model designed for speed, isolation, and
-total developer control.
-
-### Supported Providers
-
-Orbit is **Provider-Agnostic** by design. You can choose the environment that
-fits your current mission:
-
-- **`local-worktree`**: (Default Local) Uses `git worktree` to create isolated,
-  zero-overhead environments on your local disk. Compatible with the popular
-  `rswitch` worktree management workflow.
-- **`gce`**: (Default Remote) Launches a persistent "Station" in Google Compute
-  Engine using Capsule-Optimized OS.
-- **`direct-internal` / `external`**: Multiple connectivity strategies to reach
-  your remote station across any network.
-
----
-
-## 📖 Documentation
-
-For in-depth guides, architectural diagrams, and detailed configuration, visit
-our **[Documentation Hub](docs/README.md)**.
-
----
-
-## 🛡️ Standards & Security
-
-- **Process Isolation**: Every mission is sandboxed to ensure "it works on my
-  machine" translates to the cloud.
-- **Read-Only Core**: Your primary repository clone is mounted read-only into
-  capsules for safety.
-- **Telemetry**: Use `/orbit:blackbox <pr>` to stream logs and monitor
-  autonomous background progress.
+The fastest way to enter orbit — an isolated Mission Capsule for a PR, running on your own terrestrial machine:
 
 ```bash
-# Keep the station healthy
-npm test
+# Open an interactive Gemini session inside a clean worktree for PR #42
+orbit mission 42 --local
+
+# Or let Orbit autonomously review it for you
+orbit mission 42 review --local
+```
+
+Orbit resolves the PR number to a branch, creates a sibling git worktree, and drops you into a persistent `tmux` session inside it. Close the terminal — the mission keeps running. Re-attach with `orbit attach 42`.
+
+---
+
+## 🛰️ The Remote Path (Persistent Orbital Station)
+
+For heavy workloads or missions you want to outlive your terrestrial machine, delegate to a persistent GCE **Orbital Station**.
+
+**One-time setup:**
+
+```bash
+# Design your infrastructure blueprint
+orbit schematic create corp
+
+# Achieve liftoff — provisions VPC, VM, and everything needed
+orbit station liftoff corp --setup-net --with-station
+```
+
+**Then launch missions as normal** — they execute on the station, not your local machine:
+
+```bash
+orbit mission 42 review
+```
+
+Your mission persists through disconnects, sleep cycles, and closed terminals. Reconnect from anywhere:
+
+```bash
+orbit attach 42        # Re-dock to the live tmux session
+orbit uplink 42        # Inspect telemetry without attaching
+```
+
+> See [Configuration](docs/CONFIGURATION.md) and [Liftoff](docs/LIFTOFF.md) for full GCP setup details.
+
+---
+
+## 🛸 Autonomous Mission Maneuvers
+
+Orbit doesn't just provide infrastructure — it executes high-fidelity missions autonomously.
+
+| Command | What it does |
+|---|---|
+| `orbit mission <pr> review` | Parallelized PR analysis: fetches context, runs the build, performs a mandatory **Behavioral Proof**, outputs `final-assessment.md` |
+| `orbit mission <pr> fix` | Iterative CI repair — reads failures, patches code, re-runs until the mission is green |
+| `orbit mission <pr> implement` | Implements features or changes from issue descriptions, test-first |
+| `orbit mission <pr>` | Interactive Gemini chat session inside the isolated Mission Capsule |
+| `orbit mission <pr> eva` | Extra-Vehicular Activity — a manual shell inside the capsule without interrupting an active agent |
+| `orbit mission <pr> shell` | Raw bash shell inside the capsule |
+
+> See [Maneuvers](docs/MANEUVERS.md) for a phase-by-phase breakdown of each mission type.
+
+---
+
+## 📡 Mission Control: Key Commands
+
+```bash
+orbit pulse                         # Orbital health check — all active stations and capsules
+orbit mission <pr> [action]         # Launch or resume a mission
+orbit attach <pr>                   # Re-dock to a running mission session
+orbit uplink <pr>                   # Inspect mission telemetry (local-first, falls back to remote)
+orbit ci [branch]                   # Monitor GitHub Actions CI status
+orbit jettison <pr>                 # Decommission a specific capsule and its worktree
+orbit reap                          # Auto-cleanup idle capsules based on inactivity
+orbit splashdown --all              # Emergency shutdown of all active remote capsules
+orbit schematic <list|create|edit>  # Manage infrastructure blueprints
+orbit station <list|liftoff|delete> # Manage Orbital Stations
+```
+
+**Global flags** (work with any command):
+
+```bash
+--local, -l           Force local worktree mode (no cloud)
+--repo, -r <name>     Override the detected repository name
+--for-station <name>  Target a specific Orbital Station
+--schematic <name>    Use a specific infrastructure blueprint
 ```
 
 ---
 
-## ⚖️ Legal Disclaimer & Cost Warning
+## 🤖 MCP Interface
 
-**Cloud Costs:** Orbit provisions and maintains real infrastructure (e.g.,
-Google Compute Engine instances). Running persistent instances will incur hourly
-or monthly costs on your connected GCP billing account. You are responsible for
-monitoring and managing your cloud usage.
+Orbit registers as an MCP server for Gemini CLI, so every mission command is also available as a natural-language tool call from inside a Gemini chat session:
 
-**Security & Liability:** This software connects to remote virtual machines via
-SSH and manages mission environments. You are responsible for ensuring that your
-network boundaries (VPC, firewall rules) and IAM permissions meet your
-organization's security standards. As per the Apache 2.0 License, this software
-is provided "AS IS" without warranties of any kind.
+```
+/orbit:pulse
+/orbit:mission 42 review
+/orbit:attach 42
+/orbit:uplink 42
+```
+
+---
+
+## 📖 Go Deeper
+
+| Doc | What's in it |
+|---|---|
+| [Day in the Life](docs/DAY_IN_THE_LIFE.md) | End-to-end walkthrough of a typical orbital dev day |
+| [Architecture](docs/ARCHITECTURE.md) | Hub & Spoke model, capsule isolation, provider design |
+| [Maneuvers](docs/MANEUVERS.md) | Phase-by-phase breakdown of review, fix, and implement missions |
+| [Configuration](docs/CONFIGURATION.md) | Schematics, networking, environment variables |
+| [Liftoff](docs/LIFTOFF.md) | Full GCP Orbital Station provisioning guide |
+| [Pulse](docs/PULSE.md) | Reading mission health and orbital telemetry |
+| [Security](docs/SECURITY.md) | Credential injection, isolation model, security best practices |
+
+---
+
+## ⚖️ Cost & Legal
+
+**Cloud Costs:** The Remote path provisions real GCP infrastructure (Compute Engine stations). Running persistent instances will incur costs on your GCP billing account. You are responsible for monitoring your cloud spend.
+
+**Security:** Orbit connects to remote stations via SSH and manages Docker capsules. Ensure your VPC, firewall rules, and IAM permissions meet your organization's standards.
+
+Provided under the Apache 2.0 License, "AS IS", without warranties of any kind.

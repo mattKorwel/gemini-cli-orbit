@@ -56,7 +56,7 @@ Deep dive into Local vs Remote providers (GCE, Worktrees).
 ### [Configuration Hierarchy](./CONFIGURATION.md)
 
 Understand how settings are merged across project defaults, global registries,
-named profiles, and environment variables.
+named schematics, and environment variables.
 
 ### [Test Plan](./test-plan.md)
 

@@ -171,5 +171,4 @@ sequences (OSC 9) upon mission completion.
 
 To monitor progress, use the telemetry commands:
 
-- `orbit uplink <PR> [action]`: Stream real-time logs from a remote capsule.
-- `orbit blackbox <PR> [action]`: Inspect recorded local mission logs.
+- `orbit uplink <PR> [action]`: Inspect local or remote mission telemetry (auto-detects local recordings first, falls back to remote).

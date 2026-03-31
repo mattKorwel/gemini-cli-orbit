@@ -108,12 +108,3 @@ export async function runAttach(
   const finalRes = spawnSync(finalSSH, { stdio: 'inherit', shell: true });
   return finalRes.status ?? 0;
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runAttach(process.argv.slice(2))
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
-}

@@ -19,14 +19,19 @@ import { StationManager } from './StationManager.js';
 /**
  * Setup Orbit: Initial configuration and station provisioning.
  */
-export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
-  const args = process.argv.slice(2);
+export async function runSetup(
+  args: string[] = [],
+  env: NodeJS.ProcessEnv = process.env,
+) {
   const repoName = detectRepoName();
   const withStation = args.includes('--with-station');
   const setupNet = args.includes('--setup-net');
   const flags = parseFlags(args);
 
-  const schematicName = flags.schematic || 'default';
+  const schematicName =
+    args[0] && !args[0].startsWith('--')
+      ? args[0]
+      : flags.schematic || 'default';
   const schematic = loadSchematic(schematicName);
 
   logger.divider('ORBIT MISSION LIFTOFF');
@@ -39,7 +44,7 @@ export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
   if (!config.projectId) {
     console.log('\n❌ No active infrastructure schematic found.');
     console.log(
-      `👉 Please run "orbit station schematic create ${schematicName}" to set up your blueprints.\n`,
+      `👉 Please run "orbit schematic create ${schematicName}" to set up your blueprints.\n`,
     );
     return 1;
   }

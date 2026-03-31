@@ -12,18 +12,26 @@ import { runOrchestrator } from './orchestrator.js';
 import { runStatus } from './status.js';
 import { runJettison } from './jettison.js';
 import { runReap } from './reap.js';
-import { runSetup } from './setup.js';
-import { runSplashdown } from './splashdown.js';
 import { runCI } from './ci.js';
-import { runUplink } from './uplink.js';
-import { runBlackbox } from './blackbox.js';
-import { runDesign } from './fleet.js';
+import { runLogs } from './logs.js';
+import { runFleet } from './fleet.js';
+import { runInstallShell } from './install-shell.js';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Helper to capture stdout/stderr during a tool's execution.
  * This ensures the main protocol stream (stdout) remains pure.
+ *
+ * Calls are serialized via a promise queue to prevent concurrent invocations
+ * from corrupting each other's stdout/stderr patches.
  */
-async function runWithCapture(fn: () => Promise<any>): Promise<string> {
+let _captureQueue: Promise<any> = Promise.resolve();
+
+async function _runWithCaptureImpl(fn: () => Promise<any>): Promise<string> {
   const buffer: string[] = [];
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
@@ -50,6 +58,12 @@ async function runWithCapture(fn: () => Promise<any>): Promise<string> {
   }
 
   return buffer.join('');
+}
+
+function runWithCapture(fn: () => Promise<any>): Promise<string> {
+  const result = _captureQueue.then(() => _runWithCaptureImpl(fn));
+  _captureQueue = result.catch(() => {});
+  return result;
 }
 
 const server = new McpServer({
@@ -116,14 +130,31 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_uplink_logs',
+  {
+    description: 'Inspect local or remote mission telemetry.',
+    inputSchema: z.object({
+      identifier: z.string(),
+      action: z.string().default('review'),
+    }).shape,
+  },
+  async ({ identifier, action }) => {
+    const output = await runWithCapture(() => runLogs([identifier, action]));
+    return {
+      content: [{ type: 'text', text: output }],
+    };
+  },
+);
+
+server.registerTool(
   'provision_mission',
   {
     description: 'Start or resume an Orbit mission for a PR or branch.',
     inputSchema: z.object({
       identifier: z.string(),
       action: z
-        .enum(['mission', 'fix', 'review', 'implement', 'eva'])
-        .default('mission'),
+        .enum(['chat', 'fix', 'review', 'implement', 'eva'])
+        .default('chat'),
       prompt: z.string().optional(),
     }).shape,
   },
@@ -172,7 +203,11 @@ server.registerTool(
     }).shape,
   },
   async ({ action }) => {
-    const output = await runWithCapture(() => runDesign(['schematic', action]));
+    // Map MCP actions to fleet actions
+    const fleetAction = action === 'provision' ? 'create' : action;
+    const output = await runWithCapture(() =>
+      runFleet(['station', fleetAction]),
+    );
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -217,6 +252,21 @@ server.registerTool(
       if (runId) args.push(runId);
       return runCI(args);
     });
+    return {
+      content: [{ type: 'text', text: output }],
+    };
+  },
+);
+
+server.registerTool(
+  'install_shell',
+  {
+    description:
+      'Install Orbit shell aliases and tab-completion for ZSH and Bash.',
+    inputSchema: z.object({}).shape,
+  },
+  async () => {
+    const output = await runWithCapture(() => runInstallShell());
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -393,40 +443,19 @@ server.registerPrompt(
 server.registerPrompt(
   'uplink',
   {
-    description: 'Establish a real-time connection to a remote mission.',
+    description: 'Inspect local or remote mission telemetry.',
     argsSchema: {
-      pr: z.string(),
+      identifier: z.string(),
       action: z.string().optional(),
     },
   },
-  ({ pr, action }) => ({
+  ({ identifier, action }) => ({
     messages: [
       {
         role: 'user',
         content: {
           type: 'text',
-          text: `Uplink to orbit mission PR ${pr}${action ? ` (${action})` : ''}.`,
-        },
-      },
-    ],
-  }),
-);
-
-server.registerPrompt(
-  'blackbox',
-  {
-    description: 'Inspect recorded local mission logs.',
-    argsSchema: {
-      pr: z.string(),
-    },
-  },
-  ({ pr }) => ({
-    messages: [
-      {
-        role: 'user',
-        content: {
-          type: 'text',
-          text: `Show blackbox logs for mission PR ${pr}`,
+          text: `Show me the uplink logs for orbit mission ${identifier}${action ? ` (${action})` : ''}.`,
         },
       },
     ],

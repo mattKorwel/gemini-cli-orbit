@@ -4,12 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  loadSettings,
-  saveSettings,
-  getRepoConfig,
-  detectRepoName,
-} from './ConfigManager.js';
+import { loadSettings, saveSettings } from './ConfigManager.js';
 import { SchematicManager } from './SchematicManager.js';
 import { logger } from './Logger.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
@@ -17,17 +12,24 @@ import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { StationManager } from './StationManager.js';
 
+function divider(text: string) {
+  const width = 80;
+  const padding = Math.max(0, Math.floor((width - text.length - 2) / 2));
+  console.log(
+    `\n${'-'.repeat(padding)} ${text} ${'-'.repeat(width - padding - text.length - 2)}`,
+  );
+}
+
 /**
  * Fleet: Manage and coordinate Orbit stations.
  */
 export async function runFleet(args: string[]) {
-  const repoName = detectRepoName();
   const settings = loadSettings();
   const schematicManager = new SchematicManager();
   const stationManager = new StationManager();
 
   const command = args[0]; // 'schematic' or 'station'
-  const action = args[1] || 'list';
+  const action = args[1];
   const name = args[2];
 
   // --- 📐 SCHEMATIC MANAGEMENT ---
@@ -36,9 +38,13 @@ export async function runFleet(args: string[]) {
       const schematics = schematicManager.listSchematics();
       console.log('\n📐 ORBIT INFRASTRUCTURE SCHEMATICS');
       console.log('--------------------------------------------------');
-      schematics.forEach((s) => {
-        console.log(`   ${s}`);
-      });
+      if (schematics.length === 0) {
+        console.log('   (No schematics found)');
+      } else {
+        schematics.forEach((s) => {
+          console.log(`   ${s}`);
+        });
+      }
       console.log('--------------------------------------------------');
       console.log('Use "orbit schematic create <name>" to run wizard.\n');
       return 0;
@@ -46,7 +52,7 @@ export async function runFleet(args: string[]) {
 
     if (action === 'create' || action === 'edit') {
       if (!name) {
-        console.error('❌ Please specify a schematic name.');
+        console.error('\n❌ Usage: orbit schematic <create|edit> <name>\n');
         return 1;
       }
       await schematicManager.runWizard(name);
@@ -56,7 +62,7 @@ export async function runFleet(args: string[]) {
     if (action === 'import') {
       const source = name;
       if (!source) {
-        console.error('❌ Please specify a source (path or URL).');
+        console.error('\n❌ Usage: orbit schematic import <path|url>\n');
         return 1;
       }
       try {
@@ -66,10 +72,20 @@ export async function runFleet(args: string[]) {
           `✅ Imported schematic "${importedName}" successfully.`,
         );
         return 0;
-      } catch (e: any) {
-        console.error(`❌ Import failed: ${e.message}`, { cause: e });
+      } catch (_e: any) {
+        console.error(`❌ Import failed: ${_e.message}`, { cause: _e });
         return 1;
       }
+    }
+
+    // Command-specific help fallback
+    if (
+      !action ||
+      action === 'help' ||
+      action === '-h' ||
+      action === '--help'
+    ) {
+      return 0; // orbit-cli.ts handles this
     }
   }
 
@@ -78,7 +94,7 @@ export async function runFleet(args: string[]) {
     // TARGET ACTIVATE
     if (action === 'activate') {
       if (!name) {
-        console.error('❌ Please specify a station name to activate.');
+        console.error('\n❌ Usage: orbit station activate <name>\n');
         return 1;
       }
 
@@ -100,7 +116,7 @@ export async function runFleet(args: string[]) {
       const showMissions = args.includes('--missions') || args.includes('-m');
       const forceSync = args.includes('--sync') || args.includes('-s');
 
-      logger.divider('ORBIT CONSTELLATION');
+      divider('ORBIT CONSTELLATION');
       const stations = await stationManager.listStations({
         syncWithReality: forceSync,
       });
@@ -151,7 +167,7 @@ export async function runFleet(args: string[]) {
 
     // TARGET LIFTOFF
     if (action === 'liftoff') {
-      return runSetup();
+      return runSetup(args.slice(1));
     }
 
     // TARGET DELETE
@@ -171,28 +187,17 @@ export async function runFleet(args: string[]) {
       }
       return runSplashdown(['--all']);
     }
+
+    // Command-specific help fallback
+    if (
+      !action ||
+      action === 'help' ||
+      action === '-h' ||
+      action === '--help'
+    ) {
+      return 0; // orbit-cli.ts handles this
+    }
   }
 
-  // --- DEFAULT (HELP) ---
-  console.log(`
-🚀 ORBIT COMMAND CENTER
-
-Usage:
-  orbit schematic <list|create|edit|import>  Manage blueprints.
-  orbit station <activate|list|liftoff|delete> Manage hardware.
-
-EXAMPLES:
-  orbit schematic create corp
-  orbit station liftoff --setup-net
-  orbit station activate station-supervisor
-  `);
-
   return 0;
-}
-
-/**
- * Legacy support
- */
-export async function runDesign(args: string[]) {
-  return runFleet(['schematic', ...args]);
 }

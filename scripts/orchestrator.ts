@@ -73,11 +73,6 @@ export async function runOrchestrator(
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
 
-  const isLocal =
-    !config.projectId ||
-    config.projectId === 'local' ||
-    config.providerType === 'local-worktree';
-
   const promptArgs: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -90,49 +85,56 @@ export async function runOrchestrator(
   }
 
   const identifier = promptArgs[0];
-  const actionArg = promptArgs[1] || 'mission';
-  let action = 'mission';
+
+  // SAFETY: Check if the identifier is actually another Orbit command
+  const reserved = [
+    'schematic',
+    'station',
+    'liftoff',
+    'pulse',
+    'uplink',
+    'jettison',
+    'reap',
+    'splashdown',
+    'ci',
+    'logs',
+    'blackbox',
+    'install-shell',
+    'install_shell',
+  ];
+  if (identifier && reserved.includes(identifier)) {
+    console.error(
+      `\n❌ Error: "${identifier}" is an Orbit command, not a mission identifier.`,
+    );
+    console.error(
+      `👉 Did you mean to run "orbit ${identifier}" instead of a mission?\n`,
+    );
+    return 1;
+  }
+
+  const actionArg = promptArgs[1];
+  let action = 'chat'; // New Default: Interactive Gemini
   let customPrompt = '';
 
-  const validActions = ['eva', 'mission', 'fix', 'review', 'implement'];
-  if (validActions.includes(actionArg)) {
+  const maneuvers = ['fix', 'review', 'implement'];
+  const interactions = ['chat', 'eva', 'shell'];
+
+  if (actionArg && maneuvers.includes(actionArg)) {
     action = actionArg;
     customPrompt = promptArgs.slice(2).join(' ');
-  } else if (identifier && identifier !== 'eva') {
-    action = 'mission';
+  } else if (actionArg && interactions.includes(actionArg)) {
+    action = actionArg;
+    customPrompt = promptArgs.slice(2).join(' ');
+  } else if (identifier) {
+    action = 'chat';
     customPrompt = promptArgs.slice(1).join(' ');
   }
 
   // Handle "shell" mode: orbit mission eva [identifier]
-  const isEvaMode = action === 'eva';
+  const isEvaMode = action === 'eva' || action === 'chat';
 
   if (!identifier) {
-    const cmdPrefix = isLocal ? 'gml' : 'gm';
-
-    console.log(`
-🚀 GEMINI ORBIT: MISSION CONTROL
-
-Usage: ${cmdPrefix} <IDENTIFIER> [action] [prompt...]
-
-IDENTIFIER:
-  - A Pull Request number (e.g., 20)
-  - A branch name (e.g., feat-mcp)
-
-ACTIONS:
-  review    - (Default) Parallel analysis, build, and behavioral proof.
-  fix       - Iterative CI repair and conflict resolution.
-  implement - Autonomous feature execution with test-first logic.
-  eva       - Ingress into a raw bash session inside the capsule.
-
-EXAMPLES:
-  ${cmdPrefix} 20 review
-  ${cmdPrefix} feat-mcp fix "fix the lint errors"
-
-${isLocal ? '📍 [LOCAL MODE]: Worktrees will be created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions will be offloaded to your Orbit Cloud Station.'}
-
-Current Repo: ${repoName || 'Not Detected'}
-    `);
-    return 0;
+    return 0; // Handled by orbit-cli.ts
   }
 
   const instanceName = config.instanceName || 'local';
@@ -166,16 +168,12 @@ Current Repo: ${repoName || 'Not Detected'}
     if (res.status === 0 && res.stdout) branch = res.stdout.toString().trim();
   }
 
-  const sessionName = sessionId; // Standardize on sessionId
   const containerName = isLocalWorktree
     ? branch
     : `gcli-${sanitizeName(identifier)}-${action}`;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
-  const effectiveScriptsPath = isLocalWorktree
-    ? LOCAL_SCRIPTS_PATH
-    : SCRIPTS_PATH;
   const effectiveBundlePath = isLocalWorktree ? LOCAL_BUNDLE_PATH : BUNDLE_PATH;
 
   // 3. Remote Preparation
@@ -217,15 +215,20 @@ Current Repo: ${repoName || 'Not Detected'}
     });
   }
 
-  // AUTH: Inject credentials directly into the worktree .env
-  if (localApiKey) {
-    console.log('   - Injecting mission authentication context...');
+  // AUTH: Inject credentials for remote missions (ADR 14)
+  let secretPath: string | null = null;
+  if (localApiKey && !isLocalWorktree) {
+    console.log('   - Injecting mission authentication context (RAM-disk)...');
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
-    // Use relative path and trust provider.exec to handle the CWD (via wrapCapsule/containerName)
-    const authRes = await provider.exec(`echo ${q(dotEnvContent)} > .env`, {
-      wrapCapsule: containerName,
-    });
+    // Write to /dev/shm on the station
+    secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+    const authRes = await provider.exec(
+      `echo ${q(dotEnvContent)} > ${secretPath}`,
+      {
+        // Execute on station, not in capsule yet
+      },
+    );
     if (authRes !== 0) return authRes;
   }
 
@@ -248,9 +251,16 @@ Current Repo: ${repoName || 'Not Detected'}
   const forceMainTerminal = terminalTarget === 'foreground';
 
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
-  const remoteWorker = isEvaMode
-    ? `gemini`
-    : `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+  let remoteWorker = '';
+  if (action === 'chat' || action === 'eva') {
+    remoteWorker = customPrompt.trim()
+      ? `gemini -i ${q(customPrompt.trim())}`
+      : `gemini`;
+  } else if (action === 'shell') {
+    remoteWorker = `/bin/bash`;
+  } else {
+    remoteWorker = `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+  }
 
   // Helper: Check if tmux is installed
   const hasTmux = spawnSync('which', ['tmux'], { stdio: 'pipe' }).status === 0;
@@ -273,6 +283,10 @@ Current Repo: ${repoName || 'Not Detected'}
         ? process.env.HOME || '/home/node'
         : '/home/node',
       GCLI_SESSION_ID: sessionId,
+      // Pass the API key through the process environment for local missions
+      ...(isLocalWorktree && localApiKey
+        ? { GEMINI_API_KEY: localApiKey }
+        : {}),
     },
   };
 
@@ -324,5 +338,12 @@ ${finalSSH}
   // DEFAULT: Run in-place
   console.log(`\n🛰️  Station: ${config.instanceName}`);
   console.log(`🚀 Launching Orbit Mission: ${identifier} (${action})...\n`);
-  return provider.exec(fullCommand, execOptions);
+  try {
+    return await provider.exec(fullCommand, execOptions);
+  } finally {
+    // Cleanup RAM-disk credential file after mission exits (ADR 14)
+    if (secretPath) {
+      await provider.exec(`rm -f ${secretPath}`, {}).catch(() => {});
+    }
+  }
 }

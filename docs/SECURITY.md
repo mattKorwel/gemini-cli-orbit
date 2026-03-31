@@ -37,7 +37,7 @@ services managing your code or credentials.
 
 ### 4. Defensive Execution & Input Validation
 
-- **Input Sanitization**: All user-provided strings (profile names, station
+- **Input Sanitization**: All user-provided strings (schematic names, station
   names) are sanitized using a strict whitelist approach to prevent path
   traversal and shell injection.
 - **Argument Arrays**: Orbit uses `spawnSync` with argument arrays instead of

@@ -17,7 +17,7 @@ export async function runJettison(args: string[]) {
   const actionArg = args[1] || 'mission';
 
   if (!prNumber) {
-    console.error('❌ Usage: orbit jettison <PR_NUMBER> [action]');
+    console.error('❌ Usage: orbit jettison <IDENTIFIER> [action]');
     return 1;
   }
 

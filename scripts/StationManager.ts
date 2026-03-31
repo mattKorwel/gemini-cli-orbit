@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { STATIONS_DIR } from './Constants.js';
-import { loadJson } from './ConfigManager.js';
+import { loadJson, loadSettings } from './ConfigManager.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { logger } from './Logger.js';
 
@@ -42,11 +42,15 @@ export class StationManager {
   async listStations(
     options: { syncWithReality?: boolean } = {},
   ): Promise<StationReceipt[]> {
+    const settings = loadSettings();
     const files = fs
       .readdirSync(STATIONS_DIR)
       .filter((f) => f.endsWith('.json'));
-    const receipts: StationReceipt[] = [];
 
+    const receipts: StationReceipt[] = [];
+    const seenNames = new Set<string>();
+
+    // 1. Load Hardware Receipts (GCE, etc.)
     for (const f of files) {
       const receipt = loadJson(path.join(STATIONS_DIR, f)) as StationReceipt;
       if (!receipt) continue;
@@ -63,7 +67,25 @@ export class StationManager {
         }
       }
       receipts.push(receipt);
+      seenNames.add(receipt.name);
     }
+
+    // 2. Discover Local Repos (from settings.json)
+    // Every repo entry in settings is effectively a local-worktree station base
+    Object.keys(settings.repos).forEach((repoName) => {
+      const stationName = `local-${repoName}`;
+      if (!seenNames.has(stationName)) {
+        receipts.push({
+          name: stationName,
+          type: 'local-worktree',
+          projectId: 'local',
+          zone: 'localhost',
+          repo: repoName,
+          lastSeen: new Date().toISOString(),
+        });
+      }
+    });
+
     return receipts;
   }
 

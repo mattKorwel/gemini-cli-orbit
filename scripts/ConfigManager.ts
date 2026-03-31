@@ -47,7 +47,7 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
     process.env.GCLI_ORBIT_INSTANCE_NAME ||
     settings.activeStation;
 
-  // 3. Resolve Station details from Registry if targeted
+  // 4. Resolve Station details from Registry if targeted
   if (targetStation) {
     const receiptPath = path.join(STATIONS_DIR, `${targetStation}.json`);
     const receipt = loadJson(receiptPath);
@@ -101,11 +101,25 @@ export function detectRepoName(): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
 
   try {
-    const res = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+    // 1. Try to get the repo name from the remote URL (most accurate)
+    const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
       stdio: 'pipe',
+      encoding: 'utf8',
     });
-    if (res.status === 0) {
-      return path.basename(res.stdout.toString().trim());
+    if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
+      const url = remoteRes.stdout.trim();
+      // Matches both https and git@ styles, extracting the name before .git
+      const match = url.match(/\/([^\/]+)\.git$/);
+      if (match && match[1]) return match[1];
+    }
+
+    // 2. Fallback to the basename of the git root
+    const rootRes = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    if (rootRes.status === 0 && rootRes.stdout.trim()) {
+      return path.basename(rootRes.stdout.trim());
     }
   } catch (e) {}
 
@@ -139,7 +153,7 @@ export function loadProjectConfig(): Partial<OrbitConfig> {
 }
 
 export function loadSchematic(name: string): Partial<OrbitConfig> {
-  const p = path.join(SCHEMATICS_DIR, `${name}.json`);
+  const p = path.join(SCHEMATICS_DIR, `${sanitizeName(name)}.json`);
   return loadJson(p) || {};
 }
 
@@ -147,7 +161,7 @@ export function saveSchematic(name: string, config: any): void {
   if (!fs.existsSync(SCHEMATICS_DIR)) {
     fs.mkdirSync(SCHEMATICS_DIR, { recursive: true });
   }
-  const p = path.join(SCHEMATICS_DIR, `${name}.json`);
+  const p = path.join(SCHEMATICS_DIR, `${sanitizeName(name)}.json`);
   fs.writeFileSync(p, JSON.stringify(config, null, 2));
 }
 
@@ -160,31 +174,51 @@ export function loadJson(p: string): any {
   return null;
 }
 
+/**
+ * Central Registry of supported configuration flags.
+ */
+export const ACCEPTED_FLAGS = [
+  { flag: 'projectId', desc: 'Google Cloud Project ID' },
+  { flag: 'zone', desc: 'Google Compute Engine Zone' },
+  { flag: 'instanceName', desc: 'Station VM Name' },
+  {
+    flag: 'backend',
+    target: 'backendType',
+    desc: 'Networking backend (direct-internal | external)',
+  },
+  { flag: 'dnsSuffix', desc: 'Custom DNS zone suffix' },
+  { flag: 'userSuffix', desc: 'OS Login username suffix' },
+  { flag: 'vpcName', desc: 'VPC network name' },
+  { flag: 'subnetName', desc: 'Subnet name' },
+  { flag: 'machineType', desc: 'GCE machine type' },
+  { flag: 'image', target: 'imageUri', desc: 'Container image URI' },
+  { flag: 'schematic', desc: 'Infrastructure blueprint name' },
+  {
+    flag: 'for-station',
+    target: 'forStation',
+    desc: 'Target a specific station',
+  },
+];
+
 export function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase();
 }
 
 export function parseFlags(args: string[]): Partial<OrbitConfig> {
   const config: any = {};
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (!arg) continue;
 
-    if (arg.startsWith('--projectId=')) config.projectId = arg.split('=')[1];
-    if (arg.startsWith('--zone=')) config.zone = arg.split('=')[1];
-    if (arg.startsWith('--instanceName='))
-      config.instanceName = arg.split('=')[1];
-    if (arg.startsWith('--backend=')) config.backendType = arg.split('=')[1];
-    if (arg.startsWith('--dnsSuffix=')) config.dnsSuffix = arg.split('=')[1];
-    if (arg.startsWith('--userSuffix=')) config.userSuffix = arg.split('=')[1];
-    if (arg.startsWith('--vpcName=')) config.vpcName = arg.split('=')[1];
-    if (arg.startsWith('--subnetName=')) config.subnetName = arg.split('=')[1];
-    if (arg.startsWith('--machineType='))
-      config.machineType = arg.split('=')[1];
-    if (arg.startsWith('--image=')) config.imageUri = arg.split('=')[1];
-    if (arg.startsWith('--profile=')) config.schematic = arg.split('=')[1];
-    if (arg.startsWith('--schematic=')) config.schematic = arg.split('=')[1];
-    if (arg.startsWith('--for-station=')) config.forStation = arg.split('=')[1];
+  for (const arg of args) {
+    if (!arg || !arg.startsWith('--')) continue;
+
+    const [rawKey, val] = arg.slice(2).split('=');
+    if (!rawKey || val === undefined) continue;
+
+    const match = ACCEPTED_FLAGS.find((f) => f.flag === rawKey);
+    if (match) {
+      const targetKey = match.target || match.flag;
+      config[targetKey] = val;
+    }
   }
+
   return config;
 }

@@ -96,7 +96,7 @@ describe('runSetup', () => {
   });
 
   it('should run setup flow and wake up station', async () => {
-    const res = await runSetup({
+    const res = await runSetup([], {
       ...process.env,
       GOOGLE_CLOUD_PROJECT: 'test-p',
     });
@@ -142,7 +142,7 @@ describe('runSetup', () => {
     };
     vi.mocked(readline.createInterface).mockReturnValue(rl as any);
 
-    const res = await runSetup({
+    const res = await runSetup([], {
       ...process.env,
     });
     expect(res).toBe(0);

@@ -9,7 +9,7 @@
       "command": "sh",
       "args": [
         "-c",
-        "node \"$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || ls -d . 2>/dev/null)/bundle/bin/mcp-server.js\""
+        "node \"$(ls -d ~/.gemini/extensions/orbit 2>/dev/null || ls -d . 2>/dev/null)/bundle/mcp-server.js\""
       ]
     }
   },

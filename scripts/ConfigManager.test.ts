@@ -17,7 +17,7 @@ describe('ConfigManager', () => {
     vi.clearAllMocks();
     vi.mocked(spawnSync).mockReturnValue({
       status: 0,
-      stdout: Buffer.from('/work-dir/test-repo'),
+      stdout: '/work-dir/test-repo\n',
     } as any);
     // Default to no files existing
     vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -49,20 +49,23 @@ describe('ConfigManager', () => {
     // 3. Schematic (Environment data)
     const schematicData = { projectId: 'corp-p', zone: 'corp-z' };
 
+    const norm = (p: any) => String(p).replace(/\\/g, '/');
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
-      if (p.includes('config.json')) return true;
-      if (p.includes('settings.json')) return true;
-      if (p.includes('stations/corp-station.json')) return true;
-      if (p.includes('schematics/corp.json')) return true;
+      const n = norm(p);
+      if (n.includes('config.json')) return true;
+      if (n.includes('settings.json')) return true;
+      if (n.includes('stations/corp-station.json')) return true;
+      if (n.includes('schematics/corp.json')) return true;
       return false;
     });
 
     vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
-      if (p.includes('config.json')) return JSON.stringify(projectConfig);
-      if (p.includes('settings.json')) return JSON.stringify(globalSettings);
-      if (p.includes('stations/corp-station.json'))
+      const n = norm(p);
+      if (n.includes('config.json')) return JSON.stringify(projectConfig);
+      if (n.includes('settings.json')) return JSON.stringify(globalSettings);
+      if (n.includes('stations/corp-station.json'))
         return JSON.stringify(stationReceipt);
-      if (p.includes('schematics/corp.json'))
+      if (n.includes('schematics/corp.json'))
         return JSON.stringify(schematicData);
       return '';
     });
@@ -88,8 +91,55 @@ describe('ConfigManager', () => {
     delete process.env.GCLI_ORBIT_PROJECT_ID;
   });
 
-  it('should detect repo name', () => {
+  it('should detect repo name from origin remote (HTTPS)', () => {
+    vi.mocked(spawnSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git' && args?.[0] === 'remote') {
+        return {
+          status: 0,
+          stdout: 'https://github.com/org/real-repo.git\n',
+        } as any;
+      }
+      return { status: 1 } as any;
+    });
+
     const name = detectRepoName();
-    expect(name).toBe('test-repo');
+    expect(name).toBe('real-repo');
+  });
+
+  it('should detect repo name from origin remote (SSH)', () => {
+    vi.mocked(spawnSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git' && args?.[0] === 'remote') {
+        return {
+          status: 0,
+          stdout: 'git@github.com:org/ssh-repo.git\n',
+        } as any;
+      }
+      return { status: 1 } as any;
+    });
+
+    const name = detectRepoName();
+    expect(name).toBe('ssh-repo');
+  });
+
+  it('should fallback to git root basename if remote fails', () => {
+    vi.mocked(spawnSync).mockImplementation((cmd, args) => {
+      if (cmd === 'git' && args?.[0] === 'remote') return { status: 1 } as any;
+      if (cmd === 'git' && args?.[0] === 'rev-parse') {
+        return {
+          status: 0,
+          stdout: '/path/to/my-git-root\n',
+        } as any;
+      }
+      return { status: 1 } as any;
+    });
+
+    const name = detectRepoName();
+    expect(name).toBe('my-git-root');
+  });
+
+  it('should fallback to default repo name if git fails', () => {
+    vi.mocked(spawnSync).mockReturnValue({ status: 1 } as any);
+    const name = detectRepoName();
+    expect(name).toBe('gemini-cli');
   });
 });

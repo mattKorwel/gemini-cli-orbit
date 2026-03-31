@@ -118,9 +118,16 @@ export class GceConnectionManager {
    */
   getRunCommand(
     command: string,
-    options: { interactive?: boolean } = {},
+    options: { interactive?: boolean; env?: Record<string, string> } = {},
   ): string {
-    return this.strategy.getRunCommand(command, {
+    let finalCommand = command;
+    if (options.env) {
+      const envPrefix = Object.entries(options.env)
+        .map(([k, v]) => `${k}=${this.q(v)}`)
+        .join(' ');
+      finalCommand = `${envPrefix} ${command}`;
+    }
+    return this.strategy.getRunCommand(finalCommand, {
       ...(options.interactive !== undefined
         ? { interactive: options.interactive }
         : {}),
@@ -132,13 +139,20 @@ export class GceConnectionManager {
    */
   getRunArgs(
     command: string,
-    options: { interactive?: boolean } = {},
+    options: { interactive?: boolean; env?: Record<string, string> } = {},
   ): string[] {
-    return this.strategy.getRunArgs(command, {
-      ...(options.interactive !== undefined
-        ? { interactive: options.interactive }
-        : {}),
-    });
+    let finalCommand = command;
+    if (options.env) {
+      const envPrefix = Object.entries(options.env)
+        .map(([k, v]) => `${k}=${this.q(v)}`)
+        .join(' ');
+      finalCommand = `${envPrefix} ${command}`;
+    }
+    const args = ['ssh', ...this.strategy.getCommonArgs()];
+    if (options.interactive) args.push('-t');
+    args.push(this.strategy.getMagicRemote());
+    args.push(finalCommand);
+    return args;
   }
 
   /**
@@ -153,13 +167,16 @@ export class GceConnectionManager {
     } = {},
   ): SpawnSyncReturns<Buffer> {
     const fullCmd = this.getRunCommand(command, options);
-    const env = { ...process.env, ...options.env };
 
     return spawnSync(fullCmd, {
       stdio: options.quiet ? 'pipe' : 'inherit',
       shell: true,
-      env,
+      env: process.env,
     });
+  }
+
+  private q(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 
   /**
