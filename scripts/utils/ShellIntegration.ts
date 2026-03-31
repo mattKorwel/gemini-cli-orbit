@@ -75,8 +75,8 @@ export class ShellIntegration {
   /**
    * Installs the orbit alias/function and autocompletion into the shell profile.
    */
-  install(shimPath: string): boolean {
-    const shell = this.detectShell();
+  install(shimPath: string, targetShell?: string): boolean {
+    const shell = targetShell || this.detectShell();
     const profilePath = this.getProfilePath(shell);
 
     if (!profilePath) {
@@ -93,9 +93,6 @@ export class ShellIntegration {
         'SHELL',
         `Orbit integration already present in ${profilePath}. Updating...`,
       );
-      // We'll replace the old block if it exists, or just skip for now.
-      // For simplicity, we'll append if not found, but since isInstalled returns true,
-      // we should ideally replace it to allow updates to the shim path.
       this.uninstall(profilePath);
     }
 
@@ -180,7 +177,7 @@ export class ShellIntegration {
     const header = '# Gemini Orbit Shell Integration';
     const footer = '# End Gemini Orbit Shell Integration';
     const commands =
-      'blackbox ci constellation jettison liftoff mission pulse splashdown uplink';
+      'blackbox ci jettison liftoff mission pulse schematic splashdown station uplink';
     const quotedShim = `"${shimPath}"`;
 
     // Determine if we should use node or tsx
@@ -192,7 +189,7 @@ function orbit { ${exec} ${quotedShim} @args }
 function gm { ${exec} ${quotedShim} mission @args }
 function gml { $env:GCLI_ORBIT_PROVIDER='local-worktree'; & gm @args }
 function gmr { $env:GCLI_ORBIT_PROFILE='default'; & gm @args }
-$orbit_completions = @('blackbox', 'ci', 'constellation', 'jettison', 'liftoff', 'mission', 'pulse', 'splashdown', 'uplink')
+$orbit_completions = @('blackbox', 'ci', 'jettison', 'liftoff', 'mission', 'pulse', 'schematic', 'splashdown', 'station', 'uplink')
 Register-ArgumentCompleter -CommandName orbit -ParameterName args -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
     $orbit_completions | Where-Object { $_ -like "$wordToComplete*" }
@@ -211,12 +208,13 @@ _orbit() {
   commands=(
     'blackbox:Retrieve detailed mission telemetry and history logs.'
     'ci:Monitor CI status for a branch with noise filtering.'
-    'constellation:Manage and coordinate multiple Orbit stations.'
     'jettison:Decommission a specific mission and its worktree.'
     'liftoff:Initial station setup: provision GCE Worker and Docker base.'
     'mission:Start, resume, or perform maneuvers on a PR mission.'
     'pulse:Check station health and active mission status.'
+    'schematic:Manage infrastructure blueprints: <list|create|edit|import>'
     'splashdown:Emergency shutdown of all active remote capsules.'
+    'station:Manage hardware: <activate|list|liftoff|delete>'
     'uplink:Quickly connect to an existing mission session.'
   )
   _describe 'orbit' commands
@@ -232,7 +230,7 @@ alias gm='orbit mission'
 alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
 alias gmr='GCLI_ORBIT_PROFILE=default gm'
 complete -c orbit -f
-complete -c orbit -a 'blackbox ci constellation jettison liftoff mission pulse splashdown uplink'
+complete -c orbit -a 'blackbox ci jettison liftoff mission pulse schematic splashdown station uplink'
 ${footer}`;
     }
 

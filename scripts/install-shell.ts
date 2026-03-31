@@ -26,18 +26,18 @@ async function run() {
   logger.info('SHELL', `Targeting shim: ${shimPath}`);
 
   const shellIntegration = new ShellIntegration();
-  const success = shellIntegration.install(shimPath);
+  const shells = ['zsh', 'bash'];
 
-  if (success) {
-    logger.info('SHELL', '✨ Integration complete.');
-    logger.info(
-      'SHELL',
-      '🚀 Use "orbit <cmd>" for full CLI or aliases: gm (smart), gml (local), gmr (remote).',
-    );
-  } else {
-    logger.error('SHELL', '❌ Integration failed.');
-    process.exit(1);
+  for (const s of shells) {
+    logger.info('SHELL', `Integrating with ${s}...`);
+    shellIntegration.install(shimPath, s);
   }
+
+  logger.info('SHELL', '✨ Integration complete.');
+  logger.info(
+    'SHELL',
+    '🚀 Use "orbit <cmd>" for full CLI or aliases: gm (smart), gml (local), gmr (remote).',
+  );
 }
 
 run().catch((e) => {

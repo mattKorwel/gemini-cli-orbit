@@ -17,6 +17,14 @@ import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { StationManager } from './StationManager.js';
 
+function divider(text: string) {
+  const width = 80;
+  const padding = Math.max(0, Math.floor((width - text.length - 2) / 2));
+  console.log(
+    `\n${'-'.repeat(padding)} ${text} ${'-'.repeat(width - padding - text.length - 2)}`,
+  );
+}
+
 /**
  * Fleet: Manage and coordinate Orbit stations.
  */
@@ -100,7 +108,7 @@ export async function runFleet(args: string[]) {
       const showMissions = args.includes('--missions') || args.includes('-m');
       const forceSync = args.includes('--sync') || args.includes('-s');
 
-      logger.divider('ORBIT CONSTELLATION');
+      divider('ORBIT CONSTELLATION');
       const stations = await stationManager.listStations({
         syncWithReality: forceSync,
       });

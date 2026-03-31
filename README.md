@@ -40,8 +40,6 @@ depending on what you do with your shell, be those things for you, but at its
 heart, it's infrastructure management, compute processing power, and persistent
 configuration.
 
----
-
 ## 📦 Installation
 
 Install the Orbit extension directly via the Gemini CLI:
@@ -49,6 +47,21 @@ Install the Orbit extension directly via the Gemini CLI:
 ```bash
 gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
 ```
+
+### 🐚 Shell Integration (Aliases & Completion)
+
+To enable the `orbit` command, shorthands like `gm` (smart), `gml` (local), and
+full tab-completion in your terminal, run the integration script:
+
+```bash
+# Build the project first
+npm run build
+
+# Install for ZSH and Bash
+node bundle/bin/install-shell.js
+```
+
+Restart your terminal or `source ~/.zshrc` / `source ~/.bashrc` to activate.
 
 ---
 

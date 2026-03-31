@@ -18,6 +18,12 @@ import { runCI } from './ci.js';
 import { runUplink } from './uplink.js';
 import { runBlackbox } from './blackbox.js';
 import { runFleet, runDesign } from './fleet.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Helper to capture stdout/stderr during a tool's execution.
@@ -221,6 +227,27 @@ server.registerTool(
     });
     return {
       content: [{ type: 'text', text: output }],
+    };
+  },
+);
+
+server.registerTool(
+  'install_shell',
+  {
+    description:
+      'Install Orbit shell aliases and tab-completion for ZSH and Bash.',
+    inputSchema: z.object({}).shape,
+  },
+  async () => {
+    const scriptPath = path.join(__dirname, 'install-shell.js');
+    const res = spawnSync('node', [scriptPath], { stdio: 'pipe' });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: res.stdout.toString() + '\n' + res.stderr.toString(),
+        },
+      ],
     };
   },
 );

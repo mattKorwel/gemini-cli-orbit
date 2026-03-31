@@ -14,7 +14,27 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
+
+/**
+ * Resolve the Extension Root.
+ * Works for:
+ * - Local Dev: scripts/orbit-shim.ts
+ * - Bundled: bundle/orbit-shim.js
+ * - Global Install: ~/.gemini/extensions/orbit/...
+ */
+function resolveRoot(): string {
+  let current = __dirname;
+  while (current !== path.parse(current).root) {
+    if (fs.existsSync(path.join(current, 'package.json'))) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  // Fallback to parent of shim location
+  return path.resolve(__dirname, '..');
+}
+
+const ROOT = resolveRoot();
 
 const COMMANDS: Record<string, { script: string; description: string }> = {
   mission: {
@@ -62,6 +82,14 @@ const COMMANDS: Record<string, { script: string; description: string }> = {
     script: 'blackbox.ts',
     description: 'Retrieve detailed mission telemetry and history logs.',
   },
+  'install-shell': {
+    script: 'install-shell.ts',
+    description: 'Install Orbit shell aliases and tab-completion.',
+  },
+  install_shell: {
+    script: 'install-shell.ts',
+    description: 'Install Orbit shell aliases and tab-completion.',
+  },
 };
 
 function showHelp() {
@@ -88,6 +116,7 @@ function showHelp() {
   console.log(
     '  blackbox  - Retrieve detailed mission telemetry and history logs.',
   );
+  console.log('  install-shell - Install shell aliases and tab-completion.');
 
   console.log('\nFlags:');
   console.log('  -h, --help        Show this help menu');
@@ -116,14 +145,18 @@ if (!cmd || cmd === '-h' || cmd === '--help') {
 }
 
 const commandInfo = COMMANDS[cmd];
-if (!commandInfo) {
-  // Shorthand: If cmd is not a known command, assume it's a mission identifier
-  // e.g., 'orbit 123 review' -> 'orbit mission 123 review'
-  args.unshift('mission');
-  cmd = 'mission';
+if (!commandInfo && cmd && !cmd.startsWith('-')) {
+  console.error(`\n❌ Unrecognized command: "${cmd}"`);
+  showHelp();
+  process.exit(1);
 }
 
-const finalCommandInfo = COMMANDS[cmd]!;
+const finalCommandInfo = COMMANDS[cmd];
+if (!finalCommandInfo) {
+  showHelp();
+  process.exit(1);
+}
+
 const scriptName = finalCommandInfo.script;
 const bundleBinPath = path.join(
   ROOT,
@@ -149,6 +182,10 @@ if (!fs.existsSync(bundleBinPath)) {
 }
 
 const exec = useTsx ? 'npx tsx' : 'node';
+
+// We need to pass the FULL args to the underlying script so it knows its command context
+// (e.g., 'schematic' or 'station' for fleet.ts)
+const finalArgs = [...args];
 
 // Process flags that should be converted to environment variables
 const rawArgs = args.slice(1);
@@ -183,7 +220,7 @@ for (let i = 0; i < rawArgs.length; i++) {
 process.env.GCLI_ORBIT_SHIM = '1';
 
 import { spawnSync } from 'node:child_process';
-const finalRes = spawnSync(exec, [finalPath, ...args.slice(1)], {
+const finalRes = spawnSync(exec, [finalPath, ...finalArgs], {
   stdio: 'inherit',
   shell: true,
 });
