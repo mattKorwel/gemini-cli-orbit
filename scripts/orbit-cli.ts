@@ -87,9 +87,9 @@ const COMMANDS: Record<string, Command> = {
     usage: 'orbit station <list|activate|liftoff|delete> [name]',
     examples: [
       'orbit station list',
-      'orbit station activate corp-vm',
+      'orbit station activate my-vm',
       'orbit station liftoff corp --setup-net',
-      'orbit station delete corp-vm',
+      'orbit station delete my-vm',
     ],
   },
   pulse: {
@@ -237,12 +237,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Handle --help for specific command
-  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-    showHelp(cmd);
-    process.exit(0);
-  }
-
   // --- 🧼 GLOBAL FLAG CONSUMPTION ---
   const cleanArgs: string[] = [];
   for (let i = 1; i < rawArgs.length; i++) {
@@ -272,6 +266,16 @@ async function main() {
     } else {
       cleanArgs.push(arg);
     }
+  }
+
+  // Handle --help for specific command, or just the command name alone with no positional args
+  if (
+    rawArgs.includes('--help') ||
+    rawArgs.includes('-h') ||
+    cleanArgs.length === 0
+  ) {
+    showHelp(cmd);
+    process.exit(0);
   }
 
   // Ensure CLI knows it is a command to bypass interactive UI
