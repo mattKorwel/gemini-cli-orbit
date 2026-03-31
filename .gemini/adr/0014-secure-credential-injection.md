@@ -33,19 +33,20 @@ For missions running on a remote **Station**:
 - The secret is automatically destroyed when the Host VM is stopped or when the
   `/dev/shm` file is explicitly deleted.
 
-### 2. macOS/Darwin Fallback
+### 2. macOS/Local Fallback (Environment Inheritance)
 
-Because macOS does not provide a standard `/dev/shm` RAM-disk equivalent
-accessible via simple file paths:
+For local worktree missions (especially on macOS where `/dev/shm` is not
+available):
 
-- **Remote Stations**: Continue to use the Linux-standard `/dev/shm` (as Orbit
-  Stations typically run Container-Optimized OS).
-- **Local Missions (macOS)**: Revert to writing credentials directly to the
-  `.env` file within the local worktree.
-- **Rationale**: Local worktree missions do not utilize Docker-level isolation;
-  therefore, the security boundary provided by a volume mount doesn't exist.
-  Writing to `.env` maintains compatibility without requiring complex
-  macOS-specific RAM-disk orchestration (like `hdiutil`).
+- **Decision**: Orbit will **NOT** write a `.env` file to the local sibling
+  worktree.
+- **Implementation**: The Orchestrator passes the `GEMINI_API_KEY` directly into
+  the process environment (`execOptions.env`) of the spawned mission.
+- **Rationale**: Gemini CLI is designed to inherit the environment of its parent
+  process and/or find `.env` files in the directory hierarchy. Passing variables
+  via the process environment ensures the mission has the necessary context
+  without littering the local disk with redundant (and sensitive) credential
+  files.
 
 ## Rationale
 

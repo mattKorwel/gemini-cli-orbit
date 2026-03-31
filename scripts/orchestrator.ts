@@ -217,27 +217,20 @@ Current Repo: ${repoName || 'Not Detected'}
     });
   }
 
-  // AUTH: Inject credentials into a RAM-based temporary file (ADR 12)
-  if (localApiKey) {
+  // AUTH: Inject credentials for remote missions (ADR 14)
+  if (localApiKey && !isLocalWorktree) {
+    console.log('   - Injecting mission authentication context (RAM-disk)...');
     const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
 
-    if (isLocalWorktree && process.platform === 'darwin') {
-      console.log('   - Injecting mission authentication context (.env)...');
-      fs.writeFileSync(path.join(remoteWorktreeDir, '.env'), dotEnvContent);
-    } else {
-      console.log(
-        '   - Injecting mission authentication context (RAM-disk)...',
-      );
-      // Write to /dev/shm on the station
-      const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
-      const authRes = await provider.exec(
-        `echo ${q(dotEnvContent)} > ${secretPath}`,
-        {
-          // Execute on station, not in capsule yet
-        },
-      );
-      if (authRes !== 0) return authRes;
-    }
+    // Write to /dev/shm on the station
+    const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+    const authRes = await provider.exec(
+      `echo ${q(dotEnvContent)} > ${secretPath}`,
+      {
+        // Execute on station, not in capsule yet
+      },
+    );
+    if (authRes !== 0) return authRes;
   }
 
   // 5. Execution Logic
@@ -284,6 +277,10 @@ Current Repo: ${repoName || 'Not Detected'}
         ? process.env.HOME || '/home/node'
         : '/home/node',
       GCLI_SESSION_ID: sessionId,
+      // Pass the API key through the process environment for local missions
+      ...(isLocalWorktree && localApiKey
+        ? { GEMINI_API_KEY: localApiKey }
+        : {}),
     },
   };
 

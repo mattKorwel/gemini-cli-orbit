@@ -117,9 +117,10 @@ Model Context Protocol (MCP) server.
 ## 🔒 13. Secure RAM-Disk Credential Injection
 
 **Decision**: Use RAM-based secret injection (`/dev/shm`) for all remote
-missions, with a direct `.env` fallback for local macOS missions.
+missions, while leveraging **environment inheritance** (via `execOptions.env`)
+for local worktree missions.
 
 - **Rationale**: Prevents sensitive credentials (API keys) from leaking into
   process lists, history, or persistent disk images. Standardizing on `/dev/shm`
-  leverages Linux-native security for Cloud Stations while maintaining local
-  developer velocity on macOS.
+  leverages Linux-native security for Cloud Stations while maintaining a clean
+  local disk for developers by avoiding redundant `.env` files.
