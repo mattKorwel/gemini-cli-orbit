@@ -90,45 +90,55 @@ export async function runOrchestrator(
   }
 
   const identifier = promptArgs[0];
-  const actionArg = promptArgs[1] || 'mission';
-  let action = 'mission';
+  const actionArg = promptArgs[1];
+  let action = 'chat'; // New Default: Interactive Gemini
   let customPrompt = '';
 
-  const validActions = ['eva', 'mission', 'fix', 'review', 'implement'];
-  if (validActions.includes(actionArg)) {
+  const maneuvers = ['fix', 'review', 'implement'];
+  const interactions = ['chat', 'eva', 'shell'];
+
+  if (actionArg && maneuvers.includes(actionArg)) {
     action = actionArg;
     customPrompt = promptArgs.slice(2).join(' ');
-  } else if (identifier && identifier !== 'eva') {
-    action = 'mission';
+  } else if (actionArg && interactions.includes(actionArg)) {
+    action = actionArg;
+    customPrompt = promptArgs.slice(2).join(' ');
+  } else if (identifier) {
+    action = 'chat';
     customPrompt = promptArgs.slice(1).join(' ');
   }
 
   // Handle "shell" mode: orbit mission eva [identifier]
-  const isEvaMode = action === 'eva';
+  const isEvaMode = action === 'eva' || action === 'chat';
 
   if (!identifier) {
-    const cmdPrefix = isLocal ? 'gml' : 'gm';
+    const cmdPrefix = 'orbit mission';
 
     console.log(`
 🚀 GEMINI ORBIT: MISSION CONTROL
 
-Usage: ${cmdPrefix} <IDENTIFIER> [action] [prompt...]
+Usage: ${cmdPrefix} <IDENTIFIER> [action|prompt...]
 
 IDENTIFIER:
   - A Pull Request number (e.g., 20)
   - A branch name (e.g., feat-mcp)
 
-ACTIONS:
-  review    - (Default) Parallel analysis, build, and behavioral proof.
+INTERACTIONS (Drop-in):
+  chat      - (Default) Interactive Gemini session. (Use quotes for prompts).
+  shell     - Raw bash session inside the capsule worktree.
+
+MANEUVERS (Autonomous):
+  review    - Parallel analysis, build, and behavioral proof.
   fix       - Iterative CI repair and conflict resolution.
   implement - Autonomous feature execution with test-first logic.
-  eva       - Ingress into a raw bash session inside the capsule.
 
 EXAMPLES:
-  ${cmdPrefix} 20 review
-  ${cmdPrefix} feat-mcp fix "fix the lint errors"
+  ${cmdPrefix} 20             (Interactive Chat)
+  ${cmdPrefix} 20 "how is it" (Exec prompt and stay)
+  ${cmdPrefix} 20 review      (Run maneuver)
+  ${cmdPrefix} 20 shell       (Raw bash shell)
 
-${isLocal ? '📍 [LOCAL MODE]: Worktrees will be created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions will be offloaded to your Orbit Cloud Station.'}
+${isLocal ? '📍 [LOCAL MODE]: Worktrees created as siblings in your project directory.' : '☁️ [REMOTE MODE]: Missions offloaded to your Orbit Cloud Station.'}
 
 Current Repo: ${repoName || 'Not Detected'}
     `);
@@ -252,9 +262,16 @@ Current Repo: ${repoName || 'Not Detected'}
   const forceMainTerminal = terminalTarget === 'foreground';
 
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
-  const remoteWorker = isEvaMode
-    ? `gemini`
-    : `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+  let remoteWorker = '';
+  if (action === 'chat' || action === 'eva') {
+    remoteWorker = customPrompt.trim()
+      ? `gemini -i ${q(customPrompt.trim())}`
+      : `gemini`;
+  } else if (action === 'shell') {
+    remoteWorker = `/bin/bash`;
+  } else {
+    remoteWorker = `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+  }
 
   // Helper: Check if tmux is installed
   const hasTmux = spawnSync('which', ['tmux'], { stdio: 'pipe' }).status === 0;

@@ -186,9 +186,13 @@ export class ShellIntegration {
     if (shell === 'powershell') {
       return `${header}
 function orbit { ${exec} ${quotedShim} @args }
-function gm { ${exec} ${quotedShim} mission @args }
-function gml { $env:GCLI_ORBIT_PROVIDER='local-worktree'; & gm @args }
-function gmr { $env:GCLI_ORBIT_PROFILE='default'; & gm @args }
+function om { ${exec} ${quotedShim} mission @args }
+function oml { $env:GCLI_ORBIT_PROVIDER='local-worktree'; & om @args }
+function omr { $env:GCLI_ORBIT_PROFILE='default'; & om @args }
+# Legacy aliases
+function gm { om @args }
+function gml { oml @args }
+function gmr { omr @args }
 $orbit_completions = @('blackbox', 'ci', 'jettison', 'liftoff', 'mission', 'pulse', 'schematic', 'splashdown', 'station', 'uplink')
 Register-ArgumentCompleter -CommandName orbit -ParameterName args -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
@@ -200,9 +204,13 @@ ${footer}`;
     if (shell === 'zsh') {
       return `${header}
 alias orbit='${exec} ${quotedShim}'
-alias gm='orbit mission'
-alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
-alias gmr='GCLI_ORBIT_PROFILE=default gm'
+alias om='orbit mission'
+alias oml='GCLI_ORBIT_PROVIDER=local-worktree om'
+alias omr='GCLI_ORBIT_PROFILE=default om'
+# Legacy aliases
+alias gm='om'
+alias gml='oml'
+alias gmr='omr'
 _orbit() {
   local -a commands
   commands=(
@@ -226,9 +234,13 @@ ${footer}`;
     if (shell === 'fish') {
       return `${header}
 alias orbit='${exec} ${quotedShim}'
-alias gm='orbit mission'
-alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
-alias gmr='GCLI_ORBIT_PROFILE=default gm'
+alias om='orbit mission'
+alias oml='GCLI_ORBIT_PROVIDER=local-worktree om'
+alias omr='GCLI_ORBIT_PROFILE=default om'
+# Legacy aliases
+alias gm='om'
+alias gml='oml'
+alias gmr='omr'
 complete -c orbit -f
 complete -c orbit -a 'blackbox ci jettison liftoff mission pulse schematic splashdown station uplink'
 ${footer}`;
@@ -237,9 +249,13 @@ ${footer}`;
     // bash fallback
     return `${header}
 alias orbit='${exec} ${quotedShim}'
-alias gm='orbit mission'
-alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
-alias gmr='GCLI_ORBIT_PROFILE=default gm'
+alias om='orbit mission'
+alias oml='GCLI_ORBIT_PROVIDER=local-worktree om'
+alias omr='GCLI_ORBIT_PROFILE=default om'
+# Legacy aliases
+alias gm='om'
+alias gml='oml'
+alias gmr='omr'
 _orbit_completions() {
   COMPREPLY=($(compgen -W "${commands}" -- "\${COMP_WORDS[1]}"))
 }
