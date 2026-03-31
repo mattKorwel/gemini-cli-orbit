@@ -18,6 +18,7 @@ import { runCI } from './ci.js';
 import { runUplink } from './uplink.js';
 import { runBlackbox } from './blackbox.js';
 import { runFleet, runDesign } from './fleet.js';
+import { runInstallShell } from './install-shell.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -239,15 +240,9 @@ server.registerTool(
     inputSchema: z.object({}).shape,
   },
   async () => {
-    const scriptPath = path.join(__dirname, 'install-shell.js');
-    const res = spawnSync('node', [scriptPath], { stdio: 'pipe' });
+    const output = await runWithCapture(() => runInstallShell());
     return {
-      content: [
-        {
-          type: 'text',
-          text: res.stdout.toString() + '\n' + res.stderr.toString(),
-        },
-      ],
+      content: [{ type: 'text', text: output }],
     };
   },
 );

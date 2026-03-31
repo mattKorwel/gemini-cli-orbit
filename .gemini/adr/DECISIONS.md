@@ -124,3 +124,14 @@ for local worktree missions.
   process lists, history, or persistent disk images. Standardizing on `/dev/shm`
   leverages Linux-native security for Cloud Stations while maintaining a clean
   local disk for developers by avoiding redundant `.env` files.
+
+## 🏢 14. Unified Application Architecture
+
+**Decision**: Transition from a collection of multi-process scripts to a unified
+Node.js application core.
+
+- **Rationale**: Both the CLI Shim and the MCP Server now import core logic as
+  functions. This eliminates the overhead and fragmentation of spawning child
+  processes, solves long-standing argument parsing bugs through centralized flag
+  consumption, and ensures total behavioral parity between CLI and LLM
+  interactions.

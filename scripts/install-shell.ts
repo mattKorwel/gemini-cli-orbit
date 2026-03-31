@@ -12,7 +12,7 @@ import { logger } from './Logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPTS_PATH = __dirname;
 
-async function run() {
+export async function runInstallShell() {
   logger.divider('ORBIT SHELL INTEGRATION');
 
   // Priority: bundle/orbit-shim.js > scripts/orbit-shim.ts
@@ -39,8 +39,3 @@ async function run() {
     '🚀 Use "orbit <cmd>" for full CLI or aliases: gm (smart), gml (local), gmr (remote).',
   );
 }
-
-run().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});

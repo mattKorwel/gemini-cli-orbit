@@ -19,16 +19,18 @@ import { StationManager } from './StationManager.js';
 /**
  * Setup Orbit: Initial configuration and station provisioning.
  */
-export async function runSetup(env: NodeJS.ProcessEnv = process.env) {
-  const args = process.argv.slice(2);
+export async function runSetup(
+  args: string[] = [],
+  env: NodeJS.ProcessEnv = process.env,
+) {
   const repoName = detectRepoName();
   const withStation = args.includes('--with-station');
   const setupNet = args.includes('--setup-net');
   const flags = parseFlags(args);
 
   const schematicName =
-    args[2] && !args[2].startsWith('--')
-      ? args[2]
+    args[0] && !args[0].startsWith('--')
+      ? args[0]
       : flags.schematic || 'default';
   const schematic = loadSchematic(schematicName);
 
