@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * @license
  * Copyright 2026 Google LLC
@@ -184,9 +183,8 @@ if (!fs.existsSync(bundleBinPath)) {
 
 const exec = useTsx ? 'npx tsx' : 'node';
 
-// We need to pass the FULL args to the underlying script so it knows its command context
-// (e.g., 'schematic' or 'station' for fleet.ts)
-const finalArgs = [...args];
+// We need to pass the arguments TO the script (everything after the command name)
+const finalArgs = args.slice(1);
 
 // Process flags that should be converted to environment variables
 const rawArgs = args.slice(1);

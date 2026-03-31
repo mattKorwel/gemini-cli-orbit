@@ -113,3 +113,13 @@ Model Context Protocol (MCP) server.
   root once at server startup. Eliminates brittle TOML-based shell hacks.
   Provides the LLM with type-safe "Tools" for autonomous mission management
   while maintaining high-fidelity "Prompts" for user-facing slash commands.
+
+## 🔒 13. Secure RAM-Disk Credential Injection
+
+**Decision**: Use RAM-based secret injection (`/dev/shm`) for all remote
+missions, with a direct `.env` fallback for local macOS missions.
+
+- **Rationale**: Prevents sensitive credentials (API keys) from leaking into
+  process lists, history, or persistent disk images. Standardizing on `/dev/shm`
+  leverages Linux-native security for Cloud Stations while maintaining local
+  developer velocity on macOS.

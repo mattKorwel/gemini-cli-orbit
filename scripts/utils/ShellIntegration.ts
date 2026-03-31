@@ -180,10 +180,13 @@ export class ShellIntegration {
       'blackbox ci jettison liftoff mission pulse schematic splashdown station uplink';
     const quotedShim = `"${shimPath}"`;
 
+    // Determine if we should use node or tsx
+    const exec = shimPath.endsWith('.js') ? 'node' : 'npx tsx';
+
     if (shell === 'powershell') {
       return `${header}
-function orbit { & ${quotedShim} @args }
-function gm { & ${quotedShim} mission @args }
+function orbit { ${exec} ${quotedShim} @args }
+function gm { ${exec} ${quotedShim} mission @args }
 function gml { $env:GCLI_ORBIT_PROVIDER='local-worktree'; & gm @args }
 function gmr { $env:GCLI_ORBIT_PROFILE='default'; & gm @args }
 $orbit_completions = @('blackbox', 'ci', 'jettison', 'liftoff', 'mission', 'pulse', 'schematic', 'splashdown', 'station', 'uplink')
@@ -196,7 +199,7 @@ ${footer}`;
 
     if (shell === 'zsh') {
       return `${header}
-alias orbit='${quotedShim}'
+alias orbit='${exec} ${quotedShim}'
 alias gm='orbit mission'
 alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
 alias gmr='GCLI_ORBIT_PROFILE=default gm'
@@ -222,7 +225,7 @@ ${footer}`;
 
     if (shell === 'fish') {
       return `${header}
-alias orbit='${quotedShim}'
+alias orbit='${exec} ${quotedShim}'
 alias gm='orbit mission'
 alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
 alias gmr='GCLI_ORBIT_PROFILE=default gm'
@@ -233,7 +236,7 @@ ${footer}`;
 
     // bash fallback
     return `${header}
-alias orbit='${quotedShim}'
+alias orbit='${exec} ${quotedShim}'
 alias gm='orbit mission'
 alias gml='GCLI_ORBIT_PROVIDER=local-worktree gm'
 alias gmr='GCLI_ORBIT_PROFILE=default gm'
