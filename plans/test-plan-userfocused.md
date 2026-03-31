@@ -17,7 +17,7 @@ messing up my current `main` branch state."_
     - **Check**: Do you see the default blueprints? Is the terminology
       consistent (Schematic, not Design)?
 2.  **Launch Local Mission**:
-    - Command: `orbit mission 21 review --local` (using our new PR #21)
+    - Command: `om 21 review --local` (or `oml 21 review`)
     - **Observation**: Does it correctly resolve PR 21? Does it create a sibling
       worktree in your project's parent directory?
     - **The "Review" Story**: Watch it go through Phase 0 (Context), Phase 1
@@ -27,7 +27,7 @@ messing up my current `main` branch state."_
     - **Check**: Does it show you the log files generated? Can you see the
       `final-assessment.md`?
 4.  **Take the Helm**:
-    - Command: `orbit attach 21`
+    - Command: `om 21` (Interactive Chat) or `om 21 shell` (Raw Bash)
     - **Check**: Does it drop you into the worktree? Is it a persistent `tmux`
       session named `orbit-review-release-6`?
 5.  **Local Cleanup (Jettison)**:
@@ -57,11 +57,12 @@ my laptop."_
     - **Check**: Do you see your new station as `RUNNING`? Does the header say
       "ORBIT PULSE"?
 4.  **Launch a Remote Mission**:
-    - Command: `orbit mission 21 review`
+    - Command: `om 21 review`
     - **Verification**: Run `orbit uplink 21` immediately to stream the logs.
     - **Persistence Test**: **Close your terminal app or disconnect your
       Wi-Fi.** Re-open and run `orbit uplink 21` again. Are you exactly where
       you left off?
+
 5.  **Security Audit (Under the Hood)**:
     - **Action**: While the mission is running, run `orbit pulse`.
     - **Check**: Does it show `🧠 [THINKING]`?
@@ -76,9 +77,8 @@ my laptop."_
 _Scenario: "I'm juggling two things at once."_
 
 1.  **Parallel Launch**:
-    - Run `orbit mission 21 fix`
-    - In a new tab, run `orbit mission implement 5` (assuming an issue #5
-      exists).
+    - Run `om 21 fix`
+    - In a new tab, run `om 5 implement` (assuming an issue #5 exists).
 2.  **Monitor the Constellation**:
     - Command: `orbit pulse`
     - **Check**: Do you see BOTH capsules? Does it show different CPU/Mem stats
