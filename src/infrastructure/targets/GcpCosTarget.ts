@@ -49,10 +49,11 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     });
 
     // 1. Create a static IP
+    const addressName = `gcli-ip-${this.id}`;
     const address = new gcp.compute.Address(
-      `${name}-ip`,
+      addressName,
       {
-        name: `${name}-ip`,
+        name: addressName,
         region: zone.split('-').slice(0, 2).join('-'),
       },
       { provider },
