@@ -10,6 +10,7 @@
  */
 
 import path from 'node:path';
+import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -28,6 +29,16 @@ import { runInstallShell } from './install-shell.js';
 import { ACCEPTED_FLAGS } from './ConfigManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Expands a tilde (~) in a path string to the user's home directory.
+ */
+function expandPath(p: string): string {
+  if (p.startsWith('~/') || p === '~') {
+    return path.join(os.homedir(), p.slice(1));
+  }
+  return p;
+}
 
 /**
  * Resolve the Extension Root.
@@ -269,7 +280,8 @@ export async function dispatch(argv: string[]): Promise<number> {
       arg.startsWith('--repo-dir=') ||
       (arg === '--repo-dir' && rawArgs[i + 1])
     ) {
-      const val = arg.includes('=') ? arg.split('=')[1]! : rawArgs[i + 1]!;
+      const rawVal = arg.includes('=') ? arg.split('=')[1]! : rawArgs[i + 1]!;
+      const val = expandPath(rawVal);
       if (!fs.existsSync(val)) {
         console.error(`❌ Repository directory not found: ${val}`);
         return 1;

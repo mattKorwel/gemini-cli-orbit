@@ -19,6 +19,13 @@ vi.mock('node:fs', () => ({
   existsSync: mockExistsSync,
 }));
 
+vi.mock('node:os', () => ({
+  default: {
+    homedir: () => '/home/user',
+  },
+  homedir: () => '/home/user',
+}));
+
 vi.mock('./orchestrator.js', () => ({ runOrchestrator: mockRunOrchestrator }));
 vi.mock('./status.js', () => ({ runStatus: mockRunStatus }));
 vi.mock('./jettison.js', () => ({ runJettison: mockRunJettison }));
@@ -124,6 +131,12 @@ describe('orbit-cli dispatch()', () => {
   it('--repo-dir flag with space changes working directory', async () => {
     await dispatch(['mission', '--repo-dir', '/tmp/bar', '42']);
     expect(chdirSpy).toHaveBeenCalledWith('/tmp/bar');
+    expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
+  });
+
+  it('--repo-dir flag expands tilde (~)', async () => {
+    await dispatch(['mission', '--repo-dir=~/dev/foo', '42']);
+    expect(chdirSpy).toHaveBeenCalledWith('/home/user/dev/foo');
     expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
   });
 
