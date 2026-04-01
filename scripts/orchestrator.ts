@@ -237,6 +237,7 @@ export async function runOrchestrator(
     try {
       const ghRes = spawnSync('gh', ['auth', 'token'], { encoding: 'utf8' });
       if (ghRes.status === 0) githubToken = ghRes.stdout.trim();
+      console.log(`   - Retrieved GitHub token: ${githubToken ? '✅' : '❌'}`);
     } catch (_e) {}
 
     console.log('   - Injecting mission authentication context (RAM-disk)...');
@@ -279,6 +280,7 @@ export async function runOrchestrator(
     const stationManager = new StationManager();
     stationManager.saveReceipt({
       name: `local-${repoName}`,
+      instanceName: `local-${repoName}`,
       type: 'local-worktree',
       projectId: 'local',
       zone: 'localhost',

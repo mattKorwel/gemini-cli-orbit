@@ -121,6 +121,7 @@ export async function runSetup(args: string[] = []) {
     // 4. Save/Update Station Receipt
     stationManager.saveReceipt({
       name: stationName,
+      instanceName: config.instanceName!,
       type: 'gce',
       projectId: config.projectId!,
       zone: config.zone!,

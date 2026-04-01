@@ -70,7 +70,7 @@ export class GceCosProvider implements OrbitProvider {
     this.imageUri =
       config.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
-    this.stationName = config.stationName || 'station-supervisor';
+    this.stationName = config.stationName || instanceName;
 
     this.conn = new GceConnectionManager(
       this.projectId,
@@ -249,7 +249,9 @@ export class GceCosProvider implements OrbitProvider {
       return 0;
     }
 
-    logger.info(`🚀 Provisioning GCE COS station: ${this.instanceName}...`);
+    logger.info(
+      `🚀 Provisioning Station: ${this.stationName} (${this.instanceName})...`,
+    );
 
     const startupScriptContent = `#!/bin/bash
       set -e
@@ -271,8 +273,8 @@ export class GceCosProvider implements OrbitProvider {
 
       until docker info >/dev/null 2>&1; do sleep 2; done
       docker pull ${this.imageUri}
-      if ! docker ps -a | grep -q "${this.stationName}"; then
-        docker run -d --name ${this.stationName} --restart always --user root \\
+      if ! docker ps -a | grep -q "${this.instanceName}"; then
+        docker run -d --name ${this.instanceName} --restart always --user root \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
           -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
           ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
@@ -367,14 +369,14 @@ export class GceCosProvider implements OrbitProvider {
     await this.conn.onProvisioned();
 
     try {
-      logger.info('   - Verifying station supervisor health...');
-      const check = await this.getCapsuleStatus(this.stationName);
+      logger.info(`   - Verifying health check (${this.stationName})...`);
+      const check = await this.getCapsuleStatus(this.instanceName);
 
       if (!check.exists || !check.running) {
         const refreshCmd = `
             sudo docker pull ${this.imageUri}
-            sudo docker rm -f ${this.stationName} || true
-            sudo docker run -d --name ${this.stationName} --restart always --user root \\
+            sudo docker rm -f ${this.instanceName} 2>/dev/null || true
+            sudo docker run -d --name ${this.instanceName} --restart always --user root \\
               -v /mnt/disks/data:/mnt/disks/data:rw \\
               -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
               ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
@@ -384,7 +386,7 @@ export class GceCosProvider implements OrbitProvider {
 
       logger.info(`📡 Acquiring station signal (${this.stationName})...`);
       for (let i = 0; i < 30; i++) {
-        const status = await this.getCapsuleStatus(this.stationName);
+        const status = await this.getCapsuleStatus(this.instanceName);
         if (status.running) {
           if (i > 0) process.stdout.write('\n');
           logger.info(`🎯 Signal lock established.`);
@@ -399,21 +401,21 @@ export class GceCosProvider implements OrbitProvider {
         console.error(`\n❌ Connectivity Error: ${err.message}`);
         if (err.message.includes('SSO') || err.message.includes('login')) {
           console.error(
-            '👉 Your SSH session has expired. Please run "gcert" and try again.\n',
+            '👉 Your connection is not authorized. Please refresh your cloud session and try again.\n',
           );
         } else {
-          console.error('👉 Check your network connection and GCP project.\n');
+          console.error(
+            '👉 Check your network connection and Cloud project.\n',
+          );
         }
         return 255;
       }
       throw err;
     }
 
-    logger.error(
-      `❌ Station supervisor "${this.stationName}" failed to initialize.`,
-    );
+    logger.error(`❌ Station "${this.stationName}" failed to initialize.`);
     const logs = await this.getExecOutput(
-      `sudo docker logs ${this.stationName}`,
+      `sudo docker logs ${this.instanceName}`,
       {
         quiet: true,
       },
@@ -507,6 +509,7 @@ export class GceCosProvider implements OrbitProvider {
         this.projectId,
         '--zone',
         this.zone,
+        '--quiet',
         '--format',
         'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)',
       ],

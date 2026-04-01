@@ -25,7 +25,7 @@ export class ExternalStrategy extends BaseStrategy {
     options: { interactive?: boolean } = {},
   ): string {
     // For external, gcloud is preferred as it handles auth better
-    return `gcloud compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t"' : ''}`;
+    return `gcloud compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --quiet --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t"' : ''}`;
   }
 
   getRunArgs(
@@ -40,6 +40,7 @@ export class ExternalStrategy extends BaseStrategy {
       this.projectId,
       '--zone',
       this.zone,
+      '--quiet',
       '--command',
       command,
     ];
@@ -96,6 +97,7 @@ export class ExternalStrategy extends BaseStrategy {
         this.projectId,
         '--zone',
         this.zone,
+        '--quiet',
         '--format',
         'get(networkInterfaces[0].accessConfigs[0].natIP)',
       ],

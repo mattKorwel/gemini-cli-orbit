@@ -134,7 +134,7 @@ export class RemoteProvisioner {
 
       const setupRes = await this.provider.getExecOutput(
         cloneCmd.replace(/\n/g, ''),
-        { wrapCapsule: containerName },
+        { wrapCapsule: containerName, quiet: true },
       );
       if (setupRes.status !== 0) {
         throw new Error(

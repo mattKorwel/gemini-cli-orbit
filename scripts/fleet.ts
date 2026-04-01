@@ -174,10 +174,16 @@ export async function runFleet(args: string[]) {
     if (action === 'delete') {
       const targetStation = name;
       if (targetStation) {
+        const stations = await stationManager.listStations();
+        const receipt = stations.find((s) => s.name === targetStation);
+
         const provider = ProviderFactory.getProvider({
-          instanceName: targetStation,
-          providerType: 'gce',
+          instanceName: receipt?.instanceName || targetStation,
+          projectId: receipt?.projectId,
+          zone: receipt?.zone,
+          providerType: receipt?.type || 'gce',
         } as any);
+
         await provider.destroy();
         stationManager.deleteReceipt(targetStation);
         if (settings.activeStation === targetStation)
