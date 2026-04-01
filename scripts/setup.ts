@@ -28,9 +28,12 @@ export async function runSetup(
   const setupNet = args.includes('--setup-net');
   const flags = parseFlags(args);
 
+  // Filter out 'liftoff' if it's passed as the first argument from runFleet
+  const filteredArgs = args[0] === 'liftoff' ? args.slice(1) : args;
+
   const schematicName =
-    args[0] && !args[0].startsWith('--')
-      ? args[0]
+    filteredArgs[0] && !filteredArgs[0].startsWith('--')
+      ? filteredArgs[0]
       : flags.schematic || 'default';
   const schematic = loadSchematic(schematicName);
 

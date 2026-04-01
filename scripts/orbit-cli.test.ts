@@ -101,6 +101,62 @@ describe('orbit-cli dispatch()', () => {
     expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
   });
 
+  it('--repo-dir flag changes working directory', async () => {
+    const chdirSpy = vi.spyOn(process, 'chdir').mockImplementation(() => {});
+    const existsSpy = vi
+      .spyOn(
+        import.meta.resolve ? await import('node:fs') : await import('fs'),
+        'existsSync',
+      )
+      .mockReturnValue(true);
+
+    await dispatch(['mission', '--repo-dir=/tmp/foo', '42']);
+
+    expect(chdirSpy).toHaveBeenCalledWith('/tmp/foo');
+    expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
+
+    chdirSpy.mockRestore();
+    existsSpy.mockRestore();
+  });
+
+  it('--repo-dir flag with space changes working directory', async () => {
+    const chdirSpy = vi.spyOn(process, 'chdir').mockImplementation(() => {});
+    const existsSpy = vi
+      .spyOn(
+        import.meta.resolve ? await import('node:fs') : await import('fs'),
+        'existsSync',
+      )
+      .mockReturnValue(true);
+
+    await dispatch(['mission', '--repo-dir', '/tmp/bar', '42']);
+
+    expect(chdirSpy).toHaveBeenCalledWith('/tmp/bar');
+    expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
+
+    chdirSpy.mockRestore();
+    existsSpy.mockRestore();
+  });
+
+  it('--repo-dir flag returns 1 if directory missing', async () => {
+    const existsSpy = vi
+      .spyOn(
+        import.meta.resolve ? await import('node:fs') : await import('fs'),
+        'existsSync',
+      )
+      .mockReturnValue(false);
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const code = await dispatch(['mission', '--repo-dir=/missing', '42']);
+
+    expect(code).toBe(1);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Repository directory not found'),
+    );
+
+    existsSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
   it('--for-station=<val> sets GCLI_ORBIT_INSTANCE_NAME', async () => {
     await dispatch(['mission', '--for-station=corp-vm', '42']);
     expect(process.env.GCLI_ORBIT_INSTANCE_NAME).toBe('corp-vm');

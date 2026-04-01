@@ -148,4 +148,12 @@ describe('runSetup', () => {
     expect(res).toBe(0);
     expect(mockProvider.getStatus).toHaveBeenCalled();
   });
+
+  it('should ignore "liftoff" when passed as the first argument', async () => {
+    // This simulates "orbit station liftoff --with-station"
+    const res = await runSetup(['liftoff', '--with-station']);
+    expect(res).toBe(0);
+    // Should have used 'default' schematic
+    expect(ConfigManager.loadSchematic).toHaveBeenCalledWith('default');
+  });
 });
