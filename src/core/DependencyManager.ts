@@ -92,12 +92,19 @@ export class DependencyManager {
       output: process.stdout,
     });
 
+    console.log('\n----------------------------------------------------------');
+    console.log('DEPENDENCY REQUIRED: Pulumi CLI');
+    console.log('Orbit uses Pulumi for declarative cloud provisioning.');
+    console.log(`Location: ${ORBIT_BIN_DIR}`);
+    console.log('----------------------------------------------------------\n');
+
     return new Promise((resolve) => {
       rl.question(
-        `👉 Would you like Orbit to automatically download and install Pulumi v${PULUMI_VERSION} to ${ORBIT_BIN_DIR}? [Y/n]: `,
+        `👉 Do you want Orbit to automatically download and install Pulumi v${PULUMI_VERSION} locally? (yes/no): `,
         (answer) => {
           rl.close();
-          resolve(answer.toLowerCase() !== 'n');
+          const confirmed = answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y';
+          resolve(confirmed);
         },
       );
     });
