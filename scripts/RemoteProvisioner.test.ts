@@ -82,4 +82,27 @@ describe('RemoteProvisioner', () => {
       }),
     );
   });
+
+  it('should NEVER use remoteWorkDir as a fallback for the Docker image', async () => {
+    mockProvider.getCapsuleStatus.mockResolvedValue({
+      running: false,
+      exists: false,
+    });
+    mockProvider.getExecOutput.mockResolvedValue({ status: 0, stdout: '1' });
+
+    const config = {
+      remoteWorkDir: '/mnt/disks/data/main/gemini-cli', // This path was causing the bug
+      worktreesDir: '/mnt/disks/data/worktrees/gemini-cli',
+      upstreamUrl: 'https://github.com/google-gemini/gemini-cli.git',
+      image: undefined, // Force fallback
+    };
+
+    await provisioner.provisionWorktree('23176', 'open', false, '', config);
+
+    // The image should be the default (mock-image from Constants) OR undefined (allowing provider default)
+    // but crucially it should NOT be the directory path.
+    const runCall = mockProvider.runCapsule.mock.calls[0][0];
+    expect(runCall.image).not.toBe(config.remoteWorkDir);
+    expect(runCall.image).toBeDefined();
+  });
 });
