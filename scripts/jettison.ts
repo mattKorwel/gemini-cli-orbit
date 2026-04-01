@@ -10,6 +10,7 @@ import {
   detectRepoName,
   sanitizeName,
 } from './ConfigManager.js';
+import { resolveMissionContext } from './utils/MissionUtils.js';
 import { SATELLITE_WORKTREES_PATH, CONFIG_DIR } from './Constants.js';
 
 export async function runJettison(args: string[]) {
@@ -47,21 +48,23 @@ export async function runJettison(args: string[]) {
     `🧹 Surgically jettisoning capsule and worktree for #${prNumber} in ${repoName}...\n`,
   );
 
+  const mCtx = resolveMissionContext(prNumber, actionArg);
+
   if (isLocal) {
     // For LocalWorktree, this removes the worktree and kills tmux session
-    const res = await provider.removeCapsule(prNumber);
+    const res = await provider.removeCapsule(mCtx.branchName);
     if (res === 0) {
       console.log(
-        `✅ Successfully jettisoned local workspace for ${prNumber}.`,
+        `✅ Successfully jettisoned local workspace for ${mCtx.branchName}.`,
       );
     }
     return res;
   }
 
   // --- REMOTE ONLY LOGIC ---
-  const containerName = `gcli-${sanitizeName(prNumber)}-${actionArg}`;
+  const containerName = mCtx.containerName;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
-  const worktreePath = `${repoWorktreesDir}/orbit-${sanitizeName(prNumber)}-${actionArg}`;
+  const worktreePath = `${repoWorktreesDir}/${mCtx.worktreeName}`;
 
   // 1. Remove the specific container (capsule)
   await provider.removeCapsule(containerName);
@@ -71,9 +74,11 @@ export async function runJettison(args: string[]) {
 
   // 3. Clear history files for this mission on host station
   await provider.exec(
-    `sudo rm -rf ${CONFIG_DIR}/history/orbit-${sanitizeName(prNumber)}-${actionArg}*`,
+    `sudo rm -rf ${CONFIG_DIR}/history/orbit-${mCtx.branchName}-${actionArg}*`,
   );
 
-  console.log(`✅ Mission resources for #${prNumber} have been jettisoned.`);
+  console.log(
+    `✅ Mission resources for ${mCtx.branchName} have been jettisoned.`,
+  );
   return 0;
 }

@@ -16,6 +16,7 @@ import {
 } from './ConfigManager.js';
 import type { ExecOptions } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
+import { resolveMissionContext } from './utils/MissionUtils.js';
 import { TempManager } from './utils/TempManager.js';
 import { StationManager } from './StationManager.js';
 import {
@@ -157,20 +158,10 @@ export async function runOrchestrator(
     : `${POLICIES_PATH}/orbit-policy.toml`;
   const sessionId = SessionManager.generateSessionId(identifier, action);
 
-  // Resolve branch for naming consistency
-  let branch = identifier;
-  if (/^\d+$/.test(identifier)) {
-    const res = spawnSync(
-      'gh',
-      ['pr', 'view', identifier, '--json', 'headRefName', '-q', '.headRefName'],
-      { stdio: 'pipe' },
-    );
-    if (res.status === 0 && res.stdout) branch = res.stdout.toString().trim();
-  }
+  const mCtx = resolveMissionContext(identifier, action);
+  const branch = mCtx.branchName;
+  const containerName = isLocalWorktree ? branch : mCtx.containerName;
 
-  const containerName = isLocalWorktree
-    ? branch
-    : `gcli-${sanitizeName(identifier)}-${action}`;
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
 
@@ -269,7 +260,7 @@ export async function runOrchestrator(
   // LocalWorktreeProvider handles its own tmux wrapping in getRunCommand.
   const missionCmd =
     !isLocalWorktree && config.useTmux !== false && hasTmux
-      ? `tmux new-session -A -s ${q(`orbit-${branch}`)} ${q(remoteWorker)}`
+      ? `tmux new-session -A -s ${q(mCtx.sessionName)} ${q(remoteWorker)}`
       : remoteWorker;
 
   const execOptions: ExecOptions = {

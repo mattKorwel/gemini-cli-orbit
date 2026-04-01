@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
+import { resolveMissionContext } from './utils/MissionUtils.js';
 import {
   ORBIT_ROOT,
   DEFAULT_IMAGE_URI,
@@ -19,23 +20,6 @@ import { sanitizeName } from './ConfigManager.js';
 
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
-
-  /**
-   * Resolves a PR number or branch name to a clean branch identifier.
-   */
-  private async resolveBranch(id: string): Promise<string> {
-    if (/^\d+$/.test(id)) {
-      const res = spawnSync(
-        'gh',
-        ['pr', 'view', id, '--json', 'headRefName', '-q', '.headRefName'],
-        { stdio: 'pipe' },
-      );
-      if (res.status === 0) {
-        return res.stdout.toString().trim();
-      }
-    }
-    return id;
-  }
 
   async provisionWorktree(
     identifier: string,
@@ -53,22 +37,21 @@ export class RemoteProvisioner {
   ): Promise<string> {
     const isLocalWorktree = this.provider.type === 'local-worktree';
     const isGce = this.provider.type === 'gce';
-    const branch = await this.resolveBranch(identifier);
+    const mCtx = resolveMissionContext(identifier, action);
+    const branch = mCtx.branchName;
 
-    const containerName = isLocalWorktree
-      ? branch
-      : `gcli-${sanitizeName(identifier)}-${action}`;
+    const containerName = isLocalWorktree ? branch : mCtx.containerName;
     const imageUri = DEFAULT_IMAGE_URI;
+
+    const remoteWorktreeDir = isLocalWorktree
+      ? path.join((this.provider as any).worktreesDir, branch)
+      : `${config.worktreesDir}/${mCtx.worktreeName}`;
 
     // 1. Ensure the specific mission capsule is active
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);
 
     if (!capsuleStatus.exists) {
       logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
-
-      const remoteWorktreeDir = isLocalWorktree
-        ? path.join((this.provider as any).worktreesDir, branch)
-        : `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
 
       const sessionId = SessionManager.generateSessionId(identifier, action);
       const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
@@ -124,7 +107,6 @@ export class RemoteProvisioner {
     }
 
     // --- REMOTE ONLY LOGIC ---
-    const remoteWorktreeDir = `${config.worktreesDir}/mission-${sanitizeName(identifier)}-${action}`;
     await this.waitForCapsule(containerName, 10000);
 
     // 3. Provision the repository using a reference clone for speed and isolation

@@ -14,6 +14,7 @@ import {
   sanitizeName,
 } from './ConfigManager.js';
 import { SessionManager } from './utils/SessionManager.js';
+import { resolveMissionContext } from './utils/MissionUtils.js';
 import { TempManager } from './utils/TempManager.js';
 
 const q = (str: string) => `'${str.replace(/'/g, "'\\''")}'`;
@@ -57,12 +58,15 @@ export async function runAttach(
     identifier,
     `attach-${action}`,
   );
-  const sId = sanitizeName(identifier);
-  const containerName = `gcli-${sId}-${action}`;
-  const sessionName = `orbit-${sId}-${action}`;
+  const mCtx = resolveMissionContext(identifier, action);
+  const isLocalWorktree = provider.type === 'local-worktree';
+  const containerName = isLocalWorktree ? mCtx.branchName : mCtx.containerName;
+  const sessionName = mCtx.sessionName;
+
   const containerAttach = `sudo docker exec -it ${containerName} sh -c ${q(`tmux attach-session -t ${sessionName}`)}`;
   const finalSSH = provider.getRunCommand(containerAttach, {
     interactive: true,
+    wrapCapsule: containerName,
   });
 
   const tempManager = new TempManager(config);

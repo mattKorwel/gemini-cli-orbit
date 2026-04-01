@@ -15,6 +15,14 @@ vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
+vi.mock('./utils/MissionUtils.js', () => ({
+  resolveMissionContext: vi.fn().mockReturnValue({
+    branchName: 'feat-branch',
+    containerName: 'gcli-23176-review',
+    sessionName: 'orbit-feat-branch',
+    worktreeName: 'mission-23176-review',
+  }),
+}));
 vi.mock('./RemoteProvisioner.js', () => {
   return {
     RemoteProvisioner: vi.fn().mockImplementation(() => ({
@@ -46,9 +54,6 @@ describe('runOrchestrator', () => {
     vi.mocked(ConfigManager.sanitizeName).mockImplementation((n) => n);
 
     vi.mocked(spawnSync).mockImplementation((cmd, args) => {
-      if (cmd === 'gh' && args?.[0] === 'pr') {
-        return { status: 0, stdout: Buffer.from('feat-branch') } as any;
-      }
       if (cmd === 'which' && args?.[0] === 'tmux') {
         return { status: 0 } as any;
       }

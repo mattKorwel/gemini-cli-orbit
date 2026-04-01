@@ -10,6 +10,7 @@ const mockRunOrchestrator = vi.fn().mockResolvedValue(0);
 const mockRunStatus = vi.fn().mockResolvedValue(0);
 const mockRunJettison = vi.fn().mockResolvedValue(0);
 const mockRunFleet = vi.fn().mockResolvedValue(0);
+const mockRunAttach = vi.fn().mockResolvedValue(0);
 
 const mockExistsSync = vi.fn().mockReturnValue(true);
 vi.mock('node:fs', () => ({
@@ -33,7 +34,7 @@ vi.mock('./fleet.js', () => ({ runFleet: mockRunFleet }));
 vi.mock('./logs.js', () => ({ runLogs: vi.fn().mockResolvedValue(0) }));
 vi.mock('./ci.js', () => ({ runCI: vi.fn().mockResolvedValue(0) }));
 vi.mock('./reap.js', () => ({ runReap: vi.fn().mockResolvedValue(0) }));
-vi.mock('./attach.js', () => ({ runAttach: vi.fn().mockResolvedValue(0) }));
+vi.mock('./attach.js', () => ({ runAttach: mockRunAttach }));
 vi.mock('./splashdown.js', () => ({
   runSplashdown: vi.fn().mockResolvedValue(0),
 }));
@@ -96,6 +97,11 @@ describe('orbit-cli dispatch()', () => {
   it('routes "jettison <id>" to runJettison', async () => {
     await dispatch(['jettison', '21']);
     expect(mockRunJettison).toHaveBeenCalledWith(['21']);
+  });
+
+  it('routes "attach <id>" to runAttach', async () => {
+    await dispatch(['attach', '42']);
+    expect(mockRunAttach).toHaveBeenCalledWith(['42']);
   });
 
   it('--local flag sets GCLI_ORBIT_PROVIDER=local-worktree', async () => {

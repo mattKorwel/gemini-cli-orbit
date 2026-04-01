@@ -7,6 +7,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RemoteProvisioner } from './RemoteProvisioner.js';
 
+vi.mock('./utils/MissionUtils.js', () => ({
+  resolveMissionContext: () => ({
+    branchName: 'feat-branch',
+    containerName: 'gcli-23176-open',
+    sessionName: 'orbit-feat-branch',
+    worktreeName: 'mission-23176-open',
+  }),
+}));
+
 describe('RemoteProvisioner', () => {
   let mockProvider: any;
   let provisioner: RemoteProvisioner;

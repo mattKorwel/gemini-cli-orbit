@@ -6,6 +6,7 @@
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
+import { resolveMissionContext } from './utils/MissionUtils.js';
 import { SATELLITE_WORKTREES_PATH, DEFAULT_TEMP_DIR } from './Constants.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,6 +25,7 @@ export async function runLogs(args: string[]) {
 
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
+  const mCtx = resolveMissionContext(identifier, action);
 
   // 1. Try Local Blackbox first
   const localPattern = `orbit-${identifier}-${action}-`;
@@ -74,15 +76,15 @@ export async function runLogs(args: string[]) {
     backendType,
   });
 
-  const containerName = `gcli-${identifier}-${action}`;
+  const containerName = mCtx.containerName;
 
   console.log(
-    `📡 Establishing uplink to remote mission PR #${identifier} (${action})...`,
+    `📡 Establishing uplink to remote mission ${mCtx.branchName} (${action})...`,
   );
 
   // Check for active tmux sessions
   const tmuxRes = await provider.getExecOutput(
-    `tmux list-sessions -F "#S" | grep "mission-${identifier}-${action}"`,
+    `tmux list-sessions -F "#S" | grep ${mCtx.sessionName}`,
     { wrapCapsule: containerName },
   );
   if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
@@ -90,7 +92,7 @@ export async function runLogs(args: string[]) {
   }
 
   // Look for any persistent log files in the satellite worktree
-  const worktreePath = `${SATELLITE_WORKTREES_PATH}/${config.repoName}/mission-${identifier}-${action}`;
+  const worktreePath = `${SATELLITE_WORKTREES_PATH}/${config.repoName}/${mCtx.worktreeName}`;
   const logDir = `${worktreePath}/.gemini/logs`;
 
   const logRes = await provider.getExecOutput(
