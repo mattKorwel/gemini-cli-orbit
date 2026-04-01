@@ -93,142 +93,149 @@ export class GceCosProvider implements OrbitProvider {
     const region = this.zone.split('-').slice(0, 2).join('-');
 
     if (options.setupNetwork) {
-      logger.info(
-        'SETUP',
-        `🏗️  Ensuring Network Infrastructure (${this.vpcName})...`,
-      );
+      if (this.vpcName === 'default' && this.subnetName === 'default') {
+        logger.info(
+          'SETUP',
+          `ℹ️  Using existing "default" network. Skipping infrastructure management.`,
+        );
+      } else {
+        logger.info(
+          'SETUP',
+          `🏗️  Ensuring Network Infrastructure (${this.vpcName})...`,
+        );
 
-      // 1. VPC
-      const vpcCheck = spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'networks',
-          'describe',
-          this.vpcName,
-          '--project',
-          this.projectId,
-        ],
-        { stdio: 'pipe' },
-      );
-      if (vpcCheck.status !== 0) {
-        spawnSync(
+        // 1. VPC
+        const vpcCheck = spawnSync(
           'gcloud',
           [
             'compute',
             'networks',
-            'create',
+            'describe',
             this.vpcName,
             '--project',
             this.projectId,
-            '--subnet-mode=custom',
           ],
-          { stdio: 'inherit' },
+          { stdio: 'pipe' },
         );
-      }
+        if (vpcCheck.status !== 0) {
+          spawnSync(
+            'gcloud',
+            [
+              'compute',
+              'networks',
+              'create',
+              this.vpcName,
+              '--project',
+              this.projectId,
+              '--subnet-mode=custom',
+            ],
+            { stdio: 'inherit' },
+          );
+        }
 
-      // 2. Subnet
-      const subnetCheck = spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'networks',
-          'subnets',
-          'describe',
-          this.subnetName,
-          '--project',
-          this.projectId,
-          '--region',
-          region,
-        ],
-        { stdio: 'pipe' },
-      );
-      if (subnetCheck.status !== 0) {
-        spawnSync(
+        // 2. Subnet
+        const subnetCheck = spawnSync(
           'gcloud',
           [
             'compute',
             'networks',
             'subnets',
-            'create',
+            'describe',
             this.subnetName,
             '--project',
             this.projectId,
-            '--network',
-            this.vpcName,
             '--region',
             region,
-            '--range=10.0.0.0/24',
-            '--enable-private-ip-google-access',
           ],
-          { stdio: 'inherit' },
+          { stdio: 'pipe' },
         );
-      }
+        if (subnetCheck.status !== 0) {
+          spawnSync(
+            'gcloud',
+            [
+              'compute',
+              'networks',
+              'subnets',
+              'create',
+              this.subnetName,
+              '--project',
+              this.projectId,
+              '--network',
+              this.vpcName,
+              '--region',
+              region,
+              '--range=10.0.0.0/24',
+              '--enable-private-ip-google-access',
+            ],
+            { stdio: 'inherit' },
+          );
+        }
 
-      // 3. Delegate specific firewall rules to strategy via manager
-      this.conn.setupNetworkInfrastructure(this.vpcName);
+        // 3. Delegate specific firewall rules to strategy via manager
+        this.conn.setupNetworkInfrastructure(this.vpcName);
 
-      // 4. Cloud NAT (Standard on Orbit for Internet Access)
-      const routerName = `${this.vpcName}-router`;
-      const natName = `${this.vpcName}-nat`;
+        // 4. Cloud NAT (Standard on Orbit for Internet Access)
+        const routerName = `${this.vpcName}-router`;
+        const natName = `${this.vpcName}-nat`;
 
-      const routerCheck = spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'routers',
-          'describe',
-          routerName,
-          '--project',
-          this.projectId,
-          '--region',
-          region,
-        ],
-        { stdio: 'pipe' },
-      );
-      if (routerCheck.status !== 0) {
-        logger.info(
-          '   - Ensuring Cloud NAT for internet access in ' + region + '...',
-        );
-        spawnSync(
+        const routerCheck = spawnSync(
           'gcloud',
           [
             'compute',
             'routers',
-            'create',
+            'describe',
             routerName,
             '--project',
             this.projectId,
             '--region',
             region,
-            '--network',
-            this.vpcName,
           ],
-          { stdio: 'inherit' },
+          { stdio: 'pipe' },
         );
-        spawnSync(
-          'gcloud',
-          [
-            'compute',
-            'routers',
-            'nats',
-            'create',
-            natName,
-            '--project',
-            this.projectId,
-            '--region',
-            region,
-            '--router',
-            routerName,
-            '--auto-allocate-nat-external-ip',
-            '--nat-all-subnet-ip-ranges',
-          ],
-          { stdio: 'inherit' },
-        );
-      }
+        if (routerCheck.status !== 0) {
+          logger.info(
+            '   - Ensuring Cloud NAT for internet access in ' + region + '...',
+          );
+          spawnSync(
+            'gcloud',
+            [
+              'compute',
+              'routers',
+              'create',
+              routerName,
+              '--project',
+              this.projectId,
+              '--region',
+              region,
+              '--network',
+              this.vpcName,
+            ],
+            { stdio: 'inherit' },
+          );
+          spawnSync(
+            'gcloud',
+            [
+              'compute',
+              'routers',
+              'nats',
+              'create',
+              natName,
+              '--project',
+              this.projectId,
+              '--region',
+              region,
+              '--router',
+              routerName,
+              '--auto-allocate-nat-external-ip',
+              '--nat-all-subnet-ip-ranges',
+            ],
+            { stdio: 'inherit' },
+          );
+        }
 
-      logger.info('   - Waiting for network propagation (Cloud NAT, etc)...');
-      spawnSync('sleep', ['10']);
+        logger.info('   - Waiting for network propagation (Cloud NAT, etc)...');
+        spawnSync('sleep', ['10']);
+      }
     }
 
     if (options.skipInstanceCreation) {

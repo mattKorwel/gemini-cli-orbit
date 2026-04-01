@@ -74,14 +74,14 @@ export class SchematicManager {
       )) || base.userSuffix;
 
     const vpcName =
-      (await ask(`VPC Network Name [${base.vpcName || 'orbit'}]: `)) ||
+      (await ask(`VPC Network Name [${base.vpcName || 'default'}]: `)) ||
       base.vpcName ||
-      'orbit';
+      'default';
 
     const subnetName =
-      (await ask(`Subnet Name [${base.subnetName || 'orbit'}]: `)) ||
+      (await ask(`Subnet Name [${base.subnetName || 'default'}]: `)) ||
       base.subnetName ||
-      'orbit';
+      'default';
 
     const instanceName =
       (await ask(
