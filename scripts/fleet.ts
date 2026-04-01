@@ -132,7 +132,7 @@ export async function runFleet(args: string[]) {
           if (showMissions) {
             try {
               missions = await stationManager.getMissions(s);
-            } catch (e) {}
+            } catch (_e) {}
           }
           return { ...s, missions };
         }),

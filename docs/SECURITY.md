@@ -7,9 +7,9 @@ environments without compromising on security or developer sovereignty.
 
 ### 1. Sovereign Infrastructure
 
-You own the infrastructure. Orbit connects you directly to your own GCE
-instances or local Docker environments. There are no middlemen or external
-services managing your code or credentials.
+You own the infrastructure. Orbit connects you directly to your own Stations or
+local Docker environments. There are no middlemen or external services managing
+your code or credentials.
 
 ### 2. Hardened Isolation
 
@@ -29,11 +29,10 @@ services managing your code or credentials.
   temporary RAM-based file (`/dev/shm`) and mounts them into the capsule
   securely.
 - **Redacted Clone URLs**: Tokens are never included in `git clone` URLs. Orbit
-  utilizes a secure `.netrc` file on the HostVM to handle authentication
+  utilizes a secure `.netrc` file on the Host Station to handle authentication
   silently.
-- **Least-Privilege Scopes**: GCE instances are provisioned with granular IAM
-  scopes (Logging, Monitoring, Storage) rather than the broad `cloud-platform`
-  scope.
+- **Least-Privilege Scopes**: Stations are provisioned with granular IAM scopes
+  (Logging, Monitoring, Storage) rather than the broad `cloud-platform` scope.
 
 ### 4. Defensive Execution & Input Validation
 

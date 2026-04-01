@@ -43,7 +43,7 @@ export function resolveMissionContext(
       if (res.status === 0 && res.stdout.trim()) {
         branchName = res.stdout.trim();
       }
-    } catch (e) {
+    } catch (_e) {
       // Fallback to identifier if gh is missing or fails
     }
   }

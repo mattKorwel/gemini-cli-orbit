@@ -9,14 +9,14 @@ The system utilizes a **Persistent Host Station** (running Capsule-Optimized OS)
 as the host. Every Orbit mission is isolated at the **process level** using
 Docker:
 
-- **HostVM**: Maintains the persistent data disk (`/mnt/disks/data`) with
+- **Host Station**: Maintains the persistent data disk (`/mnt/disks/data`) with
   restrictive permissions (UID 1000, 770) and a read-write "Source of Truth"
   clone of the main repository.
 - **Isolated Capsules**: Each mission runs in a dedicated capsule
   (`gcli-<identifier>-<action>`).
 - **Reference Clones**: Job capsules perform a `git clone --reference` against
-  the HostVM's main repo. The main repo is mounted **Read-Only** into capsules
-  for security.
+  the Host Station's main repo. The main repo is mounted **Read-Only** into
+  capsules for security.
 - **Persistence**: TMUX sessions live inside the job capsules, allowing you to
   disconnect and re-attach without losing state.
 
@@ -113,8 +113,14 @@ orbit ci <BRANCH_NAME>
 
 Key decisions governing this codebase are documented in `.gemini/adr/`:
 
-- **[ADR 0014](/.gemini/adr/0014-secure-credential-injection.md)**: RAM-disk credential injection — secrets are written to `/dev/shm` on the Host VM, mounted read-only into capsules, and cleaned up when the mission exits. Never written to persistent disk.
-- **[ADR 0015](/.gemini/adr/0015-unified-application-architecture.md)**: Unified functional core — all scripts export a `runX(args)` function; both the CLI (`orbit-cli.ts`) and MCP server (`mcp-server.ts`) import them directly. No more spawning Node subprocesses for internal commands.
+- **[ADR 0014](/.gemini/adr/0014-secure-credential-injection.md)**: RAM-disk
+  credential injection — secrets are written to `/dev/shm` on the Host Station,
+  mounted read-only into capsules, and cleaned up when the mission exits. Never
+  written to persistent disk.
+- **[ADR 0015](/.gemini/adr/0015-unified-application-architecture.md)**: Unified
+  functional core — all scripts export a `runX(args)` function; both the CLI
+  (`orbit-cli.ts`) and MCP server (`mcp-server.ts`) import them directly. No
+  more spawning Node subprocesses for internal commands.
 
 ## 🛡️ Security Mandates
 
@@ -125,7 +131,7 @@ Key decisions governing this codebase are documented in `.gemini/adr/`:
     `docker run/exec -e` for sensitive credentials.
 3.  **Path Parity**: Maintain absolute path parity between Host and Capsule
     (`/mnt/disks/data`) to prevent Git metadata corruption.
-4.  **Least Privilege**: Always use granular IAM scopes for GCE instances. Avoid
+4.  **Least Privilege**: Always use granular IAM scopes for Station VMs. Avoid
     `cloud-platform` scope.
 5.  **Input Sanitization**: Always sanitize user-provided names for schematics,
     stations, and repositories using the `sanitizeName` helper.

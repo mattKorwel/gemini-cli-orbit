@@ -5,7 +5,6 @@
  */
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
-import { StationManager } from './StationManager.js';
 
 export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
   const repoName = detectRepoName();

@@ -79,9 +79,9 @@ Schematics allow you to switch between different infrastructure environments
 
 **Key Attributes**:
 
-- `projectId`: The GCP Project ID.
-- `zone`: The GCE Zone (e.g., `us-west1-a`).
-- `machineType`: The GCE Machine Type (e.g., `n2-standard-8`).
+- `projectId`: The Cloud Project ID (e.g., `my-cloud-project`).
+- `zone`: The Cloud Zone (e.g., `us-west1-a`).
+- `machineType`: The Cloud Machine Type (e.g., `n2-standard-8`).
 - `backendType`: Connectivity method (`direct-internal`, `external`).
 - `vpcName`: The target VPC.
 - `subnetName`: The target Subnet.
@@ -104,18 +104,18 @@ serve two primary purposes:
 
 ### Supported Flags
 
-| Flag             | Schematic Property | Description                                   |
-| ---------------- | ------------------ | --------------------------------------------- |
-| `--projectId`    | `projectId`        | The Google Cloud Project ID.                  |
-| `--zone`         | `zone`             | The GCE Zone (e.g., `us-central1-a`).         |
-| `--instanceName` | `instanceName`     | The name of the GCE Station VM.               |
-| `--backend`      | `backendType`      | `direct-internal` or `external`.              |
-| `--machineType`  | `machineType`      | The GCE Machine Type (e.g., `n2-standard-8`). |
-| `--vpcName`      | `vpcName`          | The target VPC network name.                  |
-| `--subnetName`   | `subnetName`       | The target Subnet name.                       |
-| `--image`        | `imageUri`         | The Docker image for mission capsules.        |
-| `--schematic`    | N/A                | The name of the schematic to use.             |
-| `--for-station`  | N/A                | Target a specific station by name.            |
+| Flag             | Schematic Property | Description                                     |
+| ---------------- | ------------------ | ----------------------------------------------- |
+| `--projectId`    | `projectId`        | The Cloud Project ID.                           |
+| `--zone`         | `zone`             | The Cloud Zone (e.g., `us-central1-a`).         |
+| `--instanceName` | `instanceName`     | The name of the Station.                        |
+| `--backend`      | `backendType`      | `direct-internal` or `external`.                |
+| `--machineType`  | `machineType`      | The Cloud Machine Type (e.g., `n2-standard-8`). |
+| `--vpcName`      | `vpcName`          | The target VPC network name.                    |
+| `--subnetName`   | `subnetName`       | The target Subnet name.                         |
+| `--image`        | `imageUri`         | The Docker image for mission capsules.          |
+| `--schematic`    | N/A                | The name of the schematic to use.               |
+| `--for-station`  | N/A                | Target a specific station by name.              |
 
 **Note**: Use the `--key=value` syntax for all configuration flags.
 
@@ -139,8 +139,8 @@ Highest priority overrides for the current session.
 
 ## 📂 Temporary Output Management
 
-Orbit generates transient data during missions (e.g., iTerm2 launch scripts, GCE
-startup scripts). This data is isolated by **Session ID** and stored in a
+Orbit generates transient data during missions (e.g., iTerm2 launch scripts,
+Cloud startup scripts). This data is isolated by **Session ID** and stored in a
 configurable location.
 
 **Default Location**: `~/.gemini/orbit/tmp/<session-id>/`

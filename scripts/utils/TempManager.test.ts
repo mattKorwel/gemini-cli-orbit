@@ -9,7 +9,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { TempManager } from './TempManager.js';
-import { DEFAULT_TEMP_DIR } from '../Constants.js';
 
 describe('TempManager', () => {
   const mockHomedir = path.join(os.tmpdir(), 'gemini-orbit-test-home');
@@ -31,10 +30,6 @@ describe('TempManager', () => {
     const tm = new TempManager({});
     const sessionId = 'test-session';
     const dir = tm.getDir(sessionId);
-
-    const expectedBase = DEFAULT_TEMP_DIR.startsWith('~')
-      ? path.join(mockHomedir, DEFAULT_TEMP_DIR.slice(1))
-      : DEFAULT_TEMP_DIR.replace(os.homedir(), mockHomedir);
 
     expect(dir).toContain(sessionId);
     expect(fs.existsSync(dir)).toBe(true);

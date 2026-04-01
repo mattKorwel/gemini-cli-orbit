@@ -49,7 +49,7 @@ export function getPrimaryRepoRoot(): string {
       if (commonDir === '.git') return REPO_ROOT;
       return path.dirname(commonDir);
     }
-  } catch (e) {}
+  } catch (_e) {}
   return REPO_ROOT;
 }
 

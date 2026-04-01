@@ -5,18 +5,11 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { logger } from './Logger.js';
 import { type OrbitProvider } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { resolveMissionContext } from './utils/MissionUtils.js';
-import {
-  ORBIT_ROOT,
-  DEFAULT_IMAGE_URI,
-  getPrimaryRepoRoot,
-} from './Constants.js';
-import { sanitizeName } from './ConfigManager.js';
+import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
 
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}

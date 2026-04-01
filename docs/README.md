@@ -51,7 +51,7 @@ isolated capsules.
 
 ### [Mission Providers](./PROVIDERS.md)
 
-Deep dive into Local vs Remote providers (GCE, Worktrees).
+Deep dive into Local vs Remote providers (Cloud, Worktrees).
 
 ### [Configuration Hierarchy](./CONFIGURATION.md)
 

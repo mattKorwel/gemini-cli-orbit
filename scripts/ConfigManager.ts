@@ -6,22 +6,17 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import {
   type OrbitConfig,
   type OrbitSettings,
   DEFAULT_REPO_NAME,
-  DEFAULT_TEMP_DIR,
   GLOBAL_SETTINGS_PATH,
   PROJECT_CONFIG_PATH,
-  PROJECT_ORBIT_DIR,
   SCHEMATICS_DIR,
   STATIONS_DIR,
   GLOBAL_ORBIT_DIR,
 } from './Constants.js';
-
-const REPO_ROOT = process.cwd();
 
 /**
  * Resolves the final Orbit configuration for a repository.
@@ -121,7 +116,7 @@ export function detectRepoName(): string {
     if (rootRes.status === 0 && rootRes.stdout.trim()) {
       return path.basename(rootRes.stdout.trim());
     }
-  } catch (e) {}
+  } catch (_e) {}
 
   return DEFAULT_REPO_NAME;
 }
@@ -131,7 +126,7 @@ export function loadSettings(): OrbitSettings {
   if (!fs.existsSync(GLOBAL_SETTINGS_PATH)) return defaultSettings;
   try {
     return JSON.parse(fs.readFileSync(GLOBAL_SETTINGS_PATH, 'utf8'));
-  } catch (e) {
+  } catch (_e) {
     return defaultSettings;
   }
 }
@@ -147,7 +142,7 @@ export function loadProjectConfig(): Partial<OrbitConfig> {
   if (!fs.existsSync(PROJECT_CONFIG_PATH)) return {};
   try {
     return JSON.parse(fs.readFileSync(PROJECT_CONFIG_PATH, 'utf8'));
-  } catch (e) {
+  } catch (_e) {
     return {};
   }
 }
@@ -169,7 +164,7 @@ export function loadJson(p: string): any {
   if (fs.existsSync(p)) {
     try {
       return JSON.parse(fs.readFileSync(p, 'utf8'));
-    } catch (e) {}
+    } catch (_e) {}
   }
   return null;
 }

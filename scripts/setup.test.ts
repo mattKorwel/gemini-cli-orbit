@@ -142,16 +142,14 @@ describe('runSetup', () => {
     };
     vi.mocked(readline.createInterface).mockReturnValue(rl as any);
 
-    const res = await runSetup([], {
-      ...process.env,
-    });
+    const res = await runSetup([]);
     expect(res).toBe(0);
     expect(mockProvider.getStatus).toHaveBeenCalled();
   });
 
   it('should ignore "liftoff" when passed as the first argument', async () => {
-    // This simulates "orbit station liftoff --with-station"
-    const res = await runSetup(['liftoff', '--with-station']);
+    // This simulates "orbit station liftoff --with-new-station"
+    const res = await runSetup(['liftoff', '--with-new-station']);
     expect(res).toBe(0);
     // Should have used 'default' schematic
     expect(ConfigManager.loadSchematic).toHaveBeenCalledWith('default');

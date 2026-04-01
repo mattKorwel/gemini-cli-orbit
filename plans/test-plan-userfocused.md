@@ -45,13 +45,13 @@ my laptop."_
 
 1.  **Design the Schematic**:
     - Command: `orbit schematic create corp`
-    - **Interactive**: Follow the wizard. Use your real GCP Project/Zone.
+    - **Interactive**: Follow the wizard. Use your real Cloud Project/Zone.
     - **Verification**: `cat ~/.gemini/orbit/schematics/corp.json` to see the
       results.
 2.  **The "Liftoff" Moment**:
-    - Command: `orbit station liftoff corp --setup-net --with-station`
+    - Command: `orbit station liftoff corp --setup-net --with-new-station`
     - **Observation**: This is the critical "User Moment." It should provision
-      the VPC, NAT, and the GCE VM.
+      the VPC, NAT, and the Station.
     - **Check**: Does it end with "🎯 Active Station set to:
       station-supervisor"?
 3.  **The Pulse Check**:
@@ -80,15 +80,16 @@ _Scenario: "I'm juggling two things at once."_
 
 1.  **Parallel Launch**:
     - Run `orbit mission 21 fix`
-    - In a new tab, run `orbit mission 5 implement` (assuming an issue #5 exists).
+    - In a new tab, run `orbit mission 5 implement` (assuming an issue #5
+      exists).
 2.  **Monitor the Constellation**:
     - Command: `orbit pulse`
     - **Check**: Do you see BOTH capsules? Does it show different CPU/Mem stats
       for each? Does it distinguish between `THINKING` and `WAITING`?
 3.  **Global Splashdown**:
     - Command: `orbit splashdown --all`
-    - **Check**: Does it stop the VM? Does it clear the local registry receipts
-      for that station?
+    - **Check**: Does it stop the Station? Does it clear the local registry
+      receipts for that station?
 
 ---
 
