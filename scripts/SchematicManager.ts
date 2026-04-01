@@ -40,6 +40,17 @@ export class SchematicManager {
     const existingConfig = loadJson(schematicPath) || {};
     const flags = parseFlags(process.argv.slice(2));
 
+    // If surgical flags are provided, perform a headless update and exit
+    if (Object.keys(flags).length > 0) {
+      const merged = { ...existingConfig, ...flags };
+      saveSchematic(name, merged);
+      logger.info(
+        'CONFIG',
+        `✅ Headless update: Schematic "${name}" updated and saved.`,
+      );
+      return;
+    }
+
     // Merge existing config with any surgical flags provided
     const base = { ...existingConfig, ...flags };
 

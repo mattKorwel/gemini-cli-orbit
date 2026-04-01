@@ -305,7 +305,7 @@ export class GceCosProvider implements OrbitProvider {
         '--image-project',
         'cos-cloud',
         '--boot-disk-size',
-        '20GB',
+        '10GB',
         '--boot-disk-type',
         'pd-balanced',
         '--create-disk',
