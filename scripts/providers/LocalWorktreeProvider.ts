@@ -43,6 +43,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
     if (!fs.existsSync(this.worktreesDir)) {
       fs.mkdirSync(this.worktreesDir, { recursive: true });
     }
+
+    // Resolve absolute path to handle symlinks (like /var -> /private/var on macOS)
+    try {
+      this.worktreesDir = fs.realpathSync(this.worktreesDir);
+    } catch (_e) {}
   }
   private hasTmux(): boolean {
     const res = spawnSync('which', ['tmux'], { stdio: 'pipe' });
@@ -224,14 +229,18 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async removeCapsule(name: string): Promise<number> {
-    const wtPath = this.findExistingWorktree(name, getPrimaryRepoRoot());
+    const sourceDir = getPrimaryRepoRoot();
+    const wtPath = this.findExistingWorktree(name, sourceDir);
     if (!wtPath) return 0;
 
     console.log(`   🔥 Orbit: Removing local worktree: ${name}`);
-    const res = spawnSync('git', ['worktree', 'remove', wtPath, '--force'], {
-      shell: true,
-      stdio: 'inherit',
-    });
+    const res = spawnSync(
+      'git',
+      ['-C', sourceDir, 'worktree', 'remove', wtPath, '--force'],
+      {
+        stdio: 'inherit',
+      },
+    );
 
     if (this.hasTmux()) {
       spawnSync('tmux', ['kill-session', '-t', `orbit-${name}`]);
@@ -270,10 +279,18 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
     const worktrees: string[] = [];
     const lines = res.stdout.toString().split('\n');
+    const primaryRoot = fs.realpathSync(getPrimaryRepoRoot());
+
     for (const line of lines) {
       if (line.startsWith('worktree ')) {
-        const wtPath = line.substring(9).trim();
-        if (wtPath.startsWith(this.worktreesDir)) {
+        let wtPath = line.substring(9).trim();
+        try {
+          wtPath = fs.realpathSync(wtPath);
+        } catch (_e) {}
+
+        // Only include worktrees that are inside our designated worktreesDir
+        // and are not the primary repo itself.
+        if (wtPath.startsWith(this.worktreesDir) && wtPath !== primaryRoot) {
           worktrees.push(path.basename(wtPath));
         }
       }
@@ -297,6 +314,9 @@ export class LocalWorktreeProvider implements OrbitProvider {
     for (const line of lines) {
       if (line.startsWith('worktree ')) {
         currentPath = line.substring(9).trim();
+        try {
+          currentPath = fs.realpathSync(currentPath);
+        } catch (_e) {}
       } else if (
         line.startsWith('branch refs/heads/') &&
         line.endsWith(branch)
