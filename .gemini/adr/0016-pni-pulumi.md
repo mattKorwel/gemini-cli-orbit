@@ -1,56 +1,48 @@
 # ADR 0016: Pulumi-Native Infrastructure (PNI)
 
 ## Status
-Proposed
+Accepted
 
 ## Context
-Gemini Orbit currently manages infrastructure using imperative `gcloud` commands scattered throughout the codebase (e.g., `GceCosProvider.ts`). This leads to:
+Gemini Orbit originally managed infrastructure using imperative `gcloud` commands scattered throughout the codebase. This led to:
 - **Cloud Lock-in**: Hard-coded to Google Cloud Platform.
 - **Brittle Logic**: Manual networking management (VPC, NAT, Firewalls) via shell wrappers.
 - **Lack of Customization**: No declarative way for users to define their station infrastructure.
-- **Maintenance Fragmentation**: Infrastructure logic is "hidden" inside TypeScript strings and regex parsing.
+- **Maintenance Fragmentation**: Infrastructure logic was "hidden" inside TypeScript strings and regex parsing.
 
 ## Decision
-We will transition Orbit to a **Programmatic Infrastructure** model powered by the **Pulumi Automation API**.
+We have transitioned Orbit to a **Programmatic Infrastructure** model powered by the **Pulumi Automation API**.
 
 ### 1. Unified TypeScript Infrastructure
-Infrastructure will be defined using standard TypeScript modules under `scripts/infrastructure/`.
-- **`GcpStation.ts`**: Defines the GCP resources (VPC, VM, Firewall, NAT).
-- **`AwsStation.ts`**: (Future) Defines the AWS resources (VPC, EC2, Security Groups).
+Infrastructure is defined using standard TypeScript modules under `src/infrastructure/`.
+- **`GcpCosTarget.ts`**: Defines the GCP resources (Static IP, VM with COS).
+- **`LocalNoopTarget.ts`**: Provides parity for local development environments.
 
-### 2. Pulumi Automation API
-Orbit's `liftoff` (provisioning) and `splashdown` (destruction) will use the **Pulumi Automation API**.
-- **No CLI Wrapper**: Orbit calls Pulumi as a library, ensuring better error handling and total state management.
-- **Local State**: Pulumi state will be stored locally in `~/.gemini/orbit/state/` by default, but can be configured for remote backends.
+### 2. Pulumi Automation API & Local State
+Orbit's `liftoff` (provisioning) and `liftoff --destroy` (decommissioning) use the **Pulumi Automation API**.
+- **Local State Backend**: Pulumi state is stored locally in `~/.gemini/orbit/state/` (using `pulumi login --local`). 
+- **Passphrase Management**: Orbit automatically manages a stable encryption passphrase in `~/.gemini/orbit/pulumi.passphrase` to ensure a non-interactive experience.
 
 ### 3. Target-Aware Provisioning Model
-The `InfrastructureManager` will support multiple "Targets" within a single cloud provider. This allows Orbit to provision different types of infrastructure depending on the `Schematic`:
-- **`gce-cos`**: Standard Compute Engine instances (current default).
-- **`cloud-workstations`**: Managed Google Cloud Workstations (managed IDE environments).
-- **`gke-pod`**: Ephemeral pods within a Google Kubernetes Engine cluster.
-- **`aws-ec2`**: (Future) Amazon EC2 instances.
-
-Each target is implemented as a dedicated Pulumi module in `scripts/infrastructure/targets/`.
+The `InfrastructureFactory` supports multiple "Targets" within a single cloud provider. This allows Orbit to provision different types of infrastructure depending on the `Schematic` (e.g., `gce`, `local-worktree`).
 
 ### 4. Decoupled Provider Architecture
-We will split the existing `OrbitProvider` into two distinct layers:
-- **Infrastructure Provisioner**: A stateless engine that ensures the cloud resources exist and return a standard `InfrastructureState` (IPs, IDs).
-- **Execution Provider**: A stateful operational layer that uses the `InfrastructureState` to launch missions (Docker, SSH, Sync, or Workstation Attach).
+We have split the workspace lifecycle into two distinct layers:
+- **Infrastructure Provisioner** (`src/infrastructure/`): A declarative engine that ensures the physical/virtual resources exist and returns a standard `InfrastructureState`.
+- **Execution Provider** (`src/providers/`): An operational layer (`OrbitProvider`) that consumes the state to establish connectivity and manage mission capsules (Docker/SSH/Worktree).
 
-### 5. Migration Strategy
-- **Phase 1**: Implement the `PulumiInfrastructureManager` and the `@pulumi/gcp` modules for the "GCP Station".
-- **Phase 2**: Refactor `GceCosProvider` to receive its configuration from the Pulumi outputs.
-- **Phase 3**: Migrate the "Local Worktree" provider to the same interface (even if it's a "No-op" provisioner).
-- **Phase 5**: Deprecate and remove all direct `gcloud` provisioning calls.
+### 5. Seamless Dependency Management
+To ensure a zero-friction experience, Orbit includes a `DependencyManager` that:
+- Detects the presence of the `pulumi` binary.
+- Automatically downloads and installs the correct binary for the user's OS/Arch into `~/.gemini/orbit/bin/` if missing (requires explicit user confirmation).
 
 ## Rationale
 - **Type Safety**: Infrastructure is now type-checked at compile-time.
-- **Single Language**: No DSL (HCL) to learn. All Orbit code remains TypeScript.
-- **Programmatic Logic**: Allows for dynamic, complex infrastructure (e.g., auto-detecting existing VPCs, dynamic subnetting).
+- **Programmatic Logic**: Allows for dynamic, complex infrastructure (e.g., conditional resource creation based on `backendType`).
 - **State Management**: Pulumi's native state handling eliminates "zombie" resources and manual existence checks.
-- **Ecosystem**: Provides a clear path to supporting AWS, Azure, and other clouds using their respective Pulumi libraries.
+- **User Experience**: The auto-installer ensures users don't have to leave the CLI to set up their environment.
 
 ## Consequences
-- **NPM Dependencies**: New dependencies on `@pulumi/pulumi`, `@pulumi/gcp`, etc.
-- **Binary Download**: Pulumi will download the same cloud provider binaries (e.g., `pulumi-resource-gcp`) that Terraform uses.
-- **Learning Curve**: Developers will need to understand the Pulumi/Resource model, though it is native TypeScript.
+- **NPM Dependencies**: Added `@pulumi/pulumi` and `@pulumi/gcp`.
+- **Storage**: Managed binaries and infrastructure state occupy space in `~/.gemini/orbit/`.
+- **Connectivity**: Cloud provisioning requires active GCP credentials in the environment.
