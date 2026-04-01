@@ -141,14 +141,20 @@ const COMMANDS: Record<string, Command> = {
     description: 'Install Orbit shell aliases and tab-completion.',
     usage: 'orbit install-shell',
   },
+  liftoff: {
+    run: (args) => runSetup(args),
+    category: 'Setup',
+    description: 'Build or wake Orbital Station infrastructure.',
+    usage: 'orbit liftoff [schematic] [--setup-net] [--with-station]',
+    examples: [
+      'orbit liftoff corp --setup-net --with-station',
+      'orbit liftoff (Wake up default station)',
+    ],
+  },
   // Aliases (Hidden from main help)
   install_shell: {
     run: () => runInstallShell(),
     description: 'Alias for install-shell',
-  },
-  liftoff: {
-    run: (args) => runSetup(args),
-    description: 'Alias for station liftoff',
   },
 };
 
@@ -291,7 +297,13 @@ export async function dispatch(argv: string[]): Promise<number> {
     rawArgs.includes('-h') ||
     cleanArgs.length === 0
   ) {
-    showHelp(cmd);
+    // Sub-command help support: orbit station liftoff --help
+    const subCmd = cleanArgs[0];
+    if (subCmd && COMMANDS[subCmd]) {
+      showHelp(subCmd);
+    } else {
+      showHelp(cmd);
+    }
     return 0;
   }
 

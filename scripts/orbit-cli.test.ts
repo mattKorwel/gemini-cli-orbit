@@ -11,6 +11,14 @@ const mockRunStatus = vi.fn().mockResolvedValue(0);
 const mockRunJettison = vi.fn().mockResolvedValue(0);
 const mockRunFleet = vi.fn().mockResolvedValue(0);
 
+const mockExistsSync = vi.fn().mockReturnValue(true);
+vi.mock('node:fs', () => ({
+  default: {
+    existsSync: mockExistsSync,
+  },
+  existsSync: mockExistsSync,
+}));
+
 vi.mock('./orchestrator.js', () => ({ runOrchestrator: mockRunOrchestrator }));
 vi.mock('./status.js', () => ({ runStatus: mockRunStatus }));
 vi.mock('./jettison.js', () => ({ runJettison: mockRunJettison }));
@@ -29,14 +37,20 @@ vi.mock('./setup.js', () => ({ runSetup: vi.fn().mockResolvedValue(0) }));
 
 describe('orbit-cli dispatch()', () => {
   let dispatch: (argv: string[]) => Promise<number>;
+  let chdirSpy: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockExistsSync.mockReturnValue(true);
+    chdirSpy = vi.spyOn(process, 'chdir').mockImplementation(() => {});
+
     delete process.env.GCLI_ORBIT_PROVIDER;
     delete process.env.GCLI_ORBIT_REPO_NAME;
     delete process.env.GCLI_ORBIT_INSTANCE_NAME;
     delete process.env.GCLI_ORBIT_SCHEMATIC;
     delete process.env.GCLI_MCP;
+    delete process.env.GCLI_ORBIT_SHIM;
+
     // Re-import to pick up fresh mocks
     const mod = await import('./orbit-cli.js');
     dispatch = mod.dispatch;
@@ -102,48 +116,19 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--repo-dir flag changes working directory', async () => {
-    const chdirSpy = vi.spyOn(process, 'chdir').mockImplementation(() => {});
-    const existsSpy = vi
-      .spyOn(
-        import.meta.resolve ? await import('node:fs') : await import('fs'),
-        'existsSync',
-      )
-      .mockReturnValue(true);
-
     await dispatch(['mission', '--repo-dir=/tmp/foo', '42']);
-
     expect(chdirSpy).toHaveBeenCalledWith('/tmp/foo');
     expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
-
-    chdirSpy.mockRestore();
-    existsSpy.mockRestore();
   });
 
   it('--repo-dir flag with space changes working directory', async () => {
-    const chdirSpy = vi.spyOn(process, 'chdir').mockImplementation(() => {});
-    const existsSpy = vi
-      .spyOn(
-        import.meta.resolve ? await import('node:fs') : await import('fs'),
-        'existsSync',
-      )
-      .mockReturnValue(true);
-
     await dispatch(['mission', '--repo-dir', '/tmp/bar', '42']);
-
     expect(chdirSpy).toHaveBeenCalledWith('/tmp/bar');
     expect(mockRunOrchestrator).toHaveBeenCalledWith(['42']);
-
-    chdirSpy.mockRestore();
-    existsSpy.mockRestore();
   });
 
   it('--repo-dir flag returns 1 if directory missing', async () => {
-    const existsSpy = vi
-      .spyOn(
-        import.meta.resolve ? await import('node:fs') : await import('fs'),
-        'existsSync',
-      )
-      .mockReturnValue(false);
+    mockExistsSync.mockReturnValue(false);
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const code = await dispatch(['mission', '--repo-dir=/missing', '42']);
@@ -152,8 +137,6 @@ describe('orbit-cli dispatch()', () => {
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('Repository directory not found'),
     );
-
-    existsSpy.mockRestore();
     consoleSpy.mockRestore();
   });
 
@@ -190,6 +173,17 @@ describe('orbit-cli dispatch()', () => {
     expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
+  it('sub-command help support: "orbit station liftoff --help" shows liftoff help', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const code = await dispatch(['station', 'liftoff', '--help']);
+    expect(code).toBe(0);
+    // Should show "ORBIT COMMAND: LIFTOFF" instead of "STATION"
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('ORBIT COMMAND: LIFTOFF'),
+    );
+    consoleSpy.mockRestore();
+  });
+
   it('command with no positional args after flag consumption returns 0 (shows help)', async () => {
     // e.g., `orbit mission --local` — --local is consumed, cleanArgs is empty
     const code = await dispatch(['mission', '--local']);
@@ -208,7 +202,6 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('sets GCLI_ORBIT_SHIM=1 before calling runner', async () => {
-    delete process.env.GCLI_ORBIT_SHIM;
     await dispatch(['mission', '42']);
     expect(process.env.GCLI_ORBIT_SHIM).toBe('1');
   });
