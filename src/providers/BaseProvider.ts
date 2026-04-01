@@ -3,6 +3,7 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 
 /**
  * OrbitProvider interface defines the contract for different remote
@@ -16,7 +17,13 @@ export interface OrbitProvider {
   stationName: string;
 
   /**
+   * Injects pre-discovered infrastructure state (e.g. from Pulumi).
+   */
+  injectState?(state: InfrastructureState): void;
+
+  /**
    * Provisions the underlying infrastructure station.
+...
    */
   provision(options?: {
     setupNetwork?: boolean;

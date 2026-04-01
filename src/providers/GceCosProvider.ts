@@ -14,6 +14,7 @@ import {
   type OrbitStatus,
   type CapsuleConfig,
 } from './BaseProvider.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { GceConnectionManager } from './GceConnectionManager.js';
 import { logger } from '../core/Logger.js';
 import { TempManager } from '../utils/TempManager.js';
@@ -93,6 +94,14 @@ export class GceCosProvider implements OrbitProvider {
       '.ssh',
       'known_hosts',
     );
+  }
+
+  injectState(state: InfrastructureState): void {
+    if (state.privateIp) {
+      this.conn.setOverrideHost(state.privateIp);
+    } else if (state.publicIp) {
+      this.conn.setOverrideHost(state.publicIp);
+    }
   }
 
   async provision(

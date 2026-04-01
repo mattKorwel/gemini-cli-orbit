@@ -7,25 +7,29 @@
 import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
 import type { OrbitProvider } from './BaseProvider.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
 
 export class ProviderFactory {
-  static getProvider(config: {
-    projectId: string;
-    zone: string;
-    instanceName: string;
-    repoName?: string | undefined;
-    providerType?: string | undefined;
-    dnsSuffix?: string | undefined;
-    userSuffix?: string | undefined;
-    backendType?: string | undefined;
-    imageUri?: string | undefined;
-    worktreesDir?: string | undefined;
-    vpcName?: string | undefined;
-    subnetName?: string | undefined;
-    machineType?: string | undefined;
-    reaperIdleLimit?: number | undefined;
-  }): OrbitProvider {
+  static getProvider(
+    config: {
+      projectId: string;
+      zone: string;
+      instanceName: string;
+      repoName?: string | undefined;
+      providerType?: string | undefined;
+      dnsSuffix?: string | undefined;
+      userSuffix?: string | undefined;
+      backendType?: string | undefined;
+      imageUri?: string | undefined;
+      worktreesDir?: string | undefined;
+      vpcName?: string | undefined;
+      subnetName?: string | undefined;
+      machineType?: string | undefined;
+      reaperIdleLimit?: number | undefined;
+    },
+    state?: InfrastructureState,
+  ): OrbitProvider {
     const isLocal =
       !config.projectId ||
       config.projectId === 'local' ||
@@ -66,12 +70,18 @@ export class ProviderFactory {
     };
 
     // Default to GCE
-    return new GceCosProvider(
+    const provider = new GceCosProvider(
       config.projectId,
       config.zone,
       config.instanceName,
       getPrimaryRepoRoot(),
       gceConfig,
     );
+
+    if (state && provider.injectState) {
+      provider.injectState(state);
+    }
+
+    return provider;
   }
 }

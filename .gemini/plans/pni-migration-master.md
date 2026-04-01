@@ -4,7 +4,7 @@ This master plan tracks the progress of decoupling infrastructure provisioning f
 
 ## Status
 - [x] **Sub-Plan 1: Foundation & Abstraction Layer** ([pni-sub-01-foundation.md](pni-sub-01-foundation.md))
-- [ ] **Sub-Plan 2: Target-Aware Provisioners** ([pni-sub-02-targets.md](pni-sub-02-targets.md))
+- [x] **Sub-Plan 2: Target-Aware Provisioners** ([pni-sub-02-targets.md](pni-sub-02-targets.md))
 - [ ] **Sub-Plan 3: Execution Provider Refactoring** ([pni-sub-03-execution.md](pni-sub-03-execution.md))
 - [ ] **Sub-Plan 4: CLI Lifecycle Integration** ([pni-sub-04-cli.md](pni-sub-04-cli.md))
 - [ ] **Sub-Plan 5: Verification & Cleanup** ([pni-sub-05-cleanup.md](pni-sub-05-cleanup.md))
