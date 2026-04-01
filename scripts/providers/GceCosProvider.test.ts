@@ -19,9 +19,9 @@ const mockConn = {
   getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
   onProvisioned: vi.fn().mockResolvedValue(undefined),
   setupNetworkInfrastructure: vi.fn(),
-  getNetworkInterfaceConfig: vi
+  getNetworkInterfaceArgs: vi
     .fn()
-    .mockReturnValue('network=default,no-address'),
+    .mockReturnValue(['--network-interface', 'network=default,no-address']),
 };
 
 vi.mock('./GceConnectionManager.ts', () => ({
@@ -173,6 +173,29 @@ describe('GceCosProvider', () => {
     );
     expect(mockConn.run).toHaveBeenCalledWith(
       expect.stringContaining('docker run -d --name station-supervisor'),
+      expect.any(Object),
+    );
+  });
+
+  it('should skip network management when VPC and Subnet are both "default"', async () => {
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as any);
+    const providerWithDefault = new GceCosProvider(
+      projectId,
+      zone,
+      instanceName,
+      repoRoot,
+      { vpcName: 'default', subnetName: 'default' },
+    );
+
+    const provPromise = providerWithDefault.provision({ setupNetwork: true });
+    await vi.runAllTimersAsync();
+    const res = await provPromise;
+    expect(res).toBe(0);
+
+    // Should NOT call gcloud compute networks describe
+    expect(spawnSync).not.toHaveBeenCalledWith(
+      'gcloud',
+      expect.arrayContaining(['compute', 'networks', 'describe', 'default']),
       expect.any(Object),
     );
   });

@@ -89,4 +89,26 @@ describe('SchematicManager', () => {
       'Invalid JSON schematic',
     );
   });
+
+  it('should perform headless update when configuration flags are provided', async () => {
+    vi.mocked(ConfigManager.loadJson).mockReturnValue({
+      projectId: 'old-project',
+      vpcName: 'old-vpc',
+    });
+    vi.mocked(ConfigManager.parseFlags).mockReturnValue({
+      projectId: 'new-project',
+    });
+
+    await manager.runWizard('test-schematic');
+
+    // Should NOT call any UI (mocked by vitest as no-ops or throwing if not careful)
+    // but SHOULD save the merged config
+    expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
+      'test-schematic',
+      expect.objectContaining({
+        projectId: 'new-project',
+        vpcName: 'old-vpc',
+      }),
+    );
+  });
 });
