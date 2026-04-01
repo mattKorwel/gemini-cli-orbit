@@ -42,22 +42,26 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     const name = this.config.instanceName || `gcli-station-${this.schematicName}`;
     const zone = this.config.zone || 'us-central1-a';
     const project = this.config.projectId;
+    const isExternal = this.config.backendType === 'external';
 
     const provider = new gcp.Provider('gcp-provider', {
       ...(project ? { project } : {}),
       zone,
     });
 
-    // 1. Create a static IP
-    const addressName = `gcli-ip-${this.id}`;
-    const address = new gcp.compute.Address(
-      addressName,
-      {
-        name: addressName,
-        region: zone.split('-').slice(0, 2).join('-'),
-      },
-      { provider },
-    );
+    // 1. Create a static IP (only if external)
+    let address: gcp.compute.Address | undefined;
+    if (isExternal) {
+      const addressName = `gcli-ip-${this.id}`;
+      address = new gcp.compute.Address(
+        addressName,
+        {
+          name: addressName,
+          region: zone.split('-').slice(0, 2).join('-'),
+        },
+        { provider },
+      );
+    }
 
     // 2. Provision the VM
     const instance = new gcp.compute.Instance(
@@ -77,7 +81,8 @@ export class GcpCosTarget implements InfrastructureProvisioner {
           {
             network: this.config.vpcName || 'default',
             subnetwork: this.config.subnetName || 'default',
-            accessConfigs: [{ natIp: address.address }],
+            accessConfigs:
+              isExternal && address ? [{ natIp: address.address }] : [],
           },
         ],
         metadata: {
@@ -96,7 +101,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     );
 
     return {
-      publicIp: address.address,
+      publicIp: address?.address,
       privateIp: instance.networkInterfaces.apply(
         (ni) => ni[0]?.networkIp || '',
       ),
