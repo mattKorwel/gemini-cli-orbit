@@ -20,6 +20,13 @@ import { TempManager } from '../utils/TempManager.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { getRepoConfig } from '../ConfigManager.js';
 
+export class ConnectivityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConnectivityError';
+  }
+}
+
 export class GceCosProvider implements OrbitProvider {
   public readonly type = 'gce';
   public readonly isLocal = false;
@@ -359,32 +366,47 @@ export class GceCosProvider implements OrbitProvider {
 
     await this.conn.onProvisioned();
 
-    logger.info('   - Verifying station supervisor health...');
-    const check = await this.getCapsuleStatus(this.stationName);
+    try {
+      logger.info('   - Verifying station supervisor health...');
+      const check = await this.getCapsuleStatus(this.stationName);
 
-    if (!check.exists || !check.running) {
-      const refreshCmd = `
-          sudo docker pull ${this.imageUri}
-          sudo docker rm -f ${this.stationName} || true
-          sudo docker run -d --name ${this.stationName} --restart always --user root \\
-            -v /mnt/disks/data:/mnt/disks/data:rw \\
-            -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
-            ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
-        `;
-      await this.exec(refreshCmd);
-    }
-
-    logger.info(`⏳ Waiting for ${this.stationName} to stabilize...`);
-    for (let i = 0; i < 30; i++) {
-      const status = await this.getCapsuleStatus(this.stationName);
-      if (status.running) {
-        if (i > 0) process.stdout.write('\n');
-        return 0;
+      if (!check.exists || !check.running) {
+        const refreshCmd = `
+            sudo docker pull ${this.imageUri}
+            sudo docker rm -f ${this.stationName} || true
+            sudo docker run -d --name ${this.stationName} --restart always --user root \\
+              -v /mnt/disks/data:/mnt/disks/data:rw \\
+              -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
+              ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
+          `;
+        await this.exec(refreshCmd);
       }
-      process.stdout.write('.');
-      await new Promise((r) => setTimeout(r, 2000));
+
+      logger.info(`⏳ Waiting for ${this.stationName} to stabilize...`);
+      for (let i = 0; i < 30; i++) {
+        const status = await this.getCapsuleStatus(this.stationName);
+        if (status.running) {
+          if (i > 0) process.stdout.write('\n');
+          return 0;
+        }
+        process.stdout.write('.');
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      process.stdout.write('\n');
+    } catch (err) {
+      if (err instanceof ConnectivityError) {
+        console.error(`\n❌ Connectivity Error: ${err.message}`);
+        if (err.message.includes('SSO') || err.message.includes('login')) {
+          console.error(
+            '👉 Your SSH session has expired. Please run "gcert" and try again.\n',
+          );
+        } else {
+          console.error('👉 Check your network connection and GCP project.\n');
+        }
+        return 255;
+      }
+      throw err;
     }
-    process.stdout.write('\n');
 
     logger.error(
       `❌ Station supervisor "${this.stationName}" failed to stabilize.`,
@@ -529,6 +551,9 @@ export class GceCosProvider implements OrbitProvider {
       `sudo docker inspect -f '{{.State.Running}}' ${name}`,
       { quiet: true },
     );
+    if (res.status === 255) {
+      throw new ConnectivityError(res.stderr || 'SSH connection failed');
+    }
     if (res.status !== 0) return { running: false, exists: false };
     return { running: res.stdout.trim() === 'true', exists: true };
   }
