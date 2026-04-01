@@ -11,6 +11,13 @@ import fs from 'node:fs';
 
 vi.mock('node:child_process');
 vi.mock('node:fs');
+vi.mock('../Logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    logOutput: vi.fn(),
+  },
+}));
 
 const mockConn = {
   run: vi.fn(),
@@ -237,6 +244,56 @@ describe('GceCosProvider', () => {
       status: 0,
       stdout: Buffer.from('false'),
       stderr: Buffer.from(''),
+    });
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const readyPromise = provider.ensureReady();
+    await vi.runAllTimersAsync();
+    const res = await readyPromise;
+
+    expect(res).toBe(1);
+    expect(mockConn.run).toHaveBeenCalledWith(
+      expect.stringContaining('sudo docker logs'),
+      expect.any(Object),
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('should show fallback message if logs cannot be fetched', async () => {
+    const mockData = {
+      name: 'test-i',
+      status: 'RUNNING',
+      networkInterfaces: [
+        {
+          networkIP: '10.0.0.1',
+          accessConfigs: [{ natIP: '34.0.0.1' }],
+        },
+      ],
+    };
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: Buffer.from(JSON.stringify(mockData)),
+    } as any);
+
+    // Mock getCapsuleStatus to always return false (not running)
+    // The loop runs 30 times, then it calls docker logs.
+    let callCount = 0;
+    mockConn.run.mockImplementation(() => {
+      callCount++;
+      if (callCount > 30) {
+        // This is the logs call - MUST have empty stdout to trigger fallback
+        return {
+          status: 1,
+          stdout: Buffer.from(''),
+          stderr: Buffer.from('connection refused'),
+        };
+      }
+      return {
+        status: 0,
+        stdout: Buffer.from('false'),
+        stderr: Buffer.from(''),
+      };
     });
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

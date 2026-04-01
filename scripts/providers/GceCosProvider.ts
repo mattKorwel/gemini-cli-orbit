@@ -395,10 +395,20 @@ export class GceCosProvider implements OrbitProvider {
         quiet: true,
       },
     );
-    if (logs.stdout || logs.stderr) {
+    if (logs.stdout.trim() || logs.stderr.trim()) {
       console.error('\n--- CONTAINER LOGS ---');
       console.error(logs.stdout.trim() || logs.stderr.trim());
       console.error('----------------------\n');
+    } else {
+      console.error(
+        `\n⚠️  Unable to fetch container logs. (Exit Code: ${logs.status})`,
+      );
+      if (logs.stderr) {
+        console.error(`Error: ${logs.stderr.trim()}`);
+      }
+      console.error(
+        'Check your GCP connection and ensure the Docker daemon is healthy.\n',
+      );
     }
 
     return 1;
