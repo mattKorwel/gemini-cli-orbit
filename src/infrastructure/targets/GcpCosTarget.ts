@@ -21,6 +21,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
   private readonly stackName: string;
   private readonly workDir: string;
   private readonly projectName = 'orbit';
+  private readonly logPath: string;
 
   constructor(
     private readonly schematicName: string,
@@ -29,10 +30,27 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     this.id = `gcp-cos-${schematicName}`;
     this.stackName = schematicName;
     this.workDir = path.join(PULUMI_STATE_DIR, this.id);
+    this.logPath = path.join(this.workDir, 'pulumi.log');
 
     if (!fs.existsSync(this.workDir)) {
       fs.mkdirSync(this.workDir, { recursive: true });
     }
+  }
+
+  /**
+   * Helper to handle Pulumi output streams.
+   * Redirects all output to pulumi.log, and conditionally to console.
+   */
+  private getOutputHandler() {
+    // Clear log for fresh run
+    if (fs.existsSync(this.logPath)) fs.unlinkSync(this.logPath);
+
+    return (text: string) => {
+      fs.appendFileSync(this.logPath, text);
+      if (this.config.verbose) {
+        process.stdout.write(text);
+      }
+    };
   }
 
   /**
@@ -125,8 +143,12 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     }
 
     console.log(`   🚀 Pulumi: Provisioning infrastructure for ${this.id}...`);
+    if (!this.config.verbose) {
+      console.log(`      (Detailed logs redirected to ${this.logPath})`);
+    }
+
     try {
-      const result = await stack.up({ onOutput: console.log });
+      const result = await stack.up({ onOutput: this.getOutputHandler() });
 
       return {
         status: 'ready',
@@ -153,7 +175,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     );
 
     console.log(`   🔥 Pulumi: Destroying infrastructure for ${this.id}...`);
-    await stack.destroy({ onOutput: console.log });
+    await stack.destroy({ onOutput: this.getOutputHandler() });
   }
 
   async refresh(): Promise<InfrastructureState> {
@@ -166,7 +188,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       { workDir: this.workDir },
     );
 
-    await stack.refresh();
+    await stack.refresh({ onOutput: this.getOutputHandler() });
     return this.getState();
   }
 

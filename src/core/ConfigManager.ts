@@ -81,6 +81,7 @@ export function getRepoConfig(
     imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
     providerType:
       (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
+    verbose: process.env.GCLI_ORBIT_VERBOSE === '1' || config.verbose,
   };
 
   // 6. Merge final CLI Flags

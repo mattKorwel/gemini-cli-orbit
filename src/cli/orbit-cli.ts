@@ -77,6 +77,10 @@ export async function dispatch(argv: string[]): Promise<number> {
       type: 'string',
       description: 'Use a specific schematic for liftoff',
     })
+    .option('verbose', {
+      type: 'boolean',
+      description: 'Show detailed infrastructure logs',
+    })
     // --- COMMANDS ---
     .command(
       'mission <identifier> [action]',
@@ -274,6 +278,9 @@ export async function dispatch(argv: string[]): Promise<number> {
     }
     if (args.schematic) {
       process.env.GCLI_ORBIT_SCHEMATIC = args.schematic;
+    }
+    if (args.verbose) {
+      process.env.GCLI_ORBIT_VERBOSE = '1';
     }
     // Ensure CLI knows it is a command to bypass interactive UI
     process.env.GCLI_ORBIT_SHIM = '1';

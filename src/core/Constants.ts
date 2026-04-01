@@ -150,6 +150,7 @@ export interface OrbitConfig {
   cpuLimit?: string | undefined;
   memoryLimit?: string | undefined;
   reaperIdleLimit?: number | undefined;
+  verbose?: boolean | undefined;
 }
 
 /**
