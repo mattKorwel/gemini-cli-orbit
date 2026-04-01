@@ -14,7 +14,7 @@ import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
 
-  async provisionWorktree(
+  async prepareMissionWorkspace(
     identifier: string,
     action: string,
     isEvaMode: boolean,
@@ -144,7 +144,7 @@ export class RemoteProvisioner {
 
   async waitForCapsule(name: string, timeoutMs: number): Promise<void> {
     const start = Date.now();
-    process.stdout.write(`   - Waiting for capsule ${name} to initialize...`);
+    process.stdout.write(`   - Establishing capsule uplink (${name})...`);
 
     while (Date.now() - start < timeoutMs) {
       const res = await this.provider.getExecOutput('echo 1', {
@@ -152,7 +152,7 @@ export class RemoteProvisioner {
         quiet: true,
       });
       if (res.status === 0) {
-        process.stdout.write(' ✅ Ready.\n');
+        process.stdout.write(' ✅ Link Active.\n');
         return;
       }
       process.stdout.write('.');

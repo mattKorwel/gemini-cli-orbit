@@ -251,7 +251,7 @@ export async function runOrchestrator(
 
   // Remote Context Setup (Executed INSIDE capsule for path consistency)
   const provisioner = new RemoteProvisioner(provider);
-  const remoteWorktreeDir = await provisioner.provisionWorktree(
+  const remoteWorktreeDir = await provisioner.prepareMissionWorkspace(
     identifier,
     action,
     isEvaMode,

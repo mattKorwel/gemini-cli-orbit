@@ -63,7 +63,7 @@ describe('RemoteProvisioner', () => {
       memoryLimit: '16g',
     };
 
-    const path = await provisioner.provisionWorktree(
+    const path = await provisioner.prepareMissionWorkspace(
       '23176',
       'open',
       false,
@@ -97,7 +97,13 @@ describe('RemoteProvisioner', () => {
       image: undefined, // Force fallback
     };
 
-    await provisioner.provisionWorktree('23176', 'open', false, '', config);
+    await provisioner.prepareMissionWorkspace(
+      '23176',
+      'open',
+      false,
+      '',
+      config,
+    );
 
     // The image should be the default (mock-image from Constants) OR undefined (allowing provider default)
     // but crucially it should NOT be the directory path.

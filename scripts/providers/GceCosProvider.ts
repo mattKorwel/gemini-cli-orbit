@@ -382,11 +382,12 @@ export class GceCosProvider implements OrbitProvider {
         await this.exec(refreshCmd);
       }
 
-      logger.info(`⏳ Waiting for ${this.stationName} to initialize...`);
+      logger.info(`📡 Acquiring station signal (${this.stationName})...`);
       for (let i = 0; i < 30; i++) {
         const status = await this.getCapsuleStatus(this.stationName);
         if (status.running) {
           if (i > 0) process.stdout.write('\n');
+          logger.info(`🎯 Signal lock established.`);
           return 0;
         }
         process.stdout.write('.');

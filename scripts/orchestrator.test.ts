@@ -26,7 +26,7 @@ vi.mock('./utils/MissionUtils.js', () => ({
 vi.mock('./RemoteProvisioner.js', () => {
   return {
     RemoteProvisioner: vi.fn().mockImplementation(() => ({
-      provisionWorktree: vi.fn().mockResolvedValue('/tmp/worktree'),
+      prepareMissionWorkspace: vi.fn().mockResolvedValue('/tmp/worktree'),
     })),
   };
 });
@@ -57,15 +57,61 @@ describe('runOrchestrator', () => {
       if (cmd === 'which' && args?.[0] === 'tmux') {
         return { status: 0 } as any;
       }
+      if (cmd === 'gh' && args?.[0] === 'auth' && args?.[1] === 'token') {
+        return { status: 0, stdout: 'MOCK_TOKEN' } as any;
+      }
       return { status: 0 } as any;
     });
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
+    mockProvider.exec.mockResolvedValue(0);
   });
 
-  it('should return 0 on successful orchestration', async () => {
+  it('should return 0 on successful orchestration (Optimistic path)', async () => {
+    // 1st call is optimistic attempt -> return 0
+    mockProvider.exec.mockResolvedValueOnce(0);
+
     const res = await runOrchestrator(['23176', 'review']);
     expect(res).toBe(0);
+
+    // Should NOT have called ensureReady because optimistic succeeded
+    expect(mockProvider.ensureReady).not.toHaveBeenCalled();
+  });
+
+  it('should trigger slow-path if optimistic uplink fails with connectivity error 255', async () => {
+    // 1st call: Optimistic attempt fails with 255
+    mockProvider.exec.mockResolvedValueOnce(255);
+    // ensureReady succeeded
+    mockProvider.ensureReady.mockResolvedValue(0);
+    // authRes injection succeeded
+    mockProvider.exec.mockResolvedValueOnce(0);
+    // Final launch succeeded
+    mockProvider.exec.mockResolvedValueOnce(0);
+
+    const res = await runOrchestrator(['23176', 'review']);
+    expect(res).toBe(0);
+
+    // SHOULD have called ensureReady
+    expect(mockProvider.ensureReady).toHaveBeenCalled();
+  });
+
+  it('should inject GitHub token into RAM-disk context', async () => {
+    vi.mocked(mockProvider.exec).mockReset();
+    mockProvider.exec
+      .mockResolvedValueOnce(255) // Fail optimistic
+      .mockResolvedValueOnce(0) // authRes
+      .mockResolvedValueOnce(0) // prepare
+      .mockResolvedValueOnce(0); // launch
+
+    await runOrchestrator(['23176', 'review'], {
+      GEMINI_API_KEY: 'test-key',
+    });
+
+    const authCall = mockProvider.exec.mock.calls.find((call: any) =>
+      call[0].includes('GITHUB_TOKEN=MOCK_TOKEN'),
+    );
+    expect(authCall).toBeDefined();
+    expect(authCall[0]).toContain('chmod 600');
   });
 
   it('should fallback to raw execution if tmux is missing', async () => {
