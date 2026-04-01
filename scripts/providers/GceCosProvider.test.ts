@@ -199,4 +199,57 @@ describe('GceCosProvider', () => {
       expect.any(Object),
     );
   });
+
+  it('should use sudo for docker status and stats commands', async () => {
+    mockConn.run.mockReturnValue({ status: 0, stdout: 'true', stderr: '' });
+
+    await provider.getCapsuleStatus('test-capsule');
+    expect(mockConn.run).toHaveBeenCalledWith(
+      expect.stringContaining('sudo docker inspect'),
+      expect.any(Object),
+    );
+
+    await provider.getCapsuleStats('test-capsule');
+    expect(mockConn.run).toHaveBeenCalledWith(
+      expect.stringContaining('sudo docker stats'),
+      expect.any(Object),
+    );
+  });
+
+  it('should fetch docker logs if stabilization fails', async () => {
+    const mockData = {
+      name: 'test-i',
+      status: 'RUNNING',
+      networkInterfaces: [
+        {
+          networkIP: '10.0.0.1',
+          accessConfigs: [{ natIP: '34.0.0.1' }],
+        },
+      ],
+    };
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: Buffer.from(JSON.stringify(mockData)),
+    } as any);
+
+    // Mock getCapsuleStatus to always return false (not running)
+    mockConn.run.mockReturnValue({
+      status: 0,
+      stdout: Buffer.from('false'),
+      stderr: Buffer.from(''),
+    });
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const readyPromise = provider.ensureReady();
+    await vi.runAllTimersAsync();
+    const res = await readyPromise;
+
+    expect(res).toBe(1);
+    expect(mockConn.run).toHaveBeenCalledWith(
+      expect.stringContaining('sudo docker logs'),
+      expect.any(Object),
+    );
+    consoleSpy.mockRestore();
+  });
 });

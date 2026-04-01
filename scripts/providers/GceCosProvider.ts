@@ -385,6 +385,22 @@ export class GceCosProvider implements OrbitProvider {
       await new Promise((r) => setTimeout(r, 2000));
     }
     process.stdout.write('\n');
+
+    logger.error(
+      `❌ Station supervisor "${this.stationName}" failed to stabilize.`,
+    );
+    const logs = await this.getExecOutput(
+      `sudo docker logs ${this.stationName}`,
+      {
+        quiet: true,
+      },
+    );
+    if (logs.stdout || logs.stderr) {
+      console.error('\n--- CONTAINER LOGS ---');
+      console.error(logs.stdout.trim() || logs.stderr.trim());
+      console.error('----------------------\n');
+    }
+
     return 1;
   }
 
@@ -500,7 +516,7 @@ export class GceCosProvider implements OrbitProvider {
     name: string,
   ): Promise<{ running: boolean; exists: boolean }> {
     const res = await this.getExecOutput(
-      `docker inspect -f '{{.State.Running}}' ${name}`,
+      `sudo docker inspect -f '{{.State.Running}}' ${name}`,
       { quiet: true },
     );
     if (res.status !== 0) return { running: false, exists: false };
@@ -509,7 +525,7 @@ export class GceCosProvider implements OrbitProvider {
 
   async getCapsuleStats(name: string): Promise<string> {
     const res = await this.getExecOutput(
-      `docker stats ${name} --no-stream --format '{{.CPUPerc}} / {{.MemUsage}}'`,
+      `sudo docker stats ${name} --no-stream --format '{{.CPUPerc}} / {{.MemUsage}}'`,
       { quiet: true },
     );
     return res.stdout.trim();
