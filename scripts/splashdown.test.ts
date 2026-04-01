@@ -8,9 +8,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runSplashdown } from './splashdown.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
+import readline from 'node:readline';
 
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
+vi.mock('node:readline');
 
 describe('runSplashdown', () => {
   const mockProvider = {
@@ -31,11 +33,14 @@ describe('runSplashdown', () => {
       'gemini-orbit-extension',
     );
     vi.mocked(ConfigManager.getRepoConfig).mockReturnValue({
-      projectId: 'p',
-      zone: 'z',
+      projectId: 'local',
+      zone: 'localhost',
       instanceName: 'i',
       repoName: 'gemini-orbit-extension',
     });
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   it('should perform repository splashdown when called without --all', async () => {
@@ -47,12 +52,42 @@ describe('runSplashdown', () => {
     expect(mockProvider.stop).not.toHaveBeenCalled();
   });
 
-  it('should perform global mission splashdown when --all is present', async () => {
+  it('should not call stop() even if --all is present in local mode', async () => {
     const res = await runSplashdown(['--all']);
 
     expect(res).toBe(0);
     expect(mockProvider.listCapsules).toHaveBeenCalled();
     expect(mockProvider.removeCapsule).toHaveBeenCalled();
-    expect(mockProvider.stop).toHaveBeenCalled();
+    expect(mockProvider.stop).not.toHaveBeenCalled();
+  });
+
+  it('should perform local cleanup when --force-local-cleanup-i-undestand is confirmed', async () => {
+    const mockInterface = {
+      question: vi
+        .fn()
+        .mockImplementationOnce((_q, cb) => cb('yes'))
+        .mockImplementationOnce((_q, cb) => cb('gemini-orbit-extension')),
+      close: vi.fn(),
+    };
+    vi.mocked(readline.createInterface).mockReturnValue(mockInterface as any);
+
+    const res = await runSplashdown(['--force-local-cleanup-i-undestand']);
+
+    expect(res).toBe(0);
+    expect(mockInterface.question).toHaveBeenCalledTimes(2);
+    expect(mockProvider.removeCapsule).toHaveBeenCalled();
+  });
+
+  it('should abort local cleanup if confirmation fails', async () => {
+    const mockInterface = {
+      question: vi.fn().mockImplementationOnce((_q, cb) => cb('no')),
+      close: vi.fn(),
+    };
+    vi.mocked(readline.createInterface).mockReturnValue(mockInterface as any);
+
+    const res = await runSplashdown(['--force-local-cleanup-i-undestand']);
+
+    expect(res).toBe(0);
+    expect(mockProvider.removeCapsule).not.toHaveBeenCalled();
   });
 });
