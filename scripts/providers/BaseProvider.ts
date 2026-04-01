@@ -21,6 +21,8 @@ export interface OrbitProvider {
   provision(options?: {
     setupNetwork?: boolean;
     sessionId?: string;
+    upstreamUrl?: string;
+    repoRoot?: string;
   }): Promise<number>;
 
   /**

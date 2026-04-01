@@ -80,7 +80,11 @@ export async function runSetup(args: string[] = []) {
       );
     }
 
-    const code = await provider.provision({ setupNetwork: setupNet });
+    const code = await provider.provision({
+      setupNetwork: setupNet,
+      upstreamUrl: `https://github.com/${config.upstreamRepo}.git`,
+      repoRoot: config.remoteWorkDir,
+    });
     if (code !== 0) {
       console.error(
         `\n❌ Infrastructure provisioning failed (Exit Code ${code}).`,
@@ -121,6 +125,7 @@ export async function runSetup(args: string[] = []) {
     // 4. Save/Update Station Receipt
     stationManager.saveReceipt({
       name: stationName,
+      instanceName: config.instanceName!, // The human name is the receipt key
       type: 'gce',
       projectId: config.projectId!,
       zone: config.zone!,

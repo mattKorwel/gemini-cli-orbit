@@ -47,7 +47,8 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
     const receiptPath = path.join(STATIONS_DIR, `${targetStation}.json`);
     const receipt = loadJson(receiptPath);
     if (receipt) {
-      config.instanceName = receipt.name;
+      config.stationName = receipt.name;
+      config.instanceName = receipt.instanceName || receipt.name;
       config.projectId = receipt.projectId;
       config.zone = receipt.zone;
       config.providerType = receipt.type;
@@ -59,6 +60,7 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
       }
     } else {
       // If station not in registry, assume name is literal
+      config.stationName = targetStation;
       config.instanceName = targetStation;
     }
   }
@@ -83,8 +85,14 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
   config = { ...config, ...flags };
 
   // 7. Dynamic Defaults (Final Fallback)
+  if (!config.stationName) config.stationName = rName;
   if (!config.instanceName && config.projectId !== 'local') {
-    config.instanceName = `gcli-station-${rName}`;
+    // Standardized predictable name: gcli-station-<user>-<repo>
+    // We use a simplified username to ensure cloud compatibility
+    const user = (process.env.USER || process.env.USERNAME || 'user')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    config.instanceName = `gcli-station-${user}-${rName}`;
   }
   if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
   if (!config.worktreesDir) config.worktreesDir = '/mnt/disks/data/worktrees';

@@ -13,6 +13,7 @@ import { logger } from './Logger.js';
 
 export interface StationReceipt {
   name: string;
+  instanceName: string;
   type: 'gce' | 'local-worktree';
   projectId: string;
   zone: string;
@@ -93,7 +94,7 @@ export class StationManager {
     const provider = ProviderFactory.getProvider({
       projectId: receipt.projectId,
       zone: receipt.zone,
-      instanceName: receipt.name,
+      instanceName: receipt.instanceName || receipt.name,
       providerType: receipt.type,
       worktreesDir:
         receipt.type === 'local-worktree'
@@ -117,9 +118,10 @@ export class StationManager {
       const provider = ProviderFactory.getProvider({
         projectId: receipt.projectId,
         zone: receipt.zone,
-        instanceName: receipt.name,
-        providerType: 'gce',
+        instanceName: receipt.instanceName || receipt.name,
+        providerType: receipt.type,
       });
+
       const status = await provider.getStatus();
       return status.status !== 'NOT_FOUND';
     }

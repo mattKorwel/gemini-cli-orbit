@@ -85,7 +85,7 @@ describe('GceCosProvider', () => {
   it('should have public projectId and zone', () => {
     expect(provider.projectId).toBe(projectId);
     expect(provider.zone).toBe(zone);
-    expect(provider.stationName).toBe('station-supervisor');
+    expect(provider.stationName).toBe('test-i');
   });
 
   it('should list stations for the user', async () => {
@@ -175,11 +175,11 @@ describe('GceCosProvider', () => {
 
     expect(res).toBe(0);
     expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('docker pull'),
+      expect.stringContaining('sudo docker pull'),
       expect.any(Object),
     );
     expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('docker run -d --name station-supervisor'),
+      expect.stringContaining('sudo docker run -d --name test-i'),
       expect.any(Object),
     );
   });

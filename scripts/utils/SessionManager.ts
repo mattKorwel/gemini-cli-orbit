@@ -9,6 +9,16 @@
  */
 export class SessionManager {
   /**
+   * Generates a unique but stable ID for a mission (identifier + action).
+   * Used for capsule naming and stable secret paths.
+   */
+  static generateMissionId(identifier: string, action: string): string {
+    const cleanId = identifier.replace(/[^a-zA-Z0-9]/g, '');
+    const cleanAction = action.replace(/[^a-zA-Z0-9]/g, '');
+    return `orbit-${cleanId}-${cleanAction}`;
+  }
+
+  /**
    * Generates a new session ID based on PR number and action.
    * Format: orbit-<pr>-<action>-<timestamp>
    */

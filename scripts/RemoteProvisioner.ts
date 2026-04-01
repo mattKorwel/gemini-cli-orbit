@@ -14,7 +14,7 @@ import { ORBIT_ROOT, DEFAULT_IMAGE_URI } from './Constants.js';
 export class RemoteProvisioner {
   constructor(private provider: OrbitProvider) {}
 
-  async provisionWorktree(
+  async prepareMissionWorkspace(
     identifier: string,
     action: string,
     isEvaMode: boolean,
@@ -26,6 +26,7 @@ export class RemoteProvisioner {
       cpuLimit?: string;
       memoryLimit?: string;
       image?: string;
+      sensitiveEnv?: Record<string, string>;
     },
   ): Promise<string> {
     const isLocalWorktree = this.provider.type === 'local-worktree';
@@ -40,35 +41,36 @@ export class RemoteProvisioner {
       ? path.join((this.provider as any).worktreesDir, branch)
       : `${config.worktreesDir}/${mCtx.worktreeName}`;
 
+    const missionId = SessionManager.generateMissionId(identifier, action);
+    const secretPath = `/dev/shm/.gcli-env-${missionId}`;
+
     // 1. Ensure the specific mission capsule is active
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);
 
     if (!capsuleStatus.exists) {
       logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
 
-      const sessionId = SessionManager.generateSessionId(identifier, action);
-      const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
-
       const runRes = await this.provider.runCapsule({
         name: containerName,
-        image: config.image || config.remoteWorkDir || imageUri,
+        image: config.image || imageUri,
         user: isGce ? 'root' : undefined,
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
+        sensitiveEnv: config.sensitiveEnv,
         mounts: isLocalWorktree
           ? []
           : [
               {
                 host: config.remoteWorkDir,
                 capsule: config.remoteWorkDir,
-                readonly: true,
+                readonly: false,
               },
               {
                 host: remoteWorktreeDir,
                 capsule: remoteWorktreeDir,
                 readonly: false,
               },
-              { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: true },
+              { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: false },
               {
                 host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
                 capsule: '/home/node/.gemini',
@@ -116,13 +118,17 @@ export class RemoteProvisioner {
       await this.provider.exec(
         `sudo mkdir -p ${config.worktreesDir} && sudo chown -R 1000:1000 ${config.worktreesDir}`,
       );
+      // Ensure target directory is clean before clone
+      await this.provider.exec(`sudo rm -rf ${remoteWorktreeDir}`);
       await this.provider.exec(
         `sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`,
       );
 
       const cloneCmd = `
-        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) && \
+        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && export GITHUB_TOKEN=$(cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2-) && gh auth login --with-token) && \
+        export GITHUB_TOKEN=$(cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2-) && \
         git config --global --add safe.directory '*' && \
+        git config --global url."https://x-access-token:\${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/" && \
         git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
         cd ${remoteWorktreeDir} && \
         git config --replace-all core.filemode false && \
@@ -132,10 +138,12 @@ export class RemoteProvisioner {
 
       const setupRes = await this.provider.getExecOutput(
         cloneCmd.replace(/\n/g, ''),
-        { wrapCapsule: containerName },
+        { wrapCapsule: containerName, quiet: true },
       );
       if (setupRes.status !== 0) {
-        throw new Error(`Failed to provision remote repo: ${setupRes.stderr}`);
+        throw new Error(
+          `Failed to provision remote repo (Exit ${setupRes.status}): ${setupRes.stderr || 'No stderr captured'}`,
+        );
       }
     }
 
@@ -144,7 +152,7 @@ export class RemoteProvisioner {
 
   async waitForCapsule(name: string, timeoutMs: number): Promise<void> {
     const start = Date.now();
-    process.stdout.write(`   - Waiting for capsule ${name} to stabilize...`);
+    process.stdout.write(`   - Establishing capsule uplink (${name})...`);
 
     while (Date.now() - start < timeoutMs) {
       const res = await this.provider.getExecOutput('echo 1', {
@@ -152,7 +160,7 @@ export class RemoteProvisioner {
         quiet: true,
       });
       if (res.status === 0) {
-        process.stdout.write(' ✅ Ready.\n');
+        process.stdout.write(' ✅ Link Active.\n');
         return;
       }
       process.stdout.write('.');

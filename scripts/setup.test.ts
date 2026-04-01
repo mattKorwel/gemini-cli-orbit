@@ -75,6 +75,7 @@ describe('runSetup', () => {
       zone: 'test-z',
       repoName: 'gemini-cli',
       instanceName: 'test-i',
+      stationName: 'test-s',
     });
     vi.mocked(ConfigManager.parseFlags).mockReturnValue({});
     vi.mocked(ConfigManager.loadSchematic).mockReturnValue({});
@@ -112,6 +113,7 @@ describe('runSetup', () => {
             projectId: 'p',
             zone: 'z',
             instanceName: 'i',
+            stationName: 'i',
             repoName: 'gemini-cli',
           },
         },
@@ -126,6 +128,7 @@ describe('runSetup', () => {
           projectId: 'p',
           zone: 'z',
           instanceName: 'i',
+          stationName: 'i',
           repoName: 'gemini-cli',
         },
       },
