@@ -201,6 +201,7 @@ function showHelp(cmdName?: string) {
   console.log('  -h, --help          Show this help menu');
   console.log('  -l, --local         Force local worktree mode');
   console.log('  -r, --repo <name>   Override the detected repository name');
+  console.log('  --repo-dir <path>   Set the target repository directory');
   console.log('  --for-station <s>   Target a specific station');
   console.log('  --schematic <s>     Use a specific schematic for liftoff');
 
@@ -255,6 +256,17 @@ export async function dispatch(argv: string[]): Promise<number> {
       process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1]!;
       i++;
     } else if (
+      arg.startsWith('--repo-dir=') ||
+      (arg === '--repo-dir' && rawArgs[i + 1])
+    ) {
+      const val = arg.includes('=') ? arg.split('=')[1]! : rawArgs[i + 1]!;
+      if (!fs.existsSync(val)) {
+        console.error(`❌ Repository directory not found: ${val}`);
+        return 1;
+      }
+      process.chdir(val);
+      if (!arg.includes('=')) i++;
+    } else if (
       arg.startsWith('--for-station=') ||
       (arg === '--for-station' && rawArgs[i + 1])
     ) {
@@ -301,6 +313,9 @@ async function main() {
 }
 
 // Only auto-run when invoked directly as the CLI entry point
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+) {
   main();
 }

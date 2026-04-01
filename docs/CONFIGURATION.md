@@ -88,7 +88,40 @@ Schematics allow you to switch between different infrastructure environments
 - `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH.
   Defaults to `["0.0.0.0/0"]`.
 
-### 4. Environment Variables
+---
+
+## 🏎️ CLI Configuration Flags
+
+You can provide configuration flags directly to many Orbit commands. These flags
+serve two primary purposes:
+
+1.  **Wizard Pre-fill**: When running `orbit schematic create <name>`, flags
+    like `--projectId=my-project` will pre-populate the interactive wizard
+    fields.
+2.  **Runtime Overrides**: When running `orbit station liftoff`, flags act as
+    immediate overrides for the current execution, bypassing settings in your
+    Schematic or Project config.
+
+### Supported Flags
+
+| Flag             | Schematic Property | Description                                   |
+| ---------------- | ------------------ | --------------------------------------------- |
+| `--projectId`    | `projectId`        | The Google Cloud Project ID.                  |
+| `--zone`         | `zone`             | The GCE Zone (e.g., `us-central1-a`).         |
+| `--instanceName` | `instanceName`     | The name of the GCE Station VM.               |
+| `--backend`      | `backendType`      | `direct-internal` or `external`.              |
+| `--machineType`  | `machineType`      | The GCE Machine Type (e.g., `n2-standard-8`). |
+| `--vpcName`      | `vpcName`          | The target VPC network name.                  |
+| `--subnetName`   | `subnetName`       | The target Subnet name.                       |
+| `--image`        | `imageUri`         | The Docker image for mission capsules.        |
+| `--schematic`    | N/A                | The name of the schematic to use.             |
+| `--for-station`  | N/A                | Target a specific station by name.            |
+
+**Note**: Use the `--key=value` syntax for all configuration flags.
+
+---
+
+## 4. Environment Variables
 
 Highest priority overrides for the current session.
 
