@@ -95,42 +95,44 @@ export async function runOrchestrator(
   // 4. Mission Preparation (Unified)
   await provider.prepareMissionWorkspace(identifier, action, config);
 
-  // 5. Build/Sync Phase (Phase 0)
-  logger.info('PHASE 0', '📦 Synchronizing source and preparing environment...');
-  const buildOptions: ExecOptions = {
-    cwd: remoteWorktreeDir,
-    interactive: true,
-    sensitiveEnv: { GITHUB_TOKEN: githubToken },
-  };
+  // 5. Build/Sync Phase (Phase 0) - Only needed for remote
+  if (!isLocalWorktree) {
+    logger.info('PHASE 0', '📦 Synchronizing source and preparing environment...');
+    const buildOptions: ExecOptions = {
+      cwd: remoteWorktreeDir,
+      interactive: true,
+      sensitiveEnv: { GITHUB_TOKEN: githubToken },
+    };
 
-  // 5.1 Ensure Worktree exists
-  const wtStatus = await provider.exec(
-    `ls -d ${remoteWorktreeDir}`,
-    buildOptions,
-  );
-  if (wtStatus !== 0) {
-    logger.info('SETUP', `   - Creating isolated worktree for '${branch}'...`);
-    const setupCmds = [
-      `mkdir -p ${repoWorktreesDir}`,
-      `git clone --reference ${ORBIT_ROOT}/main --dissociate ${upstreamUrl} ${remoteWorktreeDir}`,
-      `cd ${remoteWorktreeDir} && git fetch origin ${branch} && git checkout ${branch}`,
-    ];
-    for (const cmd of setupCmds) {
-      const res = await provider.exec(cmd, {
-        ...buildOptions,
-        cwd: ORBIT_ROOT,
-      });
-      if (res !== 0) throw new Error(`Setup command failed: ${cmd}`);
+    // 5.1 Ensure Worktree exists
+    const wtStatus = await provider.exec(
+      `ls -d ${remoteWorktreeDir}`,
+      buildOptions,
+    );
+    if (wtStatus !== 0) {
+      logger.info('SETUP', `   - Creating isolated worktree for '${branch}'...`);
+      const setupCmds = [
+        `mkdir -p ${repoWorktreesDir}`,
+        `git clone --reference ${ORBIT_ROOT}/main --dissociate ${upstreamUrl} ${remoteWorktreeDir}`,
+        `cd ${remoteWorktreeDir} && git fetch origin ${branch} && git checkout ${branch}`,
+      ];
+      for (const cmd of setupCmds) {
+        const res = await provider.exec(cmd, {
+          ...buildOptions,
+          cwd: ORBIT_ROOT,
+        });
+        if (res !== 0) throw new Error(`Setup command failed: ${cmd}`);
+      }
     }
-  }
 
-  // 5.2 Build / Install
-  const buildStatus = await provider.exec(
-    `npm install && npm run build`,
-    buildOptions,
-  );
-  if (buildStatus !== 0) {
-    logger.warn('BUILD', 'Build failed. Evaluation may be incomplete.');
+    // 5.2 Build / Install
+    const buildStatus = await provider.exec(
+      `npm install && npm run build`,
+      buildOptions,
+    );
+    if (buildStatus !== 0) {
+      logger.warn('BUILD', 'Build failed. Evaluation may be incomplete.');
+    }
   }
 
   // 6. Evaluation Phase (Phase 1)

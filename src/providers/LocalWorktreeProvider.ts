@@ -15,6 +15,7 @@ import {
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
+import { resolveMissionContext } from '../utils/MissionUtils.js';
 
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
@@ -130,14 +131,16 @@ export class LocalWorktreeProvider implements OrbitProvider {
     branch: string,
     _config: any,
   ): Promise<void> {
+    const mCtx = resolveMissionContext(_identifier, 'chat'); // We need the canonical branch from the ID
+    const actualBranch = mCtx.branchName;
     const sourceDir = getPrimaryRepoRoot();
-    const wtPath = path.join(this.worktreesDir, branch);
+    const wtPath = path.join(this.worktreesDir, actualBranch);
 
     if (fs.existsSync(wtPath)) {
       return;
     }
 
-    console.log(`   🌿 Orbit: Provisioning local worktree for '${branch}'...`);
+    console.log(`   🌿 Orbit: Provisioning local worktree for '${actualBranch}'...`);
 
     // Ensure origin is up to date
     spawnSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
@@ -150,13 +153,13 @@ export class LocalWorktreeProvider implements OrbitProvider {
       sourceDir,
       'show-ref',
       '--verify',
-      `refs/heads/${branch}`,
+      `refs/heads/${actualBranch}`,
     ]);
 
     if (localCheck.status === 0) {
-      args.push(wtPath, branch);
+      args.push(wtPath, actualBranch);
     } else {
-      args.push('-b', branch, wtPath, `origin/${branch}`);
+      args.push('-b', actualBranch, wtPath, `origin/${actualBranch}`);
     }
 
     const res = spawnSync('git', ['-C', sourceDir, ...args], {
