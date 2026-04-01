@@ -422,7 +422,7 @@ export class GceCosProvider implements OrbitProvider {
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
     const finalCmd = options.wrapCapsule
-      ? `docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} /bin/bash -c ${this.q(command)}`
+      ? `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} /bin/bash -c ${this.q(command)}`
       : command;
 
     return this.conn.getRunCommand(finalCmd, {
@@ -446,7 +446,7 @@ export class GceCosProvider implements OrbitProvider {
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
     const finalCmd = options.wrapCapsule
-      ? `docker exec ${options.interactive ? '-it' : ''} ${options.user ? `-u ${options.user}` : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} /bin/bash -c ${this.q(command)}`
+      ? `sudo docker exec ${options.interactive ? '-it' : ''} ${options.user ? `-u ${options.user}` : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} /bin/bash -c ${this.q(command)}`
       : command;
 
     const res = this.conn.run(finalCmd, {
@@ -557,18 +557,18 @@ export class GceCosProvider implements OrbitProvider {
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
 
     const cmd = config.command || 'while true; do sleep 1000; done';
-    const dockerCmd = `docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.q(cmd)}`;
+    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.q(cmd)}`;
 
     return this.exec(dockerCmd);
   }
 
   async removeCapsule(name: string): Promise<number> {
-    return this.exec(`docker rm -f ${name}`);
+    return this.exec(`sudo docker rm -f ${name}`);
   }
 
   async capturePane(capsuleName: string): Promise<string> {
     const res = await this.getExecOutput(
-      `docker exec ${capsuleName} tmux capture-pane -pt default`,
+      `sudo docker exec ${capsuleName} tmux capture-pane -pt default`,
       { quiet: true },
     );
     return res.stdout;
@@ -612,7 +612,7 @@ export class GceCosProvider implements OrbitProvider {
 
   async listCapsules(): Promise<string[]> {
     const res = await this.getExecOutput(
-      "docker ps --format '{{.Names}}' | grep '^gcli-'",
+      "sudo docker ps --format '{{.Names}}' | grep '^gcli-'",
       { quiet: true },
     );
     return res.stdout.trim().split('\n').filter(Boolean);

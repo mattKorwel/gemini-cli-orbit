@@ -51,7 +51,7 @@ export class RemoteProvisioner {
 
       const runRes = await this.provider.runCapsule({
         name: containerName,
-        image: config.image || config.remoteWorkDir || imageUri,
+        image: config.image || imageUri,
         user: isGce ? 'root' : undefined,
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
