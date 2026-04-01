@@ -3,7 +3,7 @@
 This master plan tracks the progress of decoupling infrastructure provisioning from operational management by introducing a TypeScript-native IaC layer using **Pulumi**.
 
 ## Status
-- [ ] **Sub-Plan 1: Foundation & Abstraction Layer** ([pni-sub-01-foundation.md](pni-sub-01-foundation.md))
+- [x] **Sub-Plan 1: Foundation & Abstraction Layer** ([pni-sub-01-foundation.md](pni-sub-01-foundation.md))
 - [ ] **Sub-Plan 2: Target-Aware Provisioners** ([pni-sub-02-targets.md](pni-sub-02-targets.md))
 - [ ] **Sub-Plan 3: Execution Provider Refactoring** ([pni-sub-03-execution.md](pni-sub-03-execution.md))
 - [ ] **Sub-Plan 4: CLI Lifecycle Integration** ([pni-sub-04-cli.md](pni-sub-04-cli.md))
