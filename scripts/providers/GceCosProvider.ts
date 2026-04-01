@@ -377,9 +377,14 @@ export class GceCosProvider implements OrbitProvider {
     logger.info(`⏳ Waiting for ${this.stationName} to stabilize...`);
     for (let i = 0; i < 30; i++) {
       const status = await this.getCapsuleStatus(this.stationName);
-      if (status.running) return 0;
+      if (status.running) {
+        if (i > 0) process.stdout.write('\n');
+        return 0;
+      }
+      process.stdout.write('.');
       await new Promise((r) => setTimeout(r, 2000));
     }
+    process.stdout.write('\n');
     return 1;
   }
 
