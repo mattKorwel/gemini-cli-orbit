@@ -209,14 +209,17 @@ export async function runOrchestrator(
 
   // 4. Optimistic Execution (Fast-path for active stations)
   if (!isLocalWorktree) {
+    process.stdout.write('📡 Re-connecting to active mission...');
     const optimisticRes = await provider.exec(fullCommand, {
       ...execOptions,
       quiet: true, // Don't show errors on the first attempt
     });
 
     if (optimisticRes === 0) {
+      process.stdout.write(' ✅ Success.\n');
       return 0; // Mission launched successfully!
     }
+    process.stdout.write(' (preparing context)\n');
 
     if (optimisticRes !== 255) {
       // If it's NOT a connectivity error (255), then the capsule might just be missing.

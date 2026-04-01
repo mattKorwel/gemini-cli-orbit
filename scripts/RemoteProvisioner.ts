@@ -116,6 +116,8 @@ export class RemoteProvisioner {
       await this.provider.exec(
         `sudo mkdir -p ${config.worktreesDir} && sudo chown -R 1000:1000 ${config.worktreesDir}`,
       );
+      // Ensure target directory is empty/removed if not a valid git repo (prevents clone failure)
+      await this.provider.exec(`sudo rm -rf ${remoteWorktreeDir}`);
       await this.provider.exec(
         `sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`,
       );
@@ -135,7 +137,9 @@ export class RemoteProvisioner {
         { wrapCapsule: containerName },
       );
       if (setupRes.status !== 0) {
-        throw new Error(`Failed to provision remote repo: ${setupRes.stderr}`);
+        throw new Error(
+          `Failed to provision remote repo (Exit ${setupRes.status}): ${setupRes.stderr || 'No stderr captured'}`,
+        );
       }
     }
 
