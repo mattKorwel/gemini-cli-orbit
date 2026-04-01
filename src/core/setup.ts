@@ -5,6 +5,7 @@
  */
 
 import { ProviderFactory } from '../providers/ProviderFactory.js';
+import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import {
   getRepoConfig,
   detectRepoName,
@@ -22,7 +23,7 @@ import { StationManager } from './StationManager.js';
 export async function runSetup(args: string[] = []) {
   const repoName = detectRepoName();
   const withStation = args.includes('--with-new-station');
-  const setupNet = args.includes('--setup-net');
+  const destroy = args.includes('--destroy');
   const flags = parseFlags(args);
 
   // Filter out 'liftoff' if it's passed as the first argument from runFleet
@@ -41,7 +42,7 @@ export async function runSetup(args: string[] = []) {
   const config = { ...getRepoConfig(repoName), ...schematic, ...flags };
   const stationManager = new StationManager();
 
-  if (!config.projectId) {
+  if (!config.projectId && config.providerType !== 'local-worktree') {
     console.log('\n❌ No active infrastructure schematic found.');
     console.log(
       `👉 Please run "orbit schematic create ${schematicName}" to set up your blueprints.\n`,
@@ -49,72 +50,48 @@ export async function runSetup(args: string[] = []) {
     return 1;
   }
 
-  // 2. Execution
-  const provider = ProviderFactory.getProvider(config as any);
-  logger.divider('STATION LIFTOFF');
+  // 2. Infrastructure Layer (Declarative)
+  const infraProvisioner = InfrastructureFactory.getProvisioner(schematicName, config as any);
 
-  logger.info(
-    'SETUP',
-    `Verifying infrastructure for ${config.instanceName || 'station'}...`,
-  );
-  let status = await provider.getStatus();
-
-  if (status.status === 'NOT_FOUND' || setupNet) {
-    if (!setupNet && !withStation) {
-      console.log(`\n📡 STATION STATUS: Not Found`);
-      console.log(`   - Repo:      ${repoName}`);
-      console.log(`   - Schematic: ${schematicName}`);
-      console.log(`   - Target VM: ${config.instanceName}`);
-      console.log(`\n👉 This station does not exist yet.`);
-      console.log(`   To provision this infrastructure, rerun with:`);
-      console.log(`   orbit station liftoff --with-new-station\n`);
-      return 1;
-    }
-
-    if (setupNet) {
-      logger.info('SETUP', `🛠️  Provisioning Full Orbit Network & Station...`);
-    } else {
-      logger.info(
-        'SETUP',
-        `🚀 Provisioning new Station VM: ${config.instanceName}...`,
-      );
-    }
-
-    const code = await provider.provision({
-      setupNetwork: setupNet,
-      upstreamUrl: `https://github.com/${config.upstreamRepo}.git`,
-      repoRoot: config.remoteWorkDir || '',
-    });
-    if (code !== 0) {
-      console.error(
-        `\n❌ Infrastructure provisioning failed (Exit Code ${code}).`,
-      );
-      console.error(
-        `👉 Check your schematic (${schematicName}.json) and GCP permissions.\n`,
-      );
-      return code;
-    }
-    status = await provider.getStatus();
+  if (destroy) {
+    logger.info('SETUP', `🔥 Decommissioning infrastructure for ${schematicName}...`);
+    await infraProvisioner.down();
+    logger.info('SETUP', '✅ Infrastructure destroyed.');
+    return 0;
   }
 
-  if (status.status === 'TERMINATED') {
-    logger.info('SETUP', `Waking up station ${config.instanceName}...`);
-    await provider.ensureReady();
-  } else if (status.status === 'RUNNING') {
+  logger.divider('STATION LIFTOFF');
+  logger.info(
+    'SETUP',
+    `Verifying infrastructure for ${config.instanceName || schematicName}...`,
+  );
+
+  // Bring up infrastructure
+  const state = await infraProvisioner.up();
+
+  if (state.status === 'error') {
+    console.error(`\n❌ Infrastructure provisioning failed: ${state.error}`);
+    return 1;
+  }
+
+  // 3. Execution Layer (Handover)
+  const provider = ProviderFactory.getProvider(config as any, state);
+
+  if (state.status === 'ready') {
     logger.info(
       'SETUP',
-      `✅ Station is already active at ${status.internalIp || 'internal IP'}`,
+      `✅ Station is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
     );
-    await provider.ensureReady(); // Fast-check supervisor
+    await provider.ensureReady();
   }
 
   const isLocal =
     config.projectId === 'local' || config.providerType === 'local-worktree';
 
-  // 3. Update Global Registry & Active Station
-  if (status.status !== 'NOT_FOUND' && !isLocal) {
+  // 4. Update Global Registry & Active Station
+  if (state.status !== 'destroyed' && !isLocal) {
     const settings = loadSettings();
-    const stationName = config.instanceName!;
+    const stationName = config.instanceName || schematicName;
 
     // Update global active station pointer
     settings.activeStation = stationName;
@@ -122,13 +99,13 @@ export async function runSetup(args: string[] = []) {
 
     logger.info('SETUP', `🎯 Active Station set to: ${stationName}`);
 
-    // 4. Save/Update Station Receipt
+    // 5. Save/Update Station Receipt
     stationManager.saveReceipt({
       name: stationName,
-      instanceName: config.instanceName!, // The human name is the receipt key
+      instanceName: stationName,
       type: 'gce',
       projectId: config.projectId!,
-      zone: config.zone!,
+      zone: config.zone || 'us-central1-a',
       repo: repoName,
       schematic: schematicName,
       lastSeen: new Date().toISOString(),
