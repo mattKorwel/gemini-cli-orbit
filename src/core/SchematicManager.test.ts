@@ -20,7 +20,7 @@ describe('SchematicManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     manager = new SchematicManager();
-    ( ConfigManager.sanitizeName as any).mockImplementation((n) =>
+    ( ConfigManager.sanitizeName as any).mockImplementation((n: string) =>
       n.toLowerCase().replace(/[^a-z0-9]/g, '-'),
     );
   });

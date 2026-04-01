@@ -23,7 +23,7 @@ describe('LocalWorktreeProvider', () => {
     // Mock fs.existsSync to true by default for test stability
     ( fs.existsSync as any).mockReturnValue(true);
     // Mock realpathSync to return input by default
-    ( fs.realpathSync as any).mockImplementation((p) => p.toString());
+    ( fs.realpathSync as any).mockImplementation((p: string) => p.toString());
   });
 
   it('should initialize with correct worktrees directory', () => {

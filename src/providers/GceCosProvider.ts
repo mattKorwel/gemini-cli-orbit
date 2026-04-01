@@ -650,6 +650,12 @@ export class GceCosProvider implements OrbitProvider {
     return 0;
   }
 
+  async attach(name: string): Promise<number> {
+    return this.exec(`sudo docker exec -it ${name} tmux attach -t default || sudo docker exec -it ${name} /bin/bash`, {
+      interactive: true,
+    });
+  }
+
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const mounts = config.mounts
       .map((m) => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`)
@@ -670,6 +676,10 @@ export class GceCosProvider implements OrbitProvider {
     const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${sensitiveEnvFlags} ${config.image} /bin/bash -c ${this.q(cmd)}`;
 
     return this.exec(dockerCmd);
+  }
+
+  async stopCapsule(name: string): Promise<number> {
+    return this.exec(`sudo docker stop ${name}`);
   }
 
   async removeCapsule(name: string): Promise<number> {

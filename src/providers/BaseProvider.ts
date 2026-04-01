@@ -90,9 +90,19 @@ export interface OrbitProvider {
   getCapsuleIdleTime(name: string): Promise<number>;
 
   /**
+   * Attaches to an active mission capsule.
+   */
+  attach(name: string): Promise<number>;
+
+  /**
    * Runs a capsule (container) with specific configuration.
    */
   runCapsule(config: CapsuleConfig): Promise<number>;
+
+  /**
+   * Stops a specific capsule.
+   */
+  stopCapsule(name: string): Promise<number>;
 
   /**
    * Stops and removes a specific capsule.

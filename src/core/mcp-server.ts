@@ -139,7 +139,7 @@ server.registerTool(
     }).shape,
   },
   async ({ identifier, action }) => {
-    const output = await runWithCapture(() => runLogs([identifier, action]));
+    const output = await runWithCapture(() => runLogs(identifier, action));
     return {
       content: [{ type: 'text', text: output }],
     };
@@ -180,11 +180,11 @@ server.registerTool(
     description: 'Remove an Orbit mission capsule and reclaim resources.',
     inputSchema: z.object({
       prNumber: z.string(),
-      action: z.string().default('open'),
+      action: z.string().default('chat'),
     }).shape,
   },
   async ({ prNumber, action }) => {
-    const output = await runWithCapture(() => runJettison([prNumber, action]));
+    const output = await runWithCapture(() => runJettison(prNumber, action));
     return {
       content: [{ type: 'text', text: output }],
     };

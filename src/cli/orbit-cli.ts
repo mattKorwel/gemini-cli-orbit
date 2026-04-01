@@ -131,7 +131,17 @@ const COMMANDS: Record<string, Command> = {
     usage: 'orbit jettison <IDENTIFIER> [action]',
   },
   reap: {
-    run: (args: string[]) => runReap(args),
+    run: (args: string[]) => {
+      const thresholdRaw = args
+        .find((a) => a.startsWith('--threshold='))
+        ?.split('=')[1];
+      const threshold = thresholdRaw ? parseInt(thresholdRaw) : undefined;
+      const force = args.includes('--force');
+      return runReap({
+        ...(threshold !== undefined ? { threshold } : {}),
+        ...(force !== undefined ? { force } : {}),
+      });
+    },
     category: 'Cleanup',
     description: 'Cleanup idle mission capsules based on inactivity.',
     usage: 'orbit reap',

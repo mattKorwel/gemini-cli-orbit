@@ -67,7 +67,7 @@ describe('runSetup', () => {
     ( ConfigManager.loadProjectConfig as any).mockReturnValue({
       upstreamRepo: 'google-gemini/gemini-cli',
     });
-    ( ConfigManager.sanitizeName as any).mockImplementation((n) =>
+    ( ConfigManager.sanitizeName as any).mockImplementation((n: string) =>
       n.replace(/[^a-zA-Z0-9\-_]/g, ''),
     );
     (ConfigManager.getRepoConfig as any).mockReturnValue({

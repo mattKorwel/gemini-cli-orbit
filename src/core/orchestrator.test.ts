@@ -27,7 +27,7 @@ describe('Orchestrator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    ProviderFactory.getProvider.mockReturnValue(mockProvider);
+    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
     (TempManager.getToken as any).mockReturnValue('mock-token');
     (SessionManager.generateSessionId as any).mockReturnValue('mock-session');
     (SessionManager.generateMissionId as any).mockReturnValue('mock-mission');

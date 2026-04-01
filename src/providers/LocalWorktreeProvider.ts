@@ -164,6 +164,17 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
+  async attach(name: string): Promise<number> {
+    if (!this.hasTmux()) {
+      console.warn('⚠️  Tmux not found. Cannot attach to persistent session.');
+      return 1;
+    }
+    const res = spawnSync('tmux', ['attach-session', '-t', `orbit-${name}`], {
+      stdio: 'inherit',
+    });
+    return res.status ?? 0;
+  }
+
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const branch = config.name;
     const sourceDir = config.image;
@@ -225,6 +236,13 @@ export class LocalWorktreeProvider implements OrbitProvider {
       stdio: 'inherit',
     });
     return res.status ?? 0;
+  }
+
+  async stopCapsule(name: string): Promise<number> {
+    if (this.hasTmux()) {
+      spawnSync('tmux', ['kill-session', '-t', `orbit-${name}`]);
+    }
+    return 0;
   }
 
   async removeCapsule(name: string): Promise<number> {
