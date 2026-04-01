@@ -16,7 +16,6 @@ import { resolveMissionContext } from './utils/MissionUtils.js';
 import { TempManager } from './utils/TempManager.js';
 import { StationManager } from './StationManager.js';
 import {
-  ORBIT_ROOT,
   SATELLITE_WORKTREES_PATH,
   POLICIES_PATH,
   LOCAL_POLICIES_PATH,
@@ -140,10 +139,6 @@ export async function runOrchestrator(
     instanceName,
   });
 
-  // 2. Wake Station & Verify Capsule
-  const readyRes = await provider.ensureReady();
-  if (readyRes !== 0) return readyRes;
-
   const isLocalWorktree = provider.type === 'local-worktree';
 
   // Paths - Unified across station and capsule
@@ -161,10 +156,100 @@ export async function runOrchestrator(
 
   const effectiveBundlePath = isLocalWorktree ? LOCAL_BUNDLE_PATH : BUNDLE_PATH;
 
-  // 3. Remote Preparation
+  // 3. Command Definition
   const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
+  const isWithinGemini =
+    !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
 
-  // 4. Remote Context Setup (Executed INSIDE capsule for path consistency)
+  // In shell mode, we just start gemini. In action mode, we run the entrypoint.
+  let remoteWorker = '';
+  if (action === 'chat' || action === 'eva') {
+    remoteWorker = customPrompt.trim()
+      ? `gemini -i ${q(customPrompt.trim())}`
+      : `gemini`;
+  } else if (action === 'shell') {
+    remoteWorker = `/bin/bash`;
+  } else {
+    remoteWorker = `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
+  }
+
+  // Helper: Check if tmux is installed
+  const hasTmux = spawnSync('which', ['tmux'], { stdio: 'pipe' }).status === 0;
+
+  // We wrap in tmux for persistence ONLY for remote.
+  const missionCmd =
+    !isLocalWorktree && config.useTmux !== false && hasTmux
+      ? `tmux new-session -A -s ${q(mCtx.sessionName)} ${q(remoteWorker)}`
+      : remoteWorker;
+
+  const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+  const execOptions: ExecOptions = {
+    interactive: true,
+    wrapCapsule: containerName,
+    env: {
+      COLORTERM: 'truecolor',
+      TERM: 'xterm-256color',
+      GEMINI_AUTO_UPDATE: '0',
+      GEMINI_CLI_HOME: isLocalWorktree
+        ? process.env.HOME || '/home/node'
+        : '/home/node',
+      GCLI_SESSION_ID: sessionId,
+      // Pass the API key through the process environment for local missions
+      ...(isLocalWorktree && localApiKey
+        ? { GEMINI_API_KEY: localApiKey }
+        : {}),
+    },
+  };
+
+  const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && source ${secretPath} && cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2- | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
+
+  const fullCommand = isLocalWorktree
+    ? missionCmd
+    : `${ghAuthCmd} && ${missionCmd}`;
+
+  // 4. Optimistic Execution (Fast-path for active stations)
+  if (!isLocalWorktree) {
+    const optimisticRes = await provider.exec(fullCommand, {
+      ...execOptions,
+      quiet: true, // Don't show errors on the first attempt
+    });
+
+    if (optimisticRes === 0) {
+      return 0; // Mission launched successfully!
+    }
+
+    if (optimisticRes !== 255) {
+      // If it's NOT a connectivity error (255), then the capsule might just be missing.
+      // We proceed to the full preparation logic.
+    }
+  }
+
+  // 5. Full Preparation (Slow-path: Waking & Provisioning)
+  const readyRes = await provider.ensureReady();
+  if (readyRes !== 0) return readyRes;
+
+  // AUTH: Inject credentials for remote missions (ADR 14)
+  if (!isLocalWorktree) {
+    let githubToken = '';
+    try {
+      const ghRes = spawnSync('gh', ['auth', 'token'], { encoding: 'utf8' });
+      if (ghRes.status === 0) githubToken = ghRes.stdout.trim();
+    } catch (_e) {}
+
+    console.log('   - Injecting mission authentication context (RAM-disk)...');
+    let dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
+    if (githubToken) {
+      dotEnvContent += `\nGITHUB_TOKEN=${githubToken}`;
+    }
+
+    const authRes = await provider.exec(
+      `echo ${q(dotEnvContent)} > ${secretPath} && chmod 600 ${secretPath}`,
+      {},
+    );
+    if (authRes !== 0) return authRes;
+  }
+
+  // Remote Context Setup (Executed INSIDE capsule for path consistency)
   const provisioner = new RemoteProvisioner(provider);
   const remoteWorktreeDir = await provisioner.provisionWorktree(
     identifier,
@@ -200,27 +285,7 @@ export async function runOrchestrator(
     });
   }
 
-  // AUTH: Inject credentials for remote missions (ADR 14)
-  let secretPath: string | null = null;
-  if (localApiKey && !isLocalWorktree) {
-    console.log('   - Injecting mission authentication context (RAM-disk)...');
-    const dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
-
-    // Write to /dev/shm on the station
-    secretPath = `/dev/shm/.gcli-env-${sessionId}`;
-    const authRes = await provider.exec(
-      `echo ${q(dotEnvContent)} > ${secretPath}`,
-      {
-        // Execute on station, not in capsule yet
-      },
-    );
-    if (authRes !== 0) return authRes;
-  }
-
-  // 5. Execution Logic
-  const isWithinGemini =
-    !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
-
+  // 6. Final Launch
   // Handle --open override
   const openIdx = args.indexOf('--open');
   let terminalTarget: 'foreground' | 'background' | 'tab' | 'window' =
@@ -234,52 +299,6 @@ export async function runOrchestrator(
   }
 
   const forceMainTerminal = terminalTarget === 'foreground';
-
-  // In shell mode, we just start gemini. In action mode, we run the entrypoint.
-  let remoteWorker = '';
-  if (action === 'chat' || action === 'eva') {
-    remoteWorker = customPrompt.trim()
-      ? `gemini -i ${q(customPrompt.trim())}`
-      : `gemini`;
-  } else if (action === 'shell') {
-    remoteWorker = `/bin/bash`;
-  } else {
-    remoteWorker = `node ${effectiveBundlePath}/entrypoint.js ${identifier} . ${remotePolicyPath} ${action} ${q(customPrompt.trim())}`;
-  }
-
-  // Helper: Check if tmux is installed
-  const hasTmux = spawnSync('which', ['tmux'], { stdio: 'pipe' }).status === 0;
-
-  // We wrap in tmux for persistence ONLY for remote.
-  // LocalWorktreeProvider handles its own tmux wrapping in getRunCommand.
-  const missionCmd =
-    !isLocalWorktree && config.useTmux !== false && hasTmux
-      ? `tmux new-session -A -s ${q(mCtx.sessionName)} ${q(remoteWorker)}`
-      : remoteWorker;
-
-  const execOptions: ExecOptions = {
-    interactive: true,
-    wrapCapsule: containerName,
-    env: {
-      COLORTERM: 'truecolor',
-      TERM: 'xterm-256color',
-      GEMINI_AUTO_UPDATE: '0',
-      GEMINI_CLI_HOME: isLocalWorktree
-        ? process.env.HOME || '/home/node'
-        : '/home/node',
-      GCLI_SESSION_ID: sessionId,
-      // Pass the API key through the process environment for local missions
-      ...(isLocalWorktree && localApiKey
-        ? { GEMINI_API_KEY: localApiKey }
-        : {}),
-    },
-  };
-
-  const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
-
-  const fullCommand = isLocalWorktree
-    ? missionCmd
-    : `${ghAuthCmd} && ${missionCmd}`;
   const finalSSH = provider.getRunCommand(fullCommand, execOptions);
   const tempManager = new TempManager(config);
 
@@ -327,7 +346,7 @@ ${finalSSH}
     return await provider.exec(fullCommand, execOptions);
   } finally {
     // Cleanup RAM-disk credential file after mission exits (ADR 14)
-    if (secretPath) {
+    if (!isLocalWorktree) {
       await provider.exec(`rm -f ${secretPath}`, {}).catch(() => {});
     }
   }

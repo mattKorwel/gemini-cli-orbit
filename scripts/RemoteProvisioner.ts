@@ -40,14 +40,14 @@ export class RemoteProvisioner {
       ? path.join((this.provider as any).worktreesDir, branch)
       : `${config.worktreesDir}/${mCtx.worktreeName}`;
 
+    const sessionId = SessionManager.generateSessionId(identifier, action);
+    const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+
     // 1. Ensure the specific mission capsule is active
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);
 
     if (!capsuleStatus.exists) {
       logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
-
-      const sessionId = SessionManager.generateSessionId(identifier, action);
-      const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
 
       const runRes = await this.provider.runCapsule({
         name: containerName,
@@ -121,7 +121,7 @@ export class RemoteProvisioner {
       );
 
       const cloneCmd = `
-        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && cat ${ORBIT_ROOT}/.gh_token | gh auth login --with-token) && \
+        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && source ${secretPath} && cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2- | gh auth login --with-token) && \
         git config --global --add safe.directory '*' && \
         git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
         cd ${remoteWorktreeDir} && \
@@ -144,7 +144,7 @@ export class RemoteProvisioner {
 
   async waitForCapsule(name: string, timeoutMs: number): Promise<void> {
     const start = Date.now();
-    process.stdout.write(`   - Waiting for capsule ${name} to stabilize...`);
+    process.stdout.write(`   - Waiting for capsule ${name} to initialize...`);
 
     while (Date.now() - start < timeoutMs) {
       const res = await this.provider.getExecOutput('echo 1', {

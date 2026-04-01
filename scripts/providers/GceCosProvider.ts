@@ -382,7 +382,7 @@ export class GceCosProvider implements OrbitProvider {
         await this.exec(refreshCmd);
       }
 
-      logger.info(`⏳ Waiting for ${this.stationName} to stabilize...`);
+      logger.info(`⏳ Waiting for ${this.stationName} to initialize...`);
       for (let i = 0; i < 30; i++) {
         const status = await this.getCapsuleStatus(this.stationName);
         if (status.running) {
@@ -409,7 +409,7 @@ export class GceCosProvider implements OrbitProvider {
     }
 
     logger.error(
-      `❌ Station supervisor "${this.stationName}" failed to stabilize.`,
+      `❌ Station supervisor "${this.stationName}" failed to initialize.`,
     );
     const logs = await this.getExecOutput(
       `sudo docker logs ${this.stationName}`,
