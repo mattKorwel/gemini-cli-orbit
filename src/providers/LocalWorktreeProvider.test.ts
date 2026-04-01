@@ -31,13 +31,13 @@ describe('LocalWorktreeProvider', () => {
     expect(provider.worktreesDir).toBe('/tmp/wt');
   });
 
-  it('should fallback to parent of main if default is /mnt/disks/data', () => {
+  it('should fallback to sibling of main if default is /mnt/disks/data', () => {
     const provider = new LocalWorktreeProvider(
       'test-station',
       '/mnt/disks/data',
     );
-    // /home/node/dev/repo/main -> parent is /home/node/dev/repo
-    expect(provider.worktreesDir).toBe('/home/node/dev/repo');
+    // /home/node/dev/repo/main -> sibling is /home/node/dev/repo/worktrees
+    expect(provider.worktreesDir).toBe('/home/node/dev/repo/worktrees');
   });
 
   it('should report RUNNING status', async () => {

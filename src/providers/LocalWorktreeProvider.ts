@@ -11,7 +11,6 @@ import {
   type OrbitProvider,
   type ExecOptions,
   type OrbitStatus,
-  type CapsuleConfig,
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
@@ -131,8 +130,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     branch: string,
     _config: any,
   ): Promise<void> {
-    const mCtx = resolveMissionContext(_identifier, 'chat'); // We need the canonical branch from the ID
-    const actualBranch = mCtx.branchName;
+    const actualBranch = branch;
     const sourceDir = getPrimaryRepoRoot();
     const wtPath = path.join(this.worktreesDir, actualBranch);
 
@@ -142,9 +140,9 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
     console.log(`   🌿 Orbit: Provisioning local worktree for '${actualBranch}'...`);
 
-    // Ensure origin is up to date
+    // Ensure origin is up to date (ignore failures if no origin)
     spawnSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
-      stdio: 'inherit',
+      stdio: 'ignore',
     });
 
     const args: string[] = ['worktree', 'add'];
@@ -259,20 +257,38 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
   async listCapsules(): Promise<string[]> {
     const primaryRoot = getPrimaryRepoRoot();
-    const res = spawnSync('git', ['-C', primaryRoot, 'worktree', 'list'], {
-      stdio: 'pipe',
-    });
+    const res = spawnSync(
+      'git',
+      ['-C', primaryRoot, 'worktree', 'list', '--porcelain'],
+      {
+        stdio: 'pipe',
+      },
+    );
     const worktrees: string[] = [];
     if (res.status === 0) {
-      const lines = res.stdout.toString().split('\n');
-      for (const line of lines) {
-        const parts = line.split(' ').filter(Boolean);
-        if (parts.length === 0) continue;
-        const wtPath = parts[0];
+      const output = res.stdout.toString();
+      const blocks = output.split('\n\n');
+
+      const realWorktreesDir = fs.realpathSync(this.worktreesDir);
+      const realPrimaryRoot = fs.realpathSync(primaryRoot);
+
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        const worktreeLine = lines.find((l) => l.startsWith('worktree '));
+        if (!worktreeLine) continue;
+
+        let wtPath = worktreeLine.replace('worktree ', '').trim();
         if (!wtPath) continue;
 
+        try {
+          wtPath = fs.realpathSync(wtPath);
+        } catch (_e) {
+          // If path doesn't exist, skip it
+          continue;
+        }
+
         // Only include if it's in our worktreesDir and not the primary repo itself.
-        if (wtPath.startsWith(this.worktreesDir) && wtPath !== primaryRoot) {
+        if (wtPath.startsWith(realWorktreesDir) && wtPath !== realPrimaryRoot) {
           worktrees.push(path.basename(wtPath));
         }
       }

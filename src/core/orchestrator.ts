@@ -11,22 +11,16 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
 import {
-  POLICIES_PATH,
   SATELLITE_WORKTREES_PATH,
-  LOCAL_POLICIES_PATH,
-  BUNDLE_PATH,
-  LOCAL_BUNDLE_PATH,
   ORBIT_ROOT,
 } from './Constants.js';
-import { getRepoConfig, loadSettings } from './ConfigManager.js';
+import { getRepoConfig } from './ConfigManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import type { ExecOptions } from '../providers/BaseProvider.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
 import { TempManager } from '../utils/TempManager.js';
-import { RemoteProvisioner } from './RemoteProvisioner.js';
 import { logger } from './Logger.js';
 import { getPrimaryRepoRoot, type OrbitConfig } from './Constants.js';
 
@@ -56,15 +50,10 @@ export async function runOrchestrator(
   const isLocalWorktree = provider.type === 'local-worktree';
 
   // Paths - Unified across station and capsule
-  const remotePolicyPath = isLocalWorktree
-    ? LOCAL_POLICIES_PATH
-    : `${POLICIES_PATH}/orbit-policy.toml`;
-  const sessionId = SessionManager.generateSessionId(identifier, action);
   const missionId = SessionManager.generateMissionId(identifier, action);
 
   const mCtx = resolveMissionContext(identifier, action);
   const branch = mCtx.branchName;
-  const containerName = isLocalWorktree ? branch : mCtx.containerName;
 
   const repoWorktreesDir = isLocalWorktree
     ? path.resolve(getPrimaryRepoRoot(), '..', 'worktrees', config.repoName || '')
@@ -80,8 +69,6 @@ export async function runOrchestrator(
         branch,
       )
     : `${repoWorktreesDir}/${mCtx.worktreeName}`;
-
-  const effectiveBundlePath = isLocalWorktree ? LOCAL_BUNDLE_PATH : BUNDLE_PATH;
 
   // 3. Preparation & Auth
   let githubToken = '';

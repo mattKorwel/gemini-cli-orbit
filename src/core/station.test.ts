@@ -8,8 +8,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runStation } from './station.js';
 
 import * as fixPlaybook from '../playbooks/fix.js';
-import * as readyPlaybook from '../playbooks/ready.js';
-import * as reviewPlaybook from '../playbooks/review.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import * as ConfigManager from './ConfigManager.js';

@@ -23,6 +23,8 @@ vi.mock('./Constants.ts', () => ({
   GLOBAL_SETTINGS_PATH: '/Users/mattkorwel/.gemini/orbit/settings.json',
   SCHEMATICS_DIR: '/Users/mattkorwel/.gemini/orbit/schematics',
   STATIONS_DIR: '/Users/mattkorwel/.gemini/orbit/stations',
+  PULUMI_STATE_DIR: '/Users/mattkorwel/.gemini/orbit/state',
+  ORBIT_BIN_DIR: '/Users/mattkorwel/.gemini/orbit/bin',
   PROJECT_ORBIT_DIR: '/work-dir/.gemini/orbit',
   PROJECT_CONFIG_PATH: '/work-dir/.gemini/orbit/config.json',
   ORBIT_LOG_PATH: '/work-dir/.gemini/orbit/orbit.log',
@@ -98,9 +100,7 @@ describe('runSetup', () => {
     ( fs.readdirSync as any).mockReturnValue([] as any);
     (spawnSync as any).mockReturnValue({
       status: 0,
-      stdout: Buffer.from(
-        '{"name": "gemini-cli", "nameWithOwner": "google-gemini/gemini-cli"}',
-      ),
+      stdout: '{"name": "gemini-cli", "nameWithOwner": "google-gemini/gemini-cli"}',
     } as any);
   });
 

@@ -9,7 +9,6 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
 
 // --- CORE IMPORTS ---
 import { runOrchestrator } from '../core/orchestrator.js';
@@ -52,6 +51,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .scriptName('orbit')
     .usage('$0 <command> [args]')
     .strict()
+    .exitProcess(false)
     .help()
     .alias('h', 'help')
     // --- GLOBAL FLAGS ---
@@ -226,7 +226,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       },
       async (args) => {
         applyGlobalFlags(args);
-        args.exitCode = await runAttach(args.identifier, args.action);
+        args.exitCode = await runAttach(args.identifier, args.action, []);
       },
     )
     .command(
@@ -290,6 +290,9 @@ export async function dispatch(argv: string[]): Promise<number> {
     const result = await parser.parse();
     return (result as any).exitCode ?? 0;
   } catch (err: any) {
+    if (err.exitCode !== undefined) {
+      return err.exitCode;
+    }
     console.error(`\n❌ Error: ${err.message}`);
     return 1;
   }

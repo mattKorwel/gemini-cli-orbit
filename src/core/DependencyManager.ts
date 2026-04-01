@@ -6,7 +6,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import readline from 'node:readline';
 import { ORBIT_BIN_DIR } from './Constants.js';

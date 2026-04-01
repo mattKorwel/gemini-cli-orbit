@@ -26,7 +26,6 @@ export async function runSetup(
   cliFlags: Partial<OrbitConfig> = {},
 ) {
   const repoName = detectRepoName();
-  const withStation = (cliFlags as any).instanceName || args.includes('--with-new-station');
   const destroy = (cliFlags as any).destroy || args.includes('--destroy');
 
   // Filter out 'liftoff' if it's passed as the first argument from runFleet

@@ -6,7 +6,6 @@
 
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
-import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
 
 /**

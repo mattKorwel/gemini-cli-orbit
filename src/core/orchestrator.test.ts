@@ -23,6 +23,7 @@ describe('Orchestrator', () => {
     getCapsuleStatus: vi.fn().mockResolvedValue({ exists: true, running: true }),
     exec: vi.fn().mockResolvedValue(0),
     runCapsule: vi.fn().mockResolvedValue(0),
+    prepareMissionWorkspace: vi.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(() => {
