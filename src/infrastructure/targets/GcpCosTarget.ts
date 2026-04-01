@@ -43,15 +43,19 @@ export class GcpCosTarget implements InfrastructureProvisioner {
   private pulumiProgram = async () => {
     const name = this.config.instanceName || `gcli-station-${this.schematicName}`;
     const zone = this.config.zone || 'us-central1-a';
+    const project = this.config.projectId;
 
     // 1. Create a static IP
     const address = new gcp.compute.Address(`${name}-ip`, {
+      name: `${name}-ip`,
       region: zone.split('-').slice(0, 2).join('-'),
+      ...(project ? { project } : {}),
     });
 
     // 2. Provision the VM
     const instance = new gcp.compute.Instance(name, {
       name,
+      ...(project ? { project } : {}),
       machineType: this.config.machineType || 'n2-standard-4',
       zone,
       bootDisk: {

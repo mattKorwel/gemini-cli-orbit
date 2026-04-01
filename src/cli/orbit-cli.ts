@@ -88,7 +88,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       },
       async (args) => {
         applyGlobalFlags(args);
-        args.exitCode = await runOrchestrator(args.identifier, args.action, args._.map(String).slice(1));
+        args.exitCode = await runOrchestrator(args.identifier, args.action, args._.map(String).slice(1), args as any);
       },
     )
     .command(
@@ -249,7 +249,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         if (args['setup-net']) setupArgs.push('--setup-net');
         if (args['with-new-station']) setupArgs.push('--with-new-station');
         if (args.destroy) setupArgs.push('--destroy');
-        args.exitCode = await runSetup(setupArgs);
+        args.exitCode = await runSetup(setupArgs, args as any);
       },
     );
 

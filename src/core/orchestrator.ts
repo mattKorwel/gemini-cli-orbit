@@ -28,15 +28,16 @@ import { resolveMissionContext } from '../utils/MissionUtils.js';
 import { TempManager } from '../utils/TempManager.js';
 import { RemoteProvisioner } from './RemoteProvisioner.js';
 import { logger } from './Logger.js';
-import { getPrimaryRepoRoot } from './Constants.js';
+import { getPrimaryRepoRoot, type OrbitConfig } from './Constants.js';
 
 export async function runOrchestrator(
   identifier: string,
   action: string,
   args: string[] = [],
+  cliFlags: Partial<OrbitConfig> = {},
 ): Promise<number> {
-  const repoName = args[0] || undefined;
-  const config = getRepoConfig(repoName);
+  const repoName = cliFlags.repoName || args[0] || undefined;
+  const config = getRepoConfig(repoName, cliFlags);
   const stationName = config.stationName || config.repoName || 'default';
 
   logger.info('MISSION', `🚀 Initializing '${action}' mission for ${identifier}...`);

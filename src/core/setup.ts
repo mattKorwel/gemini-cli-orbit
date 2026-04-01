@@ -14,16 +14,20 @@ import {
   saveSettings,
   loadSchematic,
 } from './ConfigManager.js';
+import { type OrbitConfig } from './Constants.js';
 import { logger } from './Logger.js';
 import { StationManager } from './StationManager.js';
 
 /**
  * Setup Orbit: Initial configuration and station provisioning.
  */
-export async function runSetup(args: string[] = []) {
+export async function runSetup(
+  args: string[] = [],
+  cliFlags: Partial<OrbitConfig> = {},
+) {
   const repoName = detectRepoName();
-  const withStation = args.includes('--with-new-station');
-  const destroy = args.includes('--destroy');
+  const withStation = (cliFlags as any).instanceName || args.includes('--with-new-station');
+  const destroy = (cliFlags as any).destroy || args.includes('--destroy');
 
   // Filter out 'liftoff' if it's passed as the first argument from runFleet
   const filteredArgs = args[0] === 'liftoff' ? args.slice(1) : args;
@@ -31,14 +35,14 @@ export async function runSetup(args: string[] = []) {
   const schematicName =
     filteredArgs[0] && !filteredArgs[0].startsWith('--')
       ? filteredArgs[0]
-      : process.env.GCLI_ORBIT_SCHEMATIC || 'default';
+      : cliFlags.schematic || process.env.GCLI_ORBIT_SCHEMATIC || 'default';
   const schematic = loadSchematic(schematicName);
 
   logger.divider('ORBIT MISSION LIFTOFF');
   console.log(`📡 Schematic: ${schematicName}`);
 
-  // 1. Resolve Config (Schematic > Project Defaults)
-  const config = { ...getRepoConfig(repoName), ...schematic };
+  // 1. Resolve Config (CLI Flags > Schematic > Project Defaults)
+  const config = { ...getRepoConfig(repoName, cliFlags), ...schematic, ...cliFlags };
   const stationManager = new StationManager();
 
   if (!config.projectId && config.providerType !== 'local-worktree') {
