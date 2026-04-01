@@ -25,7 +25,7 @@ export class ExternalStrategy extends BaseStrategy {
     options: { interactive?: boolean } = {},
   ): string {
     // For external, gcloud is preferred as it handles auth better
-    return `gcloud compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --quiet --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t"' : ''}`;
+    return `gcloud --verbosity=error compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --quiet --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t" --ssh-flag="-o LogLevel=ERROR"' : ' --ssh-flag="-o LogLevel=ERROR"'}`;
   }
 
   getRunArgs(
@@ -33,6 +33,7 @@ export class ExternalStrategy extends BaseStrategy {
     options: { interactive?: boolean } = {},
   ): string[] {
     const args = [
+      '--verbosity=error',
       'compute',
       'ssh',
       this.instanceName,
@@ -44,6 +45,7 @@ export class ExternalStrategy extends BaseStrategy {
       '--command',
       command,
     ];
+    args.push('--ssh-flag="-o LogLevel=ERROR"');
     if (options.interactive) {
       args.push('--ssh-flag="-t"');
     }
@@ -58,6 +60,7 @@ export class ExternalStrategy extends BaseStrategy {
     const res = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'addresses',
         'create',
@@ -89,6 +92,7 @@ export class ExternalStrategy extends BaseStrategy {
     const res = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'describe',

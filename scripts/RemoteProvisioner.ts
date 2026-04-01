@@ -26,6 +26,7 @@ export class RemoteProvisioner {
       cpuLimit?: string;
       memoryLimit?: string;
       image?: string;
+      sensitiveEnv?: Record<string, string>;
     },
   ): Promise<string> {
     const isLocalWorktree = this.provider.type === 'local-worktree';
@@ -55,13 +56,14 @@ export class RemoteProvisioner {
         user: isGce ? 'root' : undefined,
         cpuLimit: config.cpuLimit || '2',
         memoryLimit: config.memoryLimit || '8g',
+        sensitiveEnv: config.sensitiveEnv,
         mounts: isLocalWorktree
           ? []
           : [
               {
                 host: config.remoteWorkDir,
                 capsule: config.remoteWorkDir,
-                readonly: true,
+                readonly: false,
               },
               {
                 host: remoteWorktreeDir,

@@ -131,9 +131,13 @@ export async function runOrchestrator(
     return 0; // Handled by orbit-cli.ts
   }
 
+  const isWithinGemini =
+    !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
+  const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
+
   // Use distinct names: stationName for logs/receipts, instanceName for cloud infra
-  const stationName = config.stationName || config.instanceName || rName;
-  const instanceName = config.instanceName || `gcli-station-${rName}`;
+  const stationName = config.stationName || config.instanceName || repoName;
+  const instanceName = config.instanceName || `gcli-station-${repoName}`;
 
   const provider = ProviderFactory.getProvider({
     ...config,
@@ -158,13 +162,26 @@ export async function runOrchestrator(
 
   const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName}`;
   const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
+  const remoteWorktreeDir = isLocalWorktree
+    ? path.join(
+        getPrimaryRepoRoot(),
+        '..',
+        'worktrees',
+        config.repoName,
+        branch,
+      )
+    : `${repoWorktreesDir}/${mCtx.worktreeName}`;
 
   const effectiveBundlePath = isLocalWorktree ? LOCAL_BUNDLE_PATH : BUNDLE_PATH;
 
-  // 3. Command Definition
-  const localApiKey = env.GCLI_ORBIT_GEMINI_API_KEY || env.GEMINI_API_KEY || '';
-  const isWithinGemini =
-    !!env.GEMINI_CLI || !!env.GEMINI_SESSION_ID || !!env.GCLI_SESSION_ID;
+  // 3. Preparation & Auth
+  let githubToken = '';
+  if (!isLocalWorktree) {
+    try {
+      const ghRes = spawnSync('gh', ['auth', 'token'], { encoding: 'utf8' });
+      if (ghRes.status === 0) githubToken = ghRes.stdout.trim();
+    } catch (_e) {}
+  }
 
   // In shell mode, we just start gemini. In action mode, we run the entrypoint.
   let remoteWorker = '';
@@ -191,6 +208,7 @@ export async function runOrchestrator(
   const execOptions: ExecOptions = {
     interactive: true,
     wrapCapsule: containerName,
+    cwd: remoteWorktreeDir,
     env: {
       COLORTERM: 'truecolor',
       TERM: 'xterm-256color',
@@ -199,6 +217,7 @@ export async function runOrchestrator(
         ? process.env.HOME || '/home/node'
         : '/home/node',
       GCLI_SESSION_ID: sessionId,
+      ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
       // Pass the API key through the process environment for local missions
       ...(isLocalWorktree && localApiKey
         ? { GEMINI_API_KEY: localApiKey }
@@ -207,10 +226,11 @@ export async function runOrchestrator(
   };
 
   const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && export GITHUB_TOKEN=$(cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2-) && gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
+  const gitSafeCmd = `git config --global --add safe.directory '*'`;
 
   const fullCommand = isLocalWorktree
     ? missionCmd
-    : `${ghAuthCmd} && ${missionCmd}`;
+    : `${gitSafeCmd} && ${ghAuthCmd} && ${missionCmd}`;
 
   // 4. Optimistic Execution (Fast-path for active stations)
   if (!isLocalWorktree) {
@@ -221,15 +241,10 @@ export async function runOrchestrator(
     });
 
     if (optimisticRes === 0) {
-      process.stdout.write(' ✅ Success.\n');
+      process.stdout.write(' ✅ Re-connected.\n');
       return 0; // Mission launched successfully!
     }
     process.stdout.write(' (preparing context)\n');
-
-    if (optimisticRes !== 255) {
-      // If it's NOT a connectivity error (255), then the capsule might just be missing.
-      // We proceed to the full preparation logic.
-    }
   }
 
   // 5. Full Preparation (Slow-path: Waking & Provisioning)
@@ -238,13 +253,6 @@ export async function runOrchestrator(
 
   // AUTH: Inject credentials for remote missions (ADR 14)
   if (!isLocalWorktree) {
-    let githubToken = '';
-    try {
-      const ghRes = spawnSync('gh', ['auth', 'token'], { encoding: 'utf8' });
-      if (ghRes.status === 0) githubToken = ghRes.stdout.trim();
-      console.log(`   - Retrieved GitHub token: ${githubToken ? '✅' : '❌'}`);
-    } catch (_e) {}
-
     console.log('   - Injecting mission authentication context (RAM-disk)...');
     let dotEnvContent = `GEMINI_API_KEY=${localApiKey}\nGEMINI_AUTO_UPDATE=0\nGEMINI_HOST=${config.instanceName || 'local'}`;
     if (githubToken) {
@@ -260,7 +268,7 @@ export async function runOrchestrator(
 
   // Remote Context Setup (Executed INSIDE capsule for path consistency)
   const provisioner = new RemoteProvisioner(provider);
-  const remoteWorktreeDir = await provisioner.prepareMissionWorkspace(
+  const finalWorktreeDir = await provisioner.prepareMissionWorkspace(
     identifier,
     action,
     isEvaMode,
@@ -272,10 +280,11 @@ export async function runOrchestrator(
       cpuLimit: config.cpuLimit,
       memoryLimit: config.memoryLimit,
       image: isLocalWorktree ? getPrimaryRepoRoot() : config.imageUri,
+      sensitiveEnv: githubToken ? { GITHUB_TOKEN: githubToken } : undefined,
     } as any,
   );
 
-  if (!remoteWorktreeDir) {
+  if (!finalWorktreeDir) {
     console.error('❌ Failed to provision Orbit capsule.');
     return 1;
   }
@@ -296,6 +305,9 @@ export async function runOrchestrator(
   }
 
   // 6. Final Launch
+  // Update CWD if it changed during provisioning
+  execOptions.cwd = finalWorktreeDir;
+
   // Handle --open override
   const openIdx = args.indexOf('--open');
   let terminalTarget: 'foreground' | 'background' | 'tab' | 'window' =

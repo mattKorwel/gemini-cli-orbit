@@ -122,6 +122,7 @@ export class GceCosProvider implements OrbitProvider {
         const vpcCheck = spawnSync(
           'gcloud',
           [
+            '--verbosity=error',
             'compute',
             'networks',
             'describe',
@@ -135,6 +136,7 @@ export class GceCosProvider implements OrbitProvider {
           spawnSync(
             'gcloud',
             [
+              '--verbosity=error',
               'compute',
               'networks',
               'create',
@@ -151,6 +153,7 @@ export class GceCosProvider implements OrbitProvider {
         const subnetCheck = spawnSync(
           'gcloud',
           [
+            '--verbosity=error',
             'compute',
             'networks',
             'subnets',
@@ -167,6 +170,7 @@ export class GceCosProvider implements OrbitProvider {
           spawnSync(
             'gcloud',
             [
+              '--verbosity=error',
               'compute',
               'networks',
               'subnets',
@@ -195,6 +199,7 @@ export class GceCosProvider implements OrbitProvider {
         const routerCheck = spawnSync(
           'gcloud',
           [
+            '--verbosity=error',
             'compute',
             'routers',
             'describe',
@@ -213,6 +218,7 @@ export class GceCosProvider implements OrbitProvider {
           spawnSync(
             'gcloud',
             [
+              '--verbosity=error',
               'compute',
               'routers',
               'create',
@@ -229,6 +235,7 @@ export class GceCosProvider implements OrbitProvider {
           spawnSync(
             'gcloud',
             [
+              '--verbosity=error',
               'compute',
               'routers',
               'nats',
@@ -317,6 +324,7 @@ export class GceCosProvider implements OrbitProvider {
     const result = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'create',
@@ -567,6 +575,7 @@ export class GceCosProvider implements OrbitProvider {
     const res = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'describe',
@@ -599,6 +608,7 @@ export class GceCosProvider implements OrbitProvider {
     const res = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'stop',
@@ -649,10 +659,15 @@ export class GceCosProvider implements OrbitProvider {
           .map(([k, v]) => `-e ${k}=${this.q(v)}`)
           .join(' ')
       : '';
+    const sensitiveEnvFlags = config.sensitiveEnv
+      ? Object.entries(config.sensitiveEnv)
+          .map(([k, v]) => `-e ${k}=${this.q(v)}`)
+          .join(' ')
+      : '';
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
 
     const cmd = config.command || 'while true; do sleep 1000; done';
-    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.q(cmd)}`;
+    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${sensitiveEnvFlags} ${config.image} /bin/bash -c ${this.q(cmd)}`;
 
     return this.exec(dockerCmd);
   }
@@ -673,6 +688,7 @@ export class GceCosProvider implements OrbitProvider {
     const res = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'list',
@@ -690,6 +706,7 @@ export class GceCosProvider implements OrbitProvider {
     const res = spawnSync(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'delete',
