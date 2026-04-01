@@ -9,7 +9,6 @@ import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.j
 import {
   getRepoConfig,
   detectRepoName,
-  parseFlags,
   loadSettings,
   saveSettings,
   loadSchematic,
@@ -24,7 +23,6 @@ export async function runSetup(args: string[] = []) {
   const repoName = detectRepoName();
   const withStation = args.includes('--with-new-station');
   const destroy = args.includes('--destroy');
-  const flags = parseFlags(args);
 
   // Filter out 'liftoff' if it's passed as the first argument from runFleet
   const filteredArgs = args[0] === 'liftoff' ? args.slice(1) : args;
@@ -32,14 +30,14 @@ export async function runSetup(args: string[] = []) {
   const schematicName =
     filteredArgs[0] && !filteredArgs[0].startsWith('--')
       ? filteredArgs[0]
-      : flags.schematic || 'default';
+      : process.env.GCLI_ORBIT_SCHEMATIC || 'default';
   const schematic = loadSchematic(schematicName);
 
   logger.divider('ORBIT MISSION LIFTOFF');
   console.log(`📡 Schematic: ${schematicName}`);
 
-  // 1. Resolve Config (CLI Flags > Schematic > Project Defaults)
-  const config = { ...getRepoConfig(repoName), ...schematic, ...flags };
+  // 1. Resolve Config (Schematic > Project Defaults)
+  const config = { ...getRepoConfig(repoName), ...schematic };
   const stationManager = new StationManager();
 
   if (!config.projectId && config.providerType !== 'local-worktree') {
@@ -51,10 +49,16 @@ export async function runSetup(args: string[] = []) {
   }
 
   // 2. Infrastructure Layer (Declarative)
-  const infraProvisioner = InfrastructureFactory.getProvisioner(schematicName, config as any);
+  const infraProvisioner = InfrastructureFactory.getProvisioner(
+    schematicName,
+    config as any,
+  );
 
   if (destroy) {
-    logger.info('SETUP', `🔥 Decommissioning infrastructure for ${schematicName}...`);
+    logger.info(
+      'SETUP',
+      `🔥 Decommissioning infrastructure for ${schematicName}...`,
+    );
     await infraProvisioner.down();
     logger.info('SETUP', '✅ Infrastructure destroyed.');
     return 0;

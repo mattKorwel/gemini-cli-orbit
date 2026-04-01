@@ -94,7 +94,6 @@ describe('SchematicManager', () => {
       projectId: 'old-project',
       vpcName: 'old-vpc',
     });
-    ( ConfigManager.parseFlags as any).mockReturnValue({
       projectId: 'new-project',
     });
 

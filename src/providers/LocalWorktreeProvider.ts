@@ -19,36 +19,33 @@ import { getPrimaryRepoRoot } from '../core/Constants.js';
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
  * Aligned with the user's native 'rswitch' and 'go' dotfiles workflow.
- * Manages worktrees as siblings in ~/dev/<repo>/ and uses tmux for persistence.
  */
 export class LocalWorktreeProvider implements OrbitProvider {
   public readonly type = 'local-worktree';
   public readonly isLocal = true;
-  public projectId: string = 'local';
-  public zone: string = 'localhost';
+  public projectId = 'local';
+  public zone = 'localhost';
   public stationName: string;
   public worktreesDir: string;
 
-  constructor(stationName: string = 'local', worktreesDir?: string) {
+  constructor(stationName = 'local', worktreesDir?: string) {
     this.stationName = stationName;
-    // Default to parent of primary repo (e.g., ~/dev/gemini-cli-orbit/)
-    // so worktrees are siblings to 'main'
-    this.worktreesDir = worktreesDir || path.dirname(getPrimaryRepoRoot());
+    const primaryRoot = getPrimaryRepoRoot();
 
-    // Safety check: Never try to mkdir /mnt/disks/data locally
-    if (this.worktreesDir.startsWith('/mnt/disks/data')) {
-      this.worktreesDir = path.dirname(getPrimaryRepoRoot());
+    // Default to sibling 'worktrees' directory of main repo
+    this.worktreesDir =
+      worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
+
+    if (this.worktreesDir === '/mnt/disks/data' || this.worktreesDir === '/mnt/disks/data/worktrees') {
+      // Fallback for when Constants defaults leak into local mode
+      this.worktreesDir = path.resolve(primaryRoot, '..', 'worktrees');
     }
 
-    if (!fs.existsSync(this.worktreesDir)) {
+    if (!this.worktreesDir.startsWith('/mnt/disks/data') && !fs.existsSync(this.worktreesDir)) {
       fs.mkdirSync(this.worktreesDir, { recursive: true });
     }
-
-    // Resolve absolute path to handle symlinks (like /var -> /private/var on macOS)
-    try {
-      this.worktreesDir = fs.realpathSync(this.worktreesDir);
-    } catch (_e) {}
   }
+
   private hasTmux(): boolean {
     const res = spawnSync('which', ['tmux'], { stdio: 'pipe' });
     return res.status === 0;
@@ -128,6 +125,49 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
+  async prepareMissionWorkspace(
+    _identifier: string,
+    branch: string,
+    _config: any,
+  ): Promise<void> {
+    const sourceDir = getPrimaryRepoRoot();
+    const wtPath = path.join(this.worktreesDir, branch);
+
+    if (fs.existsSync(wtPath)) {
+      return;
+    }
+
+    console.log(`   🌿 Orbit: Provisioning local worktree for '${branch}'...`);
+
+    // Ensure origin is up to date
+    spawnSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
+      stdio: 'inherit',
+    });
+
+    const args: string[] = ['worktree', 'add'];
+    const localCheck = spawnSync('git', [
+      '-C',
+      sourceDir,
+      'show-ref',
+      '--verify',
+      `refs/heads/${branch}`,
+    ]);
+
+    if (localCheck.status === 0) {
+      args.push(wtPath, branch);
+    } else {
+      args.push('-b', branch, wtPath, `origin/${branch}`);
+    }
+
+    const res = spawnSync('git', ['-C', sourceDir, ...args], {
+      stdio: 'inherit',
+    });
+
+    if (res.status !== 0) {
+      throw new Error(`Failed to create worktree: exit code ${res.status}`);
+    }
+  }
+
   async getStatus(): Promise<OrbitStatus> {
     return {
       name: this.stationName,
@@ -145,16 +185,13 @@ export class LocalWorktreeProvider implements OrbitProvider {
   ): Promise<{ running: boolean; exists: boolean }> {
     const wtCheck = this.findExistingWorktree(name, getPrimaryRepoRoot());
     if (wtCheck) {
-      const tmuxCheck = this.hasTmux()
-        ? spawnSync('tmux', ['has-session', '-t', `orbit-${name}`]).status === 0
-        : false;
-      return { exists: true, running: tmuxCheck };
+      return { exists: true, running: true };
     }
     return { exists: false, running: false };
   }
 
   async getCapsuleStats(): Promise<string> {
-    return 'N/A (Local Worktree)';
+    return 'N/A (Local)';
   }
 
   async getCapsuleIdleTime(): Promise<number> {
@@ -172,67 +209,8 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return res.status ?? 0;
   }
 
-  async runCapsule(config: CapsuleConfig): Promise<number> {
-    const branch = config.name;
-    const sourceDir = config.image;
-
-    if (!sourceDir || !fs.existsSync(path.join(sourceDir, '.git'))) {
-      console.error(
-        `❌ Cannot provision worktree: '${sourceDir}' is not a valid git repository.`,
-      );
-      return 1;
-    }
-
-    const existingWt = this.findExistingWorktree(branch, sourceDir);
-    if (existingWt) {
-      console.log(
-        `   📍 Branch '${branch}' is already checked out at: ${existingWt}`,
-      );
-      return 0;
-    }
-
-    const targetDir = path.join(this.worktreesDir, branch);
-    console.log(
-      `   🌿 Orbit: Provisioning local worktree for '${branch}' in ${targetDir}...`,
-    );
-
-    spawnSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
-      stdio: 'inherit',
-    });
-
-    const args: string[] = ['worktree', 'add'];
-    const localCheck = spawnSync('git', [
-      '-C',
-      sourceDir,
-      'show-ref',
-      '--verify',
-      '--quiet',
-      `refs/heads/${branch}`,
-    ]);
-
-    if (localCheck.status === 0) {
-      args.push(targetDir, branch);
-    } else {
-      const remoteCheck = spawnSync('git', [
-        '-C',
-        sourceDir,
-        'ls-remote',
-        '--exit-code',
-        '--heads',
-        'origin',
-        branch,
-      ]);
-      if (remoteCheck.status === 0) {
-        args.push('-b', branch, targetDir, `origin/${branch}`);
-      } else {
-        args.push('-b', branch, targetDir, 'origin/main');
-      }
-    }
-
-    const res = spawnSync('git', ['-C', sourceDir, ...args], {
-      stdio: 'inherit',
-    });
-    return res.status ?? 0;
+  async runCapsule(): Promise<number> {
+    throw new Error('runCapsule is not supported in LocalWorktreeProvider.');
   }
 
   async stopCapsule(name: string): Promise<number> {
@@ -263,18 +241,12 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return res.status ?? 0;
   }
 
-  async capturePane(capsuleName: string): Promise<string> {
-    if (!this.hasTmux()) return '';
-    const res = spawnSync(
-      'tmux',
-      ['capture-pane', '-pt', `orbit-${capsuleName}`],
-      { stdio: 'pipe' },
-    );
-    return res.stdout?.toString() || '';
+  async capturePane(): Promise<string> {
+    return 'N/A (Local)';
   }
 
   async listStations(): Promise<number> {
-    console.log(`🏠 Local Workspace: ${this.worktreesDir}`);
+    console.log('--- LOCAL WORKTREE STATION ---');
     return 0;
   }
 
@@ -283,27 +255,20 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async listCapsules(): Promise<string[]> {
-    const sourceDir = getPrimaryRepoRoot();
-    const res = spawnSync(
-      'git',
-      ['-C', sourceDir, 'worktree', 'list', '--porcelain'],
-      { stdio: 'pipe' },
-    );
-    if (res.status !== 0) return [];
-
+    const primaryRoot = getPrimaryRepoRoot();
+    const res = spawnSync('git', ['-C', primaryRoot, 'worktree', 'list'], {
+      stdio: 'pipe',
+    });
     const worktrees: string[] = [];
-    const lines = res.stdout.toString().split('\n');
-    const primaryRoot = fs.realpathSync(getPrimaryRepoRoot());
+    if (res.status === 0) {
+      const lines = res.stdout.toString().split('\n');
+      for (const line of lines) {
+        const parts = line.split(' ').filter(Boolean);
+        if (parts.length === 0) continue;
+        const wtPath = parts[0];
+        if (!wtPath) continue;
 
-    for (const line of lines) {
-      if (line.startsWith('worktree ')) {
-        let wtPath = line.substring(9).trim();
-        try {
-          wtPath = fs.realpathSync(wtPath);
-        } catch (_e) {}
-
-        // Only include worktrees that are inside our designated worktreesDir
-        // and are not the primary repo itself.
+        // Only include if it's in our worktreesDir and not the primary repo itself.
         if (wtPath.startsWith(this.worktreesDir) && wtPath !== primaryRoot) {
           worktrees.push(path.basename(wtPath));
         }
@@ -312,10 +277,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return worktrees;
   }
 
-  private findExistingWorktree(
-    branch: string,
-    sourceDir: string,
-  ): string | null {
+  private findExistingWorktree(name: string, sourceDir: string): string | null {
     const res = spawnSync(
       'git',
       ['-C', sourceDir, 'worktree', 'list', '--porcelain'],
@@ -323,19 +285,18 @@ export class LocalWorktreeProvider implements OrbitProvider {
     );
     if (res.status !== 0) return null;
 
-    const lines = res.stdout.toString().split('\n');
-    let currentPath = '';
-    for (const line of lines) {
-      if (line.startsWith('worktree ')) {
-        currentPath = line.substring(9).trim();
-        try {
-          currentPath = fs.realpathSync(currentPath);
-        } catch (_e) {}
-      } else if (
-        line.startsWith('branch refs/heads/') &&
-        line.endsWith(branch)
-      ) {
-        return currentPath;
+    const output = res.stdout.toString();
+    const blocks = output.split('\n\n');
+
+    for (const block of blocks) {
+      const lines = block.split('\n');
+      const worktreeLine = lines.find((l) => l.startsWith('worktree '));
+      const branchLine = lines.find((l) => l.startsWith('branch '));
+
+      if (worktreeLine && branchLine) {
+        const wtPath = worktreeLine.replace('worktree ', '').trim();
+        const branch = branchLine.replace('branch refs/heads/', '').trim();
+        if (branch === name) return wtPath;
       }
     }
     return null;

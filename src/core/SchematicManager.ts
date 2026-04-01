@@ -8,13 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
-import { SCHEMATICS_DIR } from './Constants.js';
-import {
-  saveSchematic,
-  loadJson,
-  parseFlags,
-  sanitizeName,
-} from './ConfigManager.js';
+import { SCHEMATICS_DIR, type OrbitConfig } from './Constants.js';
+import { saveSchematic, loadJson, sanitizeName } from './ConfigManager.js';
 import { logger } from './Logger.js';
 
 function ask(query: string): Promise<string> {
@@ -35,14 +30,39 @@ export class SchematicManager {
   /**
    * Runs the interactive wizard to create or edit an infrastructure schematic.
    */
-  async runWizard(name: string): Promise<void> {
+  async runWizard(
+    name: string,
+    cliFlags: Partial<OrbitConfig> = {},
+  ): Promise<void> {
     const schematicPath = path.join(SCHEMATICS_DIR, `${name}.json`);
     const existingConfig = loadJson(schematicPath) || {};
-    const flags = parseFlags(process.argv.slice(2));
 
     // If surgical flags are provided, perform a headless update and exit
-    if (Object.keys(flags).length > 0) {
-      const merged = { ...existingConfig, ...flags };
+    // We check if any of our known config keys are present in cliFlags
+    const hasConfigFlags = Object.keys(cliFlags).length > 0;
+
+    if (hasConfigFlags) {
+      // Pick only known config keys
+      const knownKeys = [
+        'projectId',
+        'zone',
+        'backendType',
+        'dnsSuffix',
+        'userSuffix',
+        'vpcName',
+        'subnetName',
+        'instanceName',
+        'machineType',
+        'imageUri',
+      ];
+      const cleanFlags: any = {};
+      for (const key of knownKeys) {
+        if ((cliFlags as any)[key] !== undefined) {
+          cleanFlags[key] = (cliFlags as any)[key];
+        }
+      }
+
+      const merged = { ...existingConfig, ...cleanFlags };
       saveSchematic(name, merged);
       logger.info(
         'CONFIG',
@@ -52,7 +72,7 @@ export class SchematicManager {
     }
 
     // Merge existing config with any surgical flags provided
-    const base = { ...existingConfig, ...flags };
+    const base = { ...existingConfig, ...cliFlags };
 
     logger.divider(`ORBIT SCHEMATIC WIZARD: ${name.toUpperCase()}`);
     console.log('Fill in your infrastructure blueprints below.');

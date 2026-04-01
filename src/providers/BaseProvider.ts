@@ -55,6 +55,15 @@ export interface OrbitProvider {
   ): Promise<number>;
 
   /**
+   * Prepares the workspace for a mission (e.g., creates worktree or ensures container).
+   */
+  prepareMissionWorkspace(
+    identifier: string,
+    branch: string,
+    config: any,
+  ): Promise<void>;
+
+  /**
    * Returns the status of the station.
    */
   getStatus(): Promise<OrbitStatus>;

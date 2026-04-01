@@ -77,19 +77,19 @@ export async function runFixPlaybook(
     {
       id: 'sync',
       name: 'Sync & Conflict Resolution',
-      cmd: `${geminiBin} --policy ${policyPath} -p "Analyze conflict-status.json in ${logDir}. If there are conflicts with the base branch, resolve them now. If not, just say 'No conflicts'."`,
+      cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze conflict-status.json in ${logDir}. If there are conflicts with the base branch, resolve them now. If not, just say 'No conflicts'."`,
       timeout: 600000,
     },
     {
       id: 'repair-ci',
       name: 'CI & Build Repair',
-      cmd: `${geminiBin} --policy ${policyPath} -p "Analyze the CI failures in ${path.join(logDir, 'ci.log')} and ${path.join(logDir, 'build.log')}. Fix the failing tests or lint errors found in the current codebase."`,
+      cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze the CI failures in ${path.join(logDir, 'ci.log')} and ${path.join(logDir, 'build.log')}. Fix the failing tests or lint errors found in the current codebase."`,
       timeout: 900000,
     },
     {
       id: 'address-comments',
       name: 'Address PR Feedback',
-      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} -p "Address the outstanding technical feedback provided on stdin."`,
+      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} -y -p "Address the outstanding technical feedback provided on stdin."`,
       timeout: 600000,
     },
   ]);
@@ -110,7 +110,7 @@ export async function runFixPlaybook(
       id: 'proof',
       name: 'Behavioral Proof (Proof)',
       dep: 'verify-build',
-      cmd: `${geminiBin} --policy ${policyPath} -p "Using the fix results, physically exercise the updated code in the terminal. Provide logs proving the fixes work."`,
+      cmd: `${geminiBin} --policy ${policyPath} -y -p "Using the fix results, physically exercise the updated code in the terminal. Provide logs proving the fixes work."`,
       timeout: 900000,
     },
   ]);
@@ -119,7 +119,7 @@ export async function runFixPlaybook(
 
   // 4. PHASE 3: Synthesis
   console.log('\n⏳ Synthesizing final fix assessment...');
-  const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Summarize the fix mission for PR #${prNumber}. List what was fixed (conflicts, CI, comments) and verify against the mission context in ${path.join(logDir, 'context.log')}. Use the logs in ${logDir} for evidence."`;
+  const synthesisCmd = `${geminiBin} --policy ${policyPath} -y -p "Summarize the fix mission for PR #${prNumber}. List what was fixed (conflicts, CI, comments) and verify against the mission context in ${path.join(logDir, 'context.log')}. Use the logs in ${logDir} for evidence."`;
 
   const synthesisStatus = await runner.run(
     `${synthesisCmd} > ${path.join(logDir, 'final-fix-assessment.md')} 2>&1`,

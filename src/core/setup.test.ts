@@ -86,7 +86,6 @@ describe('runSetup', () => {
       instanceName: 'test-i',
       stationName: 'test-s',
     });
-    ( ConfigManager.parseFlags as any).mockReturnValue({});
     ( ConfigManager.loadSchematic as any).mockReturnValue({});
 
     // Default mock for readline

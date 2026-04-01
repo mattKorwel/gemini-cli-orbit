@@ -83,11 +83,11 @@ describe('LocalWorktreeProvider E2E', () => {
     const targetWtPath = path.join(worktreesDir, branchName);
 
     // 1. Provision (Run Capsule)
-    const runRes = await provider.runCapsule({
+    await provider.prepareMissionWorkspace('123', branchName, {
       name: branchName,
-      image: mainRepoDir,
+      repoName: 'test-repo',
     } as any);
-    expect(runRes).toBe(0);
+    
     expect(fs.existsSync(targetWtPath)).toBe(true);
 
     // 2. Status

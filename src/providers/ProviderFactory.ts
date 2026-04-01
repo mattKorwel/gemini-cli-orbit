@@ -42,7 +42,10 @@ export class ProviderFactory {
       : 'station-supervisor';
 
     if (effectiveProvider === 'local-worktree') {
-      return new LocalWorktreeProvider(stationName, config.worktreesDir);
+      const primaryRoot = getPrimaryRepoRoot();
+      const localWorktreesDir =
+        config.worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
+      return new LocalWorktreeProvider(stationName, localWorktreesDir);
     }
 
     const gceConfig = {

@@ -11,6 +11,7 @@ import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
 import { StationManager } from './StationManager.js';
+import { type OrbitConfig } from './Constants.js';
 
 function divider(text: string) {
   const width = 80;
@@ -23,7 +24,10 @@ function divider(text: string) {
 /**
  * Fleet: Manage and coordinate Orbit stations.
  */
-export async function runFleet(args: string[]) {
+export async function runFleet(
+  args: string[],
+  cliFlags: Partial<OrbitConfig> = {},
+) {
   const settings = loadSettings();
   const schematicManager = new SchematicManager();
   const stationManager = new StationManager();
@@ -55,7 +59,7 @@ export async function runFleet(args: string[]) {
         console.error('\n❌ Usage: orbit schematic <create|edit> <name>\n');
         return 1;
       }
-      await schematicManager.runWizard(name);
+      await schematicManager.runWizard(name, cliFlags);
       return 0;
     }
 
@@ -76,16 +80,6 @@ export async function runFleet(args: string[]) {
         console.error(`❌ Import failed: ${_e.message}`, { cause: _e });
         return 1;
       }
-    }
-
-    // Command-specific help fallback
-    if (
-      !action ||
-      action === 'help' ||
-      action === '-h' ||
-      action === '--help'
-    ) {
-      return 0; // orbit-cli.ts handles this
     }
   }
 
@@ -192,16 +186,6 @@ export async function runFleet(args: string[]) {
         return 0;
       }
       return runSplashdown(['--all']);
-    }
-
-    // Command-specific help fallback
-    if (
-      !action ||
-      action === 'help' ||
-      action === '-h' ||
-      action === '--help'
-    ) {
-      return 0; // orbit-cli.ts handles this
     }
   }
 

@@ -49,7 +49,7 @@ export async function runImplementPlaybook(
 
   // 2. PHASE 1: Mission Planning (Read-Only)
   console.log('\n📝 Phase 1: Planning...');
-  const planningCmd = `${geminiBin} --policy ${policyPath} -p "Based on the Mission Context in ${path.join(logDir, 'context.log')}, the Codebase Analysis in ${path.join(logDir, 'analysis.log')}${guidelinesReference}, generate a detailed implementation plan. 
+  const planningCmd = `${geminiBin} --policy ${policyPath} -y -p "Based on the Mission Context in ${path.join(logDir, 'context.log')}, the Codebase Analysis in ${path.join(logDir, 'analysis.log')}${guidelinesReference}, generate a detailed implementation plan. 
   Include:
   - Objective
   - Affected Files
@@ -72,7 +72,7 @@ export async function runImplementPlaybook(
     planAttempts++;
     console.log(`   - Review Attempt ${planAttempts}/${maxPlanAttempts}...`);
 
-    const criticCmd = `${geminiBin} --policy ${policyPath} -p "Review the implementation plan in ${path.join(logDir, 'implementation-plan.md')} against the requirements in ${path.join(logDir, 'context.log')}${guidelinesReference}. 
+    const criticCmd = `${geminiBin} --policy ${policyPath} -y -p "Review the implementation plan in ${path.join(logDir, 'implementation-plan.md')} against the requirements in ${path.join(logDir, 'context.log')}${guidelinesReference}. 
   Ensure it follows project guidelines and uses small, testable steps. 
   If it is perfect, reply ONLY with 'GO'. 
   Otherwise, provide specific feedback and reply with 'NO-GO' at the end."`;
@@ -90,7 +90,7 @@ export async function runImplementPlaybook(
       console.log('   ✅ Plan Approved!');
     } else {
       console.log('   ⚠️ Plan rejected by critic. Revising...');
-      const revisionCmd = `${geminiBin} --policy ${policyPath} -p "Revise the implementation plan in ${path.join(logDir, 'implementation-plan.md')} based on this feedback:
+      const revisionCmd = `${geminiBin} --policy ${policyPath} -y -p "Revise the implementation plan in ${path.join(logDir, 'implementation-plan.md')} based on this feedback:
   ${reviewContent}
 
   Save the updated plan to ${path.join(logDir, 'implementation-plan.md')}."`;
@@ -118,7 +118,7 @@ export async function runImplementPlaybook(
   5. Record your progress in ${path.join(logDir, 'execution.log')}.`;
 
   const executionStatus = await runner.run(
-    `${geminiBin} --policy ${policyPath} -p "${executionPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'execution.log')} 2>&1`,
+    `${geminiBin} --policy ${policyPath} -y -p "${executionPrompt.replace(/"/g, '\\"')}" > ${path.join(logDir, 'execution.log')} 2>&1`,
   );
   if (executionStatus !== 0) return executionStatus;
 
@@ -128,13 +128,13 @@ export async function runImplementPlaybook(
     {
       id: 'review',
       name: 'Local Code Review',
-      cmd: `${geminiBin} --policy ${policyPath} -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'context.log')}${guidelinesReference}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}."`,
+      cmd: `${geminiBin} --policy ${policyPath} -y -p "Review the final implementation against the Mission Context in ${path.join(logDir, 'context.log')}${guidelinesReference}. Check for quality, adherence to guidelines, and completeness. Record in ${path.join(logDir, 'local-review.md')}."`,
       timeout: 600000,
     },
     {
       id: 'proof',
       name: 'Behavioral Proof',
-      cmd: `${geminiBin} --policy ${policyPath} -p "Physically exercise the new implementation in the terminal. Provide logs proving it works."`,
+      cmd: `${geminiBin} --policy ${policyPath} -y -p "Physically exercise the new implementation in the terminal. Provide logs proving it works."`,
       timeout: 900000,
     },
   ]);
@@ -143,7 +143,7 @@ export async function runImplementPlaybook(
 
   // 6. PHASE 5: Synthesis & PR Prep
   console.log('\n✨ Synthesizing final results...');
-  const synthesisCmd = `${geminiBin} --policy ${policyPath} -p "Merge the implementation results from ${path.join(logDir, 'execution.log')}, ${path.join(logDir, 'review.log')}, and ${path.join(logDir, 'proof.log')} into a final assessment. Then, prepare a Pull Request description based on this work. Save to ${path.join(logDir, 'final-assessment.md')}."`;
+  const synthesisCmd = `${geminiBin} --policy ${policyPath} -y -p "Merge the implementation results from ${path.join(logDir, 'execution.log')}, ${path.join(logDir, 'review.log')}, and ${path.join(logDir, 'proof.log')} into a final assessment. Then, prepare a Pull Request description based on this work. Save to ${path.join(logDir, 'final-assessment.md')}."`;
 
   const finalStatus = await runner.run(
     `${synthesisCmd} > ${path.join(logDir, 'final-assessment.md')} 2>&1`,

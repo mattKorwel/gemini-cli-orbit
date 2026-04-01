@@ -4,15 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Orbit CLI
- * Unified entry point that routes commands to core functions.
- */
-
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 // --- CORE IMPORTS ---
 import { runOrchestrator } from '../core/orchestrator.js';
@@ -26,9 +23,6 @@ import { runCI } from '../core/ci.js';
 import { runLogs } from '../core/logs.js';
 import { runAttach } from '../core/attach.js';
 import { runInstallShell } from '../core/install-shell.js';
-import { ACCEPTED_FLAGS } from '../core/ConfigManager.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Expands a tilde (~) in a path string to the user's home directory.
@@ -40,312 +34,253 @@ function expandPath(p: string): string {
   return p;
 }
 
-type Runner = (args: string[]) => Promise<number | void>;
-
-interface Command {
-  run: Runner;
-  description: string;
-  category?: 'Primary' | 'Telemetry' | 'Cleanup' | 'Setup';
-  usage?: string;
-  examples?: string[];
-}
-
-const COMMANDS: Record<string, Command> = {
-  mission: {
-    run: (args: string[]) => {
-      const identifier = args[0] || '';
-      const action = args[1] || 'chat';
-      const rest = args.slice(2);
-      return runOrchestrator(identifier, action, rest);
-    },
-    category: 'Primary',
-    description: 'Launch or resume an isolated developer presence.',
-    usage: 'orbit mission <PR | ExistingBranch | NewBranch> [action|prompt...]',
-    examples: [
-      'orbit mission 21          (Interactive chat session)',
-      'orbit mission 21 review   (Autonomous PR review)',
-      'orbit mission 21 fix      (Iterative CI repair)',
-      'orbit mission 21 shell    (Raw bash shell)',
-    ],
-  },
-  schematic: {
-    run: (args) => runFleet(['schematic', ...args]),
-    category: 'Primary',
-    description: 'Manage infrastructure blueprints: <list|create|edit|import>',
-    usage: 'orbit schematic <list|create|edit|import> [name]',
-    examples: [
-      'orbit schematic list',
-      'orbit schematic create corp',
-      'orbit schematic import ./blueprint.json',
-    ],
-  },
-  station: {
-    run: (args) => runFleet(['station', ...args]),
-    category: 'Primary',
-    description: 'Hardware control: <activate|list|liftoff|delete>',
-    usage:
-      'orbit station <list|activate|liftoff|delete> [name] [--repo-dir=<path>]',
-    examples: [
-      'orbit station list',
-      'orbit station activate my-vm',
-      'orbit station liftoff corp --setup-net --with-new-station',
-      'orbit station liftoff --repo-dir ~/dev/my-repo',
-      'orbit station delete my-vm',
-    ],
-  },
-  pulse: {
-    run: (_args) => runStatus(),
-    category: 'Primary',
-    description: 'Check station health and active mission status.',
-    usage: 'orbit pulse',
-  },
-  uplink: {
-    run: (args: string[]) => {
-      const identifier = args[0] || '';
-      const action = args[1] || 'review';
-      return runLogs(identifier, action);
-    },
-    category: 'Telemetry',
-    description: 'Inspect latest local or remote mission telemetry.',
-    usage: 'orbit uplink <IDENTIFIER> [action]',
-    examples: [
-      'orbit uplink 21          (View latest review logs)',
-      'orbit uplink 21 fix      (Target specific fix maneuver)',
-    ],
-  },
-  ci: {
-    run: (args: string[]) => runCI(args),
-    category: 'Telemetry',
-    description: 'Monitor CI status for a branch with noise filtering.',
-    usage: 'orbit ci [branch]',
-  },
-  jettison: {
-    run: (args: string[]) => {
-      const identifier = args[0] || '';
-      const action = args[1] || 'chat';
-      const rest = args.slice(2);
-      return runJettison(identifier, action, rest);
-    },
-    category: 'Cleanup',
-    description: 'Decommission a specific mission and its worktree.',
-    usage: 'orbit jettison <IDENTIFIER> [action]',
-  },
-  reap: {
-    run: (args: string[]) => {
-      const thresholdRaw = args
-        .find((a) => a.startsWith('--threshold='))
-        ?.split('=')[1];
-      const threshold = thresholdRaw ? parseInt(thresholdRaw) : undefined;
-      const force = args.includes('--force');
-      return runReap({
-        ...(threshold !== undefined ? { threshold } : {}),
-        ...(force !== undefined ? { force } : {}),
-      });
-    },
-    category: 'Cleanup',
-    description: 'Cleanup idle mission capsules based on inactivity.',
-    usage: 'orbit reap',
-  },
-  splashdown: {
-    run: (args: string[]) => runSplashdown(args),
-    category: 'Cleanup',
-    description: 'Emergency shutdown of all active remote capsules.',
-    usage: 'orbit splashdown [--all]',
-  },
-  attach: {
-    run: (args: string[]) => {
-      const identifier = args[0] || '';
-      const action = args[1] || 'chat';
-      const rest = args.slice(2);
-      return runAttach(identifier, action, rest);
-    },
-    category: 'Telemetry',
-    description: 'Attach to an active mission session.',
-    usage: 'orbit attach <IDENTIFIER> [action]',
-  },
-  'install-shell': {
-    run: () => runInstallShell(),
-    category: 'Setup',
-    description: 'Install Orbit shell aliases and tab-completion.',
-    usage: 'orbit install-shell',
-  },
-  liftoff: {
-    run: (args) => runSetup(args),
-    category: 'Setup',
-    description: 'Build or wake Orbital Station infrastructure.',
-    usage:
-      'orbit liftoff [schematic] [--repo-dir=<path>] [--setup-net] [--with-new-station]',
-    examples: [
-      'orbit liftoff corp --setup-net --with-new-station',
-      'orbit liftoff --repo-dir ~/dev/my-project',
-      'orbit liftoff (Wake up default station)',
-    ],
-  },
-  // Aliases (Hidden from main help)
-  install_shell: {
-    run: () => runInstallShell(),
-    description: 'Alias for install-shell',
-  },
-};
-
-function showHelp(cmdName?: string) {
-  if (cmdName && COMMANDS[cmdName]) {
-    const cmd = COMMANDS[cmdName];
-    console.log(`\n🚀 ORBIT COMMAND: ${cmdName.toUpperCase()}`);
-    console.log(`--------------------------------------------------`);
-    console.log(`Description: ${cmd.description}`);
-    if (cmd.usage) console.log(`Usage:       ${cmd.usage}`);
-
-    // Dynamic Flags for schematic/station
-    if (cmdName === 'schematic' || cmdName === 'station') {
-      console.log('\nAccepted Configuration Flags:');
-      ACCEPTED_FLAGS.forEach((f) => {
-        console.log(`  --${f.flag.padEnd(15)} ${f.desc}`);
-      });
-      console.log('  (Use --key=value syntax)');
-    }
-
-    if (cmd.examples && cmd.examples.length > 0) {
-      console.log(`\nExamples:`);
-      cmd.examples.forEach((ex) => console.log(`  ${ex}`));
-    }
-    console.log('');
-    return;
-  }
-
-  console.log('\n🚀 GEMINI ORBIT - Command Line Interface\n');
-  console.log('Usage: orbit <command> [args]\n');
-
-  const categories: Command['category'][] = [
-    'Primary',
-    'Telemetry',
-    'Cleanup',
-    'Setup',
-  ];
-
-  categories.forEach((cat) => {
-    console.log(`${cat} Commands:`);
-    Object.entries(COMMANDS)
-      .filter(([_, info]) => info.category === cat)
-      .forEach(([name, info]) => {
-        console.log(`  ${name.padEnd(12)} - ${info.description}`);
-      });
-    console.log('');
-  });
-
-  console.log('Global Flags:');
-  console.log('  -h, --help          Show this help menu');
-  console.log('  -l, --local         Force local worktree mode');
-  console.log('  -r, --repo <name>   Override the detected repository name');
-  console.log('  --repo-dir <path>   Set the target repository directory');
-  console.log('  --for-station <s>   Target a specific station');
-  console.log('  --schematic <s>     Use a specific schematic for liftoff');
-
-  console.log('\nTip: Use "orbit <command> --help" for detailed usage.\n');
-}
-
 /**
- * Core dispatch logic. Exported for testing.
- * Returns an exit code; does NOT call process.exit().
+ * Main CLI entry point using Yargs for declarative command routing.
  */
 export async function dispatch(argv: string[]): Promise<number> {
-  const rawArgs = [...argv];
-  let cmd = rawArgs[0];
-
-  // Handle universal repo:cmd shorthand (e.g., orbit dotfiles:pulse)
-  if (cmd && cmd.includes(':')) {
-    const [repo, actualCmd] = cmd.split(':');
+  // Pre-process for repo:cmd shorthand
+  const processedArgv = [...argv];
+  if (processedArgv[0] && processedArgv[0].includes(':') && !processedArgv[0].startsWith('-')) {
+    const [repo, actualCmd] = processedArgv[0].split(':');
     if (actualCmd) {
       process.env.GCLI_ORBIT_REPO_NAME = repo;
-      cmd = actualCmd;
-      rawArgs[0] = cmd;
+      processedArgv[0] = actualCmd;
     }
   }
 
-  if (!cmd || cmd === '-h' || cmd === '--help') {
-    showHelp();
-    return 0;
-  }
+  const parser = yargs(processedArgv)
+    .scriptName('orbit')
+    .usage('$0 <command> [args]')
+    .strict()
+    .help()
+    .alias('h', 'help')
+    // --- GLOBAL FLAGS ---
+    .option('local', {
+      alias: 'l',
+      type: 'boolean',
+      description: 'Force local worktree mode',
+    })
+    .option('repo', {
+      alias: 'r',
+      type: 'string',
+      description: 'Override the detected repository name',
+    })
+    .option('repo-dir', {
+      type: 'string',
+      description: 'Set the target repository directory',
+    })
+    .option('for-station', {
+      type: 'string',
+      description: 'Target a specific station',
+    })
+    .option('schematic', {
+      type: 'string',
+      description: 'Use a specific schematic for liftoff',
+    })
+    // --- COMMANDS ---
+    .command(
+      'mission <identifier> [action]',
+      'Launch or resume an isolated developer presence.',
+      (y) => {
+        return y
+          .positional('identifier', { type: 'string', demandOption: true })
+          .positional('action', { type: 'string', default: 'chat' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runOrchestrator(args.identifier, args.action, args._.map(String).slice(1));
+      },
+    )
+    .command(
+      'schematic <action> [name]',
+      'Manage infrastructure blueprints.',
+      (y) => {
+        return y
+          .positional('action', { choices: ['list', 'create', 'edit', 'import'], demandOption: true })
+          .positional('name', { type: 'string' })
+          .option('projectId', { type: 'string' })
+          .option('zone', { type: 'string' })
+          .option('backend', { type: 'string' })
+          .option('dnsSuffix', { type: 'string' })
+          .option('userSuffix', { type: 'string' })
+          .option('vpcName', { type: 'string' })
+          .option('subnetName', { type: 'string' })
+          .option('machineType', { type: 'string' })
+          .option('instanceName', { type: 'string' })
+          .option('image', { type: 'string' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        // Map yargs flags back to OrbitConfig keys where needed
+        const configFlags = {
+          ...args,
+          backendType: args.backend,
+          imageUri: args.image,
+        };
+        args.exitCode = await runFleet(['schematic', args.action, args.name || ''], configFlags as any);
+      },
+    )
+    .command(
+      'station <action> [name]',
+      'Hardware control: <activate|list|liftoff|delete>',
+      (y) => {
+        return y
+          .positional('action', { choices: ['list', 'activate', 'liftoff', 'delete'], demandOption: true })
+          .positional('name', { type: 'string' })
+          .option('setup-net', { type: 'boolean' })
+          .option('with-new-station', { type: 'boolean' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        const fleetArgs = ['station', args.action, args.name || ''];
+        if (args['setup-net']) fleetArgs.push('--setup-net');
+        if (args['with-new-station']) fleetArgs.push('--with-new-station');
+        args.exitCode = await runFleet(fleetArgs, args as any);
+      },
+    )
+    .command(
+      'pulse',
+      'Check station health and active mission status.',
+      {},
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runStatus();
+      },
+    )
+    .command(
+      'uplink <identifier> [action]',
+      'Inspect latest local or remote mission telemetry.',
+      (y) => {
+        return y
+          .positional('identifier', { type: 'string', demandOption: true })
+          .positional('action', { type: 'string', default: 'review' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runLogs(args.identifier, args.action);
+      },
+    )
+    .command(
+      'ci [branch]',
+      'Monitor CI status for a branch with noise filtering.',
+      (y) => {
+        return y.positional('branch', { type: 'string' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runCI(args.branch ? [args.branch] : []);
+      },
+    )
+    .command(
+      'jettison <identifier> [action]',
+      'Decommission a specific mission and its worktree.',
+      (y) => {
+        return y
+          .positional('identifier', { type: 'string', demandOption: true })
+          .positional('action', { type: 'string', default: 'chat' })
+          .option('yes', { alias: 'y', type: 'boolean', description: 'Bypass confirmation' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runJettison(args.identifier, args.action, args.yes ? ['--yes'] : []);
+      },
+    )
+    .command(
+      'reap',
+      'Cleanup idle mission capsules based on inactivity.',
+      (y) => {
+        return y
+          .option('threshold', { type: 'number', description: 'Idle threshold in hours' })
+          .option('force', { type: 'boolean', description: 'Force cleanup' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runReap({ threshold: args.threshold, force: args.force });
+      },
+    )
+    .command(
+      'splashdown',
+      'Emergency shutdown of all active remote capsules.',
+      (y) => {
+        return y.option('all', { type: 'boolean', description: 'Stop the station VM as well' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runSplashdown(args.all ? ['--all'] : []);
+      },
+    )
+    .command(
+      'attach <identifier> [action]',
+      'Attach to an active mission session.',
+      (y) => {
+        return y
+          .positional('identifier', { type: 'string', demandOption: true })
+          .positional('action', { type: 'string', default: 'chat' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        args.exitCode = await runAttach(args.identifier, args.action);
+      },
+    )
+    .command(
+      'install-shell',
+      'Install Orbit shell aliases and tab-completion.',
+      {},
+      async (args) => {
+        args.exitCode = await runInstallShell();
+      },
+    )
+    .command(
+      'liftoff [schematic]',
+      'Build or wake Orbital Station infrastructure.',
+      (y) => {
+        return y
+          .positional('schematic', { type: 'string' })
+          .option('setup-net', { type: 'boolean' })
+          .option('with-new-station', { type: 'boolean' })
+          .option('destroy', { type: 'boolean', description: 'Decommission infrastructure' });
+      },
+      async (args) => {
+        applyGlobalFlags(args);
+        const setupArgs = args.schematic ? [args.schematic] : [];
+        if (args['setup-net']) setupArgs.push('--setup-net');
+        if (args['with-new-station']) setupArgs.push('--with-new-station');
+        if (args.destroy) setupArgs.push('--destroy');
+        args.exitCode = await runSetup(setupArgs);
+      },
+    );
 
-  const commandInfo = COMMANDS[cmd];
-  if (!commandInfo && cmd && !cmd.startsWith('-')) {
-    console.error(`\n❌ Unrecognized command: "${cmd}"`);
-    showHelp();
-    return 1;
-  }
-
-  if (!commandInfo) {
-    showHelp();
-    return 1;
-  }
-
-  // --- 🧼 GLOBAL FLAG CONSUMPTION ---
-  const cleanArgs: string[] = [];
-  for (let i = 1; i < rawArgs.length; i++) {
-    const arg = rawArgs[i];
-    if (arg === undefined) continue;
-
-    if (arg === '--local' || arg === '-l') {
+  // Global flag processing helper
+  function applyGlobalFlags(args: any) {
+    if (args.local) {
       process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
       process.env.GCLI_MCP = '0';
-    } else if ((arg === '--repo' || arg === '-r') && rawArgs[i + 1]) {
-      process.env.GCLI_ORBIT_REPO_NAME = rawArgs[i + 1]!;
-      i++;
-    } else if (
-      arg.startsWith('--repo-dir=') ||
-      (arg === '--repo-dir' && rawArgs[i + 1])
-    ) {
-      const rawVal = arg.includes('=') ? arg.split('=')[1]! : rawArgs[i + 1]!;
-      const val = expandPath(rawVal);
+    }
+    if (args.repo) {
+      process.env.GCLI_ORBIT_REPO_NAME = args.repo;
+    }
+    if (args['repo-dir']) {
+      const val = expandPath(args['repo-dir']);
       if (!fs.existsSync(val)) {
-        console.error(`❌ Repository directory not found: ${val}`);
-        return 1;
+        throw new Error(`❌ Repository directory not found: ${val}`);
       }
       process.chdir(val);
-      if (!arg.includes('=')) i++;
-    } else if (
-      arg.startsWith('--for-station=') ||
-      (arg === '--for-station' && rawArgs[i + 1])
-    ) {
-      const val = arg.includes('=') ? arg.split('=')[1]! : rawArgs[i + 1]!;
-      process.env.GCLI_ORBIT_INSTANCE_NAME = val;
-      if (!arg.includes('=')) i++;
-    } else if (
-      arg.startsWith('--schematic=') ||
-      (arg === '--schematic' && rawArgs[i + 1])
-    ) {
-      const val = arg.includes('=') ? arg.split('=')[1]! : rawArgs[i + 1]!;
-      process.env.GCLI_ORBIT_SCHEMATIC = val;
-      if (!arg.includes('=')) i++;
-    } else {
-      cleanArgs.push(arg);
     }
-  }
-
-  // Handle --help for specific command, or just the command name alone with no positional args
-  if (
-    rawArgs.includes('--help') ||
-    rawArgs.includes('-h') ||
-    cleanArgs.length === 0
-  ) {
-    // Sub-command help support: orbit station liftoff --help
-    const subCmd = cleanArgs[0];
-    if (subCmd && COMMANDS[subCmd]) {
-      showHelp(subCmd);
-    } else {
-      showHelp(cmd);
+    if (args['for-station']) {
+      process.env.GCLI_ORBIT_INSTANCE_NAME = args['for-station'];
     }
-    return 0;
+    if (args.schematic) {
+      process.env.GCLI_ORBIT_SCHEMATIC = args.schematic;
+    }
+    // Ensure CLI knows it is a command to bypass interactive UI
+    process.env.GCLI_ORBIT_SHIM = '1';
   }
-
-  // Ensure CLI knows it is a command to bypass interactive UI
-  process.env.GCLI_ORBIT_SHIM = '1';
 
   try {
-    const code = await commandInfo.run(cleanArgs);
-    return code ?? 0;
-  } catch (err) {
-    console.error(err);
+    const result = await parser.parse();
+    return (result as any).exitCode ?? 0;
+  } catch (err: any) {
+    console.error(`\n❌ Error: ${err.message}`);
     return 1;
   }
 }
@@ -355,7 +290,6 @@ async function main() {
   process.exit(code);
 }
 
-// Only auto-run when invoked directly as the CLI entry point
 if (
   process.argv[1] &&
   fileURLToPath(import.meta.url) === path.resolve(process.argv[1])

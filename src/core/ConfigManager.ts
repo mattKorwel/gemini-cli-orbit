@@ -20,10 +20,13 @@ import {
 
 /**
  * Resolves the final Orbit configuration for a repository.
- * Tiered Resolution: CLI Flags (--for-station) > Env Vars > Global activeStation > Dynamic Default
+ * Tiered Resolution: CLI Flags (--for-station) > Env Vars > Global activeStation > Project Defaults
  */
-export function getRepoConfig(repoName?: string): OrbitConfig {
-  const rName = repoName || detectRepoName();
+export function getRepoConfig(
+  repoName?: string,
+  cliFlags: Partial<OrbitConfig> = {},
+): OrbitConfig {
+  const rName = repoName || cliFlags.repoName || detectRepoName();
   const settings = loadSettings();
   const projectConfig = loadProjectConfig();
 
@@ -36,9 +39,8 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
   }
 
   // 3. Determine target station
-  const flags = parseFlags(process.argv.slice(2));
   const targetStation =
-    flags.forStation ||
+    (cliFlags as any).forStation ||
     process.env.GCLI_ORBIT_INSTANCE_NAME ||
     settings.activeStation;
 
@@ -82,13 +84,11 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
   };
 
   // 6. Merge final CLI Flags
-  config = { ...config, ...flags };
+  config = { ...config, ...cliFlags };
 
   // 7. Dynamic Defaults (Final Fallback)
   if (!config.stationName) config.stationName = rName;
   if (!config.instanceName && config.projectId !== 'local') {
-    // Standardized predictable name: gcli-station-<user>-<repo>
-    // We use a simplified username to ensure cloud compatibility
     const user = (process.env.USER || process.env.USERNAME || 'user')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '');
@@ -111,7 +111,6 @@ export function detectRepoName(): string {
     });
     if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
       const url = remoteRes.stdout.trim();
-      // Matches both https and git@ styles, extracting the name before .git
       const match = url.match(/\/([^\/]+)\.git$/);
       if (match && match[1]) return match[1];
     }
@@ -177,51 +176,6 @@ export function loadJson(p: string): any {
   return null;
 }
 
-/**
- * Central Registry of supported configuration flags.
- */
-export const ACCEPTED_FLAGS = [
-  { flag: 'projectId', desc: 'Google Cloud Project ID' },
-  { flag: 'zone', desc: 'Google Compute Engine Zone' },
-  { flag: 'instanceName', desc: 'Station VM Name' },
-  {
-    flag: 'backend',
-    target: 'backendType',
-    desc: 'Networking backend (direct-internal | external)',
-  },
-  { flag: 'dnsSuffix', desc: 'Custom DNS zone suffix' },
-  { flag: 'userSuffix', desc: 'OS Login username suffix' },
-  { flag: 'vpcName', desc: 'VPC network name' },
-  { flag: 'subnetName', desc: 'Subnet name' },
-  { flag: 'machineType', desc: 'GCE machine type' },
-  { flag: 'image', target: 'imageUri', desc: 'Container image URI' },
-  { flag: 'schematic', desc: 'Infrastructure blueprint name' },
-  {
-    flag: 'for-station',
-    target: 'forStation',
-    desc: 'Target a specific station',
-  },
-];
-
 export function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase();
-}
-
-export function parseFlags(args: string[]): Partial<OrbitConfig> {
-  const config: any = {};
-
-  for (const arg of args) {
-    if (!arg || !arg.startsWith('--')) continue;
-
-    const [rawKey, val] = arg.slice(2).split('=');
-    if (!rawKey || val === undefined) continue;
-
-    const match = ACCEPTED_FLAGS.find((f) => f.flag === rawKey);
-    if (match) {
-      const targetKey = match.target || match.flag;
-      config[targetKey] = val;
-    }
-  }
-
-  return config;
 }

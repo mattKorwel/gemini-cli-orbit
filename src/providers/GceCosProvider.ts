@@ -14,6 +14,7 @@ import {
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { GceConnectionManager } from './GceConnectionManager.js';
+import { RemoteProvisioner } from '../core/RemoteProvisioner.js';
 import { logger } from '../core/Logger.js';
 
 export class ConnectivityError extends Error {
@@ -80,6 +81,15 @@ export class GceCosProvider implements OrbitProvider {
     } else if (state.publicIp) {
       this.conn.setOverrideHost(state.publicIp);
     }
+  }
+
+  async prepareMissionWorkspace(
+    identifier: string,
+    action: string,
+    config: any,
+  ): Promise<void> {
+    const provisioner = new RemoteProvisioner(this);
+    await provisioner.prepareMissionWorkspace(identifier, action, config);
   }
 
   /**

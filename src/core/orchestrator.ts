@@ -65,7 +65,10 @@ export async function runOrchestrator(
   const branch = mCtx.branchName;
   const containerName = isLocalWorktree ? branch : mCtx.containerName;
 
-  const repoWorktreesDir = `${SATELLITE_WORKTREES_PATH}/${config.repoName || ''}`;
+  const repoWorktreesDir = isLocalWorktree
+    ? path.resolve(getPrimaryRepoRoot(), '..', 'worktrees', config.repoName || '')
+    : `${SATELLITE_WORKTREES_PATH}/${config.repoName || ''}`;
+
   const upstreamUrl = `https://github.com/${config.upstreamRepo || ''}.git`;
   const remoteWorktreeDir = isLocalWorktree
     ? path.join(
@@ -83,15 +86,14 @@ export async function runOrchestrator(
   let githubToken = '';
   if (!isLocalWorktree) {
     try {
-      githubToken = TempManager.getToken(config.repoName!);
+      githubToken = TempManager.getToken(config.repoName || '');
     } catch (_e) {
       logger.warn('AUTH', 'No GitHub token found. Private repos may fail.');
     }
   }
 
-  // 4. Remote Provisioning (ADR 11)
-  const provisioner = new RemoteProvisioner(provider);
-  await provisioner.provision(identifier, action, config);
+  // 4. Mission Preparation (Unified)
+  await provider.prepareMissionWorkspace(identifier, action, config);
 
   // 5. Build/Sync Phase (Phase 0)
   logger.info('PHASE 0', '📦 Synchronizing source and preparing environment...');

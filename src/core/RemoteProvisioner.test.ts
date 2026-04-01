@@ -42,7 +42,7 @@ describe('RemoteProvisioner', () => {
     mockProvider.runCapsule.mockResolvedValue(0);
 
     const provisioner = new RemoteProvisioner(mockProvider as any);
-    await provisioner.provision('123', 'chat', config);
+    await provisioner.prepareMissionWorkspace('123', 'chat', config);
 
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -55,7 +55,7 @@ describe('RemoteProvisioner', () => {
     mockProvider.getCapsuleStatus.mockResolvedValue({ exists: true });
 
     const provisioner = new RemoteProvisioner(mockProvider as any);
-    await provisioner.provision('123', 'chat', config);
+    await provisioner.prepareMissionWorkspace('123', 'chat', config);
 
     expect(mockProvider.runCapsule).not.toHaveBeenCalled();
   });
