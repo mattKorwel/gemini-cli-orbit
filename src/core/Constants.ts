@@ -87,6 +87,7 @@ export const GLOBAL_SETTINGS_PATH = path.join(
 export const SCHEMATICS_DIR = path.join(GLOBAL_ORBIT_DIR, 'schematics');
 export const STATIONS_DIR = path.join(GLOBAL_ORBIT_DIR, 'stations');
 export const PULUMI_STATE_DIR = path.join(GLOBAL_ORBIT_DIR, 'state');
+export const ORBIT_BIN_DIR = path.join(GLOBAL_ORBIT_DIR, 'bin');
 export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 export const DEFAULT_TEMP_DIR = path.join(GLOBAL_ORBIT_DIR, 'tmp');
 

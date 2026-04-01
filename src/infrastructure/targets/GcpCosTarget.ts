@@ -101,14 +101,21 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     }
 
     console.log(`   🚀 Pulumi: Provisioning infrastructure for ${this.id}...`);
-    const result = await stack.up({ onOutput: console.log });
+    try {
+      const result = await stack.up({ onOutput: console.log });
 
-    return {
-      status: 'ready',
-      publicIp: result.outputs.publicIp?.value,
-      privateIp: result.outputs.privateIp?.value,
-      instanceId: result.outputs.instanceId?.value,
-    };
+      return {
+        status: 'ready',
+        publicIp: result.outputs.publicIp?.value,
+        privateIp: result.outputs.privateIp?.value,
+        instanceId: result.outputs.instanceId?.value,
+      };
+    } catch (e: any) {
+      return {
+        status: 'error',
+        error: e.message || 'Unknown Pulumi error during provisioning.',
+      };
+    }
   }
 
   async down(): Promise<void> {

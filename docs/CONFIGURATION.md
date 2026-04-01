@@ -25,7 +25,7 @@ define the "Sovereign Target" for the mission.
 
 The default Docker image is defined in the source code:
 
-<!-- @include ../scripts/Constants.ts:DEFAULT_IMAGE_URI -->
+<!-- @include ../src/core/Constants.ts:DEFAULT_IMAGE_URI -->
 
 ```ts
 export const DEFAULT_IMAGE_URI =
@@ -117,8 +117,6 @@ serve two primary purposes:
 | `--schematic`    | N/A                | The name of the schematic to use.               |
 | `--for-station`  | N/A                | Target a specific station by name.              |
 
-**Note**: Use the `--key=value` syntax for all configuration flags.
-
 ---
 
 ## 4. Environment Variables
@@ -154,18 +152,11 @@ configurable location.
 
 ---
 
-## 🚀 Advanced: Custom Providers
+## 🚀 Advanced: Architecture
 
-You can create custom providers by extending the `OrbitProvider` interface:
+### Infrastructure Provisioners
+Orbit separates "building the hardware" from "running the code".
+- **Provisioners** (`src/infrastructure/`): Manage cloud resources declaratively using Pulumi.
+- **Execution Providers** (`src/providers/`): Manage command execution and capsules on the provisioned hardware.
 
-1.  Create a new provider class in `scripts/providers/`.
-2.  Register it in `ProviderFactory.ts`.
-3.  Specify your provider type in your Schematic:
-    ```json
-    {
-      "providerType": "my-custom-provider"
-    }
-    ```
-
-Every provider must implement core lifecycles: `provision`, `setup`,
-`ensureReady`, `exec`, and `sync`.
+See [DEPENDENCIES.md](DEPENDENCIES.md) for details on the Pulumi requirement.

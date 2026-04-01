@@ -6,6 +6,7 @@
 
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
+import { DependencyManager } from './DependencyManager.js';
 import {
   getRepoConfig,
   detectRepoName,
@@ -48,7 +49,12 @@ export async function runSetup(args: string[] = []) {
     return 1;
   }
 
-  // 2. Infrastructure Layer (Declarative)
+  // 2. Dependency Check (Pulumi)
+  if (config.providerType !== 'local-worktree') {
+    await DependencyManager.ensurePulumi();
+  }
+
+  // 3. Infrastructure Layer (Declarative)
   const infraProvisioner = InfrastructureFactory.getProvisioner(
     schematicName,
     config as any,
@@ -74,11 +80,11 @@ export async function runSetup(args: string[] = []) {
   const state = await infraProvisioner.up();
 
   if (state.status === 'error') {
-    console.error(`\n❌ Infrastructure provisioning failed: ${state.error}`);
+    logger.error('SETUP', `Infrastructure provisioning failed: ${state.error}`);
     return 1;
   }
 
-  // 3. Execution Layer (Handover)
+  // 4. Execution Layer (Handover)
   const provider = ProviderFactory.getProvider(config as any, state);
 
   if (state.status === 'ready') {
@@ -92,7 +98,7 @@ export async function runSetup(args: string[] = []) {
   const isLocal =
     config.projectId === 'local' || config.providerType === 'local-worktree';
 
-  // 4. Update Global Registry & Active Station
+  // 5. Update Global Registry & Active Station
   if (state.status !== 'destroyed' && !isLocal) {
     const settings = loadSettings();
     const stationName = config.instanceName || schematicName;
@@ -103,7 +109,7 @@ export async function runSetup(args: string[] = []) {
 
     logger.info('SETUP', `🎯 Active Station set to: ${stationName}`);
 
-    // 5. Save/Update Station Receipt
+    // 6. Save/Update Station Receipt
     stationManager.saveReceipt({
       name: stationName,
       instanceName: stationName,

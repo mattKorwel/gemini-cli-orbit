@@ -9,6 +9,7 @@ import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
 import type { OrbitProvider } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
+import path from 'node:path';
 
 export class ProviderFactory {
   static getProvider(

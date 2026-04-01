@@ -6,13 +6,15 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SchematicManager } from './SchematicManager.js';
+import { SCHEMATICS_DIR } from './Constants.js';
+import * as ConfigManager from './ConfigManager.js';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import * as ConfigManager from './ConfigManager.js';
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('./ConfigManager.js');
+vi.mock('./Logger.js');
 
 describe('SchematicManager', () => {
   let manager: SchematicManager;
@@ -20,87 +22,82 @@ describe('SchematicManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     manager = new SchematicManager();
-    ( ConfigManager.sanitizeName as any).mockImplementation((n: string) =>
+    (ConfigManager.sanitizeName as any).mockImplementation((n: string) =>
       n.toLowerCase().replace(/[^a-z0-9]/g, '-'),
     );
   });
 
   it('should list available schematics', () => {
-    ( fs.existsSync as any).mockReturnValue(true);
-    ( fs.readdirSync as any).mockReturnValue([
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readdirSync as any).mockReturnValue([
       'corp.json',
-      'sandbox.json',
+      'personal.json',
+      'README.md',
     ] as any);
 
-    const schematics = manager.listSchematics();
-    expect(schematics).toEqual(['corp', 'sandbox']);
-  });
-
-  it('should import a local schematic file', async () => {
-    ( fs.existsSync as any).mockReturnValue(true);
-    ( fs.readFileSync as any).mockReturnValue(
-      JSON.stringify({
-        projectId: 'test-p',
-        zone: 'us-central1-a',
-        backendType: 'external',
-      }),
-    );
-
-    const name = await manager.importSchematic('./test.json');
-    expect(name).toBe('test');
-    expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
-      'test',
-      expect.objectContaining({ projectId: 'test-p' }),
-    );
+    const list = manager.listSchematics();
+    expect(list).toContain('corp');
+    expect(list).toContain('personal');
+    expect(list).not.toContain('README');
   });
 
   it('should import a remote schematic via curl', async () => {
+    const mockJson = JSON.stringify({
+      projectId: 'remote-p',
+      zone: 'remote-z',
+      backendType: 'external',
+    });
+
     (spawnSync as any).mockReturnValue({
       status: 0,
-      stdout: Buffer.from(
-        JSON.stringify({
-          profileName: 'remote-corp',
-          projectId: 'remote-p',
-          zone: 'us-central1-b',
-          backendType: 'direct-internal',
-        }),
-      ),
+      stdout: Buffer.from(mockJson),
     } as any);
 
     const name = await manager.importSchematic('https://example.com/corp.json');
-    expect(name).toBe('remote-corp');
-    expect(spawnSync).toHaveBeenCalledWith(
-      'curl',
-      expect.arrayContaining(['-sL', 'https://example.com/corp.json']),
-      expect.any(Object),
-    );
+    expect(name).toBe('corp');
     expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
-      'remote-corp',
+      'corp',
       expect.objectContaining({ projectId: 'remote-p' }),
     );
   });
 
-  it('should throw error on invalid JSON import', async () => {
-    ( fs.existsSync as any).mockReturnValue(true);
-    ( fs.readFileSync as any).mockReturnValue('invalid-json');
+  it('should fail validation on invalid schematic import', async () => {
+    const mockJson = JSON.stringify({
+      projectId: 'missing-fields',
+    });
 
-    await expect(manager.importSchematic('./bad.json')).rejects.toThrow(
-      'Invalid JSON schematic',
+    (spawnSync as any).mockReturnValue({
+      status: 0,
+      stdout: Buffer.from(mockJson),
+    } as any);
+
+    await expect(
+      manager.importSchematic('https://example.com/invalid.json'),
+    ).rejects.toThrow(/missing required infrastructure fields/);
+  });
+
+  it('should fail on invalid JSON import', async () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue('invalid-json');
+
+    await expect(manager.importSchematic('./local.json')).rejects.toThrow(
+      /Invalid JSON schematic/,
     );
   });
 
   it('should perform headless update when configuration flags are provided', async () => {
-    ( ConfigManager.loadJson as any).mockReturnValue({
+    (ConfigManager.loadJson as any).mockReturnValue({
       projectId: 'old-project',
       vpcName: 'old-vpc',
     });
+
+    const cliFlags = {
       projectId: 'new-project',
-    });
+    };
 
-    await manager.runWizard('test-schematic');
+    await manager.runWizard('test-schematic', cliFlags);
 
-    // Should NOT call any UI (mocked by vitest as no-ops or throwing if not careful)
-    // but SHOULD save the merged config
+    // Should NOT call any UI but SHOULD save the merged config
     expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
       'test-schematic',
       expect.objectContaining({

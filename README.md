@@ -45,13 +45,14 @@ Every mission maneuver is a first-class tool call available to the agent.
 
 ---
 
-## 📋 Prerequisites
+## 🚀 Getting Started
 
-| What                                                      | Why                                                        |
-| --------------------------------------------------------- | ---------------------------------------------------------- |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Required — Orbit is an extension of it                     |
-| `tmux`                                                    | Required for local worktree sessions (`brew install tmux`) |
-| Cloud project + credentials                               | Required only for the **Remote** path (e.g. GCP)           |
+Orbit supports two primary mission modes:
+
+1. **Local Worktrees**: Lightweight local isolation using `git worktree`.
+2. **Remote GCE Stations**: High-performance, isolated VM environments on Google Cloud.
+
+See [DEPENDENCIES.md](./docs/DEPENDENCIES.md) for details on external tools and Orbit's automatic dependency management.
 
 ---
 

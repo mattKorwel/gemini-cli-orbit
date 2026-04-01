@@ -195,7 +195,10 @@ export async function dispatch(argv: string[]): Promise<number> {
       },
       async (args) => {
         applyGlobalFlags(args);
-        args.exitCode = await runReap({ threshold: args.threshold, force: args.force });
+        args.exitCode = await runReap({
+          ...(args.threshold !== undefined ? { threshold: args.threshold } : {}),
+          ...(args.force !== undefined ? { force: args.force } : {}),
+        });
       },
     )
     .command(
