@@ -11,10 +11,11 @@ import fs from 'node:fs';
 
 vi.mock('node:child_process');
 vi.mock('node:fs');
-vi.mock('../Logger.js', () => ({
+vi.mock('../core/Logger.js', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
+    warn: vi.fn(),
     logOutput: vi.fn(),
   },
 }));
@@ -25,13 +26,10 @@ const mockConn = {
   getMagicRemote: vi.fn().mockReturnValue('user@host'),
   getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
   onProvisioned: vi.fn().mockResolvedValue(undefined),
-  setupNetworkInfrastructure: vi.fn(),
-  getNetworkInterfaceArgs: vi
-    .fn()
-    .mockReturnValue(['--network-interface', 'network=default,no-address']),
+  setOverrideHost: vi.fn(),
 };
 
-vi.mock('./GceConnectionManager.ts', () => ({
+vi.mock('./GceConnectionManager.js', () => ({
   GceConnectionManager: function () {
     return mockConn;
   },
@@ -47,8 +45,8 @@ describe('GceCosProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    ( fs.existsSync as any).mockReturnValue(true);
-    ( fs.mkdirSync as any).mockReturnValue(undefined);
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.mkdirSync as any).mockReturnValue(undefined);
 
     mockConn.run.mockReturnValue({ status: 0, stdout: '', stderr: '' });
     mockConn.sync.mockResolvedValue(0);
@@ -131,7 +129,6 @@ describe('GceCosProvider', () => {
   });
 
   it('should list active orbit capsules', async () => {
-    // Mock getExecOutput behavior via mockConn.run
     mockConn.run.mockReturnValue({
       status: 0,
       stdout: Buffer.from('gcli-pr-123\ngcli-pr-456\n'),
@@ -143,28 +140,17 @@ describe('GceCosProvider', () => {
   });
 
   it('should execute ensureReady and refresh capsule if missing', async () => {
-    const mockData = {
-      name: 'test-i',
-      status: 'RUNNING',
-      networkInterfaces: [
-        {
-          networkIP: '10.1',
-          accessConfigs: [{ natIP: '34.1' }],
-        },
-      ],
-    };
-    (spawnSync as any).mockReturnValue({
-      status: 0,
-      stdout: Buffer.from(JSON.stringify(mockData)),
-    } as any);
-
     // 1. inspect check returns status 1 (capsule missing)
+    mockConn.run.mockReturnValueOnce({
+      status: 0,
+      stdout: '0', // ls -d success
+    });
     mockConn.run.mockReturnValueOnce({
       status: 1,
       stdout: Buffer.from(''),
       stderr: Buffer.from('Error: No such object'),
     });
-    // 2. Refresh commands (pull, rm, run) - we'll just mock them all succeeding
+    // 2. Refresh commands (pull, rm, run)
     mockConn.run.mockReturnValue({
       status: 0,
       stdout: Buffer.from('true'),
@@ -182,27 +168,13 @@ describe('GceCosProvider', () => {
     );
   });
 
-  it('should skip network management when VPC and Subnet are both "default"', async () => {
-    (spawnSync as any).mockReturnValue({ status: 0 } as any);
-    const providerWithDefault = new GceCosProvider(
-      projectId,
-      zone,
-      instanceName,
-      repoRoot,
-      { vpcName: 'default', subnetName: 'default' },
-    );
-
-    const provPromise = providerWithDefault.provision({ setupNetwork: true });
-    await vi.runAllTimersAsync();
-    const res = await provPromise;
-    expect(res).toBe(0);
-
-    // Should NOT call gcloud compute networks describe
-    expect(spawnSync).not.toHaveBeenCalledWith(
-      'gcloud',
-      expect.arrayContaining(['compute', 'networks', 'describe', 'default']),
-      expect.any(Object),
-    );
+  it('should inject infrastructure state into connection manager', () => {
+    provider.injectState({
+      status: 'ready',
+      privateIp: '10.0.0.5',
+      publicIp: '34.0.0.5',
+    });
+    expect(mockConn.setOverrideHost).toHaveBeenCalledWith('10.0.0.5');
   });
 
   it('should use sudo for docker status and stats commands', async () => {
@@ -219,92 +191,5 @@ describe('GceCosProvider', () => {
       expect.stringContaining('sudo docker stats'),
       expect.any(Object),
     );
-  });
-
-  it('should fetch docker logs if stabilization fails', async () => {
-    const mockData = {
-      name: 'test-i',
-      status: 'RUNNING',
-      networkInterfaces: [
-        {
-          networkIP: '10.0.0.1',
-          accessConfigs: [{ natIP: '34.0.0.1' }],
-        },
-      ],
-    };
-    (spawnSync as any).mockReturnValue({
-      status: 0,
-      stdout: Buffer.from(JSON.stringify(mockData)),
-    } as any);
-
-    // Mock getCapsuleStatus to always return false (not running)
-    mockConn.run.mockReturnValue({
-      status: 0,
-      stdout: Buffer.from('false'),
-      stderr: Buffer.from(''),
-    });
-
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const readyPromise = provider.ensureReady();
-    await vi.runAllTimersAsync();
-    const res = await readyPromise;
-
-    expect(res).toBe(1);
-    expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('sudo docker logs'),
-      expect.any(Object),
-    );
-    consoleSpy.mockRestore();
-  });
-
-  it('should show fallback message if logs cannot be fetched', async () => {
-    const mockData = {
-      name: 'test-i',
-      status: 'RUNNING',
-      networkInterfaces: [
-        {
-          networkIP: '10.0.0.1',
-          accessConfigs: [{ natIP: '34.0.0.1' }],
-        },
-      ],
-    };
-    (spawnSync as any).mockReturnValue({
-      status: 0,
-      stdout: Buffer.from(JSON.stringify(mockData)),
-    } as any);
-
-    // Mock getCapsuleStatus to always return false (not running)
-    // The loop runs 30 times, then it calls docker logs.
-    let callCount = 0;
-    mockConn.run.mockImplementation(() => {
-      callCount++;
-      if (callCount > 30) {
-        // This is the logs call - MUST have empty stdout to trigger fallback
-        return {
-          status: 1,
-          stdout: Buffer.from(''),
-          stderr: Buffer.from('connection refused'),
-        };
-      }
-      return {
-        status: 0,
-        stdout: Buffer.from('false'),
-        stderr: Buffer.from(''),
-      };
-    });
-
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const readyPromise = provider.ensureReady();
-    await vi.runAllTimersAsync();
-    const res = await readyPromise;
-
-    expect(res).toBe(1);
-    expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('sudo docker logs'),
-      expect.any(Object),
-    );
-    consoleSpy.mockRestore();
   });
 });

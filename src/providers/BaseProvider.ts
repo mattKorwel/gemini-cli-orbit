@@ -22,25 +22,9 @@ export interface OrbitProvider {
   injectState?(state: InfrastructureState): void;
 
   /**
-   * Provisions the underlying infrastructure station.
-...
-   */
-  provision(options?: {
-    setupNetwork?: boolean;
-    sessionId?: string;
-    upstreamUrl?: string;
-    repoRoot?: string;
-  }): Promise<number>;
-
-  /**
    * Ensures the station is running and accessible.
    */
   ensureReady(): Promise<number>;
-
-  /**
-   * Performs the initial setup of the station (SSH, scripts, auth).
-   */
-  setup(options: SetupOptions): Promise<number>;
 
   /**
    * Returns the raw command string that would be used to execute a command.
@@ -49,6 +33,7 @@ export interface OrbitProvider {
 
   /**
    * Executes a command on the station.
+  ...
    */
   exec(command: string, options?: ExecOptions): Promise<number>;
 

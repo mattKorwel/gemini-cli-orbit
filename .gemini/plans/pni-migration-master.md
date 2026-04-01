@@ -6,8 +6,8 @@ This master plan tracks the progress of decoupling infrastructure provisioning f
 - [x] **Sub-Plan 1: Foundation & Abstraction Layer** ([pni-sub-01-foundation.md](pni-sub-01-foundation.md))
 - [x] **Sub-Plan 2: Target-Aware Provisioners** ([pni-sub-02-targets.md](pni-sub-02-targets.md))
 - [x] **Sub-Plan 3: Execution Provider Refactoring** ([pni-sub-03-execution.md](pni-sub-03-execution.md))
-- [ ] **Sub-Plan 4: CLI Lifecycle Integration** ([pni-sub-04-cli.md](pni-sub-04-cli.md))
-- [ ] **Sub-Plan 5: Verification & Cleanup** ([pni-sub-05-cleanup.md](pni-sub-05-cleanup.md))
+- [x] **Sub-Plan 4: CLI Lifecycle Integration** ([pni-sub-04-cli.md](pni-sub-04-cli.md))
+- [x] **Sub-Plan 5: Verification & Cleanup** ([pni-sub-05-cleanup.md](pni-sub-05-cleanup.md))
 
 ## Objective
 1.  **Remove `gcloud` dependency** for infrastructure provisioning.
@@ -17,3 +17,4 @@ This master plan tracks the progress of decoupling infrastructure provisioning f
 ## Reference
 - **ADR 0016**: [0016-pni-pulumi.md](../adr/0016-pni-pulumi.md)
 - **Original Plan**: [pni-migration-plan.md](pni-migration-plan.md)
+\n## Migration Complete 🎉\nOrbit is now using Pulumi-Native Infrastructure for all cloud provisioning.

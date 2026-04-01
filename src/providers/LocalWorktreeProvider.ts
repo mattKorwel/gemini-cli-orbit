@@ -13,6 +13,7 @@ import {
   type OrbitStatus,
   type CapsuleConfig,
 } from './BaseProvider.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
 
 /**
@@ -53,15 +54,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return res.status === 0;
   }
 
-  async provision(): Promise<number> {
-    return 0;
+  injectState(_state: InfrastructureState): void {
+    // No-op for local
   }
 
   async ensureReady(): Promise<number> {
-    return 0;
-  }
-
-  async setup(): Promise<number> {
     return 0;
   }
 

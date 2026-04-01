@@ -39,28 +39,37 @@ vi.mock('./Constants.ts', () => ({
 vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('node:readline');
-vi.mock('./providers/ProviderFactory.ts');
-vi.mock('./ConfigManager.ts');
+vi.mock('../providers/ProviderFactory.js');
+vi.mock('../infrastructure/InfrastructureFactory.js');
+vi.mock('./ConfigManager.js');
 
 // Import runSetup after mocks
 import { runSetup } from './setup.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
+import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import * as ConfigManager from './ConfigManager.js';
 
 describe('runSetup', () => {
   const mockProvider = {
-    getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
     ensureReady: vi.fn().mockResolvedValue(0),
-    provision: vi.fn().mockResolvedValue(0),
-    setup: vi.fn().mockResolvedValue(0),
     exec: vi.fn().mockResolvedValue(0),
     sync: vi.fn().mockResolvedValue(0),
     getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: '' }),
   };
 
+  const mockInfra = {
+    up: vi.fn().mockResolvedValue({
+      status: 'ready',
+      privateIp: '10.0.0.5',
+      publicIp: '34.0.0.5',
+    }),
+    down: vi.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.spyOn(InfrastructureFactory, 'getProvisioner').mockReturnValue(mockInfra as any);
 
     (ConfigManager.detectRepoName as any).mockReturnValue('gemini-cli');
     ( ConfigManager.loadSettings as any).mockReturnValue({ repos: {} });
@@ -82,7 +91,7 @@ describe('runSetup', () => {
 
     // Default mock for readline
     ( readline.createInterface as any).mockReturnValue({
-      question: vi.fn().mockImplementation((q, cb) => cb('')),
+      question: vi.fn().mockImplementation((_q, cb) => cb('')),
       close: vi.fn(),
     } as any);
 
@@ -100,58 +109,24 @@ describe('runSetup', () => {
     const res = await runSetup([]);
 
     expect(res).toBe(0);
-    // In current implementation, if status is RUNNING, it doesn't call provision but might check ready
-    expect(mockProvider.getStatus).toHaveBeenCalled();
+    expect(mockInfra.up).toHaveBeenCalled();
+    expect(ProviderFactory.getProvider).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ status: 'ready' }),
+    );
+    expect(mockProvider.ensureReady).toHaveBeenCalled();
   });
 
-  it('should detect existing configuration', async () => {
-    ( fs.existsSync as any).mockReturnValue(true);
-    ( fs.readFileSync as any).mockReturnValue(
-      JSON.stringify({
-        repos: {
-          'gemini-cli': {
-            projectId: 'p',
-            zone: 'z',
-            instanceName: 'i',
-            stationName: 'i',
-            repoName: 'gemini-cli',
-          },
-        },
-        activeRepo: 'gemini-cli',
-      }),
-    );
-
-    // ConfigManager.loadSettings should return this
-    ( ConfigManager.loadSettings as any).mockReturnValue({
-      repos: {
-        'gemini-cli': {
-          projectId: 'p',
-          zone: 'z',
-          instanceName: 'i',
-          stationName: 'i',
-          repoName: 'gemini-cli',
-        },
-      },
-      activeRepo: 'gemini-cli',
-    });
-
-    // Mock confirm to say yes to using existing config
-    const rl = {
-      question: vi.fn().mockImplementation((q, cb) => cb('y')),
-      close: vi.fn(),
-    };
-    ( readline.createInterface as any).mockReturnValue(rl as any);
-
-    const res = await runSetup([]);
+  it('should decommission infrastructure when --destroy is provided', async () => {
+    const res = await runSetup(['--destroy']);
     expect(res).toBe(0);
-    expect(mockProvider.getStatus).toHaveBeenCalled();
+    expect(mockInfra.down).toHaveBeenCalled();
+    expect(mockInfra.up).not.toHaveBeenCalled();
   });
 
   it('should ignore "liftoff" when passed as the first argument', async () => {
-    // This simulates "orbit station liftoff --with-new-station"
-    const res = await runSetup(['liftoff', '--with-new-station']);
+    const res = await runSetup(['liftoff']);
     expect(res).toBe(0);
-    // Should have used 'default' schematic
     expect(ConfigManager.loadSchematic).toHaveBeenCalledWith('default');
   });
 });

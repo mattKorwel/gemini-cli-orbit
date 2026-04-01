@@ -42,16 +42,6 @@ export interface ConnectivityStrategy {
   getBackendType(): string;
 
   /**
-   * Performs backend-specific network infrastructure setup (e.g. firewall rules).
-   */
-  setupNetworkInfrastructure(vpcName: string): void;
-
-  /**
-   * Returns the network-interface and addressing flags for instance creation.
-   */
-  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[];
-
-  /**
    * Hook called after successful instance creation.
    */
   onProvisioned(): Promise<void>;

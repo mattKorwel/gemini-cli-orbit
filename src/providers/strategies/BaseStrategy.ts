@@ -4,10 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import os from 'os';
+import os from 'node:os';
 import type { ConnectivityStrategy } from './ConnectivityStrategy.js';
-import { spawnSync } from 'node:child_process';
-import { logger } from '../../core/Logger.js';
 
 export abstract class BaseStrategy implements ConnectivityStrategy {
   protected overrideHost: string | null = null;
@@ -61,11 +59,11 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     ];
   }
 
-  getRunCommand(command: string, options: { interactive?: boolean }): string {
+  getRunCommand(command: string, options: { interactive?: boolean | undefined } = {}): string {
     return `ssh ${this.getCommonArgs().join(' ')} ${options.interactive ? '-t' : ''} ${this.getMagicRemote()} ${this.quote(command)}`;
   }
 
-  getRunArgs(command: string, options: { interactive?: boolean }): string[] {
+  getRunArgs(command: string, options: { interactive?: boolean | undefined } = {}): string[] {
     const args = ['ssh', ...this.getCommonArgs()];
     if (options.interactive) args.push('-t');
     args.push(this.getMagicRemote());
@@ -73,134 +71,9 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     return args;
   }
 
-  // Default: Ensure broad corporate SSH rule exists
-  setupNetworkInfrastructure(vpcName: string): void {
-    const region = this.zone.split('-').slice(0, 2).join('-');
-    logger.info(
-      `   - Ensuring firewall rule 'allow-corporate-ssh' on ${vpcName}...`,
-    );
-    const fwCheck = spawnSync(
-      'gcloud',
-      [
-        'compute',
-        'firewall-rules',
-        'describe',
-        'allow-corporate-ssh',
-        '--project',
-        this.projectId,
-      ],
-      { stdio: 'pipe' },
-    );
-    logger.logOutput(fwCheck.stdout, fwCheck.stderr);
-    if (fwCheck.status !== 0) {
-      const sourceRanges =
-        (this.config as any).sshSourceRanges?.join(',') || '0.0.0.0/0';
-      spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'firewall-rules',
-          'create',
-          'allow-corporate-ssh',
-          '--project',
-          this.projectId,
-          '--network',
-          vpcName,
-          '--allow=tcp:22',
-          `--source-ranges=${sourceRanges}`,
-        ],
-        { stdio: 'inherit' },
-      );
-    }
-
-    logger.info(`   - Ensuring Cloud NAT for internet access in ${region}...`);
-    const routerName = `${vpcName}-router`;
-    const natName = `${vpcName}-nat`;
-
-    const routerCheck = spawnSync(
-      'gcloud',
-      [
-        'compute',
-        'routers',
-        'describe',
-        routerName,
-        '--project',
-        this.projectId,
-        '--region',
-        region,
-      ],
-      { stdio: 'pipe' },
-    );
-    logger.logOutput(routerCheck.stdout, routerCheck.stderr);
-    if (routerCheck.status !== 0) {
-      spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'routers',
-          'create',
-          routerName,
-          '--project',
-          this.projectId,
-          '--network',
-          vpcName,
-          '--region',
-          region,
-        ],
-        { stdio: 'inherit' },
-      );
-    }
-
-    const natCheck = spawnSync(
-      'gcloud',
-      [
-        'compute',
-        'routers',
-        'nats',
-        'describe',
-        natName,
-        '--router',
-        routerName,
-        '--project',
-        this.projectId,
-        '--region',
-        region,
-      ],
-      { stdio: 'pipe' },
-    );
-    logger.logOutput(natCheck.stdout, natCheck.stderr);
-    if (natCheck.status !== 0) {
-      spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'routers',
-          'nats',
-          'create',
-          natName,
-          '--project',
-          this.projectId,
-          '--router',
-          routerName,
-          '--region',
-          region,
-          '--auto-allocate-nat-external-ips',
-          '--nat-all-subnet-ip-ranges',
-        ],
-        { stdio: 'inherit' },
-      );
-    }
-  }
-
-  // Default: No static external IP
-  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[] {
-    return [
-      '--network-interface',
-      `network=${vpcName},subnet=${subnetName},no-address`,
-    ];
-  }
-
-  // Default: No post-provisioning steps
+  /**
+   * Hook called after successful instance creation.
+   */
   async onProvisioned(): Promise<void> {}
 
   protected quote(str: string): string {

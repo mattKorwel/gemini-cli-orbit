@@ -70,44 +70,12 @@ export class GceConnectionManager {
     }
   }
 
-  /**
-   * Returns the network interface arguments for gcloud instances create.
-   */
-  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[] {
-    return this.strategy.getNetworkInterfaceArgs(vpcName, subnetName);
+  private q(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 
   /**
-   * Performs any backend-specific network setup (firewalls etc).
-   */
-  setupNetworkInfrastructure(vpcName: string): void {
-    if (this.strategy.setupNetworkInfrastructure) {
-      this.strategy.setupNetworkInfrastructure(vpcName);
-    }
-
-    // Always ensure internal SSH is allowed for direct-internal
-    if (this.config.backendType !== 'external') {
-      spawnSync(
-        'gcloud',
-        [
-          'compute',
-          'firewall-rules',
-          'create',
-          'allow-corporate-ssh',
-          '--project',
-          this.projectId,
-          '--network',
-          vpcName,
-          '--allow=tcp:22',
-          '--source-ranges=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16',
-        ],
-        { stdio: 'inherit' },
-      );
-    }
-  }
-
-  /**
-   * Generates a complete shell-safe SSH command.
+   * Returns the raw command string that would be used to execute a command.
    */
   getRunCommand(
     command: string,
@@ -120,32 +88,7 @@ export class GceConnectionManager {
         .join(' ');
       finalCommand = `${envPrefix} ${command}`;
     }
-    return this.strategy.getRunCommand(finalCommand, {
-      ...(options.interactive !== undefined
-        ? { interactive: options.interactive }
-        : {}),
-    });
-  }
-
-  /**
-   * Generates an array of arguments for spawnSync.
-   */
-  getRunArgs(
-    command: string,
-    options: { interactive?: boolean; env?: Record<string, string> } = {},
-  ): string[] {
-    let finalCommand = command;
-    if (options.env) {
-      const envPrefix = Object.entries(options.env)
-        .map(([k, v]) => `${k}=${this.q(v)}`)
-        .join(' ');
-      finalCommand = `${envPrefix} ${command}`;
-    }
-    const args = ['ssh', ...this.strategy.getCommonArgs()];
-    if (options.interactive) args.push('-t');
-    args.push(this.strategy.getMagicRemote());
-    args.push(finalCommand);
-    return args;
+    return this.strategy.getRunCommand(finalCommand, options);
   }
 
   /**
@@ -166,10 +109,6 @@ export class GceConnectionManager {
       shell: true,
       env: process.env,
     });
-  }
-
-  private q(val: string): string {
-    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 
   /**
