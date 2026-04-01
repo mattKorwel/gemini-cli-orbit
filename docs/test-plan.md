@@ -1,149 +1,95 @@
-# Gemini Orbit: End-to-End Test Plan (v6.0)
+# Gemini Orbit: End-to-End Test Plan
 
-This document provides a structured protocol for validating the **Orbit**
-platform (v6.0+). It ensures that decoupled Schematics, hardened security, and
-phased autonomous maneuvers are fully functional.
+This document provides a structured protocol for validating the **Orbit** platform. It ensures that declarative PNI (Pulumi-Native Infrastructure), decoupled providers, and the modern `src/` architecture are fully functional.
 
 ---
 
-## 📋 Pre-Flight: Manual Schematic Verification
+## 📋 Pre-Flight: Environment Verification
 
-**Goal**: Ensure the global environment is correctly seeded before running
-manual or automated tests.
+**Goal**: Ensure the global environment is correctly seeded before running tests.
 
 1.  **Check Global Directory**:
     - [ ] `ls -d ~/.gemini/orbit` exists.
-    - [ ] `ls ~/.gemini/orbit/schematics` contains at least one `.json`
-          schematic (e.g., `default.json`, `corp.json`).
-2.  **Verify Schematic Content**:
-    - [ ] Open a schematic (e.g., `cat ~/.gemini/orbit/schematics/corp.json`).
-    - [ ] Ensure it contains valid infrastructure keys: `projectId`, `zone`,
-          `machineType`, `vpcName`, `subnetName`, and `backendType`.
+    - [ ] `ls ~/.gemini/orbit/schematics` contains at least one `.json` schematic.
+2.  **Verify Managed Binaries**:
+    - [ ] `ls ~/.gemini/orbit/bin/pulumi` contains the managed Pulumi binary (if installed).
 3.  **Verify Global Registry**:
     - [ ] `cat ~/.gemini/orbit/settings.json` exists.
-    - [ ] `activeStation` points to a valid station name.
 
 ---
 
-## 🛡️ 1. Security & Integrity (High Priority)
+## 🛡️ 1. Security & Integrity
 
 **Goal**: Verify that sensitive credentials and paths are protected.
 
 ### 1.1 Path Traversal Prevention
-
 1.  **Input**: `orbit schematic edit ../../malicious`
-2.  **Expected**: The name should be sanitized to `------malicious` and saved
-    safely within the `schematics/` directory, or rejected.
-3.  **Input**: `orbit schematic import https://example.com/bad.json` (where
-    `bad.json` has `schematicName: "../../bad"`)
-4.  **Expected**: Sanitized name `------bad` used for the local file.
+2.  **Expected**: The name is sanitized to `------malicious` and saved safely within the `schematics/` directory.
 
 ### 1.2 RAM-based Credential Injection (ADR 14)
-
 1.  **Input**: Launch a remote mission: `orbit mission <PR> review`.
-2.  **Verification (On Remote Station, while mission is actively running)**:
-    - [ ] `ls /dev/shm/.gcli-env-*` exists on the Host Station (file is present
-          while mission is active; automatically cleaned up when mission exits).
-    - [ ] `cat /mnt/disks/data/worktrees/mission-<ID>/.env` **DOES NOT** exist
-          (or does not contain the API Key).
-    - [ ] `docker inspect gcli-<ID>-review` shows the mount:
-          `Source: /dev/shm/.gcli-env-<ID>, Destination: /mnt/disks/data/worktrees/mission-<ID>/.env, ReadOnly: true`.
-3.  **Post-mission cleanup verification**:
-    - [ ] After the mission exits, `ls /dev/shm/.gcli-env-*` should return no
-          results — file is cleaned up in the `finally` block.
-
-### 1.3 Schematic Schema Validation
-
-1.  **Input**: Create a dummy JSON missing `projectId`:
-    `echo '{"zone":"us-central1-a"}' > /tmp/bad.json`.
-2.  **Action**: `orbit schematic import /tmp/bad.json`
-3.  **Expected**: Fails with "Schematic is missing required infrastructure
-    fields".
+2.  **Verification (On Remote Station)**:
+    - [ ] `ls /dev/shm/.gcli-env-*` exists while mission is active.
+    - [ ] `docker inspect gcli-<ID>-review` shows the RAM-disk mount at `/.env`.
+3.  **Post-mission**: File is automatically purged from RAM.
 
 ---
 
-## ⚙️ 2. Core Integrity & Terminology
+## ⚙️ 2. Core Integrity & Build
 
 **Goal**: Verify build, bundle, and basic logic integrity.
 
 1.  **Build & Bundle**:
-    - `npm run build`
-    - [ ] `bundle/` is populated with ESM `.js` files.
-2.  **Terminology Sync**:
-    - [ ] `orbit pulse` shows the "ORBIT PULSE" header.
-    - [ ] `orbit schematic list` works.
-3.  **Unit Tests**:
+    - `npm run build:bundle`
+    - [ ] `bundle/` is populated with ESM `.js` files using the new `src/` paths.
+2.  **Unit Tests**:
     - `npm test`
-    - [ ] All 83+ tests pass across all providers and strategies.
+    - [ ] All **118+ tests** pass across all core modules and providers.
+3.  **Type Safety**:
+    - `npm run typecheck`
+    - [ ] Completes with 0 errors.
 
 ---
 
-## 🎚️ 3. Tiered Configuration & Local Missions
+## 🎚️ 3. Local Missions (Docker-Free)
 
-**Goal**: Verify the system merges Project Defaults, Global Registry,
-Schematics, and Env Vars correctly.
+**Goal**: Verify that local missions use native Git worktrees without Docker terminology.
 
-### 3.1 Resolution Hierarchy
+1.  **Worktree Creation**:
+    - `orbit mission <PR> --local`
+    - [ ] Successfully creates a sibling worktree in the `worktrees/` directory.
+2.  **Tracking**:
+    - `orbit pulse --local`
+    - [ ] Correct identifies the local worktree as an active mission.
 
-1.  **Input**: `orbit pulse --for-station=my-custom-station`
-2.  **Expected**: Pulse attempts to connect to `my-custom-station` even if
-    another station is marked active in settings.
+---
 
-### 3.2 Local Mission Maneuvers
+## 🛰️ 4. Declarative Infrastructure (PNI)
 
-1.  **Input**: `orbit mission <PR_NUMBER> review --local`
+**Goal**: Verify connectivity and orchestration using the Pulumi-managed layer.
+
+### 4.1 Dependency Management
+1.  **Action**: Move `~/.gemini/orbit/bin/pulumi` to a backup location.
+2.  **Input**: `orbit liftoff`
+3.  **Expected**: Orbit detects missing Pulumi and explicitly prompts for local installation.
+
+### 4.2 Cloud Liftoff
+1.  **Input**: `orbit liftoff <schematic>`
 2.  **Expected Behavior**:
-    - [ ] Creates a sibling worktree in your project's parent directory.
-    - [ ] Launches a persistent `tmux` session named `orbit-<branch>`.
-    - [ ] Successfully executes the "Review" maneuver phases (Phase 0, 1, 2).
+    - [ ] Initializes local state backend (`pulumi login --local`).
+    - [ ] Provisions/wakes the Station VM.
+    - [ ] Hands over the discovered IP to the execution provider.
+
+### 4.3 Cleanup
+1.  **Input**: `orbit liftoff --destroy`
+2.  **Expected Behavior**: Pulumi successfully decommissions the cloud resources defined in the schematic.
 
 ---
 
-## 🛰️ 4. Remote Mission Control (Cloud)
+## 🛸 5. Autonomous Maneuvers
 
-**Goal**: Verify connectivity and orchestration on a Station.
+**Goal**: Ensure playbooks function with the new Yargs command routing.
 
-### 4.1 Station Liftoff
-
-1.  **Input**: `orbit station liftoff corp --setup-net` (using a schematic named
-    'corp').
-2.  **Expected Output**:
-    - [ ] Provisions/wakes the Station defined in the 'corp' schematic.
-    - [ ] Sets the 'activeStation' in global settings.
-
-### 4.2 Autonomous Maneuvers (Remote)
-
-1.  **Input**: `orbit mission <PR> review`
-2.  **Verification**:
-    - [ ] `orbit uplink <PR>` allows you to watch the phased execution.
-    - [ ] `orbit pulse` shows the mission as `🧠 [THINKING]` during execution.
-    - [ ] `orbit pulse` shows the mission as `✋ [WAITING]` if it requires
-          approval or input.
-
----
-
-## 🧹 5. Mission Cleanup
-
-**Goal**: Ensure surgical and global cleanup works as intended.
-
-1.  **Jettison**: `orbit jettison <PR>`
-    - [ ] Removes the remote Docker capsule.
-    - [ ] Removes the remote Git worktree.
-2.  **Splashdown**: `orbit splashdown --all`
-    - [ ] Terminates the Station.
-    - [ ] Clears the active station pointer.
-
----
-
-## 🛠️ Automated Health Check
-
-```bash
-# Full Build & Test
-npm run build && npm test
-
-# Verify Pulse CLI (bin/ directory removed in Release 6 — use orbit CLI)
-orbit pulse
-
-# Verify Schematic Management
-orbit schematic list
-```
+1.  **Uplink**: `orbit uplink <PR>` correctly surfaces mission logs.
+2.  **Jettison**: `orbit jettison <PR> --yes` removes resources without interaction.
+3.  **Reap**: `orbit reap --threshold=2` identifies idle capsules based on the provided flag.

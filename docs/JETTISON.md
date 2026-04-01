@@ -1,61 +1,40 @@
-# Orbit Mission: Jettison (/orbit:jettison)
+# Orbit Mission: Jettison (orbit jettison)
 
-The **Jettison** command provides a surgical cleanup of individual mission
-environments. Use it when a mission is complete to reclaim resources and keep
-your Host Station clean.
+The **Jettison** command provides a surgical cleanup of individual mission environments. Use it when a mission is complete to reclaim resources and keep your environment clean.
 
 ## 🧹 Surgical Cleanup
 
-When you are done with a PR mission, run:
+When you are done with a mission, run:
 
 ```bash
-/orbit:jettison 123
+orbit jettison 123
 ```
 
-### 1. Capsule Disposal
-
-Jettison will:
-
-- **Stop the Container**: Immediately terminate the specific mission capsule
-  (e.g., `gcli-123-open`).
-- **Remove Docker Resources**: Clean up the process-isolated container and any
-  ephemeral layers.
+### 1. Resource Disposal
+- **Remote (GCE)**: Immediately terminates the specific Docker capsule and removes the process-isolated container.
+- **Local**: Removes the mission-specific Git worktree and kills any associated persistent `tmux` sessions.
 
 ### 2. Worktree Cleanup
-
-Each mission capsule has its own isolated Git worktree on the Host Station.
-Jettison will:
-
-- **Delete the Directory**: Remove the mission-specific worktree (e.g.,
-  `orbit-123-open`).
-- **Clear Metadata**: Ensure your Station's master repository remains in a clean
-  state.
+Each mission has its own isolated Git worktree. Jettison will:
+- **Delete the Directory**: Remove the mission-specific folder (e.g., `worktrees/mission-123-chat`).
+- **Clear Metadata**: Ensure the primary repository remains in a clean state.
 
 ### 3. Telemetry Removal
-
-Jettison also cleans up the "Blackbox" data associated with the mission:
-
-- **Remove History**: Deletes terminal logs and command history specific to that
-  mission PR.
-- **Wipe Telemetry**: Clears any background agent progress trackers.
+Jettison also cleans up the transient data associated with the mission, including terminal logs and agent progress trackers.
 
 ---
 
-## 🛠️ Jettison Options
+## 🛠️ Command Reference
 
-- `/orbit:jettison <PR> [action]`: Surgically remove a specific mission
-  workstream (e.g., `orbit:jettison 123 fix`).
-
-## 🛰️ Global Splashdown (Experimental)
-
-To completely wipe all missions and reset your Host Station, see the
-**Splashdown** command documentation (coming soon).
+- `orbit jettison <ID> [action]`: Surgically remove a specific mission workstream (e.g., `orbit jettison 123 fix`).
+- `--yes`, `-y`: Bypass the confirmation prompt (useful for automation).
 
 ## ✨ Why Jettison?
 
-- **Resource Management**: Keeps your Host Station disk and memory usage
-  efficient.
-- **Environment Freshness**: Ensures that launching a new mission for the same
-  PR starts with a clean slate.
-- **Data Privacy**: Removes ephemeral PR code and terminal history when no
-  longer needed.
+- **Resource Management**: Keeps your station's disk and memory usage efficient.
+- **Environment Freshness**: Ensures that re-launching a mission for the same task starts with a clean slate.
+- **Data Privacy**: Removes ephemeral code and terminal history when no longer needed.
+
+---
+
+*Note: In the Gemini App, you can also use the `/orbit:jettison` slash command.*
