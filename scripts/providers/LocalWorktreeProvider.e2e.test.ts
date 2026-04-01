@@ -69,7 +69,7 @@ describe('LocalWorktreeProvider E2E', () => {
             }
           });
         }
-      } catch (e) {}
+      } catch (_e) {}
       fs.rmSync(sandboxDir, { recursive: true, force: true });
     }
   });

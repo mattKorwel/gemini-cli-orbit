@@ -19,7 +19,7 @@ Pulse reports the core status of your primary digital outpost:
 - **Station State**: (RUNNING, STOPPED, PROVISIONING, etc.)
 - **Connectivity**: Internal IP address and active backend (direct-internal,
   secure-tunnel, etc.)
-- **Station Name**: The identifier for your GCE/custom host.
+- **Station Name**: The identifier for your Cloud/custom host.
 
 ### 2. Active Mission Capsules
 
@@ -34,10 +34,10 @@ For each active mission, it shows:
 
 ---
 
-## 🛰️ Mission Intelligence (v1.5+)
+## 🛰️ Mission Intelligence
 
-For active PR missions, Pulse provides a deeper look into what the Gemini agent
-is doing:
+For active missions, Pulse provides a deeper look into what the Gemini agent is
+doing:
 
 - **🧠 [THINKING]**: The agent is actively processing a task, running a build,
   or analyzing the PR.

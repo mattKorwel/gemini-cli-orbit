@@ -19,12 +19,9 @@ import { StationManager } from './StationManager.js';
 /**
  * Setup Orbit: Initial configuration and station provisioning.
  */
-export async function runSetup(
-  args: string[] = [],
-  env: NodeJS.ProcessEnv = process.env,
-) {
+export async function runSetup(args: string[] = []) {
   const repoName = detectRepoName();
-  const withStation = args.includes('--with-station');
+  const withStation = args.includes('--with-new-station');
   const setupNet = args.includes('--setup-net');
   const flags = parseFlags(args);
 
@@ -70,7 +67,7 @@ export async function runSetup(
       console.log(`   - Target VM: ${config.instanceName}`);
       console.log(`\n👉 This station does not exist yet.`);
       console.log(`   To provision this infrastructure, rerun with:`);
-      console.log(`   orbit station liftoff --with-station\n`);
+      console.log(`   orbit station liftoff --with-new-station\n`);
       return 1;
     }
 

@@ -44,5 +44,6 @@ Execute specialized autonomous tasks on your mission:
 
 - `orbit mission <PR> [action]`: Launch a mission (fix, review, implement).
 - `orbit pulse`: Monitor host and capsule health.
+- `orbit ci [branch]`: Monitor GitHub Actions status for the mission branch.
 - `orbit uplink <PR> [action]`: (Uplink) Inspect local or remote mission
   telemetry.

@@ -1,5 +1,4 @@
 import { createTaskRunner } from '../TaskRunner.js';
-import path from 'path';
 
 export async function runReadyPlaybook(
   prNumber: string,

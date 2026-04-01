@@ -9,7 +9,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {
   type OrbitProvider,
-  type SetupOptions,
   type ExecOptions,
   type OrbitStatus,
   type CapsuleConfig,

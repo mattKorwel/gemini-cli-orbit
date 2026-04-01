@@ -42,8 +42,8 @@ manual or automated tests.
 
 1.  **Input**: Launch a remote mission: `orbit mission <PR> review`.
 2.  **Verification (On Remote Station, while mission is actively running)**:
-    - [ ] `ls /dev/shm/.gcli-env-*` exists on the Host VM (file is present while
-          mission is active; automatically cleaned up when mission exits).
+    - [ ] `ls /dev/shm/.gcli-env-*` exists on the Host Station (file is present
+          while mission is active; automatically cleaned up when mission exits).
     - [ ] `cat /mnt/disks/data/worktrees/mission-<ID>/.env` **DOES NOT** exist
           (or does not contain the API Key).
     - [ ] `docker inspect gcli-<ID>-review` shows the mount:
@@ -101,14 +101,14 @@ Schematics, and Env Vars correctly.
 
 ## 🛰️ 4. Remote Mission Control (Cloud)
 
-**Goal**: Verify connectivity and orchestration on a GCE Station.
+**Goal**: Verify connectivity and orchestration on a Station.
 
 ### 4.1 Station Liftoff
 
 1.  **Input**: `orbit station liftoff corp --setup-net` (using a schematic named
     'corp').
 2.  **Expected Output**:
-    - [ ] Provisions/wakes the GCE station defined in the 'corp' schematic.
+    - [ ] Provisions/wakes the Station defined in the 'corp' schematic.
     - [ ] Sets the 'activeStation' in global settings.
 
 ### 4.2 Autonomous Maneuvers (Remote)
@@ -130,7 +130,7 @@ Schematics, and Env Vars correctly.
     - [ ] Removes the remote Docker capsule.
     - [ ] Removes the remote Git worktree.
 2.  **Splashdown**: `orbit splashdown --all`
-    - [ ] Terminates the GCE station.
+    - [ ] Terminates the Station.
     - [ ] Clears the active station pointer.
 
 ---

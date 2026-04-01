@@ -16,8 +16,8 @@ When you start your day (or work on a new repository), you need to ensure your
 orbit station liftoff
 ```
 
-- **What happens**: Orbit checks if your GCE instance exists. If not, it creates
-  it. It ensures the Docker daemon is ready and the latest capsule images are
+- **What happens**: Orbit checks if your Station exists. If not, it creates it.
+  It ensures the Docker daemon is ready and the latest capsule images are
   pulled.
 - **Persistent Data**: Your `/mnt/disks/data` disk is preserved across
   stops/starts. Your main repo clone is always there.
@@ -88,7 +88,7 @@ orbit jettison <pr-number>
 At the end of the day, stop your Host Station to save costs:
 
 ```bash
-# Stop the GCE instance (preserving the disk)
+# Stop the Station (preserving the disk)
 orbit splashdown
 ```
 

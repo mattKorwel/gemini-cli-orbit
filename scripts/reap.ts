@@ -12,17 +12,10 @@ import { getRepoConfig, detectRepoName } from './ConfigManager.js';
  */
 export async function runReap(
   options: { threshold?: number; force?: boolean } = {},
-  env: NodeJS.ProcessEnv = process.env,
 ) {
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
   const threshold = options.threshold ?? 4; // Default 4 hours
-
-  const isLocal =
-    !config.projectId ||
-    config.projectId === 'local' ||
-    (config.providerType as any) === 'local-worktree' ||
-    (config.providerType as any) === 'local-worktree';
 
   const instanceName = config.instanceName || 'local';
   const provider = ProviderFactory.getProvider({

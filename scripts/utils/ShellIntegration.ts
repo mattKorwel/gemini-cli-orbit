@@ -203,7 +203,7 @@ _orbit() {
     'ci:Monitor CI status for a branch with noise filtering.'
     'install-shell:Install Orbit shell aliases and tab-completion.'
     'jettison:Decommission a specific mission and its worktree.'
-    'liftoff:Build or wake infrastructure (use --with-station).'
+    'liftoff:Build or wake infrastructure (use --with-new-station).'
     'mission:Start, resume, or perform maneuvers on a PR mission.'
     'pulse:Check station health and active mission status.'
     'schematic:Manage infrastructure blueprints: <list|create|edit|import>'

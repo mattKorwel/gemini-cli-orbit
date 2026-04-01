@@ -1,14 +1,26 @@
 # Orbit Mission Providers
 
-Orbit is designed to be environment-agnostic. You can switch between local and
-remote providers by simply changing the `providerType` in your schematic.
+Orbit is designed to be environment-agnostic. The "Station" architecture allows
+you to swap between different infrastructure backends by simply changing the
+`providerType` in your schematic.
+
+## 🛰️ Provider Roadmap
+
+| Provider               | Status      | Type   | Description                                             |
+| :--------------------- | :---------- | :----- | :------------------------------------------------------ |
+| **GCE Station**        | ✅ Active   | Remote | Persistent GCE instance running Container-Optimized OS. |
+| **Local Worktree**     | ✅ Active   | Local  | Native `git worktree` + `tmux` on your local machine.   |
+| **Cloud Workstations** | 🚧 Pending  | Remote | Managed Google Cloud Workstations (IDE-integrated).     |
+| **Kubernetes (K8s)**   | 📅 Planned  | Remote | Ephemeral pods for high-scale parallel missions.        |
+| **Other Clouds**       | 🔭 Research | Remote | AWS (EC2/Fargate), Azure (Instance/ACI).                |
 
 ---
 
-## 🛰️ GCE Station (`gce`) - Remote
+## ☁️ Cloud Station (`gce`) - Remote
 
-The standard remote provider. It launches a persistent virtual machine in Google
-Cloud to act as your high-performance orbital hub.
+The primary remote provider. It launches a persistent virtual machine in the
+cloud to act as your high-performance orbital hub. (Currently implemented via
+Google Compute Engine).
 
 ### Capabilities:
 
@@ -21,7 +33,7 @@ Cloud to act as your high-performance orbital hub.
 ```json
 {
   "providerType": "gce",
-  "projectId": "my-gcp-project",
+  "projectId": "my-cloud-project",
   "zone": "us-west1-a",
   "instanceName": "gcli-station-matt",
   "backendType": "direct-internal"

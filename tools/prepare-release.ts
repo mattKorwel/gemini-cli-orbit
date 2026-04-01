@@ -28,7 +28,7 @@ function main() {
       );
       process.exit(1);
     }
-  } catch (err) {
+  } catch (_err) {
     console.error('❌ Failed to check git status.');
     process.exit(1);
   }

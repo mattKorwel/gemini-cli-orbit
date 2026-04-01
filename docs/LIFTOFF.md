@@ -1,7 +1,7 @@
 # Orbit Mission: Liftoff
 
 The **Liftoff** command is your bridge from an abstract **Schematic** to
-physical **Infrastructure**. It builds the VPCs, firewalls, and GCE instances
+physical **Infrastructure**. It builds the VPCs, firewalls, and **Stations**
 required for your missions.
 
 ## 🚀 Liftoff Process
@@ -17,7 +17,7 @@ orbit station liftoff --setup-net
 Orbit looks for a schematic named `default` (found in
 `~/.gemini/orbit/schematics/default.json`). You can override this by passing a
 different name to the command: `orbit station liftoff <name>` or by using the
-`--schematic=<name>` flag. It identifies the target GCP Project, Zone, and
+`--schematic=<name>` flag. It identifies the target Cloud Project, Zone, and
 Network configuration.
 
 ### 📍 Execution Context & Automation
@@ -33,7 +33,7 @@ For **Automation, CI/CD, or Centralized Management**, use the global
 from a single location:
 
 ```bash
-orbit station liftoff --repo-dir ~/dev/my-project --setup-net --with-station
+orbit station liftoff --repo-dir ~/dev/my-project --setup-net --with-new-station
 ```
 
 ### 2. Infrastructure Construction
@@ -41,12 +41,12 @@ orbit station liftoff --repo-dir ~/dev/my-project --setup-net --with-station
 - **Networking (`--setup-net`)**: If this flag is provided, Orbit ensures the
   VPC Network, Subnet, Cloud Router, and Cloud NAT exist. It also sets up the
   firewall rules required for corporate SSH and SUP traffic.
-- **Station**: Orbit provisions the GCE instance (using Capsule-Optimized OS)
-  and attaches the persistent data disk.
+- **Station**: Orbit provisions the **Station** (using Capsule-Optimized OS) and
+  attaches the persistent data disk.
 
 ### 3. Station Initialization
 
-Once the VM starts, it automatically:
+Once the Station starts, it automatically:
 
 - Mounts and formats the data disk at `/mnt/disks/data`.
 - Initializes the Docker daemon.
@@ -54,21 +54,23 @@ Once the VM starts, it automatically:
 
 ## 🛠️ Command Reference
 
-| Flag                 | Description                                                                   |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `--setup-net`        | Create/Verify the VPC network and Cloud NAT. (Implies `--with-station`).      |
-| `--with-station`     | Explicitly allow Orbit to provision a new GCE Station VM if it doesn't exist. |
-| `--schematic=<name>` | Override the active schematic for this run only.                              |
-| `--repo-dir=<path>`  | (Global) Set the repository working directory for this command.               |
+| Flag                 | Description                                                                  |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `--setup-net`        | Create/Verify the VPC network and Cloud NAT. (Implies `--with-new-station`). |
+| `--with-new-station` | Explicitly allow Orbit to provision a new Station if it doesn't exist.       |
+| `--schematic=<name>` | Override the active schematic for this run only.                             |
+| `--repo-dir=<path>`  | (Global) Set the repository working directory for this command.              |
 
 ## ✨ Quick Tips
 
 - **Prerequisites**: Ensure you have a schematic first
   (`orbit schematic create default`).
-- **One-Time Setup**: To build everything from scratch, run
-  `orbit station liftoff --setup-net --with-station`.
-- **Waking Up**: After the initial setup, a simple `orbit station liftoff` is
-  enough to wake up a stopped instance. Orbit won't create a _new_ VM without
-  the explicit `--with-station` or `--setup-net` flag.
+- **First Time Setup**: To build everything from scratch, run:
+  `orbit station liftoff --setup-net --with-new-station`.
+- **Waking Up (Daily)**: After the initial setup, a simple
+  `orbit station liftoff` is enough to wake up a stopped instance. Orbit won't
+  create a _new_ Station without the explicit `--with-new-station` or
+  `--setup-net` flag.
+
 - **Verification**: Use `orbit pulse` to verify the station reached a `RUNNING`
   state.

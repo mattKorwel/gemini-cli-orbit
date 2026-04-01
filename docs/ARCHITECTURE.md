@@ -62,8 +62,8 @@ station and capsule activity.
   background task progression for a configurable threshold (e.g., 4 hours), the
   Reaper can automatically **Jettison** the capsule.
 - **Station Sleep**: If all mission capsules are idle or removed, the Reaper can
-  initiate a **Splashdown** of the Host Station itself, stopping the GCE
-  instance while preserving the persistent data disk.
+  initiate a **Splashdown** of the Host Station itself, stopping the Station
+  while preserving the persistent data disk.
 - **TTL Policies**: Missions can be launched with a "Time-To-Live," after which
   they are automatically cleaned up regardless of activity.
 
@@ -89,8 +89,8 @@ and you own the data.
   preventing them from leaking into system process lists or persistent logs.
 - **Redaction**: GitHub tokens are never passed in `git clone` URLs, relying
   instead on the station's secure `.netrc` configuration.
-- **Least-Privilege Scopes**: GCE instances are provisioned with granular IAM
-  scopes (Logging, Monitoring, Storage) instead of broad Cloud Platform access.
+- **Least-Privilege Scopes**: Stations are provisioned with granular IAM scopes
+  (Logging, Monitoring, Storage) instead of broad Cloud Platform access.
 
 ### Defensive Execution
 

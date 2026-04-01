@@ -8,11 +8,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import {
-  getRepoConfig,
-  detectRepoName,
-  sanitizeName,
-} from './ConfigManager.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { resolveMissionContext } from './utils/MissionUtils.js';
 import { TempManager } from './utils/TempManager.js';

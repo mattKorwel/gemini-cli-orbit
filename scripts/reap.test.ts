@@ -8,13 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runReap } from './reap.js';
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
-import * as Splashdown from './splashdown.js';
-import readline from 'node:readline';
 
 vi.mock('./providers/ProviderFactory.ts');
 vi.mock('./ConfigManager.ts');
-vi.mock('./splashdown.js');
-vi.mock('node:readline');
 
 describe('runReap', () => {
   const mockProvider = {

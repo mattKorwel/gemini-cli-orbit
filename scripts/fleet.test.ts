@@ -10,7 +10,6 @@ import * as ConfigManager from './ConfigManager.js';
 import { SchematicManager } from './SchematicManager.js';
 import { runSetup } from './setup.js';
 import { runSplashdown } from './splashdown.js';
-import { ProviderFactory } from './providers/ProviderFactory.js';
 
 import { StationManager } from './StationManager.js';
 

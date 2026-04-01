@@ -9,11 +9,7 @@ import fs from 'node:fs';
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
 import { RemoteProvisioner } from './RemoteProvisioner.js';
-import {
-  getRepoConfig,
-  detectRepoName,
-  sanitizeName,
-} from './ConfigManager.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import type { ExecOptions } from './providers/BaseProvider.js';
 import { SessionManager } from './utils/SessionManager.js';
 import { resolveMissionContext } from './utils/MissionUtils.js';
@@ -23,8 +19,6 @@ import {
   ORBIT_ROOT,
   SATELLITE_WORKTREES_PATH,
   POLICIES_PATH,
-  SCRIPTS_PATH,
-  LOCAL_SCRIPTS_PATH,
   LOCAL_POLICIES_PATH,
   LOCAL_BUNDLE_PATH,
   BUNDLE_PATH,

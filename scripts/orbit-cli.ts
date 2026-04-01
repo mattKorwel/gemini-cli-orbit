@@ -40,20 +40,6 @@ function expandPath(p: string): string {
   return p;
 }
 
-/**
- * Resolve the Extension Root.
- */
-function resolveRoot(): string {
-  let current = __dirname;
-  while (current !== path.parse(current).root) {
-    if (fs.existsSync(path.join(current, 'package.json'))) {
-      return current;
-    }
-    current = path.dirname(current);
-  }
-  return path.resolve(__dirname, '..');
-}
-
 type Runner = (args: string[]) => Promise<number | void>;
 
 interface Command {
@@ -97,7 +83,7 @@ const COMMANDS: Record<string, Command> = {
     examples: [
       'orbit station list',
       'orbit station activate my-vm',
-      'orbit station liftoff corp --setup-net --with-station',
+      'orbit station liftoff corp --setup-net --with-new-station',
       'orbit station liftoff --repo-dir ~/dev/my-repo',
       'orbit station delete my-vm',
     ],
@@ -159,9 +145,9 @@ const COMMANDS: Record<string, Command> = {
     category: 'Setup',
     description: 'Build or wake Orbital Station infrastructure.',
     usage:
-      'orbit liftoff [schematic] [--repo-dir=<path>] [--setup-net] [--with-station]',
+      'orbit liftoff [schematic] [--repo-dir=<path>] [--setup-net] [--with-new-station]',
     examples: [
-      'orbit liftoff corp --setup-net --with-station',
+      'orbit liftoff corp --setup-net --with-new-station',
       'orbit liftoff --repo-dir ~/dev/my-project',
       'orbit liftoff (Wake up default station)',
     ],

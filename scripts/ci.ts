@@ -8,7 +8,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-function runGh(args: string, repo: string): string | null {
+function runGh(args: string): string | null {
   try {
     return execSync(`gh ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -133,7 +133,6 @@ export async function runCI(args: string[]) {
     // 1. Get runs directly associated with the branch
     const runListOutput = runGh(
       `run list --branch "${BRANCH}" --limit 10 --json databaseId,status,workflowName,createdAt`,
-      REPO,
     );
     if (runListOutput) {
       const runs = JSON.parse(runListOutput);
@@ -155,7 +154,6 @@ export async function runCI(args: string[]) {
       const headSha = execSync(`git rev-parse "${BRANCH}"`).toString().trim();
       const statusOutput = runGh(
         `api repos/${REPO}/commits/${headSha}/status -q '.statuses[] | select(.target_url | contains("actions/runs/")) | .target_url'`,
-        REPO,
       );
       if (statusOutput) {
         const statusRunIds = statusOutput
@@ -180,7 +178,7 @@ export async function runCI(args: string[]) {
     if (targetRunIds.length > 0) {
       const runNames: string[] = [];
       for (const runId of targetRunIds) {
-        const runInfo = runGh(`run view "${runId}" --json workflowName`, REPO);
+        const runInfo = runGh(`run view "${runId}" --json workflowName`);
         if (runInfo) {
           runNames.push(JSON.parse(runInfo).workflowName);
         }
@@ -207,13 +205,12 @@ export async function runCI(args: string[]) {
     for (const runId of targetRunIds) {
       const runOutput = runGh(
         `run view "${runId}" --json databaseId,status,conclusion,workflowName`,
-        REPO,
       );
       if (!runOutput) continue;
       const run = JSON.parse(runOutput);
       if (run.status !== 'completed') anyRunInProgress = true;
 
-      const jobsOutput = runGh(`run view "${runId}" --json jobs`, REPO);
+      const jobsOutput = runGh(`run view "${runId}" --json jobs`);
       if (jobsOutput) {
         const { jobs } = JSON.parse(jobsOutput);
         totalJobs += jobs.length;

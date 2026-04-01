@@ -171,4 +171,8 @@ sequences (OSC 9) upon mission completion.
 
 To monitor progress, use the telemetry commands:
 
-- `orbit uplink <PR> [action]`: Inspect local or remote mission telemetry (auto-detects local recordings first, falls back to remote).
+- `orbit pulse`: Check station health and active capsule states
+  (Thinking/Waiting).
+- `orbit ci [branch]`: Monitor GitHub Actions status for the mission branch.
+- `orbit uplink <PR> [action]`: Inspect local or remote mission telemetry
+  (auto-detects local recordings first, falls back to remote).

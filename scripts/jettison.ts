@@ -5,11 +5,7 @@
  */
 
 import { ProviderFactory } from './providers/ProviderFactory.js';
-import {
-  getRepoConfig,
-  detectRepoName,
-  sanitizeName,
-} from './ConfigManager.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { resolveMissionContext } from './utils/MissionUtils.js';
 import { SATELLITE_WORKTREES_PATH, CONFIG_DIR } from './Constants.js';
 
