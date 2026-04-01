@@ -64,16 +64,35 @@ export async function runSetup(
 
   if (status.status === 'NOT_FOUND' || setupNet) {
     if (!setupNet && !withStation) {
-      console.log(`\nℹ️  Station "${config.instanceName}" not found.`);
-      console.log(
-        '👉 To provision the full network and station, run: orbit station liftoff --setup-net --with-station\n',
-      );
+      console.log(`\n📡 STATION STATUS: Not Found`);
+      console.log(`   - Repo:      ${repoName}`);
+      console.log(`   - Schematic: ${schematicName}`);
+      console.log(`   - Target VM: ${config.instanceName}`);
+      console.log(`\n👉 This station does not exist yet.`);
+      console.log(`   To provision this infrastructure, rerun with:`);
+      console.log(`   orbit station liftoff --with-station\n`);
       return 1;
     }
 
-    logger.info('SETUP', `Provisioning Orbit infrastructure...`);
+    if (setupNet) {
+      logger.info('SETUP', `🛠️  Provisioning Full Orbit Network & Station...`);
+    } else {
+      logger.info(
+        'SETUP',
+        `🚀 Provisioning new Station VM: ${config.instanceName}...`,
+      );
+    }
+
     const code = await provider.provision({ setupNetwork: setupNet });
-    if (code !== 0) return code;
+    if (code !== 0) {
+      console.error(
+        `\n❌ Infrastructure provisioning failed (Exit Code ${code}).`,
+      );
+      console.error(
+        `👉 Check your schematic (${schematicName}.json) and GCP permissions.\n`,
+      );
+      return code;
+    }
     status = await provider.getStatus();
   }
 
