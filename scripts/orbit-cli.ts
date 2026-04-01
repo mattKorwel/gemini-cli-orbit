@@ -81,11 +81,13 @@ const COMMANDS: Record<string, Command> = {
     run: (args) => runFleet(['station', ...args]),
     category: 'Primary',
     description: 'Hardware control: <activate|list|liftoff|delete>',
-    usage: 'orbit station <list|activate|liftoff|delete> [name]',
+    usage:
+      'orbit station <list|activate|liftoff|delete> [name] [--repo-dir=<path>]',
     examples: [
       'orbit station list',
       'orbit station activate my-vm',
-      'orbit station liftoff corp --setup-net',
+      'orbit station liftoff corp --setup-net --with-station',
+      'orbit station liftoff --repo-dir ~/dev/my-repo',
       'orbit station delete my-vm',
     ],
   },
@@ -145,9 +147,11 @@ const COMMANDS: Record<string, Command> = {
     run: (args) => runSetup(args),
     category: 'Setup',
     description: 'Build or wake Orbital Station infrastructure.',
-    usage: 'orbit liftoff [schematic] [--setup-net] [--with-station]',
+    usage:
+      'orbit liftoff [schematic] [--repo-dir=<path>] [--setup-net] [--with-station]',
     examples: [
       'orbit liftoff corp --setup-net --with-station',
+      'orbit liftoff --repo-dir ~/dev/my-project',
       'orbit liftoff (Wake up default station)',
     ],
   },
