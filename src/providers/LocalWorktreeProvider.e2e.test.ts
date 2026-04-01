@@ -19,7 +19,7 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock('../Constants.js', async (importOriginal) => {
+vi.mock('../core/Constants.js', async (importOriginal) => {
   const actual = (await importOriginal()) as any;
   return {
     ...actual,

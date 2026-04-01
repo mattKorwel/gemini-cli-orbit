@@ -25,7 +25,7 @@ describe('runSplashdown (Remote Mode)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
 
     (ConfigManager.detectRepoName as any).mockReturnValue(
       'gemini-orbit-extension',

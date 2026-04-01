@@ -15,7 +15,7 @@ vi.mock('node:child_process');
 describe('ConfigManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: '/work-dir/test-repo\n',
     } as any);
@@ -92,7 +92,7 @@ describe('ConfigManager', () => {
   });
 
   it('should detect repo name from origin remote (HTTPS)', () => {
-    ( spawnSync as any).mockImplementation((cmd, args) => {
+    (spawnSync as any).mockImplementation((cmd, args) => {
       if (cmd === 'git' && args?.[0] === 'remote') {
         return {
           status: 0,
@@ -107,7 +107,7 @@ describe('ConfigManager', () => {
   });
 
   it('should detect repo name from origin remote (SSH)', () => {
-    ( spawnSync as any).mockImplementation((cmd, args) => {
+    (spawnSync as any).mockImplementation((cmd, args) => {
       if (cmd === 'git' && args?.[0] === 'remote') {
         return {
           status: 0,
@@ -122,7 +122,7 @@ describe('ConfigManager', () => {
   });
 
   it('should fallback to git root basename if remote fails', () => {
-    ( spawnSync as any).mockImplementation((cmd, args) => {
+    (spawnSync as any).mockImplementation((cmd, args) => {
       if (cmd === 'git' && args?.[0] === 'remote') return { status: 1 } as any;
       if (cmd === 'git' && args?.[0] === 'rev-parse') {
         return {
@@ -138,7 +138,7 @@ describe('ConfigManager', () => {
   });
 
   it('should fallback to default repo name if git fails', () => {
-    ( spawnSync as any).mockReturnValue({ status: 1 } as any);
+    (spawnSync as any).mockReturnValue({ status: 1 } as any);
     const name = detectRepoName();
     expect(name).toBe('gemini-cli');
   });

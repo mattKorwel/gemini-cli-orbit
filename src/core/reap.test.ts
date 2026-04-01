@@ -25,7 +25,7 @@ describe('runReap', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
     (ConfigManager.detectRepoName as any).mockReturnValue('test-repo');
     (ConfigManager.getRepoConfig as any).mockReturnValue({
       projectId: 'p',

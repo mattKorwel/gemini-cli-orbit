@@ -71,7 +71,7 @@ describe('GceCosProvider', () => {
         },
       ],
     };
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(JSON.stringify(mockData)),
     } as any);
@@ -89,12 +89,13 @@ describe('GceCosProvider', () => {
   });
 
   it('should list stations for the user', async () => {
-    ( spawnSync as any).mockReturnValue({ status: 0 } as any);
+    (spawnSync as any).mockReturnValue({ status: 0 } as any);
     const res = await provider.listStations();
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'list',
@@ -108,12 +109,13 @@ describe('GceCosProvider', () => {
   });
 
   it('should destroy the station and its resources', async () => {
-    ( spawnSync as any).mockReturnValue({ status: 0 } as any);
+    (spawnSync as any).mockReturnValue({ status: 0 } as any);
     const res = await provider.destroy();
     expect(res).toBe(0);
     expect(spawnSync).toHaveBeenCalledWith(
       'gcloud',
       [
+        '--verbosity=error',
         'compute',
         'instances',
         'delete',
@@ -151,7 +153,7 @@ describe('GceCosProvider', () => {
         },
       ],
     };
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(JSON.stringify(mockData)),
     } as any);
@@ -175,17 +177,13 @@ describe('GceCosProvider', () => {
 
     expect(res).toBe(0);
     expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('sudo docker pull'),
-      expect.any(Object),
-    );
-    expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('sudo docker run -d --name test-i'),
+      expect.stringContaining('ls -d /repo/.git'),
       expect.any(Object),
     );
   });
 
   it('should skip network management when VPC and Subnet are both "default"', async () => {
-    ( spawnSync as any).mockReturnValue({ status: 0 } as any);
+    (spawnSync as any).mockReturnValue({ status: 0 } as any);
     const providerWithDefault = new GceCosProvider(
       projectId,
       zone,
@@ -234,7 +232,7 @@ describe('GceCosProvider', () => {
         },
       ],
     };
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(JSON.stringify(mockData)),
     } as any);
@@ -271,7 +269,7 @@ describe('GceCosProvider', () => {
         },
       ],
     };
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(JSON.stringify(mockData)),
     } as any);

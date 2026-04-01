@@ -31,7 +31,7 @@ describe('createTaskRunner', () => {
   });
 
   it('should run a single command', async () => {
-    ( spawnSync as any).mockReturnValue({ status: 0 } as any);
+    (spawnSync as any).mockReturnValue({ status: 0 } as any);
     const runner = createTaskRunner('/tmp', 'test');
     const code = await runner.run('echo hello');
     expect(code).toBe(0);
@@ -39,7 +39,7 @@ describe('createTaskRunner', () => {
   });
 
   it('should register and run all tasks (sequential)', async () => {
-    ( spawnSync as any).mockReturnValue({ status: 0 } as any);
+    (spawnSync as any).mockReturnValue({ status: 0 } as any);
     const runner = createTaskRunner('/tmp', 'test');
     runner.register([{ id: '1', name: 'task1', cmd: 'echo 1' }]);
     const code = await runner.runAll();
@@ -48,7 +48,7 @@ describe('createTaskRunner', () => {
   });
 
   it('should return error if a task fails (sequential)', async () => {
-    ( spawnSync as any).mockReturnValue({ status: 1 } as any);
+    (spawnSync as any).mockReturnValue({ status: 1 } as any);
     const runner = createTaskRunner('/tmp', 'test');
     runner.register([{ id: '1', name: 'fail', cmd: 'false' }]);
     const code = await runner.runAll();
@@ -62,7 +62,7 @@ describe('createTaskRunner', () => {
     mockProc.stderr = new EventEmitter();
     (mockProc.stderr as any).pipe = vi.fn();
 
-    ( spawn as any).mockReturnValue(mockProc);
+    (spawn as any).mockReturnValue(mockProc);
 
     const runner = createTaskRunner('/tmp', 'test');
     runner.register([{ id: '1', name: 'task1', cmd: 'echo 1' }]);
@@ -92,7 +92,7 @@ describe('createTaskRunner', () => {
     mockProc2.stderr = new EventEmitter();
     (mockProc2.stderr as any).pipe = vi.fn();
 
-    ( spawn as any)
+    (spawn as any)
       .mockReturnValueOnce(mockProc1)
       .mockReturnValueOnce(mockProc2);
 
@@ -123,7 +123,7 @@ describe('createTaskRunner', () => {
     (mockProc.stderr as any).pipe = vi.fn();
     mockProc.kill = vi.fn();
 
-    ( spawn as any).mockReturnValue(mockProc);
+    (spawn as any).mockReturnValue(mockProc);
 
     const runner = createTaskRunner('/tmp', 'timeout-test');
     runner.register([

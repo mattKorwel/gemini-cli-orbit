@@ -55,7 +55,7 @@ describe('SchematicManager', () => {
   });
 
   it('should import a remote schematic via curl', async () => {
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(
         JSON.stringify({

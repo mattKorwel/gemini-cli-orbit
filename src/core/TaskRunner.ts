@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawn, spawnSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface Task {
   id: string;
@@ -19,7 +19,7 @@ export interface Task {
 export interface TaskStatus {
   id: string;
   name: string;
-  state: 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'timeout';
+  state: 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'timeout' | 'error';
   exitCode?: number;
   logPath: string;
   lastLogLines?: string[];
@@ -105,6 +105,12 @@ export function createTaskRunner(logDir: string, header: string) {
           env: { ...process.env, FORCE_COLOR: '1' },
         });
 
+        if (!proc) {
+          taskStatus.state = 'error';
+          completedIds.add(task.id);
+          return;
+        }
+
         if (proc.stdout) proc.stdout.pipe(logStream);
         if (proc.stderr) proc.stderr.pipe(logStream);
 
@@ -145,7 +151,7 @@ export function createTaskRunner(logDir: string, header: string) {
             const stats = fs.statSync(s.logPath);
             const start = rt ? rt.lastReadPos : 0;
 
-            if (stats.size > start) {
+            if (stats && stats.size > start) {
               const fd = fs.openSync(s.logPath, 'r');
               const buffer = Buffer.alloc(stats.size - start);
               fs.readSync(fd, buffer, 0, buffer.length, start);
@@ -158,7 +164,10 @@ export function createTaskRunner(logDir: string, header: string) {
                 logHistory.push({ taskId: s.id, line });
               });
 
-              if (rt) rt.lastReadPos = stats.size;
+              if (rt) {
+                rt.lastReadPos = stats.size;
+              }
+
               // Keep only last 100 global lines for memory efficiency
               if (logHistory.length > 100)
                 logHistory.splice(0, logHistory.length - 100);

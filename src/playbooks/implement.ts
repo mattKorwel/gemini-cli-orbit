@@ -7,7 +7,7 @@
 import { createTaskRunner } from '../core/TaskRunner.js';
 import path from 'path';
 import fs from 'fs';
-import { spawnSync } from 'child_process';
+import { spawnSync } from 'node:child_process';
 
 export async function runImplementPlaybook(
   issueNumber: string,

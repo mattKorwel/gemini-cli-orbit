@@ -60,7 +60,7 @@ describe('runSetup', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
 
     (ConfigManager.detectRepoName as any).mockReturnValue('gemini-cli');
     ( ConfigManager.loadSettings as any).mockReturnValue({ repos: {} });
@@ -88,7 +88,7 @@ describe('runSetup', () => {
 
     ( fs.existsSync as any).mockReturnValue(false);
     ( fs.readdirSync as any).mockReturnValue([] as any);
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(
         '{"name": "gemini-cli", "nameWithOwner": "google-gemini/gemini-cli"}',

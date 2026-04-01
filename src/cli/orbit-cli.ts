@@ -100,7 +100,11 @@ const COMMANDS: Record<string, Command> = {
     usage: 'orbit pulse',
   },
   uplink: {
-    run: runLogs,
+    run: (args: string[]) => {
+      const identifier = args[0] || '';
+      const action = args[1] || 'review';
+      return runLogs(identifier, action);
+    },
     category: 'Telemetry',
     description: 'Inspect latest local or remote mission telemetry.',
     usage: 'orbit uplink <IDENTIFIER> [action]',
@@ -110,31 +114,41 @@ const COMMANDS: Record<string, Command> = {
     ],
   },
   ci: {
-    run: runCI,
+    run: (args: string[]) => runCI(args),
     category: 'Telemetry',
     description: 'Monitor CI status for a branch with noise filtering.',
     usage: 'orbit ci [branch]',
   },
   jettison: {
-    run: runJettison,
+    run: (args: string[]) => {
+      const identifier = args[0] || '';
+      const action = args[1] || 'chat';
+      const rest = args.slice(2);
+      return runJettison(identifier, action, rest);
+    },
     category: 'Cleanup',
     description: 'Decommission a specific mission and its worktree.',
     usage: 'orbit jettison <IDENTIFIER> [action]',
   },
   reap: {
-    run: (_args) => runReap(),
+    run: (args: string[]) => runReap(args),
     category: 'Cleanup',
     description: 'Cleanup idle mission capsules based on inactivity.',
     usage: 'orbit reap',
   },
   splashdown: {
-    run: runSplashdown,
+    run: (args: string[]) => runSplashdown(args),
     category: 'Cleanup',
     description: 'Emergency shutdown of all active remote capsules.',
     usage: 'orbit splashdown [--all]',
   },
   attach: {
-    run: runAttach,
+    run: (args: string[]) => {
+      const identifier = args[0] || '';
+      const action = args[1] || 'chat';
+      const rest = args.slice(2);
+      return runAttach(identifier, action, rest);
+    },
     category: 'Telemetry',
     description: 'Attach to an active mission session.',
     usage: 'orbit attach <IDENTIFIER> [action]',

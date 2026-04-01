@@ -47,14 +47,14 @@ describe('LocalWorktreeProvider', () => {
   });
 
   it('should check for tmux existence', () => {
-    ( spawnSync as any).mockReturnValue({ status: 0 } as any);
+    (spawnSync as any).mockReturnValue({ status: 0 } as any);
     const provider = new LocalWorktreeProvider();
     const cmd = provider.getRunCommand('ls');
     expect(cmd).toContain('tmux new-session');
   });
 
   it('should fallback to raw shell if tmux is missing', () => {
-    ( spawnSync as any).mockReturnValue({ status: 1 } as any);
+    (spawnSync as any).mockReturnValue({ status: 1 } as any);
     const provider = new LocalWorktreeProvider();
     const cmd = provider.getRunCommand('ls');
     expect(cmd).not.toContain('tmux');
@@ -62,7 +62,7 @@ describe('LocalWorktreeProvider', () => {
   });
 
   it('should list worktrees as capsules', async () => {
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from(
         'worktree /home/node/dev/repo/main\n' +

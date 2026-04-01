@@ -96,7 +96,7 @@ describe('orbit-cli dispatch()', () => {
 
   it('routes "jettison <id>" to runJettison', async () => {
     await dispatch(['jettison', '21']);
-    expect(mockRunJettison).toHaveBeenCalledWith(['21']);
+    expect(mockRunJettison).toHaveBeenCalledWith('21', 'chat', []);
   });
 
   it('routes "attach <id>" to runAttach', async () => {

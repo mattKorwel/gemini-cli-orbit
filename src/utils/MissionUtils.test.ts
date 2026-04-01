@@ -29,7 +29,7 @@ describe('MissionUtils', () => {
   });
 
   it('resolves a PR number to a branch name using gh cli', () => {
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: 'feat-from-pr',
       stderr: '',
@@ -50,7 +50,7 @@ describe('MissionUtils', () => {
   });
 
   it('falls back to PR number if gh cli fails', () => {
-    ( spawnSync as any).mockReturnValue({
+    (spawnSync as any).mockReturnValue({
       status: 1,
       stdout: '',
       stderr: 'error',
