@@ -96,10 +96,7 @@ describe('runSetup', () => {
   });
 
   it('should run setup flow and wake up station', async () => {
-    const res = await runSetup([], {
-      ...process.env,
-      GOOGLE_CLOUD_PROJECT: 'test-p',
-    });
+    const res = await runSetup([]);
 
     expect(res).toBe(0);
     // In current implementation, if status is RUNNING, it doesn't call provision but might check ready
