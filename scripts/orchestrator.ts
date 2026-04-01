@@ -131,12 +131,16 @@ export async function runOrchestrator(
     return 0; // Handled by orbit-cli.ts
   }
 
-  const instanceName = config.instanceName || 'local';
+  // Use distinct names: stationName for logs/receipts, instanceName for cloud infra
+  const stationName = config.stationName || config.instanceName || rName;
+  const instanceName = config.instanceName || `gcli-station-${rName}`;
+
   const provider = ProviderFactory.getProvider({
     ...config,
     projectId: config.projectId || 'local',
     zone: config.zone || 'local',
     instanceName,
+    stationName,
   });
 
   const isLocalWorktree = provider.type === 'local-worktree';
@@ -146,6 +150,7 @@ export async function runOrchestrator(
     ? LOCAL_POLICIES_PATH
     : `${POLICIES_PATH}/orbit-policy.toml`;
   const sessionId = SessionManager.generateSessionId(identifier, action);
+  const missionId = SessionManager.generateMissionId(identifier, action);
 
   const mCtx = resolveMissionContext(identifier, action);
   const branch = mCtx.branchName;
@@ -182,7 +187,7 @@ export async function runOrchestrator(
       ? `tmux new-session -A -s ${q(mCtx.sessionName)} ${q(remoteWorker)}`
       : remoteWorker;
 
-  const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+  const secretPath = `/dev/shm/.gcli-env-${missionId}`;
   const execOptions: ExecOptions = {
     interactive: true,
     wrapCapsule: containerName,
@@ -201,7 +206,7 @@ export async function runOrchestrator(
     },
   };
 
-  const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && source ${secretPath} && cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2- | gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
+  const ghAuthCmd = `(unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && export GITHUB_TOKEN=$(cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2-) && gh auth login --with-token) || (echo '❌ GitHub Authentication Failed' && exit 1)`;
 
   const fullCommand = isLocalWorktree
     ? missionCmd

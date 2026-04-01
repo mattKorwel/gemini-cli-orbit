@@ -35,6 +35,7 @@ export class GceCosProvider implements OrbitProvider {
   public zone: string;
   public stationName: string;
   private instanceName: string;
+  private repoRoot: string;
   private knownHostsPath: string;
   private conn: GceConnectionManager;
   private vpcName: string;
@@ -47,7 +48,7 @@ export class GceCosProvider implements OrbitProvider {
     projectId: string,
     zone: string,
     instanceName: string,
-    _repoRoot: string,
+    repoRoot: string,
     config: {
       dnsSuffix?: string;
       userSuffix?: string;
@@ -63,6 +64,7 @@ export class GceCosProvider implements OrbitProvider {
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;
+    this.repoRoot = repoRoot;
     this.vpcName = config.vpcName || 'default';
     this.subnetName = config.subnetName || 'default';
     this.machineType = config.machineType || 'n2-standard-8';
@@ -71,6 +73,9 @@ export class GceCosProvider implements OrbitProvider {
       config.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
     this.stationName = config.stationName || instanceName;
+
+    // The Instance Name is the literal hostname used for gcloud/SSH
+    this.instanceName = instanceName;
 
     this.conn = new GceConnectionManager(
       this.projectId,
@@ -95,6 +100,8 @@ export class GceCosProvider implements OrbitProvider {
       setupNetwork?: boolean;
       skipInstanceCreation?: boolean;
       sessionId?: string;
+      upstreamUrl?: string;
+      repoRoot?: string;
     } = {},
   ): Promise<number> {
     const region = this.zone.split('-').slice(0, 2).join('-');
@@ -258,8 +265,8 @@ export class GceCosProvider implements OrbitProvider {
       echo "🚀 Initializing Unified Orbit..."
       mkdir -p /mnt/disks/data
       if ! mountpoint -q /mnt/disks/data; then
-        DATA_DISK="/dev/disk/by-id/google-data"
-        [ -e "$DATA_DISK" ] || DATA_DISK="/dev/sdb"
+        DATA_DISK="/dev/disk/by-id/google-google-data"
+        [ -e "$DATA_DISK" ] || DATA_DISK="/dev/sda"
         while [ ! -e "$DATA_DISK" ]; do sleep 1; done
         blkid "$DATA_DISK" || mkfs.ext4 -m 0 -F "$DATA_DISK"
         mount -o discard,defaults "$DATA_DISK" /mnt/disks/data
@@ -273,6 +280,17 @@ export class GceCosProvider implements OrbitProvider {
 
       until docker info >/dev/null 2>&1; do sleep 2; done
       docker pull ${this.imageUri}
+
+      # Sync main repo if requested
+      UPSTREAM_URL="${options.upstreamUrl || ''}"
+      REPO_ROOT_DIR="${options.repoRoot || ''}"
+      if [ -n "$UPSTREAM_URL" ] && [ -n "$REPO_ROOT_DIR" ]; then
+        if [ ! -d "$REPO_ROOT_DIR/.git" ]; then
+          mkdir -p $(dirname $REPO_ROOT_DIR)
+          git clone --quiet $UPSTREAM_URL $REPO_ROOT_DIR || true
+        fi
+      fi
+
       if ! docker ps -a | grep -q "${this.instanceName}"; then
         docker run -d --name ${this.instanceName} --restart always --user root \\
           -v /mnt/disks/data:/mnt/disks/data:rw \\
@@ -318,7 +336,7 @@ export class GceCosProvider implements OrbitProvider {
         '--boot-disk-type',
         'pd-balanced',
         '--create-disk',
-        `name=${this.instanceName}-data,size=200,type=pd-balanced,device-name=google-data,auto-delete=yes`,
+        `name=${this.instanceName}-data,size=200,type=pd-balanced,device-name=google-data,auto-delete=yes,mode=rw`,
         '--metadata-from-file',
         `startup-script=${tmpScriptPath}`,
         '--metadata',
@@ -344,9 +362,22 @@ export class GceCosProvider implements OrbitProvider {
 
   async ensureReady(): Promise<number> {
     const status = await this.getStatus();
-    if (status.status !== 'RUNNING') {
+    const config = getRepoConfig();
+    const upstreamUrl = `https://github.com/${config.upstreamRepo}.git`;
+
+    if (status.status === 'NOT_FOUND') {
       logger.info(
-        `⚠️ Station ${this.instanceName} is ${status.status}. Waking it up...`,
+        `📡 Station ${this.stationName} not found in cloud. Re-provisioning...`,
+      );
+      const provRes = await this.provision({
+        setupNetwork: false,
+        upstreamUrl,
+        repoRoot: this.repoRoot,
+      });
+      if (provRes !== 0) return provRes;
+    } else if (status.status !== 'RUNNING') {
+      logger.info(
+        `📡 Station ${this.stationName} is ${status.status}. Waking it up...`,
       );
       const res = spawnSync(
         'gcloud',
@@ -362,11 +393,31 @@ export class GceCosProvider implements OrbitProvider {
         ],
         { stdio: 'inherit' },
       );
-      if (res.status !== 0) return res.status ?? 1;
+      if (res.status !== 0) {
+        logger.info('   - Wake failed. Attempting full re-provision...');
+        return this.provision({
+          setupNetwork: false,
+          upstreamUrl,
+          repoRoot: this.repoRoot,
+        });
+      }
       await new Promise((r) => setTimeout(r, 20000));
     }
 
     await this.conn.onProvisioned();
+
+    // Verify main repo existence on host
+    const repoCheck = await this.getExecOutput(`ls -d ${this.repoRoot}/.git`, {
+      quiet: true,
+    });
+    if (repoCheck.status !== 0) {
+      logger.info('   - Main repo mirror missing. Syncing infrastructure...');
+      return this.provision({
+        skipInstanceCreation: true,
+        upstreamUrl,
+        repoRoot: this.repoRoot,
+      });
+    }
 
     try {
       logger.info(`   - Verifying health check (${this.stationName})...`);
@@ -482,10 +533,25 @@ export class GceCosProvider implements OrbitProvider {
       ...(options.env !== undefined ? { env: options.env } : {}),
     });
 
+    let stdout = res.stdout?.toString() || '';
+    const stderr = res.stderr?.toString() || '';
+
+    // Filter out gcloud noise that sometimes leaks into stdout
+    stdout = stdout
+      .split('\n')
+      .filter((line) => {
+        const l = line.toLowerCase();
+        if (l.includes('existing host keys found')) return false;
+        if (l.includes('created [https://www.googleapis.com/')) return false;
+        return true;
+      })
+      .join('\n')
+      .trim();
+
     return {
       status: res.status ?? (res.error ? 1 : 0),
-      stdout: res.stdout?.toString() || '',
-      stderr: res.stderr?.toString() || '',
+      stdout,
+      stderr: stderr.trim(),
     };
   }
 

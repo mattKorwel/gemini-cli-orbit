@@ -162,7 +162,7 @@ export class GceConnectionManager {
     const fullCmd = this.getRunCommand(command, options);
 
     return spawnSync(fullCmd, {
-      stdio: options.quiet ? 'pipe' : 'inherit',
+      stdio: options.quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit',
       shell: true,
       env: process.env,
     });

@@ -87,7 +87,12 @@ export function getRepoConfig(repoName?: string): OrbitConfig {
   // 7. Dynamic Defaults (Final Fallback)
   if (!config.stationName) config.stationName = rName;
   if (!config.instanceName && config.projectId !== 'local') {
-    config.instanceName = `gcli-station-${rName}`;
+    // Standardized predictable name: gcli-station-<user>-<repo>
+    // We use a simplified username to ensure cloud compatibility
+    const user = (process.env.USER || process.env.USERNAME || 'user')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    config.instanceName = `gcli-station-${user}-${rName}`;
   }
   if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
   if (!config.worktreesDir) config.worktreesDir = '/mnt/disks/data/worktrees';

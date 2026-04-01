@@ -40,8 +40,8 @@ export class RemoteProvisioner {
       ? path.join((this.provider as any).worktreesDir, branch)
       : `${config.worktreesDir}/${mCtx.worktreeName}`;
 
-    const sessionId = SessionManager.generateSessionId(identifier, action);
-    const secretPath = `/dev/shm/.gcli-env-${sessionId}`;
+    const missionId = SessionManager.generateMissionId(identifier, action);
+    const secretPath = `/dev/shm/.gcli-env-${missionId}`;
 
     // 1. Ensure the specific mission capsule is active
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);
@@ -68,7 +68,7 @@ export class RemoteProvisioner {
                 capsule: remoteWorktreeDir,
                 readonly: false,
               },
-              { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: true },
+              { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: false },
               {
                 host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
                 capsule: '/home/node/.gemini',
@@ -116,15 +116,17 @@ export class RemoteProvisioner {
       await this.provider.exec(
         `sudo mkdir -p ${config.worktreesDir} && sudo chown -R 1000:1000 ${config.worktreesDir}`,
       );
-      // Ensure target directory is empty/removed if not a valid git repo (prevents clone failure)
+      // Ensure target directory is clean before clone
       await this.provider.exec(`sudo rm -rf ${remoteWorktreeDir}`);
       await this.provider.exec(
         `sudo mkdir -p ${remoteWorktreeDir} && sudo chown -R 1000:1000 ${remoteWorktreeDir}`,
       );
 
       const cloneCmd = `
-        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && source ${secretPath} && cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2- | gh auth login --with-token) && \
+        (unset GITHUB_TOKEN GH_TOKEN && gh auth status >/dev/null 2>&1) || (unset GITHUB_TOKEN GH_TOKEN && test -f ${secretPath} && export GITHUB_TOKEN=$(cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2-) && gh auth login --with-token) && \
+        export GITHUB_TOKEN=$(cat ${secretPath} | grep GITHUB_TOKEN | cut -d= -f2-) && \
         git config --global --add safe.directory '*' && \
+        git config --global url."https://x-access-token:\${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/" && \
         git clone --reference ${config.remoteWorkDir} --quiet -c core.filemode=false ${config.upstreamUrl} ${remoteWorktreeDir} && \
         cd ${remoteWorktreeDir} && \
         git config --replace-all core.filemode false && \
