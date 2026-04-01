@@ -71,17 +71,10 @@ export class GceConnectionManager {
   }
 
   /**
-   * Returns the network interface config for gcloud instances create.
+   * Returns the network interface arguments for gcloud instances create.
    */
-  getNetworkInterfaceConfig(vpcName: string, subnetName: string): string {
-    const backend = this.config.backendType || 'direct-internal';
-
-    if (backend === 'external') {
-      return `network=${vpcName},subnet=${subnetName},address=""`;
-    }
-
-    // Direct-internal uses private IP only
-    return `network=${vpcName},subnet=${subnetName},no-address`;
+  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[] {
+    return this.strategy.getNetworkInterfaceArgs(vpcName, subnetName);
   }
 
   /**

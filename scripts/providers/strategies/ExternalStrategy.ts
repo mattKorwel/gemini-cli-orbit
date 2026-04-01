@@ -79,9 +79,7 @@ export class ExternalStrategy extends BaseStrategy {
 
     return [
       '--network-interface',
-      `network=${vpcName},subnet=${subnetName}`,
-      '--address',
-      addressName,
+      `network=${vpcName},subnet=${subnetName},address=${addressName}`,
     ];
   }
 
