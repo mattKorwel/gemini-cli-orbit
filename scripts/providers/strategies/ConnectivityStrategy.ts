@@ -47,9 +47,9 @@ export interface ConnectivityStrategy {
   setupNetworkInfrastructure(vpcName: string): void;
 
   /**
-   * Returns the network-interface configuration string for instance creation.
+   * Returns the network-interface and addressing flags for instance creation.
    */
-  getNetworkInterfaceConfig(vpcName: string, subnetName: string): string;
+  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[];
 
   /**
    * Hook called after successful instance creation.

@@ -49,12 +49,12 @@ export class ExternalStrategy extends BaseStrategy {
     return args;
   }
 
-  getNetworkInterfaceConfig(vpcName: string, subnetName: string): string {
+  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[] {
     const addressName = `${this.instanceName}-ip`;
     const region = this.zone.split('-').slice(0, 2).join('-');
 
     logger.info(`📡 Ensuring static EXTERNAL IP: ${addressName}...`);
-    spawnSync(
+    const res = spawnSync(
       'gcloud',
       [
         'compute',
@@ -65,11 +65,24 @@ export class ExternalStrategy extends BaseStrategy {
         this.projectId,
         '--region',
         region,
+        '--quiet',
       ],
       { stdio: 'pipe' },
     );
 
-    return `network=${vpcName},subnet=${subnetName},address=${addressName}`;
+    if (res.status !== 0) {
+      const stderr = res.stderr.toString();
+      if (!stderr.includes('already exists')) {
+        logger.error(`❌ Failed to ensure static IP: ${stderr}`);
+      }
+    }
+
+    return [
+      '--network-interface',
+      `network=${vpcName},subnet=${subnetName}`,
+      '--address',
+      addressName,
+    ];
   }
 
   async onProvisioned(): Promise<void> {

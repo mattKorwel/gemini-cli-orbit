@@ -275,7 +275,7 @@ export class GceCosProvider implements OrbitProvider {
 
     fs.writeFileSync(tmpScriptPath, startupScriptContent);
 
-    const networkInterface = this.conn.getNetworkInterfaceConfig(
+    const networkArgs = this.conn.getNetworkInterfaceArgs(
       this.vpcName,
       this.subnetName,
     );
@@ -307,8 +307,7 @@ export class GceCosProvider implements OrbitProvider {
         `startup-script=${tmpScriptPath}`,
         '--metadata',
         'enable-oslogin=TRUE',
-        '--network-interface',
-        networkInterface,
+        ...networkArgs,
         '--scopes',
         'https://www.googleapis.com/auth/cloud-platform',
         '--quiet',

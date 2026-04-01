@@ -193,8 +193,11 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
   }
 
   // Default: No static external IP
-  getNetworkInterfaceConfig(vpcName: string, subnetName: string): string {
-    return `network=${vpcName},subnet=${subnetName},no-address`;
+  getNetworkInterfaceArgs(vpcName: string, subnetName: string): string[] {
+    return [
+      '--network-interface',
+      `network=${vpcName},subnet=${subnetName},no-address`,
+    ];
   }
 
   // Default: No post-provisioning steps
