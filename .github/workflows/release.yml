@@ -34,8 +34,6 @@ jobs:
         run: |
           tar -czf orbit-extension.tar.gz \
             bundle/ \
-            commands/ \
-            skills/ \
             docs/ \
             gemini-extension.json \
             package.json \
