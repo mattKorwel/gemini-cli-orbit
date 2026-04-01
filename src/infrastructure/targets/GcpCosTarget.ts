@@ -5,9 +5,7 @@
  */
 
 import * as gcp from '@pulumi/gcp';
-import {
-  LocalWorkspace,
-} from '@pulumi/pulumi/automation/index.js';
+import { LocalWorkspace } from '@pulumi/pulumi/automation/index.js';
 import type { InfrastructureProvisioner } from '../InfrastructureProvisioner.js';
 import type { InfrastructureState } from '../InfrastructureState.js';
 import { PULUMI_STATE_DIR, type OrbitConfig } from '../../core/Constants.js';
@@ -45,61 +43,77 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     const zone = this.config.zone || 'us-central1-a';
     const project = this.config.projectId;
 
-    // 1. Create a static IP
-    const address = new gcp.compute.Address(`${name}-ip`, {
-      name: `${name}-ip`,
-      region: zone.split('-').slice(0, 2).join('-'),
+    const provider = new gcp.Provider('gcp-provider', {
       ...(project ? { project } : {}),
+      zone,
     });
 
+    // 1. Create a static IP
+    const address = new gcp.compute.Address(
+      `${name}-ip`,
+      {
+        name: `${name}-ip`,
+        region: zone.split('-').slice(0, 2).join('-'),
+      },
+      { provider },
+    );
+
     // 2. Provision the VM
-    const instance = new gcp.compute.Instance(name, {
+    const instance = new gcp.compute.Instance(
       name,
-      ...(project ? { project } : {}),
-      machineType: this.config.machineType || 'n2-standard-4',
-      zone,
-      bootDisk: {
-        initializeParams: {
-          image: 'cos-cloud/cos-stable',
-          size: 100,
-          type: 'pd-ssd',
+      {
+        name,
+        machineType: this.config.machineType || 'n2-standard-4',
+        zone,
+        bootDisk: {
+          initializeParams: {
+            image: 'cos-cloud/cos-stable',
+            size: 100,
+            type: 'pd-ssd',
+          },
+        },
+        networkInterfaces: [
+          {
+            network: this.config.vpcName || 'default',
+            subnetwork: this.config.subnetName || 'default',
+            accessConfigs: [{ natIp: address.address }],
+          },
+        ],
+        metadata: {
+          'gce-container-declaration': '',
+          'enable-oslogin': 'TRUE',
+        },
+        labels: {
+          'orbit-managed': 'true',
+          'orbit-schematic': this.schematicName,
+        },
+        serviceAccount: {
+          scopes: ['cloud-platform'],
         },
       },
-      networkInterfaces: [
-        {
-          network: this.config.vpcName || 'default',
-          subnetwork: this.config.subnetName || 'default',
-          accessConfigs: [{ natIp: address.address }],
-        },
-      ],
-      metadata: {
-        'gce-container-declaration': '',
-        'enable-oslogin': 'TRUE',
-      },
-      labels: {
-        'orbit-managed': 'true',
-        'orbit-schematic': this.schematicName,
-      },
-      serviceAccount: {
-        scopes: ['cloud-platform'],
-      },
-    });
+      { provider },
+    );
 
     return {
       publicIp: address.address,
-      privateIp: instance.networkInterfaces.apply(ni => ni[0]?.networkIp || ''),
+      privateIp: instance.networkInterfaces.apply(
+        (ni) => ni[0]?.networkIp || '',
+      ),
       instanceId: instance.instanceId,
     };
   };
 
   async up(): Promise<InfrastructureState> {
-    const stack = await LocalWorkspace.createOrSelectStack({
-      stackName: this.stackName,
-      projectName: this.projectName,
-      program: this.pulumiProgram,
-    }, { workDir: this.workDir });
+    const stack = await LocalWorkspace.createOrSelectStack(
+      {
+        stackName: this.stackName,
+        projectName: this.projectName,
+        program: this.pulumiProgram,
+      },
+      { workDir: this.workDir },
+    );
 
-    // Configure GCP Project
+    // Configure GCP Project for the CLI (backup config)
     if (this.config.projectId) {
       await stack.setConfig('gcp:project', { value: this.config.projectId });
     }
@@ -123,22 +137,28 @@ export class GcpCosTarget implements InfrastructureProvisioner {
   }
 
   async down(): Promise<void> {
-    const stack = await LocalWorkspace.createOrSelectStack({
-      stackName: this.stackName,
-      projectName: this.projectName,
-      program: this.pulumiProgram,
-    }, { workDir: this.workDir });
+    const stack = await LocalWorkspace.createOrSelectStack(
+      {
+        stackName: this.stackName,
+        projectName: this.projectName,
+        program: this.pulumiProgram,
+      },
+      { workDir: this.workDir },
+    );
 
     console.log(`   🔥 Pulumi: Destroying infrastructure for ${this.id}...`);
     await stack.destroy({ onOutput: console.log });
   }
 
   async refresh(): Promise<InfrastructureState> {
-    const stack = await LocalWorkspace.createOrSelectStack({
-      stackName: this.stackName,
-      projectName: this.projectName,
-      program: this.pulumiProgram,
-    }, { workDir: this.workDir });
+    const stack = await LocalWorkspace.createOrSelectStack(
+      {
+        stackName: this.stackName,
+        projectName: this.projectName,
+        program: this.pulumiProgram,
+      },
+      { workDir: this.workDir },
+    );
 
     await stack.refresh();
     return this.getState();
@@ -146,11 +166,14 @@ export class GcpCosTarget implements InfrastructureProvisioner {
 
   async getState(): Promise<InfrastructureState> {
     try {
-      const stack = await LocalWorkspace.createOrSelectStack({
-        stackName: this.stackName,
-        projectName: this.projectName,
-        program: this.pulumiProgram,
-      }, { workDir: this.workDir });
+      const stack = await LocalWorkspace.createOrSelectStack(
+        {
+          stackName: this.stackName,
+          projectName: this.projectName,
+          program: this.pulumiProgram,
+        },
+        { workDir: this.workDir },
+      );
 
       const outs = await stack.outputs();
       return {
