@@ -53,6 +53,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
+    "@pulumi/gcp": "^9.17.1",
+    "@pulumi/pulumi": "^3.228.0",
     "glob": "^13.0.6",
     "zod": "^4.3.6"
   }

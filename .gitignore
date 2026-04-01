@@ -14,6 +14,7 @@
 !.gemini/skills/
 !.gemini/adr/
 !.gemini/policies/
+!.gemini/plans/
 !.gemini/orbit/config.json
 .gemini/workspaces/settings.json
 !.gemini/workspaces/config.json
