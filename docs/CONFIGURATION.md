@@ -50,10 +50,10 @@ active Station.
 ```json
 {
   "activeRepo": "gemini-cli",
-  "activeStation": "gcli-station-mattkorwel",
+  "activeStation": "orbit-station-mattkorwel",
   "repos": {
     "gemini-cli": {
-      "instanceName": "gcli-station-mattkorwel",
+      "instanceName": "orbit-station-mattkorwel",
       "schematic": "corp"
     }
   }
@@ -155,8 +155,12 @@ configurable location.
 ## 🚀 Advanced: Architecture
 
 ### Infrastructure Provisioners
+
 Orbit separates "building the hardware" from "running the code".
-- **Provisioners** (`src/infrastructure/`): Manage cloud resources declaratively using Pulumi.
-- **Execution Providers** (`src/providers/`): Manage command execution and capsules on the provisioned hardware.
+
+- **Provisioners** (`src/infrastructure/`): Manage cloud resources declaratively
+  using Pulumi.
+- **Execution Providers** (`src/providers/`): Manage command execution and
+  capsules on the provisioned hardware.
 
 See [DEPENDENCIES.md](DEPENDENCIES.md) for details on the Pulumi requirement.

@@ -49,7 +49,7 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
       '-o',
       'ControlMaster=auto',
       '-o',
-      'ControlPath=~/.ssh/gcli-%C',
+      'ControlPath=~/.ssh/orbit-%C',
       '-o',
       'ControlPersist=10m',
       '-o',
@@ -59,11 +59,17 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     ];
   }
 
-  getRunCommand(command: string, options: { interactive?: boolean | undefined } = {}): string {
+  getRunCommand(
+    command: string,
+    options: { interactive?: boolean | undefined } = {},
+  ): string {
     return `ssh ${this.getCommonArgs().join(' ')} ${options.interactive ? '-t' : ''} ${this.getMagicRemote()} ${this.quote(command)}`;
   }
 
-  getRunArgs(command: string, options: { interactive?: boolean | undefined } = {}): string[] {
+  getRunArgs(
+    command: string,
+    options: { interactive?: boolean | undefined } = {},
+  ): string[] {
     const args = ['ssh', ...this.getCommonArgs()];
     if (options.interactive) args.push('-t');
     args.push(this.getMagicRemote());

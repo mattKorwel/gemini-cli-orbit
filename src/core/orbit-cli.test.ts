@@ -18,6 +18,7 @@ const mockGetPulse = vi.fn().mockResolvedValue({
 const mockListStations = vi.fn().mockResolvedValue([]);
 const mockActivateStation = vi.fn().mockResolvedValue(undefined);
 const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
+const mockHibernate = vi.fn().mockResolvedValue(undefined);
 const mockListSchematics = vi.fn().mockReturnValue(['default']);
 const mockImportSchematic = vi.fn().mockResolvedValue('new-schematic');
 const mockSaveSchematic = vi.fn().mockResolvedValue(undefined);
@@ -70,6 +71,7 @@ vi.mock('./OrbitSDK.js', () => ({
     getPulse: mockGetPulse,
     listStations: mockListStations,
     activateStation: mockActivateStation,
+    hibernate: mockHibernate,
     deleteStation: mockDeleteStation,
     listSchematics: mockListSchematics,
     importSchematic: mockImportSchematic,

@@ -53,7 +53,7 @@ export class MissionManager {
 
     // 1. Provider Resolution
     const instanceName =
-      this.config.instanceName || `gcli-station-${this.config.repoName}`;
+      this.config.instanceName || `orbit-station-${this.config.repoName}`;
     const provider = ProviderFactory.getProvider({
       ...this.config,
       projectId: this.config.projectId || 'local',

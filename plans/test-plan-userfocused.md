@@ -69,8 +69,8 @@ my laptop."_
     - **Action**: While the mission is running, run `orbit pulse`.
     - **Check**: Does it show `🧠 [THINKING]`?
     - **Deep Check**: SSH into the station manually. Run `ls /dev/shm`. Do you
-      see the `.gcli-env-*` secret file? Run `docker inspect gcli-21-review`. Is
-      the API key safely mounted?
+      see the `.orbit-env-*` secret file? Run `docker inspect orbit-21-review`.
+      Is the API key safely mounted?
 
 ---
 

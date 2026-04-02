@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
 import { type OrbitConfig } from './Constants.js';
 import { LogLevel } from './Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
@@ -156,7 +159,11 @@ export class FleetManager {
     const stationInfos: StationInfo[] = await Promise.all(
       receipts.map(async (r) => {
         let missions: string[] = [];
-        if (options.includeMissions) {
+        // Only fetch missions if station is active/ready to avoid hung SSH
+        if (
+          options.includeMissions &&
+          (r.status === 'RUNNING' || r.status === 'READY')
+        ) {
           try {
             missions = await this.stationManager.getMissions(r);
           } catch (_e) {}
@@ -166,6 +173,7 @@ export class FleetManager {
           name: r.name,
           type: r.type,
           repo: r.repo,
+          status: r.status,
           projectId: r.projectId,
           zone: r.zone,
           rootPath: r.rootPath || undefined,
@@ -177,6 +185,34 @@ export class FleetManager {
     );
 
     return stationInfos;
+  }
+
+  /**
+   * Safe stop of Orbit Station hardware without destroying it.
+   */
+  async hibernate(options: { name: string }): Promise<void> {
+    const { name } = options;
+    const stations = await this.stationManager.listStations();
+    const receipt = stations.find((s) => s.name === name);
+
+    if (!receipt) {
+      throw new Error(`Station "${name}" not found in registry.`);
+    }
+
+    const provider = ProviderFactory.getProvider({
+      instanceName: receipt.instanceName || name,
+      projectId: receipt.projectId,
+      zone: receipt.zone,
+      providerType: receipt.type,
+    } as any);
+
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'HARDWARE',
+      `💤 Hibernating station: ${name}...`,
+    );
+    await provider.stop();
+    this.observer.onLog?.(LogLevel.INFO, 'HARDWARE', '✅ Station stopped.');
   }
 
   /**
@@ -203,68 +239,118 @@ export class FleetManager {
    * Decommission a specific station or all remote capsules.
    */
   async deleteStation(options: DeleteStationOptions): Promise<void> {
-    const { name } = options;
-    const settings = loadSettings();
-    if (name) {
-      const stations = await this.stationManager.listStations();
-      const receipt = stations.find((s) => s.name === name);
-
-      const provider = ProviderFactory.getProvider({
-        instanceName: receipt?.instanceName || name,
-        projectId: receipt?.projectId,
-        zone: receipt?.zone,
-        providerType: receipt?.type || 'gce',
-      } as any);
-
-      await provider.destroy();
-      this.stationManager.deleteReceipt(name);
-      if (settings.activeStation === name) delete settings.activeStation;
-      saveSettings(settings);
+    // Strictly redirect to scoped splashdown
+    if (options.name) {
+      await this.splashdown({ name: options.name });
     } else {
       await this.splashdown({ all: true });
     }
   }
 
   /**
-   * Emergency shutdown of all active remote capsules.
+   * Scoped Emergency shutdown or full decommissioning of Orbit infrastructure.
    */
-  async splashdown(options: SplashdownOptions = {}): Promise<number> {
-    const instanceName = this.config.instanceName || 'local';
+  async splashdown(
+    options: SplashdownOptions & { name?: string } = {},
+  ): Promise<number> {
+    const { name, all } = options;
+    const settings = loadSettings();
+
+    // 1. Resolve Target Station (Explicit Name > Active Station)
+    const targetName = name || settings.activeStation;
+    if (!targetName) {
+      this.observer.onLog?.(
+        LogLevel.WARN,
+        'CLEANUP',
+        'No active station to splashdown.',
+      );
+      return 0;
+    }
+
+    // 2. Fetch Receipt for the target
+    const stations = await this.stationManager.listStations();
+    const receipt = stations.find((s) => s.name === targetName);
+
+    if (!receipt) {
+      throw new Error(`Station "${targetName}" not found in registry.`);
+    }
+
+    // 3. Instantiate Scoped Provider
     const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
-      instanceName,
-    });
+      instanceName: receipt.instanceName || receipt.name,
+      projectId: receipt.projectId,
+      zone: receipt.zone,
+      providerType: receipt.type,
+    } as any);
 
     this.observer.onLog?.(
       LogLevel.INFO,
       'CLEANUP',
-      `🌊 SPLASHDOWN INITIATED: ${instanceName}`,
+      `🌊 SPLASHDOWN INITIATED: ${receipt.name} (${receipt.type})`,
     );
 
+    // 4. Mission Cleanup (Capsules/Worktrees)
     const capsules = await provider.listCapsules();
     for (const capsule of capsules) {
       this.observer.onLog?.(
         LogLevel.INFO,
         'CLEANUP',
-        `   🔥 Decommissioning capsule: ${capsule}`,
+        `   🔥 Decommissioning mission: ${capsule}`,
       );
       await provider.stopCapsule(capsule);
       await provider.removeCapsule(capsule);
     }
 
-    if (options.all) {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'CLEANUP',
-        `   🚜 Stopping Station VM: ${instanceName}`,
+    // 5. Destructive Hardware Decommissioning (--all or named)
+    // If a name was provided, we assume they want to decommission that station
+    if (all || name) {
+      const confirmed = await this.confirm(
+        `⚠️  DESTRUCTIVE: This will PERMANENTLY DELETE all resources for station "${receipt.name}". Proceed? (y/n): `,
       );
-      await provider.stop();
+
+      if (confirmed) {
+        this.observer.onLog?.(
+          LogLevel.INFO,
+          'CLEANUP',
+          `   🚜 Destroying Station Infrastructure: ${receipt.name}`,
+        );
+        await provider.destroy();
+        this.stationManager.deleteReceipt(receipt.name);
+
+        if (settings.activeStation === receipt.name) {
+          delete settings.activeStation;
+          saveSettings(settings);
+        }
+        this.observer.onLog?.(
+          LogLevel.INFO,
+          'CLEANUP',
+          '✅ Station fully decommissioned.',
+        );
+      } else {
+        this.observer.onLog?.(
+          LogLevel.WARN,
+          'CLEANUP',
+          'Station destruction cancelled.',
+        );
+      }
     }
 
     this.observer.onLog?.(LogLevel.INFO, 'CLEANUP', '✅ Splashdown complete.');
     return 0;
+  }
+
+  private async confirm(query: string): Promise<boolean> {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    return new Promise((resolve) =>
+      rl.question(query, (ans) => {
+        rl.close();
+        resolve(ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes');
+      }),
+    );
   }
 
   /**

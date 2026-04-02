@@ -13,7 +13,7 @@ Docker:
   restrictive permissions (UID 1000, 770) and a read-write "Source of Truth"
   clone of the main repository.
 - **Isolated Capsules**: Each mission runs in a dedicated capsule
-  (`gcli-<identifier>-<action>`).
+  (`orbit-<identifier>-<action>`).
 - **Reference Clones**: Job capsules perform a `git clone --reference` against
   the Host Station's main repo. The main repo is mounted **Read-Only** into
   capsules for security.
@@ -127,7 +127,7 @@ Key decisions governing this codebase are documented in `.gemini/adr/`:
 1.  **Read-Only Source**: Never mount the main host repository as Read-Write
     into job capsules.
 2.  **Secret Injection**: Use RAM-based temporary file mounts (e.g.,
-    `/dev/shm/.gcli-env-*`) for token injection. **NEVER** use
+    `/dev/shm/.orbit-env-*`) for token injection. **NEVER** use
     `docker run/exec -e` for sensitive credentials.
 3.  **Path Parity**: Maintain absolute path parity between Host and Capsule
     (`/mnt/disks/data`) to prevent Git metadata corruption.

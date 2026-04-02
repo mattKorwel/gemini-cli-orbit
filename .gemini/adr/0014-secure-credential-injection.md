@@ -25,7 +25,7 @@ platform-specific fallback for local worktree missions.
 For missions running on a remote **Station**:
 
 - The Orchestrator writes the credential context to a temporary file in
-  `/dev/shm/.gcli-env-${sessionId}` on the Host VM.
+  `/dev/shm/.orbit-env-${sessionId}` on the Host VM.
 - The **RAM-disk** (`/dev/shm`) ensures that the secret never touches persistent
   storage.
 - The Provisioner mounts this specific file into the Docker capsule at

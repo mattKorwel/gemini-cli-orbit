@@ -76,6 +76,15 @@ export async function runFleet(
       return 0;
     }
 
+    if (action === 'hibernate') {
+      if (!name) {
+        console.error('\n❌ Usage: orbit station hibernate <name>\n');
+        return 1;
+      }
+      await sdk.hibernate({ name });
+      return 0;
+    }
+
     if (action === 'list') {
       const showMissions = args.includes('--missions') || args.includes('-m');
       const forceSync = args.includes('--sync') || args.includes('-s');
@@ -94,8 +103,9 @@ export async function runFleet(
 
       stations.forEach((s) => {
         const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
+        const statusLabel = s.status ? `[${s.status}]` : '';
         console.log(
-          `${s.isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`,
+          `${s.isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} ${statusLabel.padEnd(12)} [${s.repo}]`,
         );
 
         if (showMissions) {
@@ -122,7 +132,8 @@ export async function runFleet(
     }
 
     if (action === 'delete') {
-      await sdk.deleteStation({ name });
+      // Direct legacy delete to new scoped splashdown
+      await sdk.splashdown({ name });
       return 0;
     }
   }

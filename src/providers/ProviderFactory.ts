@@ -39,7 +39,7 @@ export class ProviderFactory {
       config.providerType || (isLocal ? 'local-worktree' : 'gce');
 
     const stationName = config.repoName
-      ? `gcli-station-${config.repoName}`
+      ? `orbit-station-${config.repoName}`
       : 'station-supervisor';
 
     if (effectiveProvider === 'local-worktree') {

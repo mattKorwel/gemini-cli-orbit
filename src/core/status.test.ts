@@ -21,14 +21,16 @@ describe('runStatus', () => {
     getExecOutput: vi.fn().mockResolvedValue({ status: 0, stdout: '' }),
     capturePane: vi.fn().mockResolvedValue(''),
     listCapsules: vi.fn().mockResolvedValue([]),
-    stationName: 'gcli-station-repo',
+    stationName: 'orbit-station-repo',
     projectId: 'p',
     zone: 'z',
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(
+      mockProvider as any,
+    );
 
     (ConfigManager.detectRepoName as any).mockReturnValue(
       'gemini-orbit-extension',

@@ -35,7 +35,7 @@ Google Compute Engine).
   "providerType": "gce",
   "projectId": "my-cloud-project",
   "zone": "us-west1-a",
-  "instanceName": "gcli-station-matt",
+  "instanceName": "orbit-station-matt",
   "backendType": "direct-internal"
 }
 ```

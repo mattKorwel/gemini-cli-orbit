@@ -80,19 +80,19 @@ describe('LocalWorktreeProvider E2E', () => {
 
     const provider = new LocalWorktreeProvider('e2e-station', worktreesDir);
     const branchName = 'feat-test-1';
-    const targetWtPath = path.join(worktreesDir, branchName);
+    const targetWtPath = path.join(worktreesDir, `orbit-${branchName}`);
 
     // 1. Provision (Run Capsule)
     await provider.prepareMissionWorkspace('123', branchName, {
       name: branchName,
       repoName: 'test-repo',
     } as any);
-    
+
     expect(fs.existsSync(targetWtPath)).toBe(true);
 
     // 2. Status
     const capsules = await provider.listCapsules();
-    expect(capsules).toContain(branchName);
+    expect(capsules).toContain(`orbit-${branchName}`);
     expect(capsules).not.toContain('main');
 
     // 3. Remove
@@ -101,6 +101,6 @@ describe('LocalWorktreeProvider E2E', () => {
     expect(fs.existsSync(targetWtPath)).toBe(false);
 
     const finalCapsules = await provider.listCapsules();
-    expect(finalCapsules).not.toContain(branchName);
+    expect(finalCapsules).not.toContain(`orbit-${branchName}`);
   });
 });

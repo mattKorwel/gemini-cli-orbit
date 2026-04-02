@@ -41,7 +41,7 @@ export async function runChecker(
 
   const action = 'review';
   const sId = sanitizeName(identifier);
-  const containerName = `gcli-${sId}-${action}`;
+  const containerName = `orbit-${sId}-${action}`;
 
   console.log(
     `🔍 Checking remote status for ${identifier} on ${instanceName}...`,

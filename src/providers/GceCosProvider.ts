@@ -102,7 +102,10 @@ export class GceCosProvider implements OrbitProvider {
       quiet: true,
     });
     if (repoCheck.status !== 0) {
-      logger.warn('SETUP', '   - Main repo mirror missing on host. This may cause mission delays.');
+      logger.warn(
+        'SETUP',
+        '   - Main repo mirror missing on host. This may cause mission delays.',
+      );
     }
 
     try {
@@ -110,7 +113,9 @@ export class GceCosProvider implements OrbitProvider {
       const check = await this.getCapsuleStatus(this.instanceName);
 
       if (!check.exists || !check.running) {
-        logger.info('   - Supervisor capsule missing or stopped. Refreshing...');
+        logger.info(
+          '   - Supervisor capsule missing or stopped. Refreshing...',
+        );
         const refreshCmd = `
             sudo docker pull ${this.imageUri}
             sudo docker rm -f ${this.instanceName} 2>/dev/null || true
@@ -293,9 +298,12 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async attach(name: string): Promise<number> {
-    return this.exec(`sudo docker exec -it ${name} tmux attach -t default || sudo docker exec -it ${name} /bin/bash`, {
-      interactive: true,
-    });
+    return this.exec(
+      `sudo docker exec -it ${name} tmux attach -t default || sudo docker exec -it ${name} /bin/bash`,
+      {
+        interactive: true,
+      },
+    );
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
@@ -376,7 +384,7 @@ export class GceCosProvider implements OrbitProvider {
 
   async listCapsules(): Promise<string[]> {
     const res = await this.getExecOutput(
-      "sudo docker ps --format '{{.Names}}' | grep '^gcli-'",
+      "sudo docker ps --format '{{.Names}}' | grep '^orbit-'",
       { quiet: true },
     );
     return res.stdout.trim().split('\n').filter(Boolean);
