@@ -23,7 +23,7 @@ describe('MissionUtils', () => {
     const ctx = resolveMissionContext('feat-cool-thing', 'review');
 
     expect(ctx.branchName).toBe('feat-cool-thing');
-    expect(ctx.containerName).toBe('gcli-feat-cool-thing-review');
+    expect(ctx.containerName).toBe('orbit-feat-cool-thing-review');
     expect(ctx.sessionName).toBe('orbit-feat-cool-thing');
     expect(ctx.worktreeName).toBe('mission-feat-cool-thing-review');
   });
@@ -38,7 +38,7 @@ describe('MissionUtils', () => {
     const ctx = resolveMissionContext('42', 'fix');
 
     expect(ctx.branchName).toBe('feat-from-pr');
-    expect(ctx.containerName).toBe('gcli-42-fix');
+    expect(ctx.containerName).toBe('orbit-42-fix');
     expect(ctx.sessionName).toBe('orbit-feat-from-pr');
     expect(ctx.worktreeName).toBe('mission-42-fix');
 
@@ -59,14 +59,14 @@ describe('MissionUtils', () => {
     const ctx = resolveMissionContext('42', 'review');
 
     expect(ctx.branchName).toBe('42');
-    expect(ctx.containerName).toBe('gcli-42-review');
+    expect(ctx.containerName).toBe('orbit-42-review');
     expect(ctx.sessionName).toBe('orbit-42');
   });
 
   it('sanitizes names in the context', () => {
     const ctx = resolveMissionContext('Feature/Cool!Thing', 'review');
 
-    expect(ctx.containerName).toBe('gcli-feature-cool-thing-review');
+    expect(ctx.containerName).toBe('orbit-feature-cool-thing-review');
     expect(ctx.sessionName).toBe('orbit-feature-cool-thing');
   });
 });

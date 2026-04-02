@@ -10,8 +10,10 @@ import * as ConfigManager from './ConfigManager.js';
 
 const mockProvisionStation = vi.fn().mockResolvedValue(0);
 const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
+const mockSplashdown = vi.fn().mockResolvedValue(0);
 const mockListStations = vi.fn().mockResolvedValue([]);
 const mockActivateStation = vi.fn().mockResolvedValue(undefined);
+const mockHibernate = vi.fn().mockResolvedValue(undefined);
 const mockListSchematics = vi.fn().mockReturnValue(['d1']);
 const mockRunSchematicWizard = vi.fn().mockResolvedValue(undefined);
 
@@ -19,8 +21,10 @@ vi.mock('./OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     provisionStation: mockProvisionStation,
     deleteStation: mockDeleteStation,
+    splashdown: mockSplashdown,
     listStations: mockListStations,
     activateStation: mockActivateStation,
+    hibernate: mockHibernate,
     listSchematics: mockListSchematics,
     runSchematicWizard: mockRunSchematicWizard,
     observer: { onDivider: vi.fn() },
@@ -48,9 +52,14 @@ describe('runFleet', () => {
     expect(mockProvisionStation).toHaveBeenCalled();
   });
 
-  it('should route delete subcommand to OrbitSDK.deleteStation', async () => {
+  it('should route hibernate subcommand to OrbitSDK.hibernate', async () => {
+    await runFleet(['station', 'hibernate', 'target']);
+    expect(mockHibernate).toHaveBeenCalledWith({ name: 'target' });
+  });
+
+  it('should route delete subcommand to OrbitSDK.splashdown', async () => {
     await runFleet(['station', 'delete', 'target']);
-    expect(mockDeleteStation).toHaveBeenCalledWith({ name: 'target' });
+    expect(mockSplashdown).toHaveBeenCalledWith({ name: 'target' });
   });
 
   it('should route list subcommand to OrbitSDK.listStations', async () => {

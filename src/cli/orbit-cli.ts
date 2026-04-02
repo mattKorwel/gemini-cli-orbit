@@ -221,11 +221,11 @@ export async function dispatch(argv: string[]): Promise<number> {
     )
     .command(
       'station <action> [name]',
-      'Hardware control: <activate|list|liftoff|delete>',
+      'Hardware control: <activate|list|liftoff|hibernate>',
       (y) => {
         return y
           .positional('action', {
-            choices: ['list', 'activate', 'liftoff', 'delete'],
+            choices: ['list', 'activate', 'liftoff', 'hibernate'],
             demandOption: true,
           })
           .positional('name', { type: 'string' })
@@ -245,6 +245,12 @@ export async function dispatch(argv: string[]): Promise<number> {
           return;
         }
 
+        if (args.action === 'hibernate' && args.name) {
+          await sdk.hibernate({ name: args.name });
+          args.exitCode = 0;
+          return;
+        }
+
         if (args.action === 'list') {
           const stations = await sdk.listStations({
             syncWithReality: args.sync as boolean,
@@ -259,8 +265,9 @@ export async function dispatch(argv: string[]): Promise<number> {
 
           stations.forEach((s) => {
             const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
+            const statusLabel = s.status ? `[${s.status}]` : '';
             console.log(
-              `${s.isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`,
+              `${s.isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} ${statusLabel.padEnd(12)} [${s.repo}]`,
             );
             if (s.missions && s.missions.length > 0) {
               console.log('   📦 Active Missions:');
@@ -271,12 +278,6 @@ export async function dispatch(argv: string[]): Promise<number> {
             else console.log(`   - Path: ${s.rootPath}`);
             console.log(`   - Last Seen: ${s.lastSeen}\n`);
           });
-          args.exitCode = 0;
-          return;
-        }
-
-        if (args.action === 'delete') {
-          await sdk.deleteStation({ name: args.name });
           args.exitCode = 0;
           return;
         }
@@ -410,17 +411,25 @@ export async function dispatch(argv: string[]): Promise<number> {
       },
     )
     .command(
-      'splashdown',
-      'Emergency shutdown of all active remote capsules.',
+      'splashdown [name]',
+      'Emergency shutdown of missions or full decommissioning of a station.',
       (y) => {
-        return y.option('all', {
-          type: 'boolean',
-          description: 'Stop the station VM as well',
-        });
+        return y
+          .positional('name', {
+            type: 'string',
+            description: 'Decommission a specific station VM and receipt',
+          })
+          .option('all', {
+            type: 'boolean',
+            description: 'Stop the active station VM as well',
+          });
       },
       async (args) => {
         const sdk = createSDK(args);
-        args.exitCode = await sdk.splashdown({ all: args.all as boolean });
+        args.exitCode = await sdk.splashdown({
+          name: args.name as string,
+          all: args.all as boolean,
+        });
       },
     )
     .command(

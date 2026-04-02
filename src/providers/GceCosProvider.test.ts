@@ -131,12 +131,12 @@ describe('GceCosProvider', () => {
   it('should list active orbit capsules', async () => {
     mockConn.run.mockReturnValue({
       status: 0,
-      stdout: Buffer.from('gcli-pr-123\ngcli-pr-456\n'),
-      stderr: Buffer.from(''),
+      stdout: Buffer.from('orbit-pr-123\norbit-pr-456\n'),
+      stderr: '',
     });
 
     const capsules = await provider.listCapsules();
-    expect(capsules).toEqual(['gcli-pr-123', 'gcli-pr-456']);
+    expect(capsules).toEqual(['orbit-pr-123', 'orbit-pr-456']);
   });
 
   it('should execute ensureReady and refresh capsule if missing', async () => {

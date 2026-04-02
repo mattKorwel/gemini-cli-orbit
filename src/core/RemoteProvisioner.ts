@@ -40,7 +40,7 @@ export class RemoteProvisioner {
     const remoteWorktreeDir = `${ORBIT_ROOT}/worktrees/${config.repoName}/${mCtx.worktreeName}`;
 
     // RAM-disk secret mount (ADR 14)
-    const secretPath = `/dev/shm/.gcli-env-${SessionManager.generateSessionId(
+    const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateSessionId(
       identifier,
       action,
     )}`;

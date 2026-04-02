@@ -21,9 +21,9 @@ describe('LocalWorktreeProvider', () => {
     );
 
     // Mock fs.existsSync to true by default for test stability
-    ( fs.existsSync as any).mockReturnValue(true);
+    (fs.existsSync as any).mockReturnValue(true);
     // Mock realpathSync to return input by default
-    ( fs.realpathSync as any).mockImplementation((p: string) => p.toString());
+    (fs.realpathSync as any).mockImplementation((p: string) => p.toString());
   });
 
   it('should initialize with correct worktrees directory', () => {
@@ -67,14 +67,14 @@ describe('LocalWorktreeProvider', () => {
       stdout: Buffer.from(
         'worktree /home/node/dev/repo/main\n' +
           'branch refs/heads/main\n\n' +
-          'worktree /home/node/dev/repo/feat-1\n' +
+          'worktree /home/node/dev/repo/orbit-feat-1\n' +
           'branch refs/heads/feat-1\n',
       ),
     } as any);
 
     const provider = new LocalWorktreeProvider('test', '/home/node/dev/repo');
     const capsules = await provider.listCapsules();
-    expect(capsules).toContain('feat-1');
+    expect(capsules).toContain('orbit-feat-1');
     expect(capsules).not.toContain('main');
   });
 });

@@ -25,7 +25,9 @@ describe('runReap', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(
+      mockProvider as any,
+    );
     (ConfigManager.detectRepoName as any).mockReturnValue('test-repo');
     (ConfigManager.getRepoConfig as any).mockReturnValue({
       projectId: 'p',
@@ -40,8 +42,8 @@ describe('runReap', () => {
 
   it('should identify and reap idle capsules', async () => {
     mockProvider.listCapsules.mockResolvedValue([
-      'gcli-123-mission',
-      'gcli-456-mission',
+      'orbit-123-mission',
+      'orbit-456-mission',
     ]);
     // 123 is active (1 hour idle), 456 is idle (5 hours idle > 4h default)
     mockProvider.getCapsuleIdleTime.mockResolvedValueOnce(3600); // 1h in seconds
@@ -49,18 +51,22 @@ describe('runReap', () => {
 
     const res = await runReap();
     expect(res).toBe(0);
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-456-mission');
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith(
+      'orbit-456-mission',
+    );
     expect(mockProvider.removeCapsule).not.toHaveBeenCalledWith(
-      'gcli-123-mission',
+      'orbit-123-mission',
     );
   });
 
   it('should respect custom threshold flag', async () => {
-    mockProvider.listCapsules.mockResolvedValue(['gcli-123-mission']);
+    mockProvider.listCapsules.mockResolvedValue(['orbit-123-mission']);
     mockProvider.getCapsuleIdleTime.mockResolvedValue(7200); // 2 hours
 
     await runReap({ threshold: 1 });
     // Verify it reaped because threshold is 1h and idle is 2h
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-123-mission');
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith(
+      'orbit-123-mission',
+    );
   });
 });

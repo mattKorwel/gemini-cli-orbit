@@ -12,7 +12,7 @@ vi.mock('../utils/SessionManager.js');
 vi.mock('../utils/MissionUtils.js', () => ({
   resolveMissionContext: vi.fn().mockReturnValue({
     branchName: 'feat-test',
-    containerName: 'gcli-test-container',
+    containerName: 'orbit-test-container',
     worktreeName: 'test-wt',
   }),
 }));
@@ -46,7 +46,7 @@ describe('RemoteProvisioner', () => {
 
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'gcli-test-container',
+        name: 'orbit-test-container',
       }),
     );
   });

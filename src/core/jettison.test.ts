@@ -18,14 +18,16 @@ describe('runJettison', () => {
   const mockProvider = {
     exec: vi.fn().mockResolvedValue(0),
     getCapsuleStatus: vi.fn().mockResolvedValue({ exists: true }),
-    listCapsules: vi.fn().mockResolvedValue(['gcli-23176-chat']),
+    listCapsules: vi.fn().mockResolvedValue(['orbit-23176-chat']),
     stopCapsule: vi.fn().mockResolvedValue(0),
     removeCapsule: vi.fn().mockResolvedValue(0),
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(
+      mockProvider as any,
+    );
 
     (ConfigManager.detectRepoName as any).mockReturnValue(
       'gemini-orbit-extension',
@@ -46,7 +48,7 @@ describe('runJettison', () => {
 
     const res = await runJettison('23176', 'chat', []);
     expect(res).toBe(0);
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('gcli-23176-chat');
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-23176-chat');
   });
 
   it('should return non-zero if jettison fails', async () => {

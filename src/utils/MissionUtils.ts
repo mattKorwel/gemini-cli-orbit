@@ -54,7 +54,7 @@ export function resolveMissionContext(
   return {
     branchName,
     // Containers are specific to the branch and action
-    containerName: `gcli-${sId}-${action}`,
+    containerName: `orbit-${sId}-${action}`,
     // Sessions are specific to the branch (idempotent across actions)
     sessionName: `orbit-${sBranch}`,
     // Worktrees are specific to the branch and action for maximum isolation

@@ -15,6 +15,8 @@ import {
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
 
+const MISSION_PREFIX = 'orbit-';
+
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
  * Aligned with the user's native 'rswitch' and 'go' dotfiles workflow.
@@ -77,7 +79,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
     const capsuleDir = options.wrapCapsule
       ? this.findExistingWorktree(options.wrapCapsule, getPrimaryRepoRoot()) ||
-        path.join(this.worktreesDir, options.wrapCapsule)
+        path.join(this.worktreesDir, `${MISSION_PREFIX}${options.wrapCapsule}`)
       : process.cwd();
 
     if (this.hasTmux()) {
@@ -109,7 +111,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     if (options.wrapCapsule) {
       cwd =
         this.findExistingWorktree(options.wrapCapsule, getPrimaryRepoRoot()) ||
-        path.join(this.worktreesDir, options.wrapCapsule);
+        path.join(this.worktreesDir, `${MISSION_PREFIX}${options.wrapCapsule}`);
     }
 
     const res = spawnSync(command, {
@@ -137,7 +139,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
   ): Promise<void> {
     const actualBranch = branch;
     const sourceDir = getPrimaryRepoRoot();
-    const wtPath = path.join(this.worktreesDir, actualBranch);
+    const wtPath = path.join(
+      this.worktreesDir,
+      `${MISSION_PREFIX}${actualBranch}`,
+    );
 
     if (fs.existsSync(wtPath)) {
       return;
@@ -231,9 +236,20 @@ export class LocalWorktreeProvider implements OrbitProvider {
   async removeCapsule(name: string): Promise<number> {
     const sourceDir = getPrimaryRepoRoot();
     const wtPath = this.findExistingWorktree(name, sourceDir);
+
     if (!wtPath) return 0;
 
-    console.log(`   🔥 Orbit: Removing local worktree: ${name}`);
+    // PRIMARY ROOT PROTECTION: NEVER delete the primary repository
+    if (path.resolve(wtPath) === path.resolve(sourceDir)) {
+      console.warn(
+        '⚠️  CRITICAL SAFETY: Blocked attempt to delete primary repository root.',
+      );
+      return 1;
+    }
+
+    console.log(
+      `   🔥 Orbit: Removing local worktree: ${path.basename(wtPath)}`,
+    );
     const res = spawnSync(
       'git',
       ['-C', sourceDir, 'worktree', 'remove', wtPath, '--force'],
@@ -290,13 +306,21 @@ export class LocalWorktreeProvider implements OrbitProvider {
         try {
           wtPath = fs.realpathSync(wtPath);
         } catch (_e) {
-          // If path doesn't exist, skip it
           continue;
         }
 
-        // Only include if it's in our worktreesDir and not the primary repo itself.
-        if (wtPath.startsWith(realWorktreesDir) && wtPath !== realPrimaryRoot) {
-          worktrees.push(path.basename(wtPath));
+        const folderName = path.basename(wtPath);
+
+        // SAFETY FIREWALL:
+        // 1. Must be in the worktrees directory
+        // 2. Must start with the MISSION_PREFIX ('orbit-')
+        // 3. Must NOT be the primary repository root
+        if (
+          wtPath.startsWith(realWorktreesDir) &&
+          folderName.startsWith(MISSION_PREFIX) &&
+          wtPath !== realPrimaryRoot
+        ) {
+          worktrees.push(folderName);
         }
       }
     }
@@ -322,7 +346,14 @@ export class LocalWorktreeProvider implements OrbitProvider {
       if (worktreeLine && branchLine) {
         const wtPath = worktreeLine.replace('worktree ', '').trim();
         const branch = branchLine.replace('branch refs/heads/', '').trim();
-        if (branch === name) return wtPath;
+
+        // Match if branch matches name AND folder has prefix (Safe)
+        // Or exact path matches if name is already prefixed
+        const folderName = path.basename(wtPath);
+        if (branch === name && folderName.startsWith(MISSION_PREFIX))
+          return wtPath;
+        if (folderName === name && folderName.startsWith(MISSION_PREFIX))
+          return wtPath;
       }
     }
     return null;

@@ -57,7 +57,8 @@ export class GcpCosTarget implements InfrastructureProvisioner {
    * Pulumi Program defining the infrastructure.
    */
   private pulumiProgram = async () => {
-    const name = this.config.instanceName || `gcli-station-${this.schematicName}`;
+    const name =
+      this.config.instanceName || `orbit-station-${this.schematicName}`;
     const zone = this.config.zone || 'us-central1-a';
     const project = this.config.projectId;
     const isExternal = this.config.backendType === 'external';
@@ -70,7 +71,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     // 1. Create a static IP (only if external)
     let address: gcp.compute.Address | undefined;
     if (isExternal) {
-      const addressName = `gcli-ip-${this.id}`;
+      const addressName = `orbit-ip-${this.id}`;
       address = new gcp.compute.Address(
         addressName,
         {
