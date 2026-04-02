@@ -4,33 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { loadSettings, saveSettings } from './ConfigManager.js';
-import { SchematicManager } from './SchematicManager.js';
-import { logger } from './Logger.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
-import { runSetup } from './setup.js';
-import { runSplashdown } from './splashdown.js';
-import { StationManager } from './StationManager.js';
+import { OrbitSDK } from './OrbitSDK.js';
+import { detectRepoName, getRepoConfig } from './ConfigManager.js';
 import { type OrbitConfig } from './Constants.js';
-
-function divider(text: string) {
-  const width = 80;
-  const padding = Math.max(0, Math.floor((width - text.length - 2) / 2));
-  console.log(
-    `\n${'-'.repeat(padding)} ${text} ${'-'.repeat(width - padding - text.length - 2)}`,
-  );
-}
 
 /**
  * Fleet: Manage and coordinate Orbit stations.
+ * Legacy wrapper now delegating to OrbitSDK where possible.
  */
 export async function runFleet(
   args: string[],
   cliFlags: Partial<OrbitConfig> = {},
 ) {
-  const settings = loadSettings();
-  const schematicManager = new SchematicManager();
-  const stationManager = new StationManager();
+  const repoName = cliFlags.repoName || detectRepoName();
+  const config = getRepoConfig(repoName, cliFlags);
+  const sdk = new OrbitSDK(config);
 
   const command = args[0]; // 'schematic' or 'station'
   const action = args[1];
@@ -39,15 +27,13 @@ export async function runFleet(
   // --- 📐 SCHEMATIC MANAGEMENT ---
   if (command === 'schematic') {
     if (action === 'list') {
-      const schematics = schematicManager.listSchematics();
+      const schematics = sdk.listSchematics();
       console.log('\n📐 ORBIT INFRASTRUCTURE SCHEMATICS');
       console.log('--------------------------------------------------');
       if (schematics.length === 0) {
         console.log('   (No schematics found)');
       } else {
-        schematics.forEach((s) => {
-          console.log(`   ${s}`);
-        });
+        schematics.forEach((s) => console.log(`   ${s}`));
       }
       console.log('--------------------------------------------------');
       console.log('Use "orbit schematic create <name>" to run wizard.\n');
@@ -59,7 +45,7 @@ export async function runFleet(
         console.error('\n❌ Usage: orbit schematic <create|edit> <name>\n');
         return 1;
       }
-      await schematicManager.runWizard(name, cliFlags);
+      await sdk.runSchematicWizard(name, cliFlags);
       return 0;
     }
 
@@ -70,14 +56,10 @@ export async function runFleet(
         return 1;
       }
       try {
-        const importedName = await schematicManager.importSchematic(source);
-        logger.info(
-          'CONFIG',
-          `✅ Imported schematic "${importedName}" successfully.`,
-        );
+        await sdk.importSchematic(source);
         return 0;
       } catch (_e: any) {
-        console.error(`❌ Import failed: ${_e.message}`, { cause: _e });
+        console.error(`❌ Import failed: ${_e.message}`);
         return 1;
       }
     }
@@ -85,58 +67,35 @@ export async function runFleet(
 
   // --- 🛰️ STATION MANAGEMENT ---
   if (command === 'station') {
-    // TARGET ACTIVATE
     if (action === 'activate') {
       if (!name) {
         console.error('\n❌ Usage: orbit station activate <name>\n');
         return 1;
       }
-
-      const stations = await stationManager.listStations();
-      const station = stations.find((s) => s.name === name);
-      if (!station) {
-        console.error(`❌ Station "${name}" not found in registry.`);
-        return 1;
-      }
-
-      settings.activeStation = station.name;
-      saveSettings(settings);
-      logger.info('CONFIG', `🎯 Active Station set to: ${station.name}`);
+      await sdk.activateStation(name);
       return 0;
     }
 
-    // TARGET LIST
     if (action === 'list') {
       const showMissions = args.includes('--missions') || args.includes('-m');
       const forceSync = args.includes('--sync') || args.includes('-s');
 
-      divider('ORBIT CONSTELLATION');
-      const stations = await stationManager.listStations({
+      const stations = await sdk.listStations({
         syncWithReality: forceSync,
+        includeMissions: showMissions,
       });
+
+      sdk.observer.onDivider?.('ORBIT CONSTELLATION');
 
       if (stations.length === 0) {
         console.log('✅ No provisioned stations found.');
         return 0;
       }
 
-      const stationData = await Promise.all(
-        stations.map(async (s) => {
-          let missions: string[] = [];
-          if (showMissions) {
-            try {
-              missions = await stationManager.getMissions(s);
-            } catch (_e) {}
-          }
-          return { ...s, missions };
-        }),
-      );
-
-      stationData.forEach((s) => {
-        const isActive = settings.activeStation === s.name;
+      stations.forEach((s) => {
         const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
         console.log(
-          `${isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`,
+          `${s.isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.repo}]`,
         );
 
         if (showMissions) {
@@ -153,39 +112,18 @@ export async function runFleet(
         } else {
           console.log(`   - Path: ${s.rootPath}`);
         }
-        console.log(`   - Last Seen: ${s.lastSeen}`);
-        console.log('');
+        console.log(`   - Last Seen: ${s.lastSeen}\n`);
       });
       return 0;
     }
 
-    // TARGET LIFTOFF
     if (action === 'liftoff') {
-      return runSetup(args.slice(1));
+      return sdk.provisionStation({ schematicName: name });
     }
 
-    // TARGET DELETE
     if (action === 'delete') {
-      const targetStation = name;
-      if (targetStation) {
-        const stations = await stationManager.listStations();
-        const receipt = stations.find((s) => s.name === targetStation);
-
-        const provider = ProviderFactory.getProvider({
-          instanceName: receipt?.instanceName || targetStation,
-          projectId: receipt?.projectId,
-          zone: receipt?.zone,
-          providerType: receipt?.type || 'gce',
-        } as any);
-
-        await provider.destroy();
-        stationManager.deleteReceipt(targetStation);
-        if (settings.activeStation === targetStation)
-          delete settings.activeStation;
-        saveSettings(settings);
-        return 0;
-      }
-      return runSplashdown(['--all']);
+      await sdk.deleteStation({ name });
+      return 0;
     }
   }
 

@@ -16,6 +16,7 @@ describe('runSplashdown (Remote Mode)', () => {
   const mockProvider = {
     exec: vi.fn().mockResolvedValue(0),
     stop: vi.fn().mockResolvedValue(0),
+    stopCapsule: vi.fn().mockResolvedValue(0),
     removeCapsule: vi.fn().mockResolvedValue(0),
     listCapsules: vi.fn().mockResolvedValue(['gcli-23176-open']),
     getExecOutput: vi
@@ -25,7 +26,9 @@ describe('runSplashdown (Remote Mode)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(mockProvider as any);
+    vi.spyOn(ProviderFactory, 'getProvider').mockReturnValue(
+      mockProvider as any,
+    );
 
     (ConfigManager.detectRepoName as any).mockReturnValue(
       'gemini-orbit-extension',

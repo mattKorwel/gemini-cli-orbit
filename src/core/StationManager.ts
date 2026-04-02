@@ -41,7 +41,7 @@ export class StationManager {
   }
 
   async listStations(
-    options: { syncWithReality?: boolean } = {},
+    options: { syncWithReality?: boolean | undefined } = {},
   ): Promise<StationReceipt[]> {
     const settings = loadSettings();
     const files = fs

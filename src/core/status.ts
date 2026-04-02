@@ -3,108 +3,51 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ProviderFactory } from '../providers/ProviderFactory.js';
+
+import { OrbitSDK } from './OrbitSDK.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
-export async function runStatus(_env: NodeJS.ProcessEnv = process.env) {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
+/**
+ * Legacy wrapper for status check, now using OrbitSDK.
+ */
+export async function runStatus(): Promise<number> {
+  try {
+    const repoName = detectRepoName();
+    const config = getRepoConfig(repoName);
+    const sdk = new OrbitSDK(config);
+    const pulse = await sdk.getPulse();
 
-  if (!config) {
-    console.error(
-      `❌ Settings not found for repo: ${repoName}. Run "orbit liftoff" first.`,
+    console.log(`\n🛰️  ORBIT PULSE: ${pulse.stationName} (${pulse.repoName})`);
+    console.log(
+      `--------------------------------------------------------------------------------`,
     );
-    return 1;
-  }
+    console.log(`   - Station State:  ${pulse.status}`);
+    if (pulse.internalIp)
+      console.log(`   - Internal IP:    ${pulse.internalIp}`);
+    if (pulse.externalIp)
+      console.log(`   - External IP:    ${pulse.externalIp}`);
+    console.log(`   - Station Name:   ${pulse.stationName}`);
 
-  const isLocal =
-    !config.projectId ||
-    config.projectId === 'local' ||
-    (config.providerType as any) === 'local-worktree';
-
-  if (!isLocal && !config.instanceName) {
-    console.error(
-      `❌ Station name not configured for repo: ${repoName}. Check your profile or environment variables (GCLI_ORBIT_INSTANCE_NAME).`,
-    );
-    return 1;
-  }
-
-  const instanceName = config.instanceName || 'local';
-  const provider = ProviderFactory.getProvider({
-    ...config,
-    projectId: config.projectId || 'local',
-    zone: config.zone || 'local',
-    instanceName,
-  });
-
-  const statusRes = await provider.getStatus();
-  if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
-    console.error(
-      `❌ Station ${instanceName || 'local'} is in an invalid state: ${statusRes.status}`,
-    );
-    return 1;
-  }
-
-  console.log(`\n🛰️  ORBIT PULSE: ${config.instanceName} (${repoName})`);
-  console.log(
-    `--------------------------------------------------------------------------------`,
-  );
-
-  console.log(`   - Station State:  ${statusRes.status}`);
-  console.log(`   - Internal IP:    ${statusRes.internalIp || 'N/A'}`);
-  if (statusRes.externalIp) {
-    console.log(`   - External IP:    ${statusRes.externalIp}`);
-  }
-  console.log(`   - Station Name:   ${provider.stationName}`);
-
-  if (statusRes.status === 'RUNNING') {
-    console.log(`\n📦 ACTIVE MISSION CAPSULES:`);
-
-    // Find all containers starting with 'gcli-'
-    const containers = await provider.listCapsules();
-
-    if (containers.length > 0) {
-      for (const containerName of containers) {
-        const stats = await provider.getCapsuleStats(containerName);
-        const tmuxRes = await provider.getExecOutput(
-          'tmux list-sessions -F "#S" 2>/dev/null',
-          { wrapCapsule: containerName, quiet: true },
-        );
-
-        let stateLabel = '💤 [IDLE]    ';
-        if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-          // HEURISTIC: Capture pane to see what's happening
-          const paneOutput = await provider.capturePane(containerName);
-          const lines = paneOutput.trim().split('\n');
-          const lastLine = lines[lines.length - 1] || '';
-          const lastTwoLines = lines.slice(-2).join(' ');
-
-          // More robust waiting detection
-          const isWaiting =
-            lastLine.includes(' > ') || // Standard prompt
-            lastLine.trim().endsWith('>') || // Minimal prompt
-            lastTwoLines.includes('(y/n)') || // Approvals
-            lastLine.trim().endsWith('?') || // Questions
-            (lastLine.includes('node@') && lastLine.includes('$')); // Shell prompt
-
-          if (isWaiting) {
-            stateLabel = '✋ [WAITING] ';
-          } else {
-            stateLabel = '🧠 [THINKING]';
-          }
+    if (pulse.status === 'RUNNING') {
+      console.log(`\n📦 ACTIVE MISSION CAPSULES:`);
+      if (pulse.capsules.length > 0) {
+        for (const c of pulse.capsules) {
+          let label = '💤 [IDLE]    ';
+          if (c.state === 'WAITING') label = '✋ [WAITING] ';
+          if (c.state === 'THINKING') label = '🧠 [THINKING]';
+          console.log(`     ${label} ${c.name.padEnd(20)} | ${c.stats}`);
         }
-
-        console.log(
-          `     ${stateLabel} ${containerName.padEnd(20)} | ${stats}`,
-        );
+      } else {
+        console.log('     - No mission capsules found');
       }
-    } else {
-      console.log('     - No mission capsules found');
     }
-  }
 
-  console.log(
-    `--------------------------------------------------------------------------------\n`,
-  );
-  return 0;
+    console.log(
+      `--------------------------------------------------------------------------------\n`,
+    );
+    return 0;
+  } catch (e: any) {
+    console.error(`❌ ${e.message}`);
+    return 1;
+  }
 }
