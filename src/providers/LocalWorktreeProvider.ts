@@ -14,7 +14,6 @@ import {
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
-import { resolveMissionContext } from '../utils/MissionUtils.js';
 
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
@@ -36,12 +35,18 @@ export class LocalWorktreeProvider implements OrbitProvider {
     this.worktreesDir =
       worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
 
-    if (this.worktreesDir === '/mnt/disks/data' || this.worktreesDir === '/mnt/disks/data/worktrees') {
+    if (
+      this.worktreesDir === '/mnt/disks/data' ||
+      this.worktreesDir === '/mnt/disks/data/worktrees'
+    ) {
       // Fallback for when Constants defaults leak into local mode
       this.worktreesDir = path.resolve(primaryRoot, '..', 'worktrees');
     }
 
-    if (!this.worktreesDir.startsWith('/mnt/disks/data') && !fs.existsSync(this.worktreesDir)) {
+    if (
+      !this.worktreesDir.startsWith('/mnt/disks/data') &&
+      !fs.existsSync(this.worktreesDir)
+    ) {
       fs.mkdirSync(this.worktreesDir, { recursive: true });
     }
   }
@@ -138,7 +143,9 @@ export class LocalWorktreeProvider implements OrbitProvider {
       return;
     }
 
-    console.log(`   🌿 Orbit: Provisioning local worktree for '${actualBranch}'...`);
+    console.log(
+      `   🌿 Orbit: Provisioning local worktree for '${actualBranch}'...`,
+    );
 
     // Ensure origin is up to date (ignore failures if no origin)
     spawnSync('git', ['-C', sourceDir, 'fetch', 'origin'], {

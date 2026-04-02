@@ -4,36 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ProviderFactory } from '../providers/ProviderFactory.js';
-import { getRepoConfig, detectRepoName } from './ConfigManager.js';
-import { resolveMissionContext } from '../utils/MissionUtils.js';
+import { OrbitSDK } from './OrbitSDK.js';
+import { detectRepoName, getRepoConfig } from './ConfigManager.js';
 
 /**
- * Attaches to an active mission capsule.
+ * Legacy wrapper for attach logic, now using OrbitSDK.
  */
 export async function runAttach(
   identifier: string,
   action: string = 'chat',
   _args: string[] = [],
 ): Promise<number> {
-  if (!identifier) {
-    console.error('❌ Usage: orbit attach <PR | BRANCH> [action]');
-    return 1;
-  }
-
   const repoName = detectRepoName();
   const config = getRepoConfig(repoName);
-  const mCtx = resolveMissionContext(identifier, action);
+  const sdk = new OrbitSDK(config);
 
-  const provider = ProviderFactory.getProvider({
-    ...config,
-    projectId: config.projectId || 'local',
-    zone: config.zone || 'local',
-    instanceName: config.instanceName || 'local',
-  } as any);
-
-  console.log(`📡 Establishing mission uplink: ${mCtx.containerName}...`);
-
-  const res = await provider.attach(mCtx.containerName);
-  return res;
+  return sdk.attach({ identifier, action });
 }

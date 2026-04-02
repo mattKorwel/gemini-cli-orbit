@@ -3,42 +3,18 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import path from 'node:path';
-import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { ShellIntegration } from '../utils/ShellIntegration.js';
-import { logger } from './Logger.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { OrbitSDK } from './OrbitSDK.js';
+import { detectRepoName, getRepoConfig } from './ConfigManager.js';
 
-export async function runInstallShell() {
-  logger.divider('ORBIT SHELL INTEGRATION');
+/**
+ * Legacy wrapper for install-shell logic, now using OrbitSDK.
+ */
+export async function runInstallShell(): Promise<number> {
+  const repoName = detectRepoName();
+  const config = getRepoConfig(repoName);
+  const sdk = new OrbitSDK(config);
 
-  // Find the project root by looking for package.json
-  let projectRoot = __dirname;
-  while (projectRoot !== path.parse(projectRoot).root) {
-    if (fs.existsSync(path.join(projectRoot, 'package.json'))) break;
-    projectRoot = path.dirname(projectRoot);
-  }
-
-  const bundleShim = path.join(projectRoot, 'bundle/orbit-cli.js');
-  const sourceShim = path.join(projectRoot, 'src/orbit-cli.ts');
-  const shimPath = fs.existsSync(bundleShim) ? bundleShim : sourceShim;
-
-  logger.info('SHELL', `Targeting shim: ${shimPath}`);
-
-  const shellIntegration = new ShellIntegration();
-  const shells = ['zsh', 'bash'];
-
-  for (const s of shells) {
-    logger.info('SHELL', `Integrating with ${s}...`);
-    shellIntegration.install(shimPath, s);
-  }
-
-  logger.info('SHELL', '✨ Integration complete.');
-  logger.info(
-    'SHELL',
-    '🚀 Use "orbit <cmd>" for full CLI or aliases: gm (smart), gml (local), gmr (remote).',
-  );
+  await sdk.installShell();
+  return 0;
 }

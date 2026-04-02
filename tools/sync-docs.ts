@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { glob } from 'glob';
-import { logger } from '../src/Logger.js';
+import { logger } from '../src/core/Logger.js';
 
 /**
  * sync-docs.ts

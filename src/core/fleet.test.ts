@@ -7,55 +7,54 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runFleet } from './fleet.js';
 import * as ConfigManager from './ConfigManager.js';
-import { SchematicManager } from './SchematicManager.js';
-import { runSetup } from './setup.js';
-import { runSplashdown } from './splashdown.js';
 
-import { StationManager } from './StationManager.js';
+const mockProvisionStation = vi.fn().mockResolvedValue(0);
+const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
+const mockListStations = vi.fn().mockResolvedValue([]);
+const mockActivateStation = vi.fn().mockResolvedValue(undefined);
+const mockListSchematics = vi.fn().mockReturnValue(['d1']);
+const mockRunSchematicWizard = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('./OrbitSDK.js', () => ({
+  OrbitSDK: vi.fn().mockImplementation(() => ({
+    provisionStation: mockProvisionStation,
+    deleteStation: mockDeleteStation,
+    listStations: mockListStations,
+    activateStation: mockActivateStation,
+    listSchematics: mockListSchematics,
+    runSchematicWizard: mockRunSchematicWizard,
+    observer: { onDivider: vi.fn() },
+  })),
+}));
 
 vi.mock('./ConfigManager.js');
-vi.mock('./SchematicManager.js');
-vi.mock('./StationManager.js');
-vi.mock('./setup.js');
-vi.mock('./splashdown.js');
-vi.mock('./providers/ProviderFactory.js');
 
 describe('runFleet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (ConfigManager.detectRepoName as any).mockReturnValue('repo');
-    ( ConfigManager.loadSettings as any).mockReturnValue({
-      activeStation: 'inst',
-    } as any);
     (ConfigManager.getRepoConfig as any).mockReturnValue({
       instanceName: 'inst',
     } as any);
   });
 
-  it('should route schematic subcommand to SchematicManager', async () => {
-    const managerSpy = vi
-      .spyOn(SchematicManager.prototype, 'listSchematics')
-      .mockReturnValue(['d1']);
+  it('should route schematic subcommand to OrbitSDK.listSchematics', async () => {
     await runFleet(['schematic', 'list']);
-    expect(managerSpy).toHaveBeenCalled();
+    expect(mockListSchematics).toHaveBeenCalled();
   });
 
-  it('should route liftoff subcommand to runSetup', async () => {
+  it('should route liftoff subcommand to OrbitSDK.provisionStation', async () => {
     await runFleet(['station', 'liftoff']);
-    expect(runSetup).toHaveBeenCalled();
+    expect(mockProvisionStation).toHaveBeenCalled();
   });
 
-  it('should route delete subcommand to runSplashdown with --all', async () => {
-    await runFleet(['station', 'delete']);
-    expect(runSplashdown).toHaveBeenCalledWith(['--all']);
+  it('should route delete subcommand to OrbitSDK.deleteStation', async () => {
+    await runFleet(['station', 'delete', 'target']);
+    expect(mockDeleteStation).toHaveBeenCalledWith({ name: 'target' });
   });
 
-  it('should route list subcommand to stationManager.listStations', async () => {
-    const listSpy = vi
-      .spyOn(StationManager.prototype, 'listStations')
-      .mockResolvedValue([]);
-
+  it('should route list subcommand to OrbitSDK.listStations', async () => {
     await runFleet(['station', 'list']);
-    expect(listSpy).toHaveBeenCalled();
+    expect(mockListStations).toHaveBeenCalled();
   });
 });
