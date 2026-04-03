@@ -65,7 +65,7 @@ vi.mock('node:os', () => ({
 }));
 
 // Mock OrbitSDK
-vi.mock('./OrbitSDK.js', () => ({
+vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     startMission: mockStartMission,
     getPulse: mockGetPulse,
@@ -95,7 +95,7 @@ vi.mock('./OrbitSDK.js', () => ({
 }));
 
 // Mock ConfigManager to avoid "Cannot read properties of undefined"
-vi.mock('./ConfigManager.js', () => ({
+vi.mock('../core/ConfigManager.js', () => ({
   getRepoConfig: vi.fn().mockReturnValue({ repoName: 'gemini-cli-orbit' }),
   detectRepoName: vi.fn().mockReturnValue('gemini-cli-orbit'),
   loadSettings: vi.fn().mockReturnValue({ repos: {} }),
@@ -104,7 +104,7 @@ vi.mock('./ConfigManager.js', () => ({
 }));
 
 // Mock other legacy modules
-vi.mock('./fleet.js', () => ({ runFleet: vi.fn().mockResolvedValue(0) }));
+vi.mock('../core/fleet.js', () => ({ runFleet: vi.fn().mockResolvedValue(0) }));
 
 describe('orbit-cli dispatch()', () => {
   let dispatch: (argv: string[]) => Promise<number>;
@@ -123,13 +123,13 @@ describe('orbit-cli dispatch()', () => {
     delete process.env.GCLI_ORBIT_SHIM;
 
     // Re-import to pick up fresh mocks
-    const mod = await import('../cli/orbit-cli.js');
+    const mod = await import('./cli.js');
     dispatch = mod.dispatch;
   });
 
-  it('returns 0 for empty argv', async () => {
+  it('returns 1 for empty argv (demands command)', async () => {
     const code = await dispatch([]);
-    expect(code).toBe(0);
+    expect(code).toBe(1);
   });
 
   it('returns 1 for unknown command', async () => {
@@ -146,31 +146,47 @@ describe('orbit-cli dispatch()', () => {
     });
   });
 
-  it('routes "pulse" to OrbitSDK.getPulse', async () => {
-    await dispatch(['pulse']);
+  it('routes "mission 42 uplink" to OrbitSDK.getLogs', async () => {
+    await dispatch(['mission', '42', 'uplink']);
+    expect(mockGetLogs).toHaveBeenCalledWith({
+      identifier: '42',
+      action: 'chat',
+    });
+  });
+
+  it('routes "station pulse" to OrbitSDK.getPulse', async () => {
+    await dispatch(['station', 'pulse']);
     expect(mockGetPulse).toHaveBeenCalled();
   });
 
-  it('routes "schematic list" to OrbitSDK.listSchematics', async () => {
-    await dispatch(['schematic', 'list']);
+  it('routes "infra schematic list" to OrbitSDK.listSchematics', async () => {
+    await dispatch(['infra', 'schematic']);
     expect(mockListSchematics).toHaveBeenCalled();
   });
 
-  it('routes "station list" to OrbitSDK.listStations', async () => {
-    await dispatch(['station', 'list']);
-    expect(mockListStations).toHaveBeenCalled();
+  it('routes "infra liftoff <name>" correctly', async () => {
+    await dispatch(['infra', 'liftoff', 'my-station', '--schematic', 'custom']);
+    expect(mockProvisionStation).toHaveBeenCalledWith({
+      schematicName: 'custom',
+      destroy: undefined,
+    });
   });
 
-  it('routes "jettison <id>" to OrbitSDK.jettisonMission', async () => {
-    await dispatch(['jettison', '42']);
+  it('routes "station stop <name>" to OrbitSDK.hibernate', async () => {
+    await dispatch(['station', 'stop', 'my-box']);
+    expect(mockHibernate).toHaveBeenCalledWith({ name: 'my-box' });
+  });
+
+  it('routes "mission 42 jettison" to OrbitSDK.jettisonMission', async () => {
+    await dispatch(['mission', '42', 'jettison']);
     expect(mockJettisonMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',
     });
   });
 
-  it('routes "attach <id>" to OrbitSDK.attach', async () => {
-    await dispatch(['attach', '42']);
+  it('routes "mission 42 attach" to OrbitSDK.attach', async () => {
+    await dispatch(['mission', '42', 'attach']);
     expect(mockAttach).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',

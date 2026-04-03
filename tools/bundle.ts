@@ -34,9 +34,10 @@ async function build() {
   console.log('🚀 Bundling Orbit...');
 
   const entries = [
-    { in: 'src/cli/orbit-cli.ts', out: 'bundle/orbit-cli.js' },
-    { in: 'src/core/mcp-server.ts', out: 'bundle/mcp-server.js' },
-    { in: 'src/cli/entrypoint.ts', out: 'bundle/entrypoint.js' },
+    { in: 'src/cli/cli.ts', out: 'bundle/orbit-cli.js' },
+    { in: 'src/mcp/mcp.ts', out: 'bundle/mcp-server.js' },
+    { in: 'src/capsule/entrypoint.ts', out: 'bundle/entrypoint.js' },
+    { in: 'src/capsule/worker.ts', out: 'bundle/station.js' },
   ];
 
   for (const entry of entries) {

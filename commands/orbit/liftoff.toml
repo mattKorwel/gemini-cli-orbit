@@ -1,0 +1,2 @@
+description = "Infrastructure provisioning (build or wake hardware)."
+prompt = "Trigger Orbit liftoff for station {{args}}."

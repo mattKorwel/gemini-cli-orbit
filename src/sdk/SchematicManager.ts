@@ -8,9 +8,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
-import { SCHEMATICS_DIR, type OrbitConfig } from './Constants.js';
-import { saveSchematic, loadJson, sanitizeName } from './ConfigManager.js';
-import { logger } from './Logger.js';
+import { SCHEMATICS_DIR, type OrbitConfig } from '../core/Constants.js';
+import {
+  saveSchematic,
+  loadJson,
+  sanitizeName,
+} from '../core/ConfigManager.js';
+import { logger } from '../core/Logger.js';
 
 function ask(query: string): Promise<string> {
   const rl = readline.createInterface({

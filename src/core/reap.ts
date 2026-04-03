@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OrbitSDK } from './OrbitSDK.js';
+import { OrbitSDK } from '../sdk/OrbitSDK.js';
 import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 
 import { type OrbitConfig } from './Constants.js';

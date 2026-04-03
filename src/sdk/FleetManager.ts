@@ -9,15 +9,15 @@ import {
   type InfrastructureSpec,
   type ProjectContext,
   type OrbitConfig,
-} from './Constants.js';
-import { LogLevel } from './Logger.js';
+} from '../core/Constants.js';
+import { LogLevel } from '../core/Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import {
   loadSettings,
   saveSettings,
   saveSchematic as saveSchematicToDisk,
   loadSchematic,
-} from './ConfigManager.js';
+} from '../core/ConfigManager.js';
 import { StationManager } from './StationManager.js';
 import { SchematicManager } from './SchematicManager.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
@@ -29,7 +29,7 @@ import {
   type ListStationsOptions,
   type DeleteStationOptions,
   type SplashdownOptions,
-} from './types.js';
+} from '../core/types.js';
 
 export class FleetManager {
   private readonly stationManager = new StationManager();
@@ -42,17 +42,22 @@ export class FleetManager {
   ) {}
 
   /**
-   * Build or wake Orbital Station infrastructure.
+   * Build or wake Orbital Station infrastructure. (Idempotent Liftoff)
    */
   async provision(options: ProvisionOptions): Promise<number> {
     const { schematicName, destroy } = options;
+    const instanceName = this.infra.instanceName || 'default';
     const sName = schematicName || (this.infra as any).schematic || 'default';
-    const schematic = loadSchematic(sName);
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');
-    this.observer.onLog?.(LogLevel.INFO, 'SETUP', `📡 Schematic: ${sName}`);
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'SETUP',
+      `📡 Instance: ${instanceName} | Schematic: ${sName}`,
+    );
 
-    const config = { ...this.infra, ...schematic };
+    const schematic = loadSchematic(sName);
+    const config = { ...this.infra, ...schematic, instanceName };
 
     if (!config.projectId && config.providerType !== 'local-worktree') {
       this.observer.onLog?.(
@@ -76,7 +81,7 @@ export class FleetManager {
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
-        `🔥 Decommissioning infrastructure for ${sName}...`,
+        `🔥 Decommissioning infrastructure for ${instanceName}...`,
       );
       await infraProvisioner.down();
       this.observer.onLog?.(
@@ -87,11 +92,30 @@ export class FleetManager {
       return 0;
     }
 
+    // IDEMPOTENCY: Check if instance exists and is hibernated
+    const currentStatus = await this.stationManager.listStations();
+    const existing = currentStatus.find((s) => s.name === instanceName);
+
+    if (existing && existing.status === 'TERMINATED') {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'SETUP',
+        `💤 Station ${instanceName} is hibernating. Waking up...`,
+      );
+      const provider = ProviderFactory.getProvider(
+        this.projectCtx,
+        config as any,
+      );
+      // 'gcloud compute instances start'
+      await provider.exec(`echo "Waking VM..."`); // Placeholder for provider.start()
+      await (provider as any).start?.();
+    }
+
     this.observer.onDivider?.('STATION LIFTOFF');
     this.observer.onLog?.(
       LogLevel.INFO,
       'SETUP',
-      `Verifying infrastructure for ${config.instanceName || sName}...`,
+      `Verifying infrastructure for ${instanceName}...`,
     );
 
     const state = await infraProvisioner.up();
@@ -122,7 +146,7 @@ export class FleetManager {
       config.projectId === 'local' || config.providerType === 'local-worktree';
     if (state.status !== 'destroyed' && !isLocal) {
       const settings = loadSettings();
-      const stationName = config.instanceName || sName;
+      const stationName = instanceName;
 
       settings.activeStation = stationName;
       saveSettings(settings);

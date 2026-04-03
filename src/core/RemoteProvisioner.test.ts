@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RemoteProvisioner } from './RemoteProvisioner.js';
+import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { type ProjectContext, type InfrastructureSpec } from './Constants.js';
 

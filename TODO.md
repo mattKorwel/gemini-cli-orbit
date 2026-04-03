@@ -21,3 +21,19 @@
   - [x] Implement high-fidelity "Fix" mission.
   - [x] Consolidate maneuver documentation into `MANEUVERS.md`.
 - [x] CI: Enhanced logging to print branch, repo, and run information.
+- [x] CLI: Commands support plural or singular (stations, missions, etc.).
+- [x] CLI: `liftoff` has its own top-level command and help.
+- [x] CLI: Clarified difference between `--for-station` and `liftoff <name>`.
+- [x] UX: Fixed `liftoff` positional vs `--schematic` flag shadowing.
+- [x] UX: Standardized `station <action> <name>`: `<name>` is always the
+      instance name.
+- [x] CLI: Consolidated `orbit liftoff` and `orbit station liftoff` to reduce
+      redundancy.
+
+## Phase 2: Orchestration & Resilience
+
+- [ ] Logic: Implement automatic "Wake-on-Mission" (trigger liftoff if active
+      station is hibernated).
+- [ ] UX: Add a `dashboard` command for a live TMUX-like view of all active
+      missions.
+- [ ] UI: Improved progress bars for long-running Pulumi operations.

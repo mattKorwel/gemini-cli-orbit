@@ -11,8 +11,8 @@ import {
   ORBIT_ROOT,
   type InfrastructureSpec,
   type ProjectContext,
-} from './Constants.js';
-import { logger } from './Logger.js';
+} from '../core/Constants.js';
+import { logger } from '../core/Logger.js';
 
 /**
  * Handles remote-specific mission provisioning (Docker Capsules).

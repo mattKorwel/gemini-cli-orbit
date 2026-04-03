@@ -142,3 +142,29 @@ function tagStr(tag: string): string {
 }
 
 export const logger = new Logger();
+
+/**
+ * Concrete implementation of OrbitObserver that pipes to stdout/stderr.
+ */
+export class ConsoleObserver {
+  onLog(level: LogLevel, tag: string, message: string, ...args: any[]) {
+    if (level === LogLevel.ERROR) {
+      console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
+    } else if (level === LogLevel.WARN) {
+      console.warn(`[WARN ] ${tagStr(tag)}${message}`, ...args);
+    } else {
+      console.log(`[INFO ] ${tagStr(tag)}${message}`, ...args);
+    }
+  }
+
+  onDivider(title?: string) {
+    const line = '-'.repeat(80);
+    if (title) {
+      const padding = Math.max(0, Math.floor((80 - title.length - 2) / 2));
+      const centered = `${'-'.repeat(padding)} ${title} ${'-'.repeat(80 - padding - title.length - 2)}`;
+      console.log(`[INFO ] [SETUP   ] ${centered}`);
+    } else {
+      console.log(`[INFO ] [SETUP   ] ${line}`);
+    }
+  }
+}

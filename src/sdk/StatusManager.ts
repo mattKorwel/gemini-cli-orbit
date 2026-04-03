@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type InfrastructureSpec, type ProjectContext } from './Constants.js';
+import {
+  type InfrastructureSpec,
+  type ProjectContext,
+} from '../core/Constants.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
-import { type PulseInfo, type CapsuleInfo } from './types.js';
+import { type PulseInfo, type CapsuleInfo } from '../core/types.js';
 
 export class StatusManager {
   constructor(

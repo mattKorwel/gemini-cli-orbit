@@ -10,7 +10,7 @@ import * as ConfigManager from './ConfigManager.js';
 
 const mockProvisionStation = vi.fn().mockResolvedValue(0);
 
-vi.mock('./OrbitSDK.js', () => ({
+vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     provisionStation: mockProvisionStation,
   })),

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SchematicManager } from './SchematicManager.js';
+import { SchematicManager } from '../sdk/SchematicManager.js';
 import * as ConfigManager from './ConfigManager.js';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';

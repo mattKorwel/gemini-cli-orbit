@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import readline from 'node:readline';
-import { ORBIT_BIN_DIR } from './Constants.js';
-import { logger } from './Logger.js';
+import { ORBIT_BIN_DIR } from '../core/Constants.js';
+import { logger } from '../core/Logger.js';
 
 const PULUMI_VERSION = '3.109.0';
 
@@ -31,7 +31,10 @@ export class DependencyManager {
     }
 
     if (!binPath) {
-      logger.info('SETUP', '☁️  Pulumi CLI is required for cloud provisioning.');
+      logger.info(
+        'SETUP',
+        '☁️  Pulumi CLI is required for cloud provisioning.',
+      );
       const confirmed = await this.confirmInstallation();
 
       if (!confirmed) {
@@ -102,7 +105,8 @@ export class DependencyManager {
         `👉 Do you want Orbit to automatically download and install Pulumi v${PULUMI_VERSION} locally? (yes/no): `,
         (answer) => {
           rl.close();
-          const confirmed = answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y';
+          const confirmed =
+            answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y';
           resolve(confirmed);
         },
       );
@@ -131,9 +135,13 @@ export class DependencyManager {
     }
 
     logger.info('SETUP', '   - Extracting binary...');
-    const extractRes = spawnSync('tar', ['-xzf', tempArchive, '-C', ORBIT_BIN_DIR], {
-      stdio: 'inherit',
-    });
+    const extractRes = spawnSync(
+      'tar',
+      ['-xzf', tempArchive, '-C', ORBIT_BIN_DIR],
+      {
+        stdio: 'inherit',
+      },
+    );
 
     if (extractRes.status !== 0) {
       throw new Error('Failed to extract Pulumi.');

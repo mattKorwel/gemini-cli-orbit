@@ -15,7 +15,8 @@ import { runFixPlaybook } from '../playbooks/fix.js';
 import { runReadyPlaybook } from '../playbooks/ready.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { TempManager } from '../utils/TempManager.js';
-import { getRepoConfig } from './ConfigManager.js';
+import { getRepoConfig } from '../core/ConfigManager.js';
+import { dispatch } from '../cli/cli.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -140,7 +141,8 @@ export async function runStation(args: string[]) {
       );
 
     case 'implement': {
-      const { runImplementPlaybook } = await import('../playbooks/implement.js');
+      const { runImplementPlaybook } =
+        await import('../playbooks/implement.js');
       return runImplementPlaybook(
         prNumberOrIssue,
         targetDir,

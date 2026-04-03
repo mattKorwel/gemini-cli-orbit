@@ -97,10 +97,20 @@ async function main() {
     `I am continuing the ${action} mission for ${identifier}. Please review the logs in .gemini/orbit/ and provide your assessment.`,
   ];
 
+  // Ensure 'orbit' command is aliased to the local bundle for convenience inside the capsule
+  const orbitCliPath = path.join(_dirname, 'orbit-cli.js');
+  const env = {
+    ...process.env,
+    GEMINI_AUTO_UPDATE: '0',
+    GCLI_ORBIT_MISSION_ID: identifier,
+    GCLI_ORBIT_ACTION: action,
+    // Add alias to path if possible or provide as instructions
+  };
+
   spawnSync('gemini', geminiArgs, {
     stdio: 'inherit',
     cwd: absWorkDir,
-    env: { ...process.env, GEMINI_AUTO_UPDATE: '0' },
+    env,
   });
 }
 

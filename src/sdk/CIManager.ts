@@ -5,13 +5,16 @@
  */
 
 import { execSync } from 'node:child_process';
-import { type InfrastructureSpec, type ProjectContext } from './Constants.js';
-import { LogLevel } from './Logger.js';
+import {
+  type InfrastructureSpec,
+  type ProjectContext,
+} from '../core/Constants.js';
+import { LogLevel } from '../core/Logger.js';
 import {
   type OrbitObserver,
   type CIStatus,
   type MonitorCIOptions,
-} from './types.js';
+} from '../core/types.js';
 
 export class CIManager {
   constructor(

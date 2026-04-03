@@ -49,7 +49,7 @@ export interface ProjectContext {
 export interface InfrastructureSpec {
   projectId?: string | undefined;
   zone?: string | undefined;
-  instanceName?: string | undefined;
+  instanceName?: string | undefined; // Required primary key for provisioning
   stationName?: string | undefined;
   providerType?: 'gce' | 'local-worktree' | undefined;
   backendType?: 'direct-internal' | 'external' | undefined;

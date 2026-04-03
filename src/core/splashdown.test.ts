@@ -10,7 +10,7 @@ import * as ConfigManager from './ConfigManager.js';
 
 const mockSplashdown = vi.fn().mockResolvedValue(0);
 
-vi.mock('./OrbitSDK.js', () => ({
+vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     splashdown: mockSplashdown,
   })),

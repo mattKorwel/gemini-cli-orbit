@@ -17,7 +17,7 @@ const mockHibernate = vi.fn().mockResolvedValue(undefined);
 const mockListSchematics = vi.fn().mockReturnValue(['d1']);
 const mockRunSchematicWizard = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('./OrbitSDK.js', () => ({
+vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     provisionStation: mockProvisionStation,
     deleteStation: mockDeleteStation,

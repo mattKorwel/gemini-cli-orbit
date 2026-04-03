@@ -101,12 +101,37 @@ physically exercise the new code in the terminal and provide logs in the
 behavioral proof phase. This task is automatically skipped if the Phase 0 build
 fails.
 
-### 4. CI Monitoring
+### CI Monitoring
 
 Use the repo-agnostic utility to monitor branch status locally:
 
 ```bash
-orbit ci <BRANCH_NAME>
+orbit mission ci <BRANCH_NAME>
+```
+
+## 🎮 Command Hierarchy (Noun-Verb)
+
+| Entity      | Action                          | Description                                        |
+| :---------- | :------------------------------ | :------------------------------------------------- |
+| **Mission** | `orbit mission <id> [action]`   | The Workflow: Start, uplink, attach, or jettison.  |
+| **Station** | `orbit station <action> [name]` | The Hardware: List, activate, hibernate, or pulse. |
+| **Infra**   | `orbit infra <action> [name]`   | The Foundation: Liftoff, splashdown, or schematic. |
+| **Config**  | `orbit config <action>`         | The Local: Shell integration and environment.      |
+
+### Infrastructure Lifecycle
+
+To provision or wake a station (Idempotent):
+
+```bash
+orbit infra liftoff <INSTANCE_NAME> --schematic <BLUEPRINT>
+```
+
+To manage established hardware:
+
+```bash
+orbit stations list
+orbit station hibernate <INSTANCE_NAME>
+orbit station activate <INSTANCE_NAME>
 ```
 
 ## 📐 Architecture Decisions

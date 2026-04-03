@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type OrbitConfig, type ProjectContext } from './Constants.js';
-import { logger, LogLevel } from './Logger.js';
+import { type OrbitConfig, type ProjectContext } from '../core/Constants.js';
+import { logger, LogLevel } from '../core/Logger.js';
 import {
   type OrbitObserver,
   type MissionResult,
@@ -23,16 +23,16 @@ import {
   type MonitorCIOptions,
   type SplashdownOptions,
   type IOrbitSDK,
-} from './types.js';
+} from '../core/types.js';
 
 import { MissionManager } from './MissionManager.js';
 import { FleetManager } from './FleetManager.js';
 import { StatusManager } from './StatusManager.js';
 import { CIManager } from './CIManager.js';
 import { IntegrationManager } from './IntegrationManager.js';
-import { resolveContextBundles } from './ConfigManager.js';
+import { resolveContextBundles } from '../core/ConfigManager.js';
 
-export * from './types.js';
+export * from '../core/types.js';
 
 /**
  * Default observer that routes to the internal logger.

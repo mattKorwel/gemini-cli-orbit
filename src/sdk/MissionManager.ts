@@ -13,8 +13,8 @@ import {
   ORBIT_ROOT,
   getPrimaryRepoRoot,
   getProjectOrbitDir,
-} from './Constants.js';
-import { LogLevel } from './Logger.js';
+} from '../core/Constants.js';
+import { LogLevel } from '../core/Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
@@ -28,7 +28,7 @@ import {
   type ReapOptions,
   type AttachOptions,
   type GetLogsOptions,
-} from './types.js';
+} from '../core/types.js';
 
 export class MissionManager {
   constructor(

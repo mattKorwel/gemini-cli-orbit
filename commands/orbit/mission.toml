@@ -1,0 +1,2 @@
+description = "Launch or resume an isolated developer mission."
+prompt = "I want to start an Orbit mission for {{args}}."

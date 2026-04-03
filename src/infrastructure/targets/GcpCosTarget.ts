@@ -27,8 +27,9 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     private readonly schematicName: string,
     private readonly config: OrbitConfig,
   ) {
-    this.id = `gcp-cos-${schematicName}`;
-    this.stackName = schematicName;
+    const stackId = config.instanceName || schematicName;
+    this.id = `gcp-cos-${stackId}`;
+    this.stackName = stackId;
     this.workDir = path.join(PULUMI_STATE_DIR, this.id);
     this.logPath = path.join(this.workDir, 'pulumi.log');
 

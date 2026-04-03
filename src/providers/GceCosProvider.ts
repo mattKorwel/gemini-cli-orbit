@@ -13,7 +13,7 @@ import {
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { GceConnectionManager } from './GceConnectionManager.js';
-import { RemoteProvisioner } from '../core/RemoteProvisioner.js';
+import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
 import { logger } from '../core/Logger.js';
 import {
   type ProjectContext,

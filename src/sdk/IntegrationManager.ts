@@ -7,8 +7,8 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { LogLevel } from './Logger.js';
-import { type OrbitObserver } from './types.js';
+import { LogLevel } from '../core/Logger.js';
+import { type OrbitObserver } from '../core/types.js';
 
 export class IntegrationManager {
   constructor(private readonly observer: OrbitObserver) {}
