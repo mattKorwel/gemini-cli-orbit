@@ -1,0 +1,2 @@
+description = "Hardware management and status check."
+prompt = "Show me the Orbit station status for {{args}}."

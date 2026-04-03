@@ -27,8 +27,9 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     private readonly schematicName: string,
     private readonly config: OrbitConfig,
   ) {
-    this.id = `gcp-cos-${schematicName}`;
-    this.stackName = schematicName;
+    const stackId = config.instanceName || schematicName;
+    this.id = `gcp-cos-${stackId}`;
+    this.stackName = stackId;
     this.workDir = path.join(PULUMI_STATE_DIR, this.id);
     this.logPath = path.join(this.workDir, 'pulumi.log');
 
@@ -68,7 +69,79 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       zone,
     });
 
-    // 1. Create a static IP (only if external)
+    const region = zone.split('-').slice(0, 2).join('-');
+
+    // 1. Networking Layer
+    let network: gcp.compute.Network | undefined;
+    let subnetwork: gcp.compute.Subnetwork | undefined;
+    let networkName = this.config.vpcName || 'default';
+    let subnetName = this.config.subnetName || 'default';
+
+    if (this.config.autoSetupNet) {
+      network = new gcp.compute.Network(
+        `orbit-vpc-${this.id}`,
+        {
+          name: this.config.vpcName || `orbit-vpc-${this.id}`,
+          autoCreateSubnetworks: false,
+        },
+        { provider },
+      );
+      networkName = network.name;
+
+      subnetwork = new gcp.compute.Subnetwork(
+        `orbit-subnet-${this.id}`,
+        {
+          name: this.config.subnetName || `orbit-subnet-${this.id}`,
+          network: network.id,
+          ipCidrRange: '10.128.0.0/24',
+          region,
+        },
+        { provider, dependsOn: [network] },
+      );
+      subnetName = subnetwork.name;
+
+      // Cloud Router & NAT (Outbound access for images)
+      const router = new gcp.compute.Router(
+        `orbit-router-${this.id}`,
+        {
+          name: `orbit-router-${this.id}`,
+          network: network.id,
+          region,
+        },
+        { provider, dependsOn: [network] },
+      );
+
+      new gcp.compute.RouterNat(
+        `orbit-nat-${this.id}`,
+        {
+          name: `orbit-nat-${this.id}`,
+          router: router.name,
+          region,
+          natIpAllocateOption: 'AUTO_ONLY',
+          sourceSubnetworkIpRangesToNat: 'ALL_SUBNETWORKS_ALL_IP_RANGES',
+        },
+        { provider, dependsOn: [router] },
+      );
+
+      // Firewall Rules
+      if (
+        this.config.sshSourceRanges &&
+        this.config.sshSourceRanges.length > 0
+      ) {
+        new gcp.compute.Firewall(
+          `orbit-ssh-${this.id}`,
+          {
+            name: `orbit-ssh-${this.id}`,
+            network: network.id,
+            allows: [{ protocol: 'tcp', ports: ['22'] }],
+            sourceRanges: this.config.sshSourceRanges,
+          },
+          { provider, dependsOn: [network] },
+        );
+      }
+    }
+
+    // 2. Static IP (only if external)
     let address: gcp.compute.Address | undefined;
     if (isExternal) {
       const addressName = `orbit-ip-${this.id}`;
@@ -76,13 +149,13 @@ export class GcpCosTarget implements InfrastructureProvisioner {
         addressName,
         {
           name: addressName,
-          region: zone.split('-').slice(0, 2).join('-'),
+          region,
         },
         { provider },
       );
     }
 
-    // 2. Provision the VM
+    // 3. Provision the VM
     const instance = new gcp.compute.Instance(
       name,
       {
@@ -93,13 +166,12 @@ export class GcpCosTarget implements InfrastructureProvisioner {
           initializeParams: {
             image: 'cos-cloud/cos-stable',
             size: 100,
-            type: 'pd-ssd',
           },
         },
         networkInterfaces: [
           {
-            network: this.config.vpcName || 'default',
-            subnetwork: this.config.subnetName || 'default',
+            network: networkName,
+            subnetwork: subnetName,
             accessConfigs:
               isExternal && address ? [{ natIp: address.address }] : [],
           },
@@ -115,8 +187,12 @@ export class GcpCosTarget implements InfrastructureProvisioner {
         serviceAccount: {
           scopes: ['cloud-platform'],
         },
+        allowStoppingForUpdate: true,
       },
-      { provider },
+      {
+        provider,
+        dependsOn: subnetwork ? [subnetwork] : [],
+      },
     );
 
     return {

@@ -49,7 +49,7 @@ export interface ProjectContext {
 export interface InfrastructureSpec {
   projectId?: string | undefined;
   zone?: string | undefined;
-  instanceName?: string | undefined;
+  instanceName?: string | undefined; // Required primary key for provisioning
   stationName?: string | undefined;
   providerType?: 'gce' | 'local-worktree' | undefined;
   backendType?: 'direct-internal' | 'external' | undefined;
@@ -176,6 +176,8 @@ export const UPSTREAM_ORG = 'google-gemini';
  */
 export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
+export const DEFAULT_VPC_NAME = 'orbit';
+export const DEFAULT_SUBNET_NAME = 'orbit';
 export const DEFAULT_IMAGE_URI =
   'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 

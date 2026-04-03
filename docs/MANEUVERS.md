@@ -163,16 +163,46 @@ orbit mission <ISSUE_NUMBER> implement
 
 ---
 
-## 📊 Determinism & Reporting
+## 🎮 Command Reference
 
-All task states are tracked via deterministic Markdown logs in
-`.gemini/logs/orbit-<action>-<PR>/`. The user is notified via terminal escape
-sequences (OSC 9) upon mission completion.
+### 1. Mission (The Workflow)
 
-To monitor progress, use the telemetry commands:
+_Focused on the PR or Issue you are working on._
 
-- `orbit pulse`: Check station health and active capsule states
-  (Thinking/Waiting).
-- `orbit ci [branch]`: Monitor GitHub Actions status for the mission branch.
-- `orbit uplink <PR> [action]`: Inspect local or remote mission telemetry
-  (auto-detects local recordings first, falls back to remote).
+| Maneuver         | Command                       | Description                                    |
+| :--------------- | :---------------------------- | :--------------------------------------------- |
+| **Start/Resume** | `orbit mission <id> [action]` | Launch or resume a developer presence.         |
+| **Uplink**       | `orbit mission uplink <id>`   | View latest mission telemetry and logs.        |
+| **Attach**       | `orbit mission attach <id>`   | Re-attach to the persistent terminal session.  |
+| **CI**           | `orbit mission ci <id>`       | Monitor GitHub Actions status for the branch.  |
+| **Jettison**     | `orbit mission jettison <id>` | Cleanup mission-specific worktree and capsule. |
+
+### 2. Station (The Hardware)
+
+_Focused on managing the compute instances._
+
+| Maneuver      | Command                          | Description                                     |
+| :------------ | :------------------------------- | :---------------------------------------------- |
+| **List**      | `orbit station list`             | View your constellation status (Cloud + Local). |
+| **Activate**  | `orbit station activate <name>`  | Set the active target for future missions.      |
+| **Hibernate** | `orbit station hibernate <name>` | Safe compute-only shutdown to save cost.        |
+| **Pulse**     | `orbit station pulse`            | Health check for the active station.            |
+| **Reap**      | `orbit station reap`             | Automatic cleanup of idle mission capsules.     |
+
+### 3. Infra (The Foundation)
+
+_Focused on provisioning and blueprints._
+
+| Maneuver       | Command                         | Description                               |
+| :------------- | :------------------------------ | :---------------------------------------- |
+| **Liftoff**    | `orbit infra liftoff <name>`    | Idempotent build or wake of a station.    |
+| **Splashdown** | `orbit infra splashdown <name>` | Full decommissioning of station hardware. |
+| **Schematic**  | `orbit infra schematic list`    | Manage infrastructure blueprints.         |
+
+### 4. Config (The Local)
+
+_Focused on setup and integration._
+
+| Maneuver    | Command                | Description                       |
+| :---------- | :--------------------- | :-------------------------------- |
+| **Install** | `orbit config install` | Shell aliases and tab-completion. |

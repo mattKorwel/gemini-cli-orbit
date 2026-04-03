@@ -18,6 +18,8 @@ import {
   SCHEMATICS_DIR,
   STATIONS_DIR,
   GLOBAL_ORBIT_DIR,
+  DEFAULT_VPC_NAME,
+  DEFAULT_SUBNET_NAME,
 } from './Constants.js';
 
 /**
@@ -107,6 +109,9 @@ export function getRepoConfig(
   }
   if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
   if (!config.worktreesDir) config.worktreesDir = '/mnt/disks/data/worktrees';
+
+  if (!config.vpcName) config.vpcName = DEFAULT_VPC_NAME;
+  if (!config.subnetName) config.subnetName = DEFAULT_SUBNET_NAME;
 
   return config;
 }
