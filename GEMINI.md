@@ -1,162 +1,74 @@
 # Gemini Orbit Development Guide 🚀
 
-This extension provides high-performance, isolated remote development
-environments for Gemini CLI.
+This is the developer's manual for working on the Gemini Orbit extension. For
+the runtime context provided to the LLM during missions, see `docs/GEMINI.md`.
 
-## 🏗️ Architecture: Multi-Capsule Isolation
+## 🏗️ Architecture: The Logical Pillars
 
-The system utilizes a **Persistent Host Station** (running Capsule-Optimized OS)
-as the host. Every Orbit mission is isolated at the **process level** using
-Docker:
+Orbit is organized into four logical entities, which are reflected in the CLI
+and MCP interfaces:
 
-- **Host Station**: Maintains the persistent data disk (`/mnt/disks/data`) with
-  restrictive permissions (UID 1000, 770) and a read-write "Source of Truth"
-  clone of the main repository.
-- **Isolated Capsules**: Each mission runs in a dedicated capsule
-  (`orbit-<identifier>-<action>`).
-- **Reference Clones**: Job capsules perform a `git clone --reference` against
-  the Host Station's main repo. The main repo is mounted **Read-Only** into
-  capsules for security.
-- **Persistence**: TMUX sessions live inside the job capsules, allowing you to
-  disconnect and re-attach without losing state.
+1. **Mission**: Workflow management (PRs, Issues, Task Execution).
+2. **Station**: Hardware management (VM lifecycle, health, pulse).
+3. **Infra**: Foundation management (Pulumi provisioning, Schematics).
+4. **Config**: Environment management (Shell integration, local setup).
 
-## 🔗 Shared State Strategy
+## 📂 Source Structure
 
-To ensure a consistent developer experience across all isolated PR missions, we
-utilize a **Shared Configuration** model:
+The project has been refactored into a symmetrical, peer-based entry point
+model:
 
-- **Mount Path**: `/mnt/disks/data/gemini-cli-config/.gemini` is mounted to
-  `/home/node/.gemini` in **every** capsule.
-- **Benefits**: Linking an extension (like `orbit`) in one capsule makes it
-  instantly available to all other Orbit capsules on that station. It also
-  unifies UI themes and aliases.
-- **Concurrency**: Gemini CLI handles concurrent access to this folder via
-  atomic writes and file locking.
-
-## ⚙️ Configuration: Schematic System
-
-We support multiple Cloud projects and networking environments (Corporate vs.
-Public) via a **Named Schematic** system:
-
-- **Schematics**: Stored in `.gemini/orbit/schematics/*.json`.
-- **Backend Types**:
-  - `direct-internal`: VPC-internal magic hostname routing (Fastest).
-  - `external`: Public IP routing.
-- **Networking Suffixes**:
-  - `userSuffix`: Appended to OS Login username (e.g., `_google_com`).
-  - `dnsSuffix`: Appended to the standard `.internal` DNS zone.
+- **`src/cli/`**: Human entry point (`cli.ts`) and associated unit tests.
+- **`src/mcp/`**: Model entry point (`mcp.ts`) providing tools and prompts.
+- **`src/sdk/`**: The stateful SDK and Managers (`MissionManager`,
+  `FleetManager`, etc.).
+- **`src/core/`**: The stateless functional core (Constants, Types, TaskRunner,
+  Logger).
+- **`src/capsule/`**: Logic that runs _inside_ remote environments
+  (`entrypoint.ts`, `worker.ts`).
+- **`src/playbooks/`**: Complex multi-phase mission definitions.
 
 ## 🛠️ Development Workflow
 
-### Environment Setup
+### Build & Bundle
 
-Before running tests or linting, ensure all dependencies are installed:
-
-```bash
-npm install
-```
-
-### Testing & Quality
-
-We use **Vitest** for unit testing and **ESLint** for code quality.
-
-- **Tests**: `npm test` (Always run before committing).
-- **Linting**: `npm run lint` (Required to pass CI).
-
-### Adding Commands & Playbooks
-
-- **Commands**: Custom slash commands are registered via TOML files in
-  `commands/orbit/`. These route through the unified `orbit-cli.ts` dispatcher.
-- **Playbooks**: Complex multi-step missions (like `review` or `fix`) should be
-  implemented in `scripts/playbooks/` using the parallel `TaskRunner`.
-
-## 🔭 Mission Control: Consolidated Review Architecture
-
-The PR review process is a high-fidelity, parallelized TypeScript mission
-defined in **ADR 9**.
-
-### 1. Phased Parallel Orchestration
-
-The mission follows a strict phased execution:
-
-- **Phase 0 (Context)**: Parallel fetch of mission metadata, diff, recursive
-  issue hierarchy (up to 3 levels), and a single-source build.
-- **Phase 1 (Evaluation)**: Parallel background tasks for CI monitoring, static
-  rules enforcement, feedback analysis, and mandatory **Behavioral Proof**.
-- **Phase 2 (Synthesis)**: Unified merge of all logs into `final-assessment.md`.
-
-### 2. Repo-Specific Development Guidelines
-
-The mission automatically respects local standards by collecting guidelines
-from:
-
-1. `GEMINI.md` (Top Priority)
-2. `.gemini/review-rules.md`
-3. `CONTRIBUTING.md`
-
-### 3. Behavioral Proof
-
-Empirical verification is **mandatory**. Every review mission must attempt to
-physically exercise the new code in the terminal and provide logs in the
-behavioral proof phase. This task is automatically skipped if the Phase 0 build
-fails.
-
-### CI Monitoring
-
-Use the repo-agnostic utility to monitor branch status locally:
+The project uses `esbuild` to produce a minified ESM bundle.
 
 ```bash
-orbit mission ci <BRANCH_NAME>
+npm run build:bundle
 ```
 
-## 🎮 Command Hierarchy (Noun-Verb)
+Bundles are output to `bundle/` and are pointed to by `gemini-extension.json`
+and `package.json`.
 
-| Entity      | Action                          | Description                                        |
-| :---------- | :------------------------------ | :------------------------------------------------- |
-| **Mission** | `orbit mission <id> [action]`   | The Workflow: Start, uplink, attach, or jettison.  |
-| **Station** | `orbit station <action> [name]` | The Hardware: List, activate, hibernate, or pulse. |
-| **Infra**   | `orbit infra <action> [name]`   | The Foundation: Liftoff, splashdown, or schematic. |
-| **Config**  | `orbit config <action>`         | The Local: Shell integration and environment.      |
+### Testing
 
-### Infrastructure Lifecycle
-
-To provision or wake a station (Idempotent):
+We use **Vitest** for all logic verification. Tests are colocated with their
+respective modules where possible.
 
 ```bash
-orbit infra liftoff <INSTANCE_NAME> --schematic <BLUEPRINT>
+npm test
 ```
 
-To manage established hardware:
+## 🔭 Mission Control: Orchestration
 
-```bash
-orbit stations list
-orbit station hibernate <INSTANCE_NAME>
-orbit station activate <INSTANCE_NAME>
-```
+Missions follow a strict phased execution via the `TaskRunner`:
 
-## 📐 Architecture Decisions
-
-Key decisions governing this codebase are documented in `.gemini/adr/`:
-
-- **[ADR 0014](/.gemini/adr/0014-secure-credential-injection.md)**: RAM-disk
-  credential injection — secrets are written to `/dev/shm` on the Host Station,
-  mounted read-only into capsules, and cleaned up when the mission exits. Never
-  written to persistent disk.
-- **[ADR 0015](/.gemini/adr/0015-unified-application-architecture.md)**: Unified
-  functional core — all scripts export a `runX(args)` function; both the CLI
-  (`orbit-cli.ts`) and MCP server (`mcp-server.ts`) import them directly. No
-  more spawning Node subprocesses for internal commands.
+- **Phase 0 (Context)**: Parallel fetch of mission metadata and code.
+- **Phase 1 (Evaluation)**: CI monitoring and mandatory **Behavioral Proof**.
+- **Phase 2 (Synthesis)**: Unified assessment generation.
 
 ## 🛡️ Security Mandates
 
-1.  **Read-Only Source**: Never mount the main host repository as Read-Write
-    into job capsules.
-2.  **Secret Injection**: Use RAM-based temporary file mounts (e.g.,
-    `/dev/shm/.orbit-env-*`) for token injection. **NEVER** use
-    `docker run/exec -e` for sensitive credentials.
-3.  **Path Parity**: Maintain absolute path parity between Host and Capsule
-    (`/mnt/disks/data`) to prevent Git metadata corruption.
-4.  **Least Privilege**: Always use granular IAM scopes for Station VMs. Avoid
-    `cloud-platform` scope.
-5.  **Input Sanitization**: Always sanitize user-provided names for schematics,
-    stations, and repositories using the `sanitizeName` helper.
+1. **Secret Injection**: Use RAM-disk (`/dev/shm`) mounts for sensitive
+   credentials. Never write secrets to persistent disk.
+2. **Read-Only Source**: Host repositories are mounted Read-Only into capsules.
+3. **Path Parity**: Maintain `/mnt/disks/data` parity to prevent Git metadata
+   corruption.
+
+## 📐 Key Decisions
+
+- **[ADR 0015](/.gemini/adr/0015-unified-application-architecture.md)**: Unified
+  functional core with peer entry points.
+- **[ADR 0016](/.gemini/adr/0016-idempotent-instance-first-provisioning.md)**:
+  Instance-centric naming and idempotent liftoff.
