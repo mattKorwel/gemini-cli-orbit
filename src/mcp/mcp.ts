@@ -290,7 +290,7 @@ server.registerTool(
       destroy: z.boolean().optional().describe('Decommission infrastructure'),
     }).shape,
   },
-  async ({ name, schematic, destroy }) => {
+  async ({ name: _name, schematic, destroy }) => {
     const sdk = getSDK();
     const code = await sdk.provisionStation({
       schematicName: schematic,
@@ -331,18 +331,17 @@ server.registerPrompt(
   'mission',
   {
     description: 'Launch or resume an isolated developer mission.',
-    arguments: [
-      {
-        name: 'identifier',
-        description: 'PR number or branch name',
-        required: true,
-      },
-      {
-        name: 'action',
-        description: 'Action: chat, fix, review, implement, eva',
-      },
-      { name: 'prompt', description: 'Initial instructions for the mission' },
-    ],
+    argsSchema: {
+      identifier: z.string().describe('PR number or branch name'),
+      action: z
+        .string()
+        .optional()
+        .describe('Action: chat, fix, review, implement, eva'),
+      prompt: z
+        .string()
+        .optional()
+        .describe('Initial instructions for the mission'),
+    },
   },
   async ({ identifier, action, prompt }) => {
     return {
@@ -364,7 +363,9 @@ server.registerPrompt(
   'station',
   {
     description: 'Hardware management and status check.',
-    arguments: [{ name: 'action', description: 'Action: list, pulse, reap' }],
+    argsSchema: {
+      action: z.string().optional().describe('Action: list, pulse, reap'),
+    },
   },
   async ({ action }) => {
     const verb = action || 'pulse';
@@ -387,14 +388,10 @@ server.registerPrompt(
   'liftoff',
   {
     description: 'Infrastructure provisioning (build or wake hardware).',
-    arguments: [
-      {
-        name: 'name',
-        description: 'The human-friendly name for the station',
-        required: true,
-      },
-      { name: 'schematic', description: 'The blueprint to use' },
-    ],
+    argsSchema: {
+      name: z.string().describe('The human-friendly name for the station'),
+      schematic: z.string().optional().describe('The blueprint to use'),
+    },
   },
   async ({ name, schematic }) => {
     return {

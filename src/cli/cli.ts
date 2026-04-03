@@ -31,7 +31,7 @@ export async function dispatch(argv: string[]): Promise<number> {
   ) {
     const [repo, actualCmd] = processedArgv[0].split(':');
     process.env.GCLI_ORBIT_REPO_NAME = repo;
-    processedArgv[0] = actualCmd;
+    processedArgv[0] = actualCmd || '';
   }
 
   // Top-level Aliases (Plurals & High-velocity)
@@ -43,7 +43,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     provision: 'infra',
   };
   if (processedArgv[0] && topAliases[processedArgv[0]]) {
-    processedArgv[0] = topAliases[processedArgv[0]];
+    processedArgv[0] = topAliases[processedArgv[0]] || '';
   }
 
   const parser = yargs(processedArgv)
@@ -53,6 +53,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .showHelpOnFail(true)
     .exitProcess(false)
     .wrap(null)
+    .strict()
     .help()
     .alias('h', 'help')
 
@@ -241,8 +242,12 @@ export async function dispatch(argv: string[]): Promise<number> {
                   : c.state === 'THINKING'
                     ? '🧠'
                     : '💤';
+              const statsStr =
+                typeof c.stats === 'string'
+                  ? c.stats
+                  : `CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`;
               console.log(
-                `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`,
+                `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] ${statsStr}`,
               );
             });
           }
@@ -406,7 +411,7 @@ export async function dispatch(argv: string[]): Promise<number> {
 
   function applyGlobalFlags(args: any): string {
     if (args.local) {
-      process.env.GCLI_ORBIT_PROVIDER = 'local-workspace';
+      process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
       process.env.GCLI_MCP = '0';
     }
     if (args.repo) process.env.GCLI_ORBIT_REPO_NAME = args.repo;
@@ -434,7 +439,11 @@ export async function dispatch(argv: string[]): Promise<number> {
   }
 
   try {
-    const result = await parser.parse();
+    const result = await parser
+      .fail((msg) => {
+        throw new Error(msg);
+      })
+      .parse();
     return (result as any).exitCode ?? 0;
   } catch (err: any) {
     console.error(`\n❌ Error: ${err.message}`);

@@ -5,6 +5,7 @@
  */
 
 import * as gcp from '@pulumi/gcp';
+import * as pulumi from '@pulumi/pulumi';
 import { LocalWorkspace } from '@pulumi/pulumi/automation/index.js';
 import type { InfrastructureProvisioner } from '../InfrastructureProvisioner.js';
 import type { InfrastructureState } from '../InfrastructureState.js';
@@ -74,8 +75,8 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     // 1. Networking Layer
     let network: gcp.compute.Network | undefined;
     let subnetwork: gcp.compute.Subnetwork | undefined;
-    let networkName = this.config.vpcName || 'default';
-    let subnetName = this.config.subnetName || 'default';
+    let networkName: pulumi.Input<string> = this.config.vpcName || 'default';
+    let subnetName: pulumi.Input<string> = this.config.subnetName || 'default';
 
     if (this.config.manageNetworking) {
       // Use instance-specific names for managed networks to ensure isolation and prevent conflicts

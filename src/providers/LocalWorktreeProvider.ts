@@ -292,6 +292,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
+  async provisionMirror(_remoteUrl: string): Promise<number> {
+    return 0;
+  }
+
   async listCapsules(): Promise<string[]> {
     const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const res = spawnSync(

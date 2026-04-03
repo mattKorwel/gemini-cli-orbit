@@ -32,7 +32,7 @@ export interface MissionResult {
 export interface CapsuleInfo {
   name: string;
   state: 'IDLE' | 'WAITING' | 'THINKING' | 'UNKNOWN';
-  stats?: string;
+  stats?: any;
 }
 
 /**
@@ -174,6 +174,7 @@ export interface IOrbitSDK {
   activateStation(name: string): Promise<void>;
   deleteStation(options: DeleteStationOptions): Promise<void>;
   listSchematics(): string[];
+  getSchematic(name: string): OrbitConfig | null;
   saveSchematic(name: string, config: Partial<OrbitConfig>): Promise<void>;
   importSchematic(source: string): Promise<string>;
   runSchematicWizard(

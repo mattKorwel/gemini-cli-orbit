@@ -25,7 +25,7 @@ describe('MissionUtils', () => {
     expect(ctx.branchName).toBe('feat-cool-thing');
     expect(ctx.containerName).toBe('orbit-feat-cool-thing-review');
     expect(ctx.sessionName).toBe('orbit-feat-cool-thing');
-    expect(ctx.worktreeName).toBe('mission-feat-cool-thing-review');
+    expect(ctx.workspaceName).toBe('mission-feat-cool-thing-review');
   });
 
   it('resolves a PR number to a branch name using gh cli', () => {
@@ -40,7 +40,7 @@ describe('MissionUtils', () => {
     expect(ctx.branchName).toBe('feat-from-pr');
     expect(ctx.containerName).toBe('orbit-42-fix');
     expect(ctx.sessionName).toBe('orbit-feat-from-pr');
-    expect(ctx.worktreeName).toBe('mission-42-fix');
+    expect(ctx.workspaceName).toBe('mission-42-fix');
 
     expect(spawnSync).toHaveBeenCalledWith(
       'gh',

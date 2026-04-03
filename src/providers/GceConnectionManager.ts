@@ -56,6 +56,10 @@ export class GceConnectionManager {
     return this.strategy.getBackendType();
   }
 
+  getMagicRemote(): string {
+    return this.strategy.getMagicRemote();
+  }
+
   /**
    * Sets a specific host override (e.g. dynamic IP).
    */

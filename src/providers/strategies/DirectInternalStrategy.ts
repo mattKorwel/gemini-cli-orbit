@@ -19,7 +19,7 @@ export class DirectInternalStrategy extends BaseStrategy {
 
     // nic0.<name>.<zone>.c.<project>.internal[.<custom-suffix>]
     const customSuffix = this.infra.dnsSuffix || '';
-    const baseSuffix = `.c.${this.projectId}`;
+    const baseSuffix = `.c.${this.projectId}.internal`;
     if (!this.projectId) {
       console.warn('⚠️ WARNING: DirectInternalStrategy: projectId is missing!');
     }

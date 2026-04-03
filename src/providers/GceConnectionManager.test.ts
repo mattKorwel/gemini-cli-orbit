@@ -38,7 +38,9 @@ describe('GceConnectionManager', () => {
     );
     const cmd = manager.getRunCommand('ls');
     // External uses gcloud compute ssh <name> without nic0 prefix
-    expect(cmd).toContain('gcloud --verbosity=error compute ssh test-instance');
+    expect(cmd).toContain(
+      'CLOUDSDK_CORE_VERBOSITY=error gcloud compute ssh test-instance',
+    );
     expect(cmd).not.toContain('nic0');
   });
 

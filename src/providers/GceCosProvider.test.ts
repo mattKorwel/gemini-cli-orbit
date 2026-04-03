@@ -25,6 +25,7 @@ const mockConn = {
   run: vi.fn(),
   sync: vi.fn().mockResolvedValue(0),
   getMagicRemote: vi.fn().mockReturnValue('user@host'),
+  getBackendType: vi.fn().mockReturnValue('direct-internal'),
   getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
   onProvisioned: vi.fn().mockResolvedValue(undefined),
   setOverrideHost: vi.fn(),
@@ -113,7 +114,7 @@ describe('GceCosProvider', () => {
         '--filter',
         'labels.orbit-managed=true',
       ],
-      { stdio: 'inherit' },
+      expect.objectContaining({ stdio: 'inherit' }),
     );
   });
 
@@ -135,7 +136,7 @@ describe('GceCosProvider', () => {
         'us-west1-a',
         '--quiet',
       ],
-      { stdio: 'inherit' },
+      expect.objectContaining({ stdio: 'inherit' }),
     );
   });
 
@@ -180,12 +181,13 @@ describe('GceCosProvider', () => {
   });
 
   it('should inject infrastructure state into connection manager', () => {
+    mockConn.getBackendType.mockReturnValue('external');
     provider.injectState({
       status: 'ready',
       privateIp: '10.0.0.5',
       publicIp: '34.0.0.5',
     });
-    expect(mockConn.setOverrideHost).toHaveBeenCalledWith('10.0.0.5');
+    expect(mockConn.setOverrideHost).toHaveBeenCalledWith('34.0.0.5');
   });
 
   it('should use sudo for docker status and stats commands', async () => {

@@ -117,7 +117,7 @@ export class GceCosProvider implements OrbitProvider {
     }
 
     try {
-      const remote = (this.conn as any).strategy.getMagicRemote();
+      const remote = this.conn.getMagicRemote();
       logger.info(
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );

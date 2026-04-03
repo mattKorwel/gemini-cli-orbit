@@ -26,6 +26,7 @@ export interface StationReceipt {
   projectId: string;
   zone: string;
   repo: string;
+  status?: string;
   schematic?: string;
   rootPath?: string;
   lastSeen: string;

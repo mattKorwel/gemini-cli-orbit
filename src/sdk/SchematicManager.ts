@@ -139,7 +139,7 @@ export class SchematicManager {
       (await ask(
         `GCE Machine Type [${base.machineType || 'n2-standard-8'}]: `,
       )) ||
-      machineType ||
+      base.machineType ||
       'n2-standard-8';
 
     const manageNetworkingRaw = await ask(

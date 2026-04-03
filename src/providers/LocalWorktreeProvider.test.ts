@@ -37,7 +37,7 @@ describe('LocalWorktreeProvider', () => {
       'test-station',
       '/tmp/wt',
     );
-    expect(provider.worktreesDir).toBe('/tmp/wt');
+    expect(provider.workspacesDir).toBe('/tmp/wt');
   });
 
   it('should fallback to sibling of main if default is /mnt/disks/data', () => {
@@ -46,8 +46,8 @@ describe('LocalWorktreeProvider', () => {
       'test-station',
       '/mnt/disks/data',
     );
-    // /home/node/dev/repo/main -> sibling is /home/node/dev/repo/worktrees
-    expect(provider.worktreesDir).toBe('/home/node/dev/repo/worktrees');
+    // /home/node/dev/repo/main -> sibling is /home/node/dev/repo/workspaces
+    expect(provider.workspacesDir).toBe('/home/node/dev/repo/workspaces');
   });
 
   it('should report RUNNING status', async () => {

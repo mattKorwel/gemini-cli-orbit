@@ -16,7 +16,6 @@ import { runReadyPlaybook } from '../playbooks/ready.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { TempManager } from '../utils/TempManager.js';
 import { getRepoConfig } from '../core/ConfigManager.js';
-import { dispatch } from '../cli/cli.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';

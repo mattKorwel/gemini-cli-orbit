@@ -114,7 +114,7 @@ export function getRepoConfig(
   if (!config.worktreesDir) config.worktreesDir = config.workspacesDir;
 
   if (config.manageNetworking === undefined) {
-    config.manageNetworking = config.autoSetupNet;
+    config.manageNetworking = true;
   }
 
   if (!config.vpcName) {

@@ -98,7 +98,7 @@ async function main() {
   ];
 
   // Ensure 'orbit' command is aliased to the local bundle for convenience inside the capsule
-  const orbitCliPath = path.join(_dirname, 'orbit-cli.js');
+  const _orbitCliPath = path.join(_dirname, 'orbit-cli.js');
   const env = {
     ...process.env,
     GEMINI_AUTO_UPDATE: '0',
