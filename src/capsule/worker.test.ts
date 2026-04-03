@@ -5,19 +5,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runStation } from './station.js';
+import { runStation } from './worker.js';
 
 import * as fixPlaybook from '../playbooks/fix.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import * as ConfigManager from './ConfigManager.js';
+import * as ConfigManager from '../core/ConfigManager.js';
 
 vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('../playbooks/fix.js');
 vi.mock('../playbooks/ready.js');
 vi.mock('../playbooks/review.js');
-vi.mock('./ConfigManager.js');
+vi.mock('../core/ConfigManager.js');
 
 describe('runStation', () => {
   beforeEach(() => {

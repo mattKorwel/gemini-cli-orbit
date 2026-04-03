@@ -5,15 +5,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SchematicManager } from '../sdk/SchematicManager.js';
-import * as ConfigManager from './ConfigManager.js';
+import { SchematicManager } from './SchematicManager.js';
+import * as ConfigManager from '../core/ConfigManager.js';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
-vi.mock('./ConfigManager.js');
-vi.mock('./Logger.js');
+vi.mock('../core/ConfigManager.js');
+vi.mock('../core/Logger.js');
 
 describe('SchematicManager', () => {
   let manager: SchematicManager;

@@ -103,9 +103,6 @@ vi.mock('../core/ConfigManager.js', () => ({
   saveSchematic: vi.fn(),
 }));
 
-// Mock other legacy modules
-vi.mock('../core/fleet.js', () => ({ runFleet: vi.fn().mockResolvedValue(0) }));
-
 describe('orbit-cli dispatch()', () => {
   let dispatch: (argv: string[]) => Promise<number>;
   let chdirSpy: any;

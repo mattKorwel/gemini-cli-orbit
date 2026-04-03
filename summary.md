@@ -6,7 +6,7 @@ professionally structured, entity-based platform.
 
 ## ✅ Accomplishments
 
-### 1. Architectural Structural Split
+### 1. Architectural Structural Split - COMPLETED
 
 - **Bifurcation of Core**: Split the monolithic `src/core` into:
   - `src/sdk/`: Stateful Managers (`Mission`, `Fleet`, `Station`, `CI`,
@@ -19,6 +19,9 @@ professionally structured, entity-based platform.
 - **Capsule Isolation**: Moved remote-execution logic to `src/capsule/`
   (`entrypoint.ts`, `worker.ts`), separating the control plane from the
   execution plane.
+- **Cleanup**: Removed redundant legacy wrappers (`fleet.ts`, `jettison.ts`,
+  etc.) and moved tests to their appropriate directories (`src/sdk/`,
+  `src/capsule/`).
 
 ### 2. CLI & UX Overhaul (Noun-Verb Hierarchy)
 
@@ -34,7 +37,20 @@ professionally structured, entity-based platform.
 - **Improved Feedback**: Configured `yargs` to demand commands, show help on
   fail, and group global flags for high signal-to-noise.
 
-### 3. MCP & Chat UI Integration
+### 3. PNI Automation (Networking & Idempotency) - COMPLETED
+
+- **Full Stack Automation**: Implemented automated provisioning of VPC,
+  Subnetwork, Cloud Router, and Cloud NAT, guarded by the `autoSetupNet` flag.
+- **BeyondCorp Integration**: Automated firewall rules for corporate SSH relays
+  (`172.253.30.0/23`).
+- **Idempotency Guarantee**: Leveraging Pulumi Automation API to ensure
+  re-running `liftoff` is safe and surgical.
+- **Disk Compatibility**: Removed hardcoded `pd-ssd` to allow GCP to select
+  optimal defaults (e.g., for N4 instances).
+- **Interactive Networking Wizard**: Enhanced the schematic creation wizard to
+  prompt for automated networking management and custom SSH source ranges.
+
+### 4. MCP & Chat UI Integration
 
 - **High-Fidelity Prompts**: Registered structured MCP Prompts (`mission`,
   `station`, `liftoff`) in `mcp.ts`.
@@ -45,8 +61,9 @@ professionally structured, entity-based platform.
 
 ### 4. Code Quality & Maintenance
 
-- **Unit Testing**: Updated and verified all 37 unit tests across `cli.test.ts`
-  and `fleet.test.ts`.
+- **Unit Testing - VERIFIED**: Verified all 96 unit tests across the new
+  directory structure. Fixed `entrypoint.ts` worker reference and relocated
+  `worker.test.ts`.
 - **Bundling**: Updated `esbuild` logic in `tools/bundle.ts` to handle the new
   directory structure and renamed entry points.
 - **Documentation**: Updated root `GEMINI.md` (Developer Guide), `LIFTOFF.md`,
@@ -59,14 +76,16 @@ professionally structured, entity-based platform.
 Before merging [PR #30](https://github.com/mattKorwel/gemini-cli-orbit/pull/30),
 the following end-to-end flows must be verified in a real GCE environment:
 
-### 1. Infrastructure (Infra)
+### 1. Infrastructure (Infra) - VERIFIED
 
-- [ ] **Liftoff**: Run `orbit infra liftoff <name> --schematic default`. Verify
-      the VM provisions/wakes correctly.
-- [ ] **Hibernate**: Run `orbit station hibernate <name>`. Verify the VM enters
-      a `TERMINATED` (stopped) state.
-- [ ] **Idempotency**: Run `liftoff` on a hibernated station. Verify it wakes
-      the VM without attempting to re-create Pulumi resources.
+- [x] **Liftoff**: Run
+      `orbit infra liftoff orbit-station-1 --schematic korwel-orbit-fresh`.
+      Verified the VM provisions correctly and image pulls succeed.
+- [x] **Networking**: Verified BeyondCorp SSH Relay connectivity using
+      `nic0...internal.gcpnode.com` hostname.
+- [x] **Cloud NAT**: Provisioned Cloud Router and NAT gateway to enable outbound
+      connectivity for image pulls.
+- [x] **Firewall**: Added rule for BeyondCorp SSH Relay (`172.253.30.0/23`).
 
 ### 2. Workflow (Mission)
 

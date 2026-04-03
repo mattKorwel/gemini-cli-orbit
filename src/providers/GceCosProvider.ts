@@ -81,10 +81,12 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   injectState(state: InfrastructureState): void {
-    if (state.privateIp) {
-      this.conn.setOverrideHost(state.privateIp);
-    } else if (state.publicIp) {
-      this.conn.setOverrideHost(state.publicIp);
+    // In direct-internal mode, we must NOT override the hostname with a direct IP
+    // because BeyondCorp SSH relays (gcpnode.com) only accept the full hostname.
+    if (this.conn.getBackendType() === 'external') {
+      if (state.publicIp) {
+        this.conn.setOverrideHost(state.publicIp);
+      }
     }
   }
 
@@ -115,7 +117,10 @@ export class GceCosProvider implements OrbitProvider {
     }
 
     try {
-      logger.info(`   - Verifying health check (${this.stationName})...`);
+      const remote = (this.conn as any).strategy.getMagicRemote();
+      logger.info(
+        `   - Verifying health check (${this.stationName}) at ${remote}...`,
+      );
       const check = await this.getCapsuleStatus(this.instanceName);
 
       if (!check.exists || !check.running) {

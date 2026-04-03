@@ -5,9 +5,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
+import { RemoteProvisioner } from './RemoteProvisioner.js';
 import { SessionManager } from '../utils/SessionManager.js';
-import { type ProjectContext, type InfrastructureSpec } from './Constants.js';
+import {
+  type ProjectContext,
+  type InfrastructureSpec,
+} from '../core/Constants.js';
 
 vi.mock('../utils/SessionManager.js');
 vi.mock('../utils/MissionUtils.js', () => ({
@@ -17,7 +20,7 @@ vi.mock('../utils/MissionUtils.js', () => ({
     worktreeName: 'test-wt',
   }),
 }));
-vi.mock('./Logger.js');
+vi.mock('../core/Logger.js');
 
 describe('RemoteProvisioner', () => {
   const mockProvider = {

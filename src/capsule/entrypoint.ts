@@ -62,7 +62,7 @@ async function main() {
   // 2. Launch Worker (Station Manager)
   logger.info('GENERAL', '');
   logger.info('GENERAL', `🚀 Launching Parallel ${action} Worker...`);
-  const workerScript = path.join(_dirname, 'station.js');
+  const workerScript = path.join(_dirname, 'worker.js');
   logger.info('GENERAL', `   - Script: ${workerScript}`);
   logger.info('GENERAL', `   - Action: ${action}`);
 

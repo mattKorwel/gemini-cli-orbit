@@ -52,6 +52,10 @@ export class GceConnectionManager {
     }
   }
 
+  getBackendType(): string {
+    return this.strategy.getBackendType();
+  }
+
   /**
    * Sets a specific host override (e.g. dynamic IP).
    */

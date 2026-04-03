@@ -58,6 +58,8 @@ export class SchematicManager {
         'instanceName',
         'machineType',
         'imageUri',
+        'autoSetupNet',
+        'sshSourceRanges',
       ];
       const cleanFlags: any = {};
       for (const key of knownKeys) {
@@ -129,8 +131,25 @@ export class SchematicManager {
       (await ask(
         `GCE Machine Type [${base.machineType || 'n2-standard-8'}]: `,
       )) ||
-      base.machineType ||
+      machineType ||
       'n2-standard-8';
+
+    const autoSetupNetRaw = await ask(
+      `Should Orbit automatically manage VPC, NAT, and Firewalls? (y/n) [${base.autoSetupNet ? 'y' : 'n'}]: `,
+    );
+    const autoSetupNet = autoSetupNetRaw
+      ? autoSetupNetRaw.toLowerCase() === 'y'
+      : !!base.autoSetupNet;
+
+    let sshSourceRanges = base.sshSourceRanges;
+    if (autoSetupNet) {
+      const rangesRaw = await ask(
+        `Allowed SSH Source Ranges (comma separated) [${(base.sshSourceRanges || []).join(',')}]: `,
+      );
+      if (rangesRaw) {
+        sshSourceRanges = rangesRaw.split(',').map((r) => r.trim());
+      }
+    }
 
     const newConfig = {
       ...base,
@@ -143,6 +162,8 @@ export class SchematicManager {
       subnetName,
       instanceName,
       machineType,
+      autoSetupNet,
+      sshSourceRanges,
     };
 
     saveSchematic(name, newConfig);
