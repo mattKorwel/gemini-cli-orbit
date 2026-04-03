@@ -1,3 +1,16 @@
+- [x] Storage: Provision dedicated 500GB data disk for workspaces and mirrors to
+      avoid root partition exhaustion.
+- [x] Networking: Implement full-stack VPC, Subnet, Router, and NAT automation
+      guarded by `manageNetworking`.
+- [x] Logic: Restore smart branch handling (automatic branch creation for new
+      missions).
+- [x] Logic: Implement automatic mirror provisioning on host for fast mission
+      clones.
+- [x] UX: Enhance `pulse` output to show active capsules and real-time resource
+      stats.
+- [x] UX: Implement `config show` and `schematic show` for environment
+      transparency.
+- [x] UX: Filter out `gcloud` SSH noise ("Existing host keys found").
 - [ ] Auth: Explore 'Auth Pass-through' (non-recommended) to leverage local gh
       CLI auth on remote stations without manual PAT injection.
 - [x] UX: Show 'Establishing mission uplink...' message when connecting to

@@ -22,7 +22,7 @@ Translate user intent into Orbit actions using this guide:
 | :------------------------ | :------------------------------ | :----------------------------------------------------- |
 | "Review this PR"          | `/orbit:mission <id> review`    | Parallel context gathering and automated assessment.   |
 | "Fix these tests"         | `/orbit:mission <id> fix`       | Iterative repair loop with automated verification.     |
-| "Build this feature"      | `/orbit:mission <id> implement` | Clean-slate implementation in a fresh worktree.        |
+| "Build this feature"      | `/orbit:mission <id> implement` | Clean-slate implementation in a fresh workspace.       |
 | "I'm stuck / I need help" | `/orbit:mission <id> chat`      | (Default) Start a persistent, interactive session.     |
 | "Is my box okay?"         | `/orbit:station pulse`          | Check health and activity of the remote instance.      |
 | "Start from scratch"      | `/orbit:infra liftoff <name>`   | Provision fresh hardware or wake a hibernated station. |

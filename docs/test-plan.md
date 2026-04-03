@@ -1,113 +1,113 @@
-# Gemini Orbit: End-to-End Test Plan
+# Gemini Orbit: End-to-End Validation Protocol 🛰️
 
-This document provides a structured protocol for validating the **Orbit**
-platform. It ensures that declarative PNI (Pulumi-Native Infrastructure),
-decoupled providers, and the modern `src/` architecture are fully functional.
-
----
-
-## 📋 Pre-Flight: Environment Verification
-
-**Goal**: Ensure the global environment is correctly seeded before running
-tests.
-
-1.  **Check Global Directory**:
-    - [ ] `ls -d ~/.gemini/orbit` exists.
-    - [ ] `ls ~/.gemini/orbit/schematics` contains at least one `.json`
-          schematic.
-2.  **Verify Managed Binaries**:
-    - [ ] `ls ~/.gemini/orbit/bin/pulumi` contains the managed Pulumi binary (if
-          installed).
-3.  **Verify Global Registry**:
-    - [ ] `cat ~/.gemini/orbit/settings.json` exists.
+This document defines the gold-standard validation flow for Gemini Orbit. It
+ensures that environment setup, full-stack networking automation, and remote
+mission orchestration are fully functional.
 
 ---
 
-## 🛡️ 1. Security & Integrity
+## 📋 Phase 1: Environment Readiness
 
-**Goal**: Verify that sensitive credentials and paths are protected.
+**Goal**: Verify that a new user can initialize their environment and define a
+corporate-ready blueprint.
 
-### 1.1 Path Traversal Prevention
+1.  **Shell Integration**:
+    - `orbit config install`
+    - [x] **Verification**: `~/.zshrc` contains Orbit aliases and path exports.
+2.  **Schematic Creation (Headless)**:
+    - Create a schematic with BeyondCorp settings and automated networking.
+    ```bash
+    orbit infra schematic create corp-val \
+      --projectId korwel-gcli-02-sandbox-676005 \
+      --backendType direct-internal \
+      --dnsSuffix internal.gcpnode.com \
+      --userSuffix _google_com \
+      --manageNetworking true \
+      --sshSourceRanges 172.253.30.0/23 \
+      --zone us-central1-a
+    ```
 
-1.  **Input**: `orbit schematic edit ../../malicious`
-2.  **Expected**: The name is sanitized to `------malicious` and saved safely
-    within the `schematics/` directory.
-
-### 1.2 RAM-based Credential Injection (ADR 14)
-
-1.  **Input**: Launch a remote mission: `orbit mission <PR> review`.
-2.  **Verification (On Remote Station)**:
-    - [ ] `ls /dev/shm/.orbit-env-*` exists while mission is active.
-    - [ ] `docker inspect orbit-<ID>-review` shows the RAM-disk mount at
-          `/.env`.
-3.  **Post-mission**: File is automatically purged from RAM.
-
----
-
-## ⚙️ 2. Core Integrity & Build
-
-**Goal**: Verify build, bundle, and basic logic integrity.
-
-1.  **Build & Bundle**:
-    - `npm run build:bundle`
-    - [ ] `bundle/` is populated with ESM `.js` files using the new `src/`
-          paths.
-2.  **Unit Tests**:
-    - `npm test`
-    - [ ] All **118+ tests** pass across all core modules and providers.
-3.  **Type Safety**:
-    - `npm run typecheck`
-    - [ ] Completes with 0 errors.
+    - [x] **Verification**: `~/.gemini/orbit/schematics/corp-val.json` contains
+          the correct values and types (boolean/array).
 
 ---
 
-## 🎚️ 3. Local Missions (Docker-Free)
+## 🏗️ Phase 2: Infrastructure Gravity (PNI)
 
-**Goal**: Verify that local missions use native Git worktrees without Docker
-terminology.
+**Goal**: Verify that Orbit can manage the entire GCP networking and compute
+stack idempotently.
 
-1.  **Worktree Creation**:
-    - `orbit mission <PR> --local`
-    - [ ] Successfully creates a sibling worktree in the `worktrees/` directory.
-2.  **Tracking**:
-    - `orbit pulse --local`
-    - [ ] Correct identifies the local worktree as an active mission.
-
----
-
-## 🛰️ 4. Declarative Infrastructure (PNI)
-
-**Goal**: Verify connectivity and orchestration using the Pulumi-managed layer.
-
-### 4.1 Dependency Management
-
-1.  **Action**: Move `~/.gemini/orbit/bin/pulumi` to a backup location.
-2.  **Input**: `orbit liftoff`
-3.  **Expected**: Orbit detects missing Pulumi and explicitly prompts for local
-    installation.
-
-### 4.2 Cloud Liftoff
-
-1.  **Input**: `orbit liftoff <schematic>`
-2.  **Expected Behavior**:
-    - [ ] Initializes local state backend (`pulumi login --local`).
-    - [ ] Provisions/wakes the Station VM.
-    - [ ] Hands over the discovered IP to the execution provider.
-
-### 4.3 Cleanup
-
-1.  **Input**: `orbit liftoff --destroy`
-2.  **Expected Behavior**: Pulumi successfully decommissions the cloud resources
-    defined in the schematic.
+1.  **Full-Stack Liftoff**:
+    - `orbit infra liftoff val-station --schematic corp-val`
+    - [x] **Verification**: Pulumi provisions VPC, Subnet, Router, NAT, and
+          Firewall.
+    - [x] **Verification**: VM is provisioned with a dedicated 500GB data disk
+          mounted at `/mnt/disks/data`.
+2.  **Connectivity Check**:
+    - [x] **Verification**: Orbit establishes a signal lock via the BeyondCorp
+          SSH Relay using the `nic0.` hostname.
+3.  **Idempotency**:
+    - Re-run the same `liftoff` command.
+    - [x] **Verification**: Pulumi reports "No changes" and returns success.
 
 ---
 
-## 🛸 5. Autonomous Maneuvers
+## 🚀 Phase 3: Mission Control
 
-**Goal**: Ensure playbooks function with the new Yargs command routing.
+**Goal**: Verify remote mission orchestration and "Sticky Station" UX.
 
-1.  **Uplink**: `orbit uplink <PR>` correctly surfaces mission logs.
-2.  **Jettison**: `orbit jettison <PR> --yes` removes resources without
-    interaction.
-3.  **Reap**: `orbit reap --threshold=2` identifies idle capsules based on the
-    provided flag.
+1.  **Launch Mission**:
+    - `orbit mission val-mission chat`
+    - [x] **Verification**: Automatically targets the last-provisioned station
+          (`val-station`).
+    - [x] **Verification**: Creates a remote workspace on the 500GB data disk.
+    - [x] **Verification**: Handles new branches by creating them locally if
+          missing on remote.
+2.  **Pulse Check**:
+    - `orbit station pulse`
+    - [x] **Verification**: Displays READY status and lists the active
+          `val-mission` capsule with stats.
+
+---
+
+## 🌊 Phase 4: Splashdown
+
+**Goal**: Verify clean decommissioning of all resources.
+
+1.  **Cleanup**:
+    - `orbit infra splashdown val-station`
+    - [x] **Verification**: Prompts for confirmation.
+    - [x] **Verification**: VM, Receipt, and all automated Networking resources
+          (VPC, NAT, etc.) are destroyed.
+
+---
+
+## 🌐 Scenario 2: External/Existing Network
+
+**Goal**: Verify that Orbit can provision instances on an existing VPC using an
+external public IP.
+
+1.  **Schematic Creation**:
+    - `node bundle/orbit-cli.js infra schematic gemini-team --projectId gemini-cli-team-quota --backendType external --zone us-central1-a --manageNetworking false`
+    - [x] **Verification**: `manageNetworking` is false, and backend is
+          external.
+2.  **External Liftoff**:
+    - `orbit infra liftoff team-station --schematic gemini-team`
+    - [x] **Verification**: Orbit skips networking automation and uses the
+          `default` VPC.
+    - [x] **Verification**: A static public IP is provisioned and assigned.
+3.  **External Mission**:
+    - `orbit mission team-mission chat`
+    - [x] **Verification**: Orbit connects via the public IP and launches the
+          mission successfully.
+
+---
+
+## 🛡️ Security & Integrity
+
+1.  **RAM-disk secret mount (ADR 14)**:
+    - [x] Verify `/dev/shm/.orbit-env-*` exists on host while mission is active.
+    - [x] Verify capsule mounts this at `/.env`.
+2.  **Path Parity**:
+    - [x] Verify host and capsule both use `/mnt/disks/data` for Git metadata
+          consistency.

@@ -77,11 +77,22 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     let networkName = this.config.vpcName || 'default';
     let subnetName = this.config.subnetName || 'default';
 
-    if (this.config.autoSetupNet) {
+    if (this.config.manageNetworking) {
+      // Use instance-specific names for managed networks to ensure isolation and prevent conflicts
+      const vpcId =
+        this.config.vpcName && this.config.vpcName !== 'orbit'
+          ? this.config.vpcName
+          : `orbit-vpc-${this.stackName}`;
+
+      const subId =
+        this.config.subnetName && this.config.subnetName !== 'orbit'
+          ? this.config.subnetName
+          : `orbit-subnet-${this.stackName}`;
+
       network = new gcp.compute.Network(
         `orbit-vpc-${this.id}`,
         {
-          name: this.config.vpcName || `orbit-vpc-${this.id}`,
+          name: vpcId,
           autoCreateSubnetworks: false,
         },
         { provider },
@@ -91,7 +102,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       subnetwork = new gcp.compute.Subnetwork(
         `orbit-subnet-${this.id}`,
         {
-          name: this.config.subnetName || `orbit-subnet-${this.id}`,
+          name: subId,
           network: network.id,
           ipCidrRange: '10.128.0.0/24',
           region,
@@ -155,7 +166,20 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       );
     }
 
-    // 3. Provision the VM
+    // 3. Data Disk (Persistent storage for workspaces and mirrors)
+    const dataDiskName = `orbit-data-${this.id}`;
+    const dataDisk = new gcp.compute.Disk(
+      dataDiskName,
+      {
+        name: dataDiskName,
+        size: 500,
+        type: 'pd-balanced',
+        zone,
+      },
+      { provider },
+    );
+
+    // 4. Provision the VM
     const instance = new gcp.compute.Instance(
       name,
       {
@@ -165,9 +189,15 @@ export class GcpCosTarget implements InfrastructureProvisioner {
         bootDisk: {
           initializeParams: {
             image: 'cos-cloud/cos-stable',
-            size: 100,
+            size: 200,
           },
         },
+        attachedDisks: [
+          {
+            source: dataDisk.id,
+            deviceName: 'orbit-data',
+          },
+        ],
         networkInterfaces: [
           {
             network: networkName,
@@ -179,6 +209,25 @@ export class GcpCosTarget implements InfrastructureProvisioner {
         metadata: {
           'gce-container-declaration': '',
           'enable-oslogin': 'TRUE',
+          'startup-script': `#!/bin/bash
+            set -e
+            DEVICE_PATH="/dev/disk/by-id/google-orbit-data"
+            MOUNT_PATH="/mnt/disks/data"
+            
+            if [ ! -e "$DEVICE_PATH" ]; then
+              echo "Waiting for device $DEVICE_PATH..."
+              sleep 5
+            fi
+
+            # Format if unformatted
+            if ! blkid "$DEVICE_PATH"; then
+              mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard "$DEVICE_PATH"
+            fi
+
+            mkdir -p "$MOUNT_PATH"
+            mount -o discard,defaults "$DEVICE_PATH" "$MOUNT_PATH" || true
+            chmod 777 "$MOUNT_PATH"
+          `,
         },
         labels: {
           'orbit-managed': 'true',
@@ -191,7 +240,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       },
       {
         provider,
-        dependsOn: subnetwork ? [subnetwork] : [],
+        dependsOn: subnetwork ? [subnetwork, dataDisk] : [dataDisk],
       },
     );
 

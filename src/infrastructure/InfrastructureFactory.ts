@@ -25,7 +25,7 @@ export class InfrastructureFactory {
     switch (providerType) {
       case 'gce':
         return new GcpCosTarget(schematicName, config);
-      case 'local-worktree':
+      case 'local-workspace':
         return new LocalNoopTarget(schematicName);
       default:
         throw new Error(`Unsupported provider type: ${providerType}`);

@@ -200,24 +200,28 @@ export class GceCosProvider implements OrbitProvider {
     });
 
     let stdout = res.stdout?.toString() || '';
-    const stderr = res.stderr?.toString() || '';
+    let stderr = res.stderr?.toString() || '';
 
-    // Filter out gcloud noise that sometimes leaks into stdout
-    stdout = stdout
-      .split('\n')
-      .filter((line) => {
-        const l = line.toLowerCase();
-        if (l.includes('existing host keys found')) return false;
-        if (l.includes('created [https://www.googleapis.com/')) return false;
-        return true;
-      })
-      .join('\n')
-      .trim();
+    // Filter out gcloud noise that sometimes leaks into stdout/stderr
+    const filterNoise = (text: string) =>
+      text
+        .split('\n')
+        .filter((line) => {
+          const l = line.toLowerCase();
+          if (l.includes('existing host keys found')) return false;
+          if (l.includes('created [https://www.googleapis.com/')) return false;
+          return true;
+        })
+        .join('\n')
+        .trim();
+
+    stdout = filterNoise(stdout);
+    stderr = filterNoise(stderr);
 
     return {
       status: res.status ?? (res.error ? 1 : 0),
       stdout,
-      stderr: stderr.trim(),
+      stderr,
     };
   }
 
@@ -246,7 +250,10 @@ export class GceCosProvider implements OrbitProvider {
         '--format',
         'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)',
       ],
-      { stdio: 'pipe' },
+      {
+        stdio: 'pipe',
+        env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      },
     );
 
     if (res.status !== 0) {
@@ -277,7 +284,10 @@ export class GceCosProvider implements OrbitProvider {
         this.zone,
         '--quiet',
       ],
-      { stdio: 'inherit' },
+      {
+        stdio: 'inherit',
+        env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      },
     );
     return res.status ?? 1;
   }
@@ -368,7 +378,10 @@ export class GceCosProvider implements OrbitProvider {
         '--filter',
         'labels.orbit-managed=true',
       ],
-      { stdio: 'inherit' },
+      {
+        stdio: 'inherit',
+        env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      },
     );
     return res.status ?? 0;
   }
@@ -388,7 +401,10 @@ export class GceCosProvider implements OrbitProvider {
         this.zone,
         '--quiet',
       ],
-      { stdio: 'inherit' },
+      {
+        stdio: 'inherit',
+        env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      },
     );
     return res.status ?? 0;
   }
@@ -399,5 +415,23 @@ export class GceCosProvider implements OrbitProvider {
       { quiet: true },
     );
     return res.stdout.trim().split('\n').filter(Boolean);
+  }
+
+  async provisionMirror(remoteUrl: string): Promise<number> {
+    const mirrorPath = '/mnt/disks/data/main';
+    const check = await this.exec(`ls -d ${mirrorPath}/.git`, { quiet: true });
+    if (check === 0) return 0;
+
+    const cmds = [
+      `sudo mkdir -p /mnt/disks/data`,
+      `sudo chmod 777 /mnt/disks/data`,
+      `git clone --mirror ${remoteUrl} ${mirrorPath}`,
+    ];
+
+    for (const cmd of cmds) {
+      const res = await this.exec(cmd);
+      if (res !== 0) return res;
+    }
+    return 0;
   }
 }

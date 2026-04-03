@@ -51,14 +51,17 @@ export interface InfrastructureSpec {
   zone?: string | undefined;
   instanceName?: string | undefined; // Required primary key for provisioning
   stationName?: string | undefined;
-  providerType?: 'gce' | 'local-worktree' | undefined;
+  providerType?: 'gce' | 'local-worktree' | 'local-workspace' | undefined;
   backendType?: 'direct-internal' | 'external' | undefined;
   imageUri?: string | undefined;
+  upstreamRepo?: string | undefined;
+  manageNetworking?: boolean | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;
   machineType?: string | undefined;
   sshSourceRanges?: string[] | undefined;
-  worktreesDir?: string | undefined;
+  workspacesDir?: string | undefined;
+  worktreesDir?: string | undefined; // Compatibility
   remoteWorkDir?: string | undefined;
   useTmux?: boolean | undefined;
   cpuLimit?: string | undefined;
@@ -112,7 +115,8 @@ export function getPrimaryRepoRoot(repoRoot: string = process.cwd()): string {
  */
 export const ORBIT_ROOT = '/mnt/disks/data';
 export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
-export const SATELLITE_WORKTREES_PATH = `${ORBIT_ROOT}/worktrees`;
+export const SATELLITE_WORKSPACES_PATH = `${ORBIT_ROOT}/workspaces`;
+export const SATELLITE_WORKTREES_PATH = SATELLITE_WORKSPACES_PATH; // Compatibility
 export const POLICIES_PATH = `${ORBIT_ROOT}/policies`;
 export const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
 export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
@@ -194,7 +198,7 @@ export interface OrbitConfig extends InfrastructureSpec {
   profile?: string | undefined;
   schematic?: string | undefined;
   forStation?: string | undefined;
-  autoSetupNet?: boolean | undefined;
+  manageNetworking?: boolean | undefined;
   tempDir?: string | undefined;
   autoClean?: boolean | undefined;
   verbose?: boolean | undefined;
@@ -208,5 +212,7 @@ export interface OrbitSettings {
   activeRepo?: string | undefined;
   activeStation?: string | undefined;
   tempDir?: string | undefined;
+  workspacesDir?: string | undefined;
+  worktreesDir?: string | undefined; // Compatibility
   autoClean?: boolean | undefined;
 }

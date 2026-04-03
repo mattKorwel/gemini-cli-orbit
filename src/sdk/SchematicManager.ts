@@ -58,13 +58,21 @@ export class SchematicManager {
         'instanceName',
         'machineType',
         'imageUri',
-        'autoSetupNet',
+        'manageNetworking',
         'sshSourceRanges',
       ];
       const cleanFlags: any = {};
       for (const key of knownKeys) {
-        if ((cliFlags as any)[key] !== undefined) {
-          cleanFlags[key] = (cliFlags as any)[key];
+        let val = (cliFlags as any)[key];
+        if (val !== undefined) {
+          // Handle type casting from CLI strings
+          if (key === 'manageNetworking' && typeof val === 'string') {
+            val = val.toLowerCase() === 'true';
+          }
+          if (key === 'sshSourceRanges' && typeof val === 'string') {
+            val = val.split(',').map((s) => s.trim());
+          }
+          cleanFlags[key] = val;
         }
       }
 
@@ -134,15 +142,15 @@ export class SchematicManager {
       machineType ||
       'n2-standard-8';
 
-    const autoSetupNetRaw = await ask(
-      `Should Orbit automatically manage VPC, NAT, and Firewalls? (y/n) [${base.autoSetupNet ? 'y' : 'n'}]: `,
+    const manageNetworkingRaw = await ask(
+      `Should Orbit automatically manage VPC, NAT, and Firewalls? (y/n) [${base.manageNetworking ? 'y' : 'n'}]: `,
     );
-    const autoSetupNet = autoSetupNetRaw
-      ? autoSetupNetRaw.toLowerCase() === 'y'
-      : !!base.autoSetupNet;
+    const manageNetworking = manageNetworkingRaw
+      ? manageNetworkingRaw.toLowerCase() === 'y'
+      : !!base.manageNetworking;
 
     let sshSourceRanges = base.sshSourceRanges;
-    if (autoSetupNet) {
+    if (manageNetworking) {
       const rangesRaw = await ask(
         `Allowed SSH Source Ranges (comma separated) [${(base.sshSourceRanges || []).join(',')}]: `,
       );
@@ -162,7 +170,7 @@ export class SchematicManager {
       subnetName,
       instanceName,
       machineType,
-      autoSetupNet,
+      manageNetworking,
       sshSourceRanges,
     };
 

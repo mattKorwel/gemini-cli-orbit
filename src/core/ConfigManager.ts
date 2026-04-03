@@ -20,6 +20,7 @@ import {
   GLOBAL_ORBIT_DIR,
   DEFAULT_VPC_NAME,
   DEFAULT_SUBNET_NAME,
+  SATELLITE_WORKSPACES_PATH,
 } from './Constants.js';
 
 /**
@@ -108,10 +109,22 @@ export function getRepoConfig(
     config.instanceName = `orbit-station-${user}-${rName}`;
   }
   if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
-  if (!config.worktreesDir) config.worktreesDir = '/mnt/disks/data/worktrees';
+  if (!config.workspacesDir)
+    config.workspacesDir = config.worktreesDir || SATELLITE_WORKSPACES_PATH;
+  if (!config.worktreesDir) config.worktreesDir = config.workspacesDir;
 
-  if (!config.vpcName) config.vpcName = DEFAULT_VPC_NAME;
-  if (!config.subnetName) config.subnetName = DEFAULT_SUBNET_NAME;
+  if (config.manageNetworking === undefined) {
+    config.manageNetworking = config.autoSetupNet;
+  }
+
+  if (!config.vpcName) {
+    config.vpcName = config.manageNetworking ? DEFAULT_VPC_NAME : 'default';
+  }
+  if (!config.subnetName) {
+    config.subnetName = config.manageNetworking
+      ? DEFAULT_SUBNET_NAME
+      : 'default';
+  }
 
   return config;
 }
@@ -139,10 +152,13 @@ export function resolveContextBundles(
       providerType: config.providerType,
       backendType: config.backendType,
       imageUri: config.imageUri,
+      upstreamRepo: config.upstreamRepo,
+      manageNetworking: config.manageNetworking,
       vpcName: config.vpcName,
       subnetName: config.subnetName,
       machineType: config.machineType,
       sshSourceRanges: config.sshSourceRanges,
+      workspacesDir: config.workspacesDir,
       worktreesDir: config.worktreesDir,
       remoteWorkDir: config.remoteWorkDir,
       useTmux: config.useTmux,
@@ -183,6 +199,20 @@ export function detectRepoName(repoRoot: string = process.cwd()): string {
   } catch (_e) {}
 
   return DEFAULT_REPO_NAME;
+}
+
+export function detectRemoteUrl(repoRoot: string = process.cwd()): string {
+  try {
+    const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
+      stdio: 'pipe',
+      encoding: 'utf8',
+      cwd: repoRoot,
+    });
+    if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
+      return remoteRes.stdout.trim();
+    }
+  } catch (_e) {}
+  return '';
 }
 
 export function loadSettings(): OrbitSettings {

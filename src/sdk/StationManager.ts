@@ -110,6 +110,10 @@ export class StationManager {
       zone: receipt.zone,
       instanceName: receipt.instanceName || receipt.name,
       providerType: receipt.type,
+      workspacesDir:
+        receipt.type === 'local-worktree'
+          ? path.dirname(receipt.rootPath || '')
+          : undefined,
       worktreesDir:
         receipt.type === 'local-worktree'
           ? path.dirname(receipt.rootPath || '')

@@ -107,7 +107,7 @@ export class OrbitSDK implements IOrbitSDK {
   }
 
   /**
-   * Decommission a specific mission and its worktree.
+   * Decommission a specific mission and its workspace.
    */
   async jettisonMission(options: JettisonOptions): Promise<MissionResult> {
     return this.missions.jettison(options);
@@ -197,6 +197,13 @@ export class OrbitSDK implements IOrbitSDK {
    */
   listSchematics(): string[] {
     return this.fleet.listSchematics();
+  }
+
+  /**
+   * Get a specific schematic by name.
+   */
+  getSchematic(name: string): OrbitConfig | null {
+    return this.fleet.getSchematic(name);
   }
 
   /**

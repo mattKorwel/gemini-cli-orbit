@@ -50,9 +50,11 @@ Every mission maneuver is a first-class tool call available to the agent.
 Orbit supports two primary mission modes:
 
 1. **Local Worktrees**: Lightweight local isolation using `git worktree`.
-2. **Remote GCE Stations**: High-performance, isolated VM environments on Google Cloud.
+2. **Remote GCE Stations**: High-performance, isolated VM environments on Google
+   Cloud.
 
-See [DEPENDENCIES.md](./docs/DEPENDENCIES.md) for details on external tools and Orbit's automatic dependency management.
+See [DEPENDENCIES.md](./docs/DEPENDENCIES.md) for details on external tools and
+Orbit's automatic dependency management.
 
 ---
 
@@ -76,7 +78,7 @@ The fastest way to enter orbit — an isolated Mission Capsule for a PR, running
 on your own terrestrial machine:
 
 ```bash
-# Open an interactive Gemini session inside a clean worktree for PR #42
+# Open an interactive Gemini session inside a clean workspace for PR #42
 orbit mission 42 --local
 
 # Or let Orbit autonomously review it for you
@@ -105,15 +107,14 @@ Engine).
 orbit schematic create corp
 
 # Achieve liftoff — provisions VPC, Station, and everything needed
-# Use --with-new-station the FIRST time only
-orbit station liftoff corp --setup-net --with-new-station
+orbit infra liftoff corp --manageNetworking
 ```
 
 **Daily usage:**
 
 ```bash
 # Wake up your existing station
-orbit station liftoff
+orbit infra liftoff
 
 # Then launch missions as normal
 orbit mission 42 review
@@ -165,17 +166,17 @@ orbit attach <pr>                   # Re-dock to a running mission session
 ## 🧹 Mission Control & Cleanup
 
 ```bash
-orbit jettison <pr>                 # Decommission a specific capsule and its worktree
-orbit reap                          # Auto-cleanup idle capsules based on inactivity
-orbit splashdown --all              # Emergency shutdown of all active remote capsules
-orbit schematic <list|create|edit>  # Manage infrastructure blueprints
-orbit station <list|liftoff|delete> # Manage Orbital Stations
+orbit mission jettison <pr>          # Decommission a specific capsule and its workspace
+orbit mission reap                   # Auto-cleanup idle capsules based on inactivity
+orbit infra splashdown --all         # Emergency shutdown of all active remote capsules
+orbit infra schematic <list|create>  # Manage infrastructure blueprints
+orbit station <list|pulse|delete>    # Manage Orbital Stations
 ```
 
 **Global flags** (work with any command):
 
 ```bash
---local, -l           Force local worktree mode (no cloud)
+--local, -l           Force local workspace mode (no cloud)
 --repo, -r <name>     Override the detected repository name
 --for-station <name>  Target a specific Orbital Station
 --schematic <name>    Use a specific infrastructure blueprint

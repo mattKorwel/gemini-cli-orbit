@@ -31,33 +31,33 @@ export class LocalWorktreeProvider implements OrbitProvider {
   public projectId = 'local';
   public zone = 'localhost';
   public stationName: string;
-  public worktreesDir: string;
+  public workspacesDir: string;
 
   constructor(
     private readonly projectCtx: ProjectContext,
     stationName = 'local',
-    worktreesDir?: string,
+    workspacesDir?: string,
   ) {
     this.stationName = stationName;
     const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
 
-    // Default to sibling 'worktrees' directory of main repo
-    this.worktreesDir =
-      worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
+    // Default to sibling 'workspaces' directory of main repo
+    this.workspacesDir =
+      workspacesDir || path.resolve(primaryRoot, '..', 'workspaces');
 
     if (
-      this.worktreesDir === '/mnt/disks/data' ||
-      this.worktreesDir === '/mnt/disks/data/worktrees'
+      this.workspacesDir === '/mnt/disks/data' ||
+      this.workspacesDir === '/mnt/disks/data/workspaces'
     ) {
       // Fallback for when Constants defaults leak into local mode
-      this.worktreesDir = path.resolve(primaryRoot, '..', 'worktrees');
+      this.workspacesDir = path.resolve(primaryRoot, '..', 'workspaces');
     }
 
     if (
-      !this.worktreesDir.startsWith('/mnt/disks/data') &&
-      !fs.existsSync(this.worktreesDir)
+      !this.workspacesDir.startsWith('/mnt/disks/data') &&
+      !fs.existsSync(this.workspacesDir)
     ) {
-      fs.mkdirSync(this.worktreesDir, { recursive: true });
+      fs.mkdirSync(this.workspacesDir, { recursive: true });
     }
   }
 
@@ -88,7 +88,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const capsuleDir = options.wrapCapsule
       ? this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
-        path.join(this.worktreesDir, `${MISSION_PREFIX}${options.wrapCapsule}`)
+        path.join(this.workspacesDir, `${MISSION_PREFIX}${options.wrapCapsule}`)
       : this.projectCtx.repoRoot;
 
     if (this.hasTmux()) {
@@ -121,7 +121,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
       const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
       cwd =
         this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
-        path.join(this.worktreesDir, `${MISSION_PREFIX}${options.wrapCapsule}`);
+        path.join(
+          this.workspacesDir,
+          `${MISSION_PREFIX}${options.wrapCapsule}`,
+        );
     }
 
     const res = spawnSync(command, {
@@ -150,7 +153,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     const actualBranch = branch;
     const sourceDir = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const wtPath = path.join(
-      this.worktreesDir,
+      this.workspacesDir,
       `${MISSION_PREFIX}${actualBranch}`,
     );
 
@@ -159,7 +162,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     }
 
     console.log(
-      `   🌿 Orbit: Provisioning local worktree for '${actualBranch}'...`,
+      `   🌿 Orbit: Provisioning local workspace for '${actualBranch}'...`,
     );
 
     // Ensure origin is up to date (ignore failures if no origin)
@@ -187,7 +190,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     });
 
     if (res.status !== 0) {
-      throw new Error(`Failed to create worktree: exit code ${res.status}`);
+      throw new Error(`Failed to create workspace: exit code ${res.status}`);
     }
   }
 
@@ -259,7 +262,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     }
 
     console.log(
-      `   🔥 Orbit: Removing local worktree: ${path.basename(wtPath)}`,
+      `   🔥 Orbit: Removing local workspace: ${path.basename(wtPath)}`,
     );
     const res = spawnSync(
       'git',
@@ -298,20 +301,20 @@ export class LocalWorktreeProvider implements OrbitProvider {
         stdio: 'pipe',
       },
     );
-    const worktrees: string[] = [];
+    const workspaces: string[] = [];
     if (res.status === 0) {
       const output = res.stdout.toString();
       const blocks = output.split('\n\n');
 
-      const realWorktreesDir = fs.realpathSync(this.worktreesDir);
+      const realWorktreesDir = fs.realpathSync(this.workspacesDir);
       const realPrimaryRoot = fs.realpathSync(primaryRoot);
 
       for (const block of blocks) {
         const lines = block.split('\n');
-        const worktreeLine = lines.find((l) => l.startsWith('worktree '));
-        if (!worktreeLine) continue;
+        const workspaceLine = lines.find((l) => l.startsWith('worktree '));
+        if (!workspaceLine) continue;
 
-        let wtPath = worktreeLine.replace('worktree ', '').trim();
+        let wtPath = workspaceLine.replace('worktree ', '').trim();
         if (!wtPath) continue;
 
         try {
@@ -323,7 +326,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
         const folderName = path.basename(wtPath);
 
         // SAFETY FIREWALL:
-        // 1. Must be in the worktrees directory
+        // 1. Must be in the workspaces directory
         // 2. Must start with the MISSION_PREFIX ('orbit-')
         // 3. Must NOT be the primary repository root
         if (
@@ -331,11 +334,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
           folderName.startsWith(MISSION_PREFIX) &&
           wtPath !== realPrimaryRoot
         ) {
-          worktrees.push(folderName);
+          workspaces.push(folderName);
         }
       }
     }
-    return worktrees;
+    return workspaces;
   }
 
   private findExistingWorktree(name: string, sourceDir: string): string | null {
@@ -351,11 +354,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
     for (const block of blocks) {
       const lines = block.split('\n');
-      const worktreeLine = lines.find((l) => l.startsWith('worktree '));
+      const workspaceLine = lines.find((l) => l.startsWith('worktree '));
       const branchLine = lines.find((l) => l.startsWith('branch '));
 
-      if (worktreeLine && branchLine) {
-        const wtPath = worktreeLine.replace('worktree ', '').trim();
+      if (workspaceLine && branchLine) {
+        const wtPath = workspaceLine.replace('worktree ', '').trim();
         const branch = branchLine.replace('branch refs/heads/', '').trim();
 
         // Match if branch matches name AND folder has prefix (Safe)

@@ -23,15 +23,18 @@ export class ExternalStrategy extends BaseStrategy {
     options: { interactive?: boolean } = {},
   ): string {
     // For external, gcloud is preferred as it handles auth better
-    return `gcloud --verbosity=error compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --quiet --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t" --ssh-flag="-o LogLevel=ERROR"' : ' --ssh-flag="-o LogLevel=ERROR"'}`;
+    // Prepended environment variables to suppress informational noise
+    const envPrefix = 'CLOUDSDK_CORE_VERBOSITY=error ';
+    return `${envPrefix}gcloud compute ssh ${this.instanceName} --project ${this.projectId} --zone ${this.zone} --quiet --command ${this.quote(command)}${options.interactive ? ' --ssh-flag="-t" --ssh-flag="-o LogLevel=ERROR"' : ' --ssh-flag="-o LogLevel=ERROR"'}`;
   }
 
   getRunArgs(
     command: string,
     options: { interactive?: boolean } = {},
   ): string[] {
+    // Note: getRunArgs is used by spawnSync without shell, so env vars must be handled differently
+    // For now, we'll rely on the command-line flags
     const args = [
-      '--verbosity=error',
       'compute',
       'ssh',
       this.instanceName,

@@ -55,7 +55,20 @@ class Logger {
     return `[${timestamp}] ${levelStr} ${tagStr} ${message}`;
   }
 
+  private shouldFilter(message: string): boolean {
+    if (!message) return false;
+    const l = message.toLowerCase();
+    if (l.includes('existing host keys found')) return true;
+    if (l.includes('created [https://www.googleapis.com/')) return true;
+    if (
+      l.includes('external ip address was not found; defaulting to using iap')
+    )
+      return true;
+    return false;
+  }
+
   private write(level: LogLevel, tag: string, message: string, ...args: any[]) {
+    if (this.shouldFilter(message)) return;
     this.ensureInitialized();
     const formatted = this.formatMessage(level, tag, message);
     const fullMessage =
@@ -147,7 +160,20 @@ export const logger = new Logger();
  * Concrete implementation of OrbitObserver that pipes to stdout/stderr.
  */
 export class ConsoleObserver {
+  private shouldFilter(message: string): boolean {
+    if (!message) return false;
+    const l = message.toLowerCase();
+    if (l.includes('existing host keys found')) return true;
+    if (l.includes('created [https://www.googleapis.com/')) return true;
+    if (
+      l.includes('external ip address was not found; defaulting to using iap')
+    )
+      return true;
+    return false;
+  }
+
   onLog(level: LogLevel, tag: string, message: string, ...args: any[]) {
+    if (this.shouldFilter(message)) return;
     if (level === LogLevel.ERROR) {
       console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
     } else if (level === LogLevel.WARN) {

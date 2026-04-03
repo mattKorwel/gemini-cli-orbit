@@ -106,11 +106,45 @@ export class GceConnectionManager {
   ): SpawnSyncReturns<Buffer> {
     const fullCmd = this.getRunCommand(command, options);
 
-    return spawnSync(fullCmd, {
-      stdio: options.quiet ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    const res = spawnSync(fullCmd, {
+      stdio: [
+        options.interactive ? 'inherit' : 'ignore',
+        options.quiet ? 'pipe' : 'inherit',
+        'pipe',
+      ],
       shell: true,
-      env: process.env,
+      env: {
+        ...process.env,
+        CLOUDSDK_CORE_VERBOSITY: 'error',
+        ...options.env,
+      },
     });
+
+    if (res.stderr) {
+      const stderr = res.stderr.toString();
+      const filtered = stderr
+        .split('\n')
+        .filter((line) => {
+          const l = line.toLowerCase();
+          if (l.includes('existing host keys found')) return false;
+          if (l.includes('created [https://www.googleapis.com/')) return false;
+          if (
+            l.includes(
+              'external ip address was not found; defaulting to using iap',
+            )
+          )
+            return false;
+          return true;
+        })
+        .join('\n')
+        .trim();
+
+      if (filtered) {
+        process.stderr.write(filtered + '\n');
+      }
+    }
+
+    return res;
   }
 
   /**

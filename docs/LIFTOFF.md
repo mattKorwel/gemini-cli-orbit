@@ -42,8 +42,8 @@ Schematics define the "How"—the GCP project, zone, machine type, and network
 configuration. You can manage these with:
 
 ```bash
-orbit schematics list
-orbit schematic create <NAME>
+orbit infra schematic
+orbit infra schematic <NAME>
 ```
 
 ## 🏗️ Under the Hood: Pulumi Automation
@@ -61,5 +61,5 @@ When you run `liftoff`, Orbit uses the **Pulumi Automation API** to:
 To permanently delete a station and all its cloud resources:
 
 ```bash
-orbit liftoff <INSTANCE_NAME> --destroy
+orbit infra liftoff <INSTANCE_NAME> --destroy
 ```

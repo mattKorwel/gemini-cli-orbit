@@ -9,16 +9,18 @@ import fs from 'node:fs';
 import {
   type InfrastructureSpec,
   type ProjectContext,
-  SATELLITE_WORKTREES_PATH,
+  SATELLITE_WORKSPACES_PATH,
   ORBIT_ROOT,
   getPrimaryRepoRoot,
   getProjectOrbitDir,
+  UPSTREAM_REPO_URL,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
 import { TempManager } from '../utils/TempManager.js';
+import { detectRemoteUrl } from '../core/ConfigManager.js';
 import type { ExecOptions } from '../providers/BaseProvider.js';
 import {
   type OrbitObserver,
@@ -63,35 +65,47 @@ export class MissionManager {
       stationName,
     } as any);
 
-    const isLocalWorktree = provider.type === 'local-worktree';
+    const isLocalWorkspace = provider.type === 'local-worktree';
 
     // 2. Context Resolution
     const mCtx = resolveMissionContext(identifier, action);
     const branch = mCtx.branchName;
 
-    const repoWorktreesDir = isLocalWorktree
+    const repoWorkspacesDir = isLocalWorkspace
       ? path.resolve(
           getPrimaryRepoRoot(this.projectCtx.repoRoot),
           '..',
-          'worktrees',
+          'workspaces',
           this.projectCtx.repoName || '',
         )
-      : `${SATELLITE_WORKTREES_PATH}/${this.projectCtx.repoName || ''}`;
+      : `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName || ''}`;
 
-    const upstreamUrl = `https://github.com/${(this.infra as any).upstreamRepo || ''}.git`;
-    const remoteWorktreeDir = isLocalWorktree
+    let upstreamUrl = this.infra.upstreamRepo
+      ? `https://github.com/${this.infra.upstreamRepo}.git`
+      : detectRemoteUrl(this.projectCtx.repoRoot);
+
+    if (!upstreamUrl) {
+      upstreamUrl = UPSTREAM_REPO_URL;
+    }
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'MISSION',
+      `Upstream URL: ${upstreamUrl}`,
+    );
+
+    const remoteWorkspaceDir = isLocalWorkspace
       ? path.join(
           getPrimaryRepoRoot(this.projectCtx.repoRoot),
           '..',
-          'worktrees',
+          'workspaces',
           this.projectCtx.repoName || '',
           branch,
         )
-      : `${repoWorktreesDir}/${mCtx.worktreeName}`;
+      : `${repoWorkspacesDir}/${mCtx.workspaceName}`;
 
     // 3. Preparation & Auth
     let githubToken = '';
-    if (!isLocalWorktree) {
+    if (!isLocalWorkspace) {
       try {
         githubToken = TempManager.getToken(this.projectCtx.repoName || '');
       } catch (_e) {
@@ -107,53 +121,55 @@ export class MissionManager {
     await provider.prepareMissionWorkspace(identifier, branch, this.infra);
 
     // 5. Build/Sync Phase (Phase 0)
-    if (!isLocalWorktree) {
+    if (!isLocalWorkspace) {
       this.observer.onProgress?.(
         'PHASE 0',
         '📦 Synchronizing source and preparing environment...',
       );
       const buildOptions: ExecOptions = {
-        cwd: remoteWorktreeDir,
+        cwd: remoteWorkspaceDir,
         interactive: true,
         sensitiveEnv: { GITHUB_TOKEN: githubToken },
       };
 
-      // Ensure Worktree exists
+      // Ensure Workspace exists
       const wtStatus = await provider.exec(
-        `ls -d ${remoteWorktreeDir}`,
+        `ls -d ${remoteWorkspaceDir}`,
         buildOptions,
       );
       if (wtStatus !== 0) {
         this.observer.onLog?.(
           LogLevel.INFO,
           'SETUP',
-          `   - Creating isolated worktree for '${branch}'...`,
+          `   - Preparing git workspace...`,
         );
-        const setupCmds = [
-          `mkdir -p ${repoWorktreesDir}`,
-          `git clone --reference ${ORBIT_ROOT}/main --dissociate ${upstreamUrl} ${remoteWorktreeDir}`,
-          `cd ${remoteWorktreeDir} && git fetch origin ${branch} && git checkout ${branch}`,
-        ];
-        for (const cmd of setupCmds) {
-          const res = await provider.exec(cmd, {
-            ...buildOptions,
-            cwd: ORBIT_ROOT,
-          });
-          if (res !== 0) throw new Error(`Setup command failed: ${cmd}`);
-        }
-      }
+        const mirrorPath = `${ORBIT_ROOT}/main`;
+        const hasMirror =
+          (await provider.exec(`ls -d ${mirrorPath}/.git`, { quiet: true })) ===
+          0;
 
-      // Build / Install
-      const buildStatus = await provider.exec(
-        `npm install && npm run build`,
-        buildOptions,
-      );
-      if (buildStatus !== 0) {
-        this.observer.onLog?.(
-          LogLevel.WARN,
-          'BUILD',
-          'Build failed. Evaluation may be incomplete.',
-        );
+        const quietOptions = { ...buildOptions, quiet: true };
+
+        const setupCmds = [
+          { cmd: `sudo mkdir -p ${repoWorkspacesDir}`, options: quietOptions },
+          { cmd: `sudo chmod -R 777 ${ORBIT_ROOT}`, options: quietOptions },
+          {
+            cmd: `git clone ${hasMirror ? `--reference ${mirrorPath} --dissociate` : ''} ${upstreamUrl} ${remoteWorkspaceDir}`,
+            options: quietOptions,
+          },
+          {
+            cmd: `cd ${remoteWorkspaceDir} && (git fetch origin ${branch} || git checkout -b ${branch}) && git checkout ${branch}`,
+            options: quietOptions,
+          },
+          {
+            cmd: `sudo chmod -R 777 ${remoteWorkspaceDir}`,
+            options: quietOptions,
+          },
+        ];
+        for (const setup of setupCmds) {
+          const res = await provider.exec(setup.cmd, setup.options);
+          if (res !== 0) throw new Error(`Setup command failed: ${setup.cmd}`);
+        }
       }
     }
 
@@ -182,7 +198,7 @@ export class MissionManager {
   }
 
   /**
-   * Decommission a specific mission and its worktree.
+   * Decommission a specific mission and its workspace.
    */
   async jettison(options: JettisonOptions): Promise<MissionResult> {
     const { identifier, action = 'chat' } = options;
@@ -202,7 +218,7 @@ export class MissionManager {
     this.observer.onLog?.(
       LogLevel.INFO,
       'CLEANUP',
-      `🧹 Surgically jettisoning capsule and worktree for #${identifier} in ${this.projectCtx.repoName}...`,
+      `🧹 Surgically jettisoning capsule and workspace for #${identifier} in ${this.projectCtx.repoName}...`,
     );
 
     const mCtx = resolveMissionContext(identifier, action);
@@ -233,13 +249,13 @@ export class MissionManager {
         (this.infra.providerType as any) === 'local-worktree';
 
       if (!isLocal) {
-        const worktreePath = `${SATELLITE_WORKTREES_PATH}/${this.projectCtx.repoName}/${mCtx.worktreeName}`;
+        const workspacePath = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
         this.observer.onLog?.(
           LogLevel.INFO,
           'CLEANUP',
-          `   📂 Purging remote worktree: ${worktreePath}`,
+          `   📂 Purging remote workspace: ${workspacePath}`,
         );
-        await provider.exec(`rm -rf ${worktreePath}`);
+        await provider.exec(`rm -rf ${workspacePath}`);
       }
 
       this.observer.onLog?.(

@@ -129,6 +129,7 @@ export interface OrbitProvider {
    * Lists active mission capsules.
    */
   listCapsules(): Promise<string[]>;
+  provisionMirror(remoteUrl: string): Promise<number>;
 }
 
 export interface SetupOptions {

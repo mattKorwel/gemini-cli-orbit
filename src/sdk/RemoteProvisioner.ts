@@ -44,7 +44,7 @@ export class RemoteProvisioner {
     const mCtx = resolveMissionContext(identifier, action);
     const branch = mCtx.branchName;
     const containerName = mCtx.containerName;
-    const remoteWorktreeDir = `${ORBIT_ROOT}/worktrees/${this.projectCtx.repoName}/${mCtx.worktreeName}`;
+    const remoteWorkspaceDir = `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
 
     // RAM-disk secret mount (ADR 14)
     const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateMissionId(
@@ -75,8 +75,8 @@ export class RemoteProvisioner {
             readonly: false,
           },
           {
-            host: remoteWorktreeDir,
-            capsule: remoteWorktreeDir,
+            host: remoteWorkspaceDir,
+            capsule: remoteWorkspaceDir,
             readonly: false,
           },
           { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: false },
@@ -88,7 +88,7 @@ export class RemoteProvisioner {
           // RAM-disk secret mount (ADR 14)
           {
             host: secretPath,
-            capsule: `${remoteWorktreeDir}/.env`,
+            capsule: `${remoteWorkspaceDir}/.env`,
             readonly: true,
           },
         ],

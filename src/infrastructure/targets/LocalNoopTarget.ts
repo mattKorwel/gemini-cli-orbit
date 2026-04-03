@@ -8,7 +8,7 @@ import type { InfrastructureProvisioner } from '../InfrastructureProvisioner.js'
 import type { InfrastructureState } from '../InfrastructureState.js';
 
 /**
- * A no-op provisioner for local worktree environments.
+ * A no-op provisioner for local workspace environments.
  * Infrastructure is assumed to be the local machine.
  */
 export class LocalNoopTarget implements InfrastructureProvisioner {

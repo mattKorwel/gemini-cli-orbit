@@ -149,7 +149,7 @@ server.registerTool(
   'mission_jettison',
   {
     description:
-      'Decommission mission-specific resources (capsules and worktrees).',
+      'Decommission mission-specific resources (capsules and workspaces).',
     inputSchema: z.object({
       identifier: z.string().describe('PR number or branch name'),
       action: z.string().default('chat'),

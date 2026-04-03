@@ -33,12 +33,14 @@ export class ProviderFactory {
 
     if (effectiveProvider === 'local-worktree') {
       const primaryRoot = getPrimaryRepoRoot(projectCtx.repoRoot);
-      const localWorktreesDir =
-        infra.worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
+      const localWorkspacesDir =
+        infra.workspacesDir ||
+        infra.worktreesDir ||
+        path.resolve(primaryRoot, '..', 'workspaces');
       return new LocalWorktreeProvider(
         projectCtx,
         stationName,
-        localWorktreesDir,
+        localWorkspacesDir,
       );
     }
 

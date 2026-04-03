@@ -11,7 +11,7 @@ export interface MissionContext {
   branchName: string;
   containerName: string;
   sessionName: string;
-  worktreeName: string;
+  workspaceName: string;
 }
 
 /**
@@ -57,7 +57,7 @@ export function resolveMissionContext(
     containerName: `orbit-${sId}-${action}`,
     // Sessions are specific to the branch (idempotent across actions)
     sessionName: `orbit-${sBranch}`,
-    // Worktrees are specific to the branch and action for maximum isolation
-    worktreeName: `mission-${sId}-${action}`,
+    // Workspaces are specific to the branch and action for maximum isolation
+    workspaceName: `mission-${sId}-${action}`,
   };
 }

@@ -40,15 +40,26 @@ professionally structured, entity-based platform.
 ### 3. PNI Automation (Networking & Idempotency) - COMPLETED
 
 - **Full Stack Automation**: Implemented automated provisioning of VPC,
-  Subnetwork, Cloud Router, and Cloud NAT, guarded by the `autoSetupNet` flag.
+  Subnetwork, Cloud Router, and Cloud NAT, guarded by the `manageNetworking`
+  flag.
 - **BeyondCorp Integration**: Automated firewall rules for corporate SSH relays
-  (`172.253.30.0/23`).
+  (`172.253.30.0/23`) and enforced mandatory `nic0.` internal hostname routing.
 - **Idempotency Guarantee**: Leveraging Pulumi Automation API to ensure
   re-running `liftoff` is safe and surgical.
 - **Disk Compatibility**: Removed hardcoded `pd-ssd` to allow GCP to select
-  optimal defaults (e.g., for N4 instances).
-- **Interactive Networking Wizard**: Enhanced the schematic creation wizard to
-  prompt for automated networking management and custom SSH source ranges.
+  optimal defaults; implemented 500GB dedicated data disk for workspaces and
+  mirrors.
+
+### 4. CLI & UX Enhancements - COMPLETED
+
+- **Terminology Migration**: Transitioned from "Worktree" to "Workspace" for
+  remote missions to better reflect full-clone isolation.
+- **New Commands**: Added `orbit config show` and
+  `orbit infra schematic <name> --show` for better environment transparency.
+- **Noise Suppression**: Implemented aggressive `gcloud` noise filtering to
+  suppress "Existing host keys found" and other informational messages.
+- **Isolated Networking**: Implemented station-specific naming for managed VPCs
+  (`orbit-vpc-<station>`) to ensure safe and clean decommissioning.
 
 ### 4. MCP & Chat UI Integration
 
@@ -78,34 +89,34 @@ the following end-to-end flows must be verified in a real GCE environment:
 
 ### 1. Infrastructure (Infra) - VERIFIED
 
-- [x] **Liftoff**: Run
-      `orbit infra liftoff orbit-station-1 --schematic korwel-orbit-fresh`.
-      Verified the VM provisions correctly and image pulls succeed.
+- [x] **Internal Liftoff**: Verified full-stack (VPC, NAT, VM) provisioning with
+      BeyondCorp.
+- [x] **External Liftoff**: Verified provisioning on existing `default` VPC with
+      public IP.
+- [x] **Storage**: Implemented and verified dedicated 500GB data disk with
+      auto-mounting.
 - [x] **Networking**: Verified BeyondCorp SSH Relay connectivity using
       `nic0...internal.gcpnode.com` hostname.
-- [x] **Cloud NAT**: Provisioned Cloud Router and NAT gateway to enable outbound
-      connectivity for image pulls.
-- [x] **Firewall**: Added rule for BeyondCorp SSH Relay (`172.253.30.0/23`).
 
-### 2. Workflow (Mission)
+### 2. Workflow (Mission) - VERIFIED
 
-- [ ] **Launch**: Start a mission via `orbit mission <ID> review`. Verify the
-      parallel task runner initiates.
-- [ ] **Capsule Intelligence**: Attach to a capsule and run `orbit mission ci`.
-      Verify it monitors the correct branch without an explicit ID.
-- [ ] **Uplink**: Run `orbit mission uplink`. Verify telemetry logs are fetched
-      from the remote station.
+- [x] **Launch**: Verified mission initialization and remote worktree setup.
+- [x] **Branch Intelligence**: Restored smart branch handling (auto-create
+      missing branches).
+- [x] **Capsule Intelligence**: Attached to capsule and verified "Sticky
+      Station" default resolution.
+- [x] **Mirroring**: Verified automatic host-side mirror provisioning for fast
+      clones.
+- [x] **Uplink**: Verified telemetry logs and enhanced pulse output.
 
-### 3. Integration (MCP/Slash)
+### 3. Integration (MCP/Slash) - VERIFIED
 
-- [ ] **Slash Commands**: Type `/orbit:mission` in the Gemini CLI. Verify the
-      template appears correctly.
-- [ ] **Proactive LLM**: Ask the model to "Review my PR". Verify it suggests an
-      Orbit mission based on the guidance in `docs/GEMINI.md`.
+- [x] **Slash Commands**: Verified TOML definitions and chat UI integration.
+- [x] **Proactive LLM**: Model correctly suggests Orbit missions based on
+      `docs/GEMINI.md`.
 
-### 4. Cleanup
+### 4. Cleanup - VERIFIED
 
-- [ ] **Jettison**: Run `orbit mission jettison`. Verify the capsule and
-      worktree are removed.
-- [ ] **Splashdown**: Run `orbit infra splashdown <name>`. Verify the station VM
-      and receipt are fully decommissioned.
+- [x] **Jettison**: Verified surgical removal of capsules and remote worktrees.
+- [x] **Splashdown**: Verified full decommissioning of VM, Networking, and Local
+      Receipts.

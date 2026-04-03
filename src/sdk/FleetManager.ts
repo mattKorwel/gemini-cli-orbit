@@ -17,6 +17,7 @@ import {
   saveSettings,
   saveSchematic as saveSchematicToDisk,
   loadSchematic,
+  detectRemoteUrl,
 } from '../core/ConfigManager.js';
 import { StationManager } from './StationManager.js';
 import { SchematicManager } from './SchematicManager.js';
@@ -140,6 +141,17 @@ export class FleetManager {
         `✅ Station is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
       );
       await provider.ensureReady();
+
+      // Ensure Main Mirror exists on host for fast clones
+      const remoteUrl = detectRemoteUrl(this.projectCtx.repoRoot);
+      if (remoteUrl) {
+        this.observer.onLog?.(
+          LogLevel.INFO,
+          'SETUP',
+          '   - Optimizing for first mission (Provisioning mirror)...',
+        );
+        await (provider as any).provisionMirror?.(remoteUrl);
+      }
     }
 
     const isLocal =
@@ -316,7 +328,7 @@ export class FleetManager {
       `🌊 SPLASHDOWN INITIATED: ${receipt.name} (${receipt.type})`,
     );
 
-    // 4. Mission Cleanup (Capsules/Worktrees)
+    // 4. Mission Cleanup (Capsules/Workspaces)
     const capsules = await provider.listCapsules();
     for (const capsule of capsules) {
       this.observer.onLog?.(
@@ -341,7 +353,11 @@ export class FleetManager {
           'CLEANUP',
           `   🚜 Destroying Station Infrastructure: ${receipt.name}`,
         );
-        await provider.destroy();
+        const infraProvisioner = InfrastructureFactory.getProvisioner(
+          receipt.name,
+          receipt as any,
+        );
+        await infraProvisioner.down();
         this.stationManager.deleteReceipt(receipt.name);
 
         if (settings.activeStation === receipt.name) {
@@ -385,6 +401,13 @@ export class FleetManager {
    */
   listSchematics(): string[] {
     return this.schematicManager.listSchematics();
+  }
+
+  /**
+   * Get a specific schematic.
+   */
+  getSchematic(name: string): OrbitConfig | null {
+    return loadSchematic(name);
   }
 
   /**

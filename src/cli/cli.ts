@@ -50,7 +50,6 @@ export async function dispatch(argv: string[]): Promise<number> {
     .scriptName('orbit')
     .usage('$0 <command> [args]')
     .demandCommand(1, 'Please specify a command.')
-    .strict()
     .showHelpOnFail(true)
     .exitProcess(false)
     .wrap(null)
@@ -62,7 +61,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .option('local', {
       alias: 'l',
       type: 'boolean',
-      description: 'Force local worktree mode',
+      description: 'Force local workspace mode',
     })
     .option('repo', {
       alias: 'r',
@@ -222,8 +221,32 @@ export async function dispatch(argv: string[]): Promise<number> {
         if (action === 'pulse') {
           const pulse = await sdk.getPulse();
           console.log(
-            `\n🛰️  ORBIT PULSE: ${pulse.stationName} [${pulse.status}]`,
+            `\n🛰️  ORBIT PULSE: ${pulse.stationName} (${pulse.repoName})`,
           );
+          console.log('-'.repeat(80));
+          console.log(`   - Station State:  ${pulse.status}`);
+          if (pulse.internalIp)
+            console.log(`   - Internal IP:    ${pulse.internalIp}`);
+          if (pulse.externalIp)
+            console.log(`   - External IP:    ${pulse.externalIp}`);
+
+          console.log('\n📦 ACTIVE MISSION CAPSULES:');
+          if (pulse.capsules.length === 0) {
+            console.log('     - No mission capsules found');
+          } else {
+            pulse.capsules.forEach((c) => {
+              const stateIcon =
+                c.state === 'WAITING'
+                  ? '⏳'
+                  : c.state === 'THINKING'
+                    ? '🧠'
+                    : '💤';
+              console.log(
+                `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`,
+              );
+            });
+          }
+          console.log('-'.repeat(80));
           args.exitCode = 0;
           return;
         }
@@ -260,6 +283,14 @@ export async function dispatch(argv: string[]): Promise<number> {
           .option('destroy', {
             type: 'boolean',
             description: 'Decommission infrastructure',
+          })
+          .option('import', {
+            type: 'string',
+            description: 'Import schematic from file or URL',
+          })
+          .option('show', {
+            type: 'boolean',
+            description: 'Show schematic details',
           });
       },
       async (args: any) => {
@@ -276,6 +307,28 @@ export async function dispatch(argv: string[]): Promise<number> {
           args.exitCode = await sdk.splashdown({ name, all: args.all });
         } else if (action === 'schematic') {
           const sdk = createSDK(args);
+          if (args.import) {
+            const imported = await sdk.importSchematic(args.import);
+            console.log(`✅ Schematic "${imported}" imported.`);
+            return;
+          }
+          if (name) {
+            if (args.show) {
+              const config = sdk.getSchematic(name);
+              if (!config) {
+                console.error(`❌ Schematic "${name}" not found.`);
+                args.exitCode = 1;
+                return;
+              }
+              console.log(`\n📐 ORBIT SCHEMATIC: ${name}`);
+              console.log('-'.repeat(80));
+              console.log(JSON.stringify(config, null, 2));
+              console.log('-'.repeat(80));
+              return;
+            }
+            await sdk.runSchematicWizard(name, args);
+            return;
+          }
           const schematics = sdk.listSchematics();
           console.log('\n📐 ORBIT SCHEMATICS');
           schematics.forEach((s) => console.log(`   ${s}`));
@@ -289,14 +342,20 @@ export async function dispatch(argv: string[]): Promise<number> {
       'The Local: Setup environment and integrations.',
       (y: Argv) => {
         return y.positional('action', {
-          choices: ['install'],
+          choices: ['install', 'show'],
           demandOption: true,
         });
       },
       async (args: any) => {
+        const sdk = createSDK(args);
         if (args.action === 'install') {
-          const sdk = createSDK(args);
           await sdk.installShell();
+        } else if (args.action === 'show') {
+          const config = getRepoConfig();
+          console.log('\n🛠️  ORBIT RESOLVED CONFIG');
+          console.log('-'.repeat(80));
+          console.log(JSON.stringify(config, null, 2));
+          console.log('-'.repeat(80));
         }
       },
     )
@@ -347,7 +406,7 @@ export async function dispatch(argv: string[]): Promise<number> {
 
   function applyGlobalFlags(args: any): string {
     if (args.local) {
-      process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
+      process.env.GCLI_ORBIT_PROVIDER = 'local-workspace';
       process.env.GCLI_MCP = '0';
     }
     if (args.repo) process.env.GCLI_ORBIT_REPO_NAME = args.repo;
