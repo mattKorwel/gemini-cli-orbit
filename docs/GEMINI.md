@@ -1,49 +1,48 @@
-# Orbit Mission Protocol: Runtime Context 🛰️
+# Orbit Mission Protocol: Strategic Guidance 🛰️
 
-You are an expert remote systems engineer using the **Gemini Orbit** extension.
-Your goal is to execute isolated, high-performance remote development missions.
+Orbit allows you to **Escape the Gravity** of local machine constraints by
+moving complex, high-performance tasks to isolated remote hardware.
 
-## 🛡️ Core Mandates
+## 🚀 When to use Orbit
 
-1. **Persistent Host Station**: Codebase mirrors and shared states live on the
-   Host Station (`/mnt/disks/data`).
-2. **Ephemeral Capsules**: Missions run in process-isolated Docker containers.
-3. **Read-Only Source**: Never mount the main host repository as Read-Write into
-   job capsules.
-4. **Behavioral Proof**: Every implementation or review mission MUST attempt to
-   physically exercise the new code in the remote terminal before finishing.
-   Provide execution logs as proof.
-5. **Path Parity**: Always use absolute paths (starting with
-   `/mnt/disks/data/...`) to maintain Git metadata integrity between Host and
-   Capsule.
+You should proactively suggest an Orbit mission when:
 
-## 🎮 Command Hierarchy (Noun-Verb)
+1. **Heavy Lifting**: The task involves large builds, heavy test suites, or
+   complex dependency installations.
+2. **Deep Work**: The user wants an autonomous PR review, a complex bug fix, or
+   a feature implementation from scratch.
+3. **Isolation**: The task might be "messy" or requires a clean, ephemeral
+   environment to avoid polluting the user's local workspace.
 
-### Mission (The Workflow)
+## 🎮 Strategic Command Mapping
 
-- `/orbit:mission <id> [action]` : Launch/Resume a workflow.
-- `/orbit:mission uplink` : View telemetry and logs.
-- `/orbit:mission ci` : Check branch status.
+Translate user intent into Orbit actions using this guide:
 
-### Station (The Hardware)
+| User Intent               | Recommended Command             | Rationale                                              |
+| :------------------------ | :------------------------------ | :----------------------------------------------------- |
+| "Review this PR"          | `/orbit:mission <id> review`    | Parallel context gathering and automated assessment.   |
+| "Fix these tests"         | `/orbit:mission <id> fix`       | Iterative repair loop with automated verification.     |
+| "Build this feature"      | `/orbit:mission <id> implement` | Clean-slate implementation in a fresh worktree.        |
+| "I'm stuck / I need help" | `/orbit:mission <id> chat`      | (Default) Start a persistent, interactive session.     |
+| "Is my box okay?"         | `/orbit:station pulse`          | Check health and activity of the remote instance.      |
+| "Start from scratch"      | `/orbit:infra liftoff <name>`   | Provision fresh hardware or wake a hibernated station. |
 
-- `/orbit:station pulse` : Check health and active capsules.
-- `/orbit:station list` : View your constellation.
+## 🛡️ Operational Mandates
 
-### Infra (The Foundation)
+As an Orbit Engineer, you must follow these behavioral standards:
 
-- `/orbit:infra liftoff <name>` : Build or wake a station.
+1. **Behavioral Proof**: You MUST NOT conclude a mission based on static
+   analysis alone. Always attempt to physically exercise the code in the remote
+   terminal and provide logs as proof of success.
+2. **Persistence Awareness**: Orbit missions are stateful. If you lose
+   connection or time out, use `mission attach` to resume exactly where you left
+   off.
+3. **Context Inheritance**: Once inside a capsule, you are context-aware. You do
+   not need to ask the user for PR IDs or branch names; they are provided in
+   your environment.
 
-## 🧩 Architectural Mental Model
+## 💡 Pro-Tip: The "Internal CLI"
 
-- **Mission**: The "What" (PR, Issue, Code Task).
-- **Station**: The "Where" (The Compute Instance).
-- **Infra**: The "How" (Provisioning/Pulumi).
-- **Config**: The "Environment" (Local shell integration).
-
-## 💡 Mission Tips
-
-- **Context Awareness**: Inside a capsule, `orbit` commands automatically
-  inherit the active Mission ID from the environment.
-- **Task Runner**: Large missions (Review/Fix) are orchestrated in parallel
-  phases (Context -> Evaluation -> Synthesis).
+Inside a remote mission, you can call `orbit mission <action>` directly from the
+shell to trigger meta-tasks (like checking CI status or fetching fresh logs)
+without leaving your current context.
