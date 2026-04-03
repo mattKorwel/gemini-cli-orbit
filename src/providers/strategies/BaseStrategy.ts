@@ -6,6 +6,7 @@
 
 import os from 'node:os';
 import type { ConnectivityStrategy } from './ConnectivityStrategy.js';
+import type { InfrastructureSpec } from '../../core/Constants.js';
 
 export abstract class BaseStrategy implements ConnectivityStrategy {
   protected overrideHost: string | null = null;
@@ -14,11 +15,7 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
     public projectId: string,
     public zone: string,
     protected instanceName: string,
-    protected config: {
-      dnsSuffix?: string;
-      userSuffix?: string;
-      backendType?: string;
-    } = {},
+    protected infra: InfrastructureSpec = {},
   ) {}
 
   abstract getMagicRemote(): string;
@@ -88,7 +85,7 @@ export abstract class BaseStrategy implements ConnectivityStrategy {
 
   protected getStandardUser(): string {
     const rawUser = process.env.USER || 'node';
-    const userSuffix = this.config.userSuffix ?? '';
+    const userSuffix = this.infra.userSuffix ?? '';
     return `${rawUser}${userSuffix}`;
   }
 }

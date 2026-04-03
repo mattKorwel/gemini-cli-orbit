@@ -11,9 +11,10 @@ import { detectRepoName, getRepoConfig } from './ConfigManager.js';
  * Legacy wrapper for install-shell logic, now using OrbitSDK.
  */
 export async function runInstallShell(): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  const sdk = new OrbitSDK(config);
+  const repoRoot = process.cwd();
+  const repoName = detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, undefined, repoRoot);
+  const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   await sdk.installShell();
   return 0;

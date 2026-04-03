@@ -122,7 +122,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     return {
       publicIp: address?.address,
       privateIp: instance.networkInterfaces.apply(
-        (ni) => ni[0]?.networkIp || '',
+        (ni: any[]) => ni[0]?.networkIp || '',
       ),
       instanceId: instance.instanceId,
     };

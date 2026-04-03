@@ -10,8 +10,16 @@ import { ProviderFactory } from '../providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
 
 vi.mock('node:fs');
-vi.mock('./providers/ProviderFactory.ts');
-vi.mock('./ConfigManager.ts');
+vi.mock('../providers/ProviderFactory.js');
+vi.mock('./ConfigManager.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as any;
+  return {
+    ...actual,
+    detectRepoName: vi.fn(),
+    getRepoConfig: vi.fn(),
+    loadProjectConfig: vi.fn().mockReturnValue({}),
+  };
+});
 
 describe('runStatus', () => {
   const mockProvider = {

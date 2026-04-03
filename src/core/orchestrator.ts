@@ -5,7 +5,7 @@
  */
 
 import { OrbitSDK } from './OrbitSDK.js';
-import { getRepoConfig } from './ConfigManager.js';
+import { getRepoConfig, detectRepoName } from './ConfigManager.js';
 import { type OrbitConfig } from './Constants.js';
 
 /**
@@ -17,9 +17,10 @@ export async function runOrchestrator(
   args: string[] = [],
   cliFlags: Partial<OrbitConfig> = {},
 ): Promise<number> {
-  const repoName = cliFlags.repoName || args[0] || undefined;
-  const config = getRepoConfig(repoName, cliFlags);
-  const sdk = new OrbitSDK(config);
+  const repoRoot = process.cwd();
+  const repoName = cliFlags.repoName || args[0] || detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, cliFlags, repoRoot);
+  const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   const result = await sdk.startMission({
     identifier,

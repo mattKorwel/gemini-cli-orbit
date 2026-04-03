@@ -5,7 +5,7 @@
  */
 
 import fs from 'node:fs';
-import { ORBIT_LOG_PATH, PROJECT_ORBIT_DIR } from './Constants.js';
+import { getOrbitLogPath, getProjectOrbitDir } from './Constants.js';
 
 export enum LogLevel {
   DEBUG = 0,
@@ -17,12 +17,31 @@ export enum LogLevel {
 class Logger {
   private verbose: boolean = false;
   private logStream: fs.WriteStream | null = null;
+  private repoRoot: string = process.cwd();
 
-  constructor() {
-    if (!fs.existsSync(PROJECT_ORBIT_DIR)) {
-      fs.mkdirSync(PROJECT_ORBIT_DIR, { recursive: true });
+  /**
+   * Updates the repo root for logging.
+   */
+  setRepoRoot(repoRoot: string) {
+    if (this.repoRoot !== repoRoot) {
+      this.repoRoot = repoRoot;
+      if (this.logStream) {
+        this.logStream.end();
+        this.logStream = null;
+      }
     }
-    this.logStream = fs.createWriteStream(ORBIT_LOG_PATH, { flags: 'a' });
+  }
+
+  private ensureInitialized() {
+    if (this.logStream) return;
+
+    const orbitDir = getProjectOrbitDir(this.repoRoot);
+    const logPath = getOrbitLogPath(this.repoRoot);
+
+    if (!fs.existsSync(orbitDir)) {
+      fs.mkdirSync(orbitDir, { recursive: true });
+    }
+    this.logStream = fs.createWriteStream(logPath, { flags: 'a' });
   }
 
   setVerbose(verbose: boolean) {
@@ -37,6 +56,7 @@ class Logger {
   }
 
   private write(level: LogLevel, tag: string, message: string, ...args: any[]) {
+    this.ensureInitialized();
     const formatted = this.formatMessage(level, tag, message);
     const fullMessage =
       args.length > 0 ? `${formatted} ${JSON.stringify(args)}` : formatted;

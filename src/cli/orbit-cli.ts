@@ -8,7 +8,7 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import yargs from 'yargs';
+import yargs, { type Argv } from 'yargs';
 
 // --- CORE IMPORTS ---
 import {
@@ -114,16 +114,16 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'mission <identifier> [action]',
       'Launch or resume an isolated developer presence.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('identifier', { type: 'string', demandOption: true })
           .positional('action', { type: 'string', default: 'chat' });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         const result = await sdk.startMission({
-          identifier: args.identifier,
-          action: args.action,
+          identifier: args.identifier as string,
+          action: args.action as string,
           args: args._.map(String).slice(1),
         });
         args.exitCode = result.exitCode;
@@ -132,7 +132,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'schematic <action> [name]',
       'Manage infrastructure blueprints.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('action', {
             choices: ['list', 'create', 'edit', 'import'],
@@ -150,7 +150,7 @@ export async function dispatch(argv: string[]): Promise<number> {
           .option('instanceName', { type: 'string' })
           .option('image', { type: 'string' });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         if (args.action === 'list') {
           const schematics = sdk.listSchematics();
@@ -168,7 +168,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         }
 
         if (args.action === 'import' && args.name) {
-          await sdk.importSchematic(args.name);
+          await sdk.importSchematic(args.name as string);
           args.exitCode = 0;
           return;
         }
@@ -201,7 +201,7 @@ export async function dispatch(argv: string[]): Promise<number> {
           }
 
           if (hasFlags) {
-            await sdk.saveSchematic(args.name, cleanFlags);
+            await sdk.saveSchematic(args.name as string, cleanFlags);
             args.exitCode = 0;
             return;
           }
@@ -214,7 +214,7 @@ export async function dispatch(argv: string[]): Promise<number> {
           imageUri: args.image as any,
         };
         args.exitCode = await runFleet(
-          ['schematic', args.action, args.name || ''],
+          ['schematic', args.action as string, (args.name as string) || ''],
           configFlags as any,
         );
       },
@@ -222,7 +222,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'station <action> [name]',
       'Hardware control: <activate|list|liftoff|hibernate>',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('action', {
             choices: ['list', 'activate', 'liftoff', 'hibernate'],
@@ -237,16 +237,16 @@ export async function dispatch(argv: string[]): Promise<number> {
             description: 'Sync with reality',
           });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         if (args.action === 'activate' && args.name) {
-          await sdk.activateStation(args.name);
+          await sdk.activateStation(args.name as string);
           args.exitCode = 0;
           return;
         }
 
         if (args.action === 'hibernate' && args.name) {
-          await sdk.hibernate({ name: args.name });
+          await sdk.hibernate({ name: args.name as string });
           args.exitCode = 0;
           return;
         }
@@ -284,13 +284,17 @@ export async function dispatch(argv: string[]): Promise<number> {
 
         if (args.action === 'liftoff') {
           args.exitCode = await sdk.provisionStation({
-            schematicName: args.name,
+            schematicName: args.name as string,
           });
           return;
         }
 
         // Catch-all for legacy runFleet if any
-        const fleetArgs = ['station', args.action, args.name || ''];
+        const fleetArgs = [
+          'station',
+          args.action as string,
+          (args.name as string) || '',
+        ];
         if (args['setup-net']) fleetArgs.push('--setup-net');
         if (args['with-new-station']) fleetArgs.push('--with-new-station');
         args.exitCode = await runFleet(fleetArgs, args as any);
@@ -300,7 +304,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       'pulse',
       'Check station health and active mission status.',
       {},
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         const pulse = await sdk.getPulse();
 
@@ -336,28 +340,28 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'uplink <identifier> [action]',
       'Inspect latest local or remote mission telemetry.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('identifier', { type: 'string', demandOption: true })
           .positional('action', { type: 'string', default: 'review' });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         args.exitCode = await sdk.getLogs({
-          identifier: args.identifier,
-          action: args.action,
+          identifier: args.identifier as string,
+          action: args.action as string,
         });
       },
     )
     .command(
       'ci [branch]',
       'Monitor CI status for a branch with noise filtering.',
-      (y) => {
+      (y: Argv) => {
         return y.positional('branch', { type: 'string' });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
-        const status = await sdk.monitorCI({ branch: args.branch });
+        const status = await sdk.monitorCI({ branch: args.branch as string });
         console.log(`CI Status: ${status.status} (${status.runs.join(', ')})`);
         if (status.failures) {
           for (const [cat, fails] of status.failures.entries()) {
@@ -371,7 +375,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'jettison <identifier> [action]',
       'Decommission a specific mission and its worktree.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('identifier', { type: 'string', demandOption: true })
           .positional('action', { type: 'string', default: 'chat' })
@@ -381,11 +385,11 @@ export async function dispatch(argv: string[]): Promise<number> {
             description: 'Bypass confirmation',
           });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         const res = await sdk.jettisonMission({
-          identifier: args.identifier,
-          action: args.action,
+          identifier: args.identifier as string,
+          action: args.action as string,
         });
         args.exitCode = res.exitCode;
       },
@@ -393,7 +397,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'reap',
       'Cleanup idle mission capsules based on inactivity.',
-      (y) => {
+      (y: Argv) => {
         return y
           .option('threshold', {
             type: 'number',
@@ -401,7 +405,7 @@ export async function dispatch(argv: string[]): Promise<number> {
           })
           .option('force', { type: 'boolean', description: 'Force cleanup' });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         await sdk.reapMissions({
           threshold: args.threshold as number,
@@ -413,7 +417,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'splashdown [name]',
       'Emergency shutdown of missions or full decommissioning of a station.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('name', {
             type: 'string',
@@ -424,7 +428,7 @@ export async function dispatch(argv: string[]): Promise<number> {
             description: 'Stop the active station VM as well',
           });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         args.exitCode = await sdk.splashdown({
           name: args.name as string,
@@ -435,16 +439,16 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'attach <identifier> [action]',
       'Attach to an active mission session.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('identifier', { type: 'string', demandOption: true })
           .positional('action', { type: 'string', default: 'chat' });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         args.exitCode = await sdk.attach({
-          identifier: args.identifier,
-          action: args.action,
+          identifier: args.identifier as string,
+          action: args.action as string,
         });
       },
     )
@@ -452,7 +456,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       'install-shell',
       'Install Orbit shell aliases and tab-completion.',
       {},
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         await sdk.installShell();
         args.exitCode = 0;
@@ -461,7 +465,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .command(
       'liftoff [schematic]',
       'Build or wake Orbital Station infrastructure.',
-      (y) => {
+      (y: Argv) => {
         return y
           .positional('schematic', { type: 'string' })
           .option('setup-net', { type: 'boolean' })
@@ -471,17 +475,17 @@ export async function dispatch(argv: string[]): Promise<number> {
             description: 'Decommission infrastructure',
           });
       },
-      async (args) => {
+      async (args: any) => {
         const sdk = createSDK(args);
         args.exitCode = await sdk.provisionStation({
-          schematicName: args.schematic,
+          schematicName: args.schematic as string,
           destroy: args.destroy as boolean,
         });
       },
     );
 
   // Global flag processing helper
-  function applyGlobalFlags(args: any) {
+  function applyGlobalFlags(args: any): string {
     if (args.local) {
       process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
       process.env.GCLI_MCP = '0';
@@ -489,13 +493,17 @@ export async function dispatch(argv: string[]): Promise<number> {
     if (args.repo) {
       process.env.GCLI_ORBIT_REPO_NAME = args.repo;
     }
+
+    let repoRoot = process.cwd();
     if (args['repo-dir']) {
       const val = expandPath(args['repo-dir']);
       if (!fs.existsSync(val)) {
         throw new Error(`❌ Repository directory not found: ${val}`);
       }
-      process.chdir(val);
+      repoRoot = path.resolve(val);
+      process.chdir(repoRoot);
     }
+
     if (args['for-station']) {
       process.env.GCLI_ORBIT_INSTANCE_NAME = args['for-station'];
     }
@@ -507,13 +515,15 @@ export async function dispatch(argv: string[]): Promise<number> {
     }
     // Ensure CLI knows it is a command to bypass interactive UI
     process.env.GCLI_ORBIT_SHIM = '1';
+
+    return repoRoot;
   }
 
   function createSDK(args: any): IOrbitSDK {
-    applyGlobalFlags(args);
-    const repoName = args.repo || detectRepoName();
-    const config = getRepoConfig(repoName, args);
-    return new OrbitSDK(config, new ConsoleObserver());
+    const repoRoot = applyGlobalFlags(args);
+    const repoName = args.repo || detectRepoName(repoRoot);
+    const config = getRepoConfig(repoName, args, repoRoot);
+    return new OrbitSDK(config, new ConsoleObserver(), repoRoot);
   }
 
   try {
@@ -533,9 +543,17 @@ async function main() {
   process.exit(code);
 }
 
-if (
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
-) {
+const isMain = () => {
+  try {
+    return (
+      process.argv[1] &&
+      fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+    );
+  } catch {
+    return false;
+  }
+};
+
+if (isMain()) {
   main();
 }

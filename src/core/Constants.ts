@@ -10,26 +10,78 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const getFilename = () => {
+  try {
+    return fileURLToPath(import.meta.url);
+  } catch {
+    return __filename;
+  }
+};
+
+const getDirname = () => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return __dirname;
+  }
+};
+
+const _filename = getFilename();
+const _dirname = getDirname();
 
 // This is the root of the Gemini Orbit extension code (the folder containing package.json)
-// When running from bundle/bin/X.js, root is 2 levels up.
-// When running from src/cli/bin/X.ts (tsx), root is 3 levels up.
-// When running from src/core/X.ts, root is 2 levels up.
-// When running from bundle/X.js, root is 1 level up.
-let EXTENSION_ROOT = path.resolve(__dirname, '../..');
+let EXTENSION_ROOT = path.resolve(_dirname, '../..');
 if (!fs.existsSync(path.join(EXTENSION_ROOT, 'package.json'))) {
-  // Fallback if the above logic fails due to different entry points
-  EXTENSION_ROOT = path.resolve(__dirname, '..');
+  EXTENSION_ROOT = path.resolve(_dirname, '..');
 }
 
-const REPO_ROOT = process.cwd();
+/**
+ * ProjectContext: Immutable data about the local repository environment.
+ */
+export interface ProjectContext {
+  repoRoot: string;
+  repoName: string;
+}
+
+/**
+ * InfrastructureSpec: Data required to build/connect to a station.
+ */
+export interface InfrastructureSpec {
+  projectId?: string | undefined;
+  zone?: string | undefined;
+  instanceName?: string | undefined;
+  stationName?: string | undefined;
+  providerType?: 'gce' | 'local-worktree' | undefined;
+  backendType?: 'direct-internal' | 'external' | undefined;
+  imageUri?: string | undefined;
+  vpcName?: string | undefined;
+  subnetName?: string | undefined;
+  machineType?: string | undefined;
+  sshSourceRanges?: string[] | undefined;
+  worktreesDir?: string | undefined;
+  remoteWorkDir?: string | undefined;
+  useTmux?: boolean | undefined;
+  cpuLimit?: string | undefined;
+  memoryLimit?: string | undefined;
+  reaperIdleLimit?: number | undefined;
+  dnsSuffix?: string | undefined;
+  userSuffix?: string | undefined;
+}
+
+/**
+ * MissionSpec: Parameters for a specific execution.
+ */
+export interface MissionSpec {
+  identifier: string;
+  action: string;
+  args?: string[] | undefined;
+  sensitiveEnv?: Record<string, string> | undefined;
+}
 
 /**
  * Resolves the primary repository root (the 'main' clone) even if currently in a worktree.
  */
-export function getPrimaryRepoRoot(): string {
+export function getPrimaryRepoRoot(repoRoot: string = process.cwd()): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) {
     const devDir = path.join(os.homedir(), 'dev');
     const possiblePaths = [
@@ -44,14 +96,15 @@ export function getPrimaryRepoRoot(): string {
   try {
     const res = spawnSync('git', ['rev-parse', '--git-common-dir'], {
       stdio: 'pipe',
+      cwd: repoRoot,
     });
     if (res.status === 0) {
       const commonDir = res.stdout.toString().trim();
-      if (commonDir === '.git') return REPO_ROOT;
-      return path.dirname(commonDir);
+      if (commonDir === '.git') return repoRoot;
+      return path.resolve(repoRoot, path.dirname(commonDir));
     }
   } catch (_e) {}
-  return REPO_ROOT;
+  return repoRoot;
 }
 
 /**
@@ -77,7 +130,7 @@ export const LOCAL_POLICIES_PATH = path.join(
 export const LOCAL_BUNDLE_PATH = path.join(EXTENSION_ROOT, 'bundle');
 
 /**
- * Configuration Paths
+ * Configuration Paths (Global)
  */
 export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
 export const GLOBAL_SETTINGS_PATH = path.join(
@@ -91,13 +144,24 @@ export const ORBIT_BIN_DIR = path.join(GLOBAL_ORBIT_DIR, 'bin');
 export const GLOBAL_TOKENS_DIR = path.join(GLOBAL_ORBIT_DIR, 'tokens');
 export const DEFAULT_TEMP_DIR = path.join(GLOBAL_ORBIT_DIR, 'tmp');
 
-export const PROJECT_ORBIT_DIR = path.join(REPO_ROOT, '.gemini/orbit');
-export const PROJECT_CONFIG_PATH = path.join(PROJECT_ORBIT_DIR, 'config.json');
-export const LOCAL_SETTINGS_PATH = path.join(
-  PROJECT_ORBIT_DIR,
-  'settings.json',
-);
-export const ORBIT_LOG_PATH = path.join(PROJECT_ORBIT_DIR, 'orbit.log');
+/**
+ * Dynamic Project Paths
+ */
+export function getProjectOrbitDir(repoRoot: string): string {
+  return path.join(repoRoot, '.gemini/orbit');
+}
+
+export function getProjectConfigPath(repoRoot: string): string {
+  return path.join(getProjectOrbitDir(repoRoot), 'config.json');
+}
+
+export function getLocalSettingsPath(repoRoot: string): string {
+  return path.join(getProjectOrbitDir(repoRoot), 'settings.json');
+}
+
+export function getOrbitLogPath(repoRoot: string): string {
+  return path.join(getProjectOrbitDir(repoRoot), 'orbit.log');
+}
 
 /**
  * Repository Metadata
@@ -116,40 +180,21 @@ export const DEFAULT_IMAGE_URI =
   'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
 /**
- * Orbit Configuration Interface
+ * Orbit Configuration Interface (Legacy - for compatibility during refactor)
  */
-export interface OrbitConfig {
-  projectId?: string | undefined;
-  zone?: string | undefined;
-  instanceName?: string | undefined;
-  stationName?: string | undefined;
-  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
-  userFork?: string | undefined;
+export interface OrbitConfig extends InfrastructureSpec {
   upstreamRepo?: string | undefined;
   repoName?: string | undefined;
+  terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
+  userFork?: string | undefined;
   remoteHost?: string | undefined;
-  remoteWorkDir?: string | undefined;
   useContainer?: boolean | undefined;
-  providerType?: 'gce' | 'local-worktree' | undefined;
-  dnsSuffix?: string | undefined;
-  userSuffix?: string | undefined;
-  backendType?: 'direct-internal' | 'external' | undefined;
-  imageUri?: string | undefined;
-  vpcName?: string | undefined;
-  subnetName?: string | undefined;
   profile?: string | undefined;
   schematic?: string | undefined;
   forStation?: string | undefined;
-  worktreesDir?: string | undefined;
-  useTmux?: boolean | undefined;
   autoSetupNet?: boolean | undefined;
-  machineType?: string | undefined;
-  sshSourceRanges?: string[] | undefined;
   tempDir?: string | undefined;
   autoClean?: boolean | undefined;
-  cpuLimit?: string | undefined;
-  memoryLimit?: string | undefined;
-  reaperIdleLimit?: number | undefined;
   verbose?: boolean | undefined;
 }
 
@@ -158,8 +203,8 @@ export interface OrbitConfig {
  */
 export interface OrbitSettings {
   repos: Record<string, OrbitConfig>;
-  activeRepo?: string;
-  activeStation?: string;
-  tempDir?: string;
-  autoClean?: boolean;
+  activeRepo?: string | undefined;
+  activeStation?: string | undefined;
+  tempDir?: string | undefined;
+  autoClean?: boolean | undefined;
 }

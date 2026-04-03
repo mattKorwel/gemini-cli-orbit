@@ -150,6 +150,7 @@ export interface MonitorCIOptions {
  * Options for emergency splashdown.
  */
 export interface SplashdownOptions {
+  name?: string | undefined;
   all?: boolean | undefined;
 }
 
@@ -165,6 +166,7 @@ export interface IOrbitSDK {
   monitorCI(options: MonitorCIOptions): Promise<CIStatus>;
   provisionStation(options: ProvisionOptions): Promise<number>;
   splashdown(options: SplashdownOptions): Promise<number>;
+  hibernate(options: { name: string }): Promise<void>;
   attach(options: AttachOptions): Promise<number>;
   getLogs(options: GetLogsOptions): Promise<number>;
   installShell(): Promise<void>;

@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GceCosProvider } from './GceCosProvider.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { type ProjectContext } from '../core/Constants.js';
 
 vi.mock('node:child_process');
 vi.mock('node:fs');
@@ -40,6 +41,10 @@ describe('GceCosProvider', () => {
   const zone = 'us-west1-a';
   const instanceName = 'test-i';
   const repoRoot = '/repo';
+  const projectCtx: ProjectContext = {
+    repoRoot,
+    repoName: 'repo',
+  };
   let provider: GceCosProvider;
 
   beforeEach(() => {
@@ -51,7 +56,13 @@ describe('GceCosProvider', () => {
     mockConn.run.mockReturnValue({ status: 0, stdout: '', stderr: '' });
     mockConn.sync.mockResolvedValue(0);
 
-    provider = new GceCosProvider(projectId, zone, instanceName, repoRoot);
+    provider = new GceCosProvider(
+      projectCtx,
+      projectId,
+      zone,
+      instanceName,
+      repoRoot,
+    );
   });
 
   afterEach(() => {

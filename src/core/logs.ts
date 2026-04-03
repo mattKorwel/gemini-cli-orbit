@@ -14,9 +14,10 @@ export async function runLogs(
   identifier: string,
   action: string = 'review',
 ): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  const sdk = new OrbitSDK(config);
+  const repoRoot = process.cwd();
+  const repoName = detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, undefined, repoRoot);
+  const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   return sdk.getLogs({ identifier, action });
 }

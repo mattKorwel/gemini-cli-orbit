@@ -77,15 +77,24 @@ describe('LocalWorktreeProvider E2E', () => {
   it('should perform full lifecycle: provision -> status -> remove', async () => {
     const { LocalWorktreeProvider } =
       await import('./LocalWorktreeProvider.js');
+    type ProjectContext = import('../core/Constants.js').ProjectContext;
 
-    const provider = new LocalWorktreeProvider('e2e-station', worktreesDir);
+    const projectCtx: ProjectContext = {
+      repoRoot: mainRepoDir,
+      repoName: 'test-repo',
+    };
+
+    const provider = new LocalWorktreeProvider(
+      projectCtx,
+      'e2e-station',
+      worktreesDir,
+    );
     const branchName = 'feat-test-1';
     const targetWtPath = path.join(worktreesDir, `orbit-${branchName}`);
 
     // 1. Provision (Run Capsule)
     await provider.prepareMissionWorkspace('123', branchName, {
-      name: branchName,
-      repoName: 'test-repo',
+      projectId: 'local',
     } as any);
 
     expect(fs.existsSync(targetWtPath)).toBe(true);

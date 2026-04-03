@@ -15,9 +15,10 @@ export async function runAttach(
   action: string = 'chat',
   _args: string[] = [],
 ): Promise<number> {
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
-  const sdk = new OrbitSDK(config);
+  const repoRoot = process.cwd();
+  const repoName = detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, undefined, repoRoot);
+  const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   return sdk.attach({ identifier, action });
 }

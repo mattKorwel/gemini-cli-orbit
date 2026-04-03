@@ -7,16 +7,24 @@
 import { describe, it, expect } from 'vitest';
 import { ProviderFactory } from './ProviderFactory.js';
 import { GceCosProvider } from './GceCosProvider.js';
+import {
+  type ProjectContext,
+  type InfrastructureSpec,
+} from '../core/Constants.js';
 
 describe('ProviderFactory', () => {
   it('should return a GceCosProvider instance', () => {
-    const config = {
+    const projectCtx: ProjectContext = {
+      repoRoot: '/local/repo',
+      repoName: 'test-repo',
+    };
+    const infra: InfrastructureSpec = {
       projectId: 'test-project',
       zone: 'us-central1-a',
       instanceName: 'test-instance',
     };
 
-    const provider = ProviderFactory.getProvider(config);
+    const provider = ProviderFactory.getProvider(projectCtx, infra);
     expect(provider).toBeInstanceOf(GceCosProvider);
   });
 });

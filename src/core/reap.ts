@@ -14,9 +14,10 @@ export async function runReap(
   options: { threshold?: number; force?: boolean } = {},
 ): Promise<number> {
   try {
-    const repoName = detectRepoName();
-    const config = getRepoConfig(repoName);
-    const sdk = new OrbitSDK(config);
+    const repoRoot = process.cwd();
+    const repoName = detectRepoName(repoRoot);
+    const config = getRepoConfig(repoName, undefined, repoRoot);
+    const sdk = new OrbitSDK(config, undefined, repoRoot);
 
     await sdk.reapMissions(options);
     return 0;

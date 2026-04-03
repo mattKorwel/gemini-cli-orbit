@@ -12,9 +12,10 @@ import { getRepoConfig, detectRepoName } from './ConfigManager.js';
  */
 export async function runStatus(): Promise<number> {
   try {
-    const repoName = detectRepoName();
-    const config = getRepoConfig(repoName);
-    const sdk = new OrbitSDK(config);
+    const repoRoot = process.cwd();
+    const repoName = detectRepoName(repoRoot);
+    const config = getRepoConfig(repoName, undefined, repoRoot);
+    const sdk = new OrbitSDK(config, undefined, repoRoot);
     const pulse = await sdk.getPulse();
 
     console.log(`\n🛰️  ORBIT PULSE: ${pulse.stationName} (${pulse.repoName})`);

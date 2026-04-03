@@ -10,9 +10,11 @@ import { spawnSync } from 'node:child_process';
 import {
   type OrbitConfig,
   type OrbitSettings,
+  type ProjectContext,
+  type InfrastructureSpec,
   DEFAULT_REPO_NAME,
   GLOBAL_SETTINGS_PATH,
-  PROJECT_CONFIG_PATH,
+  getProjectConfigPath,
   SCHEMATICS_DIR,
   STATIONS_DIR,
   GLOBAL_ORBIT_DIR,
@@ -25,10 +27,11 @@ import {
 export function getRepoConfig(
   repoName?: string,
   cliFlags: Partial<OrbitConfig> = {},
+  repoRoot: string = process.cwd(),
 ): OrbitConfig {
-  const rName = repoName || cliFlags.repoName || detectRepoName();
+  const rName = repoName || cliFlags.repoName || detectRepoName(repoRoot);
   const settings = loadSettings();
-  const projectConfig = loadProjectConfig();
+  const projectConfig = loadProjectConfig(repoRoot);
 
   // 1. Start with Project Defaults
   let config: OrbitConfig = { ...projectConfig, repoName: rName };
@@ -72,8 +75,7 @@ export function getRepoConfig(
   if (settings.autoClean !== undefined) config.autoClean = settings.autoClean;
 
   // 5. Environment Overrides
-  config = {
-    ...config,
+  const envConfig: Partial<OrbitConfig> = {
     projectId: process.env.GCLI_ORBIT_PROJECT_ID || config.projectId,
     zone: process.env.GCLI_ORBIT_ZONE || config.zone,
     instanceName: process.env.GCLI_ORBIT_INSTANCE_NAME || config.instanceName,
@@ -81,7 +83,15 @@ export function getRepoConfig(
     imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
     providerType:
       (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
-    verbose: process.env.GCLI_ORBIT_VERBOSE === '1' || config.verbose,
+    verbose:
+      process.env.GCLI_ORBIT_VERBOSE !== undefined
+        ? process.env.GCLI_ORBIT_VERBOSE === '1'
+        : config.verbose,
+  };
+
+  config = {
+    ...config,
+    ...envConfig,
   };
 
   // 6. Merge final CLI Flags
@@ -101,7 +111,46 @@ export function getRepoConfig(
   return config;
 }
 
-export function detectRepoName(): string {
+/**
+ * Resolves the functional data bundles from a raw config.
+ */
+export function resolveContextBundles(
+  repoRoot: string,
+  config: OrbitConfig,
+): {
+  project: ProjectContext;
+  infra: InfrastructureSpec;
+} {
+  return {
+    project: {
+      repoRoot,
+      repoName: config.repoName || detectRepoName(repoRoot),
+    },
+    infra: {
+      projectId: config.projectId,
+      zone: config.zone,
+      instanceName: config.instanceName,
+      stationName: config.stationName,
+      providerType: config.providerType,
+      backendType: config.backendType,
+      imageUri: config.imageUri,
+      vpcName: config.vpcName,
+      subnetName: config.subnetName,
+      machineType: config.machineType,
+      sshSourceRanges: config.sshSourceRanges,
+      worktreesDir: config.worktreesDir,
+      remoteWorkDir: config.remoteWorkDir,
+      useTmux: config.useTmux,
+      cpuLimit: config.cpuLimit,
+      memoryLimit: config.memoryLimit,
+      reaperIdleLimit: config.reaperIdleLimit,
+      dnsSuffix: config.dnsSuffix,
+      userSuffix: config.userSuffix,
+    },
+  };
+}
+
+export function detectRepoName(repoRoot: string = process.cwd()): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
 
   try {
@@ -109,6 +158,7 @@ export function detectRepoName(): string {
     const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
       stdio: 'pipe',
       encoding: 'utf8',
+      cwd: repoRoot,
     });
     if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
       const url = remoteRes.stdout.trim();
@@ -120,6 +170,7 @@ export function detectRepoName(): string {
     const rootRes = spawnSync('git', ['rev-parse', '--show-toplevel'], {
       stdio: 'pipe',
       encoding: 'utf8',
+      cwd: repoRoot,
     });
     if (rootRes.status === 0 && rootRes.stdout.trim()) {
       return path.basename(rootRes.stdout.trim());
@@ -146,10 +197,13 @@ export function saveSettings(settings: OrbitSettings): void {
   fs.writeFileSync(GLOBAL_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-export function loadProjectConfig(): Partial<OrbitConfig> {
-  if (!fs.existsSync(PROJECT_CONFIG_PATH)) return {};
+export function loadProjectConfig(
+  repoRoot: string = process.cwd(),
+): Partial<OrbitConfig> {
+  const p = getProjectConfigPath(repoRoot);
+  if (!fs.existsSync(p)) return {};
   try {
-    return JSON.parse(fs.readFileSync(PROJECT_CONFIG_PATH, 'utf8'));
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch (_e) {
     return {};
   }

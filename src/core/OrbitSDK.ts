@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type OrbitConfig } from './Constants.js';
+import { type OrbitConfig, type ProjectContext } from './Constants.js';
 import { logger, LogLevel } from './Logger.js';
 import {
   type OrbitObserver,
@@ -30,6 +30,7 @@ import { FleetManager } from './FleetManager.js';
 import { StatusManager } from './StatusManager.js';
 import { CIManager } from './CIManager.js';
 import { IntegrationManager } from './IntegrationManager.js';
+import { resolveContextBundles } from './ConfigManager.js';
 
 export * from './types.js';
 
@@ -58,6 +59,7 @@ export class DefaultObserver implements OrbitObserver {
  * Delegating to specialized sub-managers for modularity.
  */
 export class OrbitSDK implements IOrbitSDK {
+  private readonly projectCtx: ProjectContext;
   private readonly missions: MissionManager;
   private readonly fleet: FleetManager;
   private readonly status: StatusManager;
@@ -67,11 +69,26 @@ export class OrbitSDK implements IOrbitSDK {
   constructor(
     private readonly config: OrbitConfig,
     public readonly observer: OrbitObserver = new DefaultObserver(),
+    repoRoot: string = process.cwd(),
   ) {
-    this.missions = new MissionManager(this.config, this.observer);
-    this.fleet = new FleetManager(this.config, this.observer);
-    this.status = new StatusManager(this.config);
-    this.ci = new CIManager(this.config, this.observer);
+    const bundles = resolveContextBundles(repoRoot, config);
+    this.projectCtx = bundles.project;
+
+    // Ensure logger uses the correct repo root for its stream
+    logger.setRepoRoot(this.projectCtx.repoRoot);
+
+    this.missions = new MissionManager(
+      this.projectCtx,
+      bundles.infra,
+      this.observer,
+    );
+    this.fleet = new FleetManager(
+      this.projectCtx,
+      bundles.infra,
+      this.observer,
+    );
+    this.status = new StatusManager(this.projectCtx, bundles.infra);
+    this.ci = new CIManager(this.projectCtx, bundles.infra, this.observer);
     this.integrations = new IntegrationManager(this.observer);
   }
 
@@ -152,6 +169,13 @@ export class OrbitSDK implements IOrbitSDK {
     options: ListStationsOptions = {},
   ): Promise<StationInfo[]> {
     return this.fleet.listStations(options);
+  }
+
+  /**
+   * Safe stop of Orbit Station hardware without destroying it.
+   */
+  async hibernate(options: { name: string }): Promise<void> {
+    return this.fleet.hibernate(options);
   }
 
   /**
