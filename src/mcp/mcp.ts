@@ -229,11 +229,11 @@ server.registerTool(
     const sdk = getSDK();
     let text = '';
     if (action === 'list') {
-      const stations = await sdk.listStations({});
+      const stations = await sdk.listStations({ syncWithReality: true });
       text = stations
         .map(
           (s) =>
-            `${s.isActive ? '*' : ' '} ${s.name} (${s.type}) [${s.repo}] - ${s.status || 'UNKNOWN'}`,
+            `${s.isActive ? '*' : ' '} ${s.name} (${s.type}) [${s.repo}] - ${s.status || 'READY'}`,
         )
         .join('\n');
     } else if (action === 'activate' && name) {

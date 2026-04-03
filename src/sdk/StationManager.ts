@@ -66,8 +66,8 @@ export class StationManager {
       if (!receipt) continue;
 
       if (options.syncWithReality) {
-        const alive = await this.verifyAlive(receipt);
-        if (!alive) {
+        const statusRes = await this.fetchRealityStatus(receipt);
+        if (statusRes === 'NOT_FOUND') {
           logger.info(
             'STATION',
             `🗑️  Pruning stale station record: ${receipt.name}`,
@@ -75,6 +75,7 @@ export class StationManager {
           this.deleteReceipt(receipt.name);
           continue;
         }
+        receipt.status = statusRes;
       }
       receipts.push(receipt);
       seenNames.add(receipt.name);
@@ -124,7 +125,7 @@ export class StationManager {
     return provider.listCapsules();
   }
 
-  private async verifyAlive(receipt: StationReceipt): Promise<boolean> {
+  private async fetchRealityStatus(receipt: StationReceipt): Promise<string> {
     const repoRoot = process.cwd();
     const projectCtx: ProjectContext = {
       repoRoot,
@@ -132,12 +133,11 @@ export class StationManager {
     };
 
     if (receipt.type === 'local-worktree') {
-      // For local worktrees, as long as the directory exists and is a git dir, it's alive
-      return (
+      const alive =
         !!receipt.rootPath &&
         fs.existsSync(receipt.rootPath) &&
-        fs.existsSync(path.join(receipt.rootPath, '.git'))
-      );
+        fs.existsSync(path.join(receipt.rootPath, '.git'));
+      return alive ? 'RUNNING' : 'NOT_FOUND';
     }
 
     if (receipt.type === 'gce') {
@@ -150,8 +150,13 @@ export class StationManager {
       const provider = ProviderFactory.getProvider(projectCtx, infra);
 
       const status = await provider.getStatus();
-      return status.status !== 'NOT_FOUND';
+      return status.status;
     }
-    return false;
+    return 'UNKNOWN';
+  }
+
+  private async verifyAlive(receipt: StationReceipt): Promise<boolean> {
+    const status = await this.fetchRealityStatus(receipt);
+    return status !== 'NOT_FOUND';
   }
 }
