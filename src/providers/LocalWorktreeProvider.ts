@@ -13,7 +13,11 @@ import {
   type OrbitStatus,
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import { getPrimaryRepoRoot } from '../core/Constants.js';
+import {
+  getPrimaryRepoRoot,
+  type ProjectContext,
+  type InfrastructureSpec,
+} from '../core/Constants.js';
 
 const MISSION_PREFIX = 'orbit-';
 
@@ -29,9 +33,13 @@ export class LocalWorktreeProvider implements OrbitProvider {
   public stationName: string;
   public worktreesDir: string;
 
-  constructor(stationName = 'local', worktreesDir?: string) {
+  constructor(
+    private readonly projectCtx: ProjectContext,
+    stationName = 'local',
+    worktreesDir?: string,
+  ) {
     this.stationName = stationName;
-    const primaryRoot = getPrimaryRepoRoot();
+    const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
 
     // Default to sibling 'worktrees' directory of main repo
     this.worktreesDir =
@@ -77,10 +85,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
           .join(' ') + ' '
       : '';
 
+    const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const capsuleDir = options.wrapCapsule
-      ? this.findExistingWorktree(options.wrapCapsule, getPrimaryRepoRoot()) ||
+      ? this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
         path.join(this.worktreesDir, `${MISSION_PREFIX}${options.wrapCapsule}`)
-      : process.cwd();
+      : this.projectCtx.repoRoot;
 
     if (this.hasTmux()) {
       const sessionName = options.wrapCapsule
@@ -107,10 +116,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
     command: string,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    let cwd = options.cwd || process.cwd();
+    let cwd = options.cwd || this.projectCtx.repoRoot;
     if (options.wrapCapsule) {
+      const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
       cwd =
-        this.findExistingWorktree(options.wrapCapsule, getPrimaryRepoRoot()) ||
+        this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
         path.join(this.worktreesDir, `${MISSION_PREFIX}${options.wrapCapsule}`);
     }
 
@@ -135,10 +145,10 @@ export class LocalWorktreeProvider implements OrbitProvider {
   async prepareMissionWorkspace(
     _identifier: string,
     branch: string,
-    _config: any,
+    _infra: InfrastructureSpec,
   ): Promise<void> {
     const actualBranch = branch;
-    const sourceDir = getPrimaryRepoRoot();
+    const sourceDir = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const wtPath = path.join(
       this.worktreesDir,
       `${MISSION_PREFIX}${actualBranch}`,
@@ -196,7 +206,8 @@ export class LocalWorktreeProvider implements OrbitProvider {
   async getCapsuleStatus(
     name: string,
   ): Promise<{ running: boolean; exists: boolean }> {
-    const wtCheck = this.findExistingWorktree(name, getPrimaryRepoRoot());
+    const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
+    const wtCheck = this.findExistingWorktree(name, primaryRoot);
     if (wtCheck) {
       return { exists: true, running: true };
     }
@@ -234,7 +245,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async removeCapsule(name: string): Promise<number> {
-    const sourceDir = getPrimaryRepoRoot();
+    const sourceDir = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const wtPath = this.findExistingWorktree(name, sourceDir);
 
     if (!wtPath) return 0;
@@ -279,7 +290,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async listCapsules(): Promise<string[]> {
-    const primaryRoot = getPrimaryRepoRoot();
+    const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const res = spawnSync(
       'git',
       ['-C', primaryRoot, 'worktree', 'list', '--porcelain'],

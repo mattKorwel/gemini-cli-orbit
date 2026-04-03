@@ -8,77 +8,69 @@ import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
 import type { OrbitProvider } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import { getPrimaryRepoRoot } from '../core/Constants.js';
+import {
+  getPrimaryRepoRoot,
+  type InfrastructureSpec,
+  type ProjectContext,
+} from '../core/Constants.js';
 import path from 'node:path';
 
 export class ProviderFactory {
   static getProvider(
-    config: {
-      projectId: string;
-      zone: string;
-      instanceName: string;
-      repoName?: string | undefined;
-      providerType?: string | undefined;
-      dnsSuffix?: string | undefined;
-      userSuffix?: string | undefined;
-      backendType?: string | undefined;
-      imageUri?: string | undefined;
-      worktreesDir?: string | undefined;
-      vpcName?: string | undefined;
-      subnetName?: string | undefined;
-      machineType?: string | undefined;
-      reaperIdleLimit?: number | undefined;
-    },
+    projectCtx: ProjectContext,
+    infra: InfrastructureSpec,
     state?: InfrastructureState,
   ): OrbitProvider {
     const isLocal =
-      !config.projectId ||
-      config.projectId === 'local' ||
-      config.providerType === 'local-worktree';
+      !infra.projectId ||
+      infra.projectId === 'local' ||
+      infra.providerType === 'local-worktree';
     const effectiveProvider =
-      config.providerType || (isLocal ? 'local-worktree' : 'gce');
+      infra.providerType || (isLocal ? 'local-worktree' : 'gce');
 
-    const stationName = config.repoName
-      ? `orbit-station-${config.repoName}`
-      : 'station-supervisor';
+    const stationName =
+      infra.stationName || `orbit-station-${projectCtx.repoName}`;
 
     if (effectiveProvider === 'local-worktree') {
-      const primaryRoot = getPrimaryRepoRoot();
+      const primaryRoot = getPrimaryRepoRoot(projectCtx.repoRoot);
       const localWorktreesDir =
-        config.worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
-      return new LocalWorktreeProvider(stationName, localWorktreesDir);
+        infra.worktreesDir || path.resolve(primaryRoot, '..', 'worktrees');
+      return new LocalWorktreeProvider(
+        projectCtx,
+        stationName,
+        localWorktreesDir,
+      );
     }
 
     const gceConfig = {
-      ...(config.dnsSuffix !== undefined
-        ? { dnsSuffix: config.dnsSuffix }
+      ...(infra.dnsSuffix !== undefined ? { dnsSuffix: infra.dnsSuffix } : {}),
+      ...(infra.userSuffix !== undefined
+        ? { userSuffix: infra.userSuffix }
         : {}),
-      ...(config.userSuffix !== undefined
-        ? { userSuffix: config.userSuffix }
+      ...(infra.backendType !== undefined
+        ? { backendType: infra.backendType as 'direct-internal' | 'external' }
         : {}),
-      ...(config.backendType !== undefined
-        ? { backendType: config.backendType as 'direct-internal' | 'external' }
+      ...(infra.imageUri !== undefined ? { imageUri: infra.imageUri } : {}),
+      ...(infra.vpcName !== undefined ? { vpcName: infra.vpcName } : {}),
+      ...(infra.subnetName !== undefined
+        ? { subnetName: infra.subnetName }
         : {}),
-      ...(config.imageUri !== undefined ? { imageUri: config.imageUri } : {}),
-      ...(config.vpcName !== undefined ? { vpcName: config.vpcName } : {}),
-      ...(config.subnetName !== undefined
-        ? { subnetName: config.subnetName }
+      ...(infra.machineType !== undefined
+        ? { machineType: infra.machineType }
         : {}),
-      ...(config.machineType !== undefined
-        ? { machineType: config.machineType }
-        : {}),
-      ...(config.reaperIdleLimit !== undefined
-        ? { reaperIdleLimit: config.reaperIdleLimit }
+      ...(infra.reaperIdleLimit !== undefined
+        ? { reaperIdleLimit: infra.reaperIdleLimit }
         : {}),
       stationName,
     };
 
     // Default to GCE
     const provider = new GceCosProvider(
-      config.projectId,
-      config.zone,
-      config.instanceName,
-      getPrimaryRepoRoot(),
+      projectCtx,
+      infra.projectId!,
+      infra.zone!,
+      infra.instanceName!,
+      getPrimaryRepoRoot(projectCtx.repoRoot),
       gceConfig,
     );
 

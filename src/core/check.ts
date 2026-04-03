@@ -10,6 +10,7 @@ import {
   getRepoConfig,
   detectRepoName,
   sanitizeName,
+  resolveContextBundles,
 } from './ConfigManager.js';
 
 export async function runChecker(
@@ -22,8 +23,9 @@ export async function runChecker(
     return 1;
   }
 
-  const repoName = detectRepoName();
-  const config = getRepoConfig(repoName);
+  const repoRoot = process.cwd();
+  const repoName = detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, undefined, repoRoot);
 
   if (!config) {
     console.error(
@@ -31,13 +33,10 @@ export async function runChecker(
     );
     return 1;
   }
-  const { projectId, zone, remoteWorkDir, instanceName } = config;
-  const provider = ProviderFactory.getProvider({
-    projectId: projectId!,
-    zone: zone!,
-    instanceName: instanceName!,
-    repoName,
-  });
+
+  const bundles = resolveContextBundles(repoRoot, config);
+  const { instanceName } = bundles.infra;
+  const provider = ProviderFactory.getProvider(bundles.project, bundles.infra);
 
   const action = 'review';
   const sId = sanitizeName(identifier);
@@ -57,7 +56,7 @@ export async function runChecker(
     // If pr view fails, assume identifier IS the branch name
     branchName = identifier;
   }
-  const logDir = `${remoteWorkDir}/${branchName}/.gemini/logs/review-${identifier}`;
+  const logDir = `${bundles.infra.remoteWorkDir}/${branchName}/.gemini/logs/review-${identifier}`;
 
   const tasks = ['build', 'ci', 'review', 'verify'];
   let allDone = true;

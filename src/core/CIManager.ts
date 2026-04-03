@@ -5,8 +5,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { type OrbitConfig } from './Constants.js';
-import { detectRepoName } from './ConfigManager.js';
+import { type InfrastructureSpec, type ProjectContext } from './Constants.js';
 import { LogLevel } from './Logger.js';
 import {
   type OrbitObserver,
@@ -16,7 +15,8 @@ import {
 
 export class CIManager {
   constructor(
-    private readonly config: OrbitConfig,
+    private readonly projectCtx: ProjectContext,
+    private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
   ) {}
 
@@ -25,20 +25,26 @@ export class CIManager {
    */
   async monitor(options: MonitorCIOptions): Promise<CIStatus> {
     const { branch, runId } = options;
-    const repoName = this.config.repoName || detectRepoName();
     const targetBranch =
-      branch || execSync('git branch --show-current').toString().trim();
+      branch ||
+      execSync('git branch --show-current', { cwd: this.projectCtx.repoRoot })
+        .toString()
+        .trim();
 
     // Resolve full repo name (org/repo)
     let fullRepo: string;
     try {
-      const remoteUrl = execSync('git remote get-url origin').toString().trim();
+      const remoteUrl = execSync('git remote get-url origin', {
+        cwd: this.projectCtx.repoRoot,
+      })
+        .toString()
+        .trim();
       fullRepo = remoteUrl
         .replace(/.*github\.com[\/:]/, '')
         .replace(/\.git$/, '')
         .trim();
     } catch (_e) {
-      fullRepo = `google-gemini/${repoName}`;
+      fullRepo = `google-gemini/${this.projectCtx.repoName}`;
     }
 
     this.observer.onLog?.(
@@ -121,6 +127,7 @@ export class CIManager {
     try {
       return execSync(`gh ${args}`, {
         stdio: ['ignore', 'pipe', 'ignore'],
+        cwd: this.projectCtx.repoRoot,
       }).toString();
     } catch (_e) {
       return null;

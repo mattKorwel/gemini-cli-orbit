@@ -7,15 +7,15 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import {
-  type OrbitConfig,
+  type InfrastructureSpec,
+  type ProjectContext,
   SATELLITE_WORKTREES_PATH,
   ORBIT_ROOT,
   getPrimaryRepoRoot,
-  PROJECT_ORBIT_DIR,
+  getProjectOrbitDir,
 } from './Constants.js';
 import { LogLevel } from './Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
-import { detectRepoName } from './ConfigManager.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
 import { TempManager } from '../utils/TempManager.js';
@@ -32,7 +32,8 @@ import {
 
 export class MissionManager {
   constructor(
-    private readonly config: OrbitConfig,
+    private readonly projectCtx: ProjectContext,
+    private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
   ) {}
 
@@ -42,7 +43,7 @@ export class MissionManager {
   async start(options: MissionOptions): Promise<MissionResult> {
     const { identifier, action } = options;
     const stationName =
-      this.config.stationName || this.config.repoName || 'default';
+      this.infra.stationName || this.projectCtx.repoName || 'default';
     const missionId = SessionManager.generateMissionId(identifier, action);
 
     this.observer.onLog?.(
@@ -53,11 +54,11 @@ export class MissionManager {
 
     // 1. Provider Resolution
     const instanceName =
-      this.config.instanceName || `orbit-station-${this.config.repoName}`;
-    const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
+      this.infra.instanceName || `orbit-station-${this.projectCtx.repoName}`;
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
       instanceName,
       stationName,
     } as any);
@@ -70,20 +71,20 @@ export class MissionManager {
 
     const repoWorktreesDir = isLocalWorktree
       ? path.resolve(
-          getPrimaryRepoRoot(),
+          getPrimaryRepoRoot(this.projectCtx.repoRoot),
           '..',
           'worktrees',
-          this.config.repoName || '',
+          this.projectCtx.repoName || '',
         )
-      : `${SATELLITE_WORKTREES_PATH}/${this.config.repoName || ''}`;
+      : `${SATELLITE_WORKTREES_PATH}/${this.projectCtx.repoName || ''}`;
 
-    const upstreamUrl = `https://github.com/${this.config.upstreamRepo || ''}.git`;
+    const upstreamUrl = `https://github.com/${(this.infra as any).upstreamRepo || ''}.git`;
     const remoteWorktreeDir = isLocalWorktree
       ? path.join(
-          getPrimaryRepoRoot(),
+          getPrimaryRepoRoot(this.projectCtx.repoRoot),
           '..',
           'worktrees',
-          this.config.repoName || '',
+          this.projectCtx.repoName || '',
           branch,
         )
       : `${repoWorktreesDir}/${mCtx.worktreeName}`;
@@ -92,7 +93,7 @@ export class MissionManager {
     let githubToken = '';
     if (!isLocalWorktree) {
       try {
-        githubToken = TempManager.getToken(this.config.repoName || '');
+        githubToken = TempManager.getToken(this.projectCtx.repoName || '');
       } catch (_e) {
         this.observer.onLog?.(
           LogLevel.WARN,
@@ -103,7 +104,7 @@ export class MissionManager {
     }
 
     // 4. Mission Preparation
-    await provider.prepareMissionWorkspace(identifier, action, this.config);
+    await provider.prepareMissionWorkspace(identifier, branch, this.infra);
 
     // 5. Build/Sync Phase (Phase 0)
     if (!isLocalWorktree) {
@@ -185,24 +186,23 @@ export class MissionManager {
    */
   async jettison(options: JettisonOptions): Promise<MissionResult> {
     const { identifier, action = 'chat' } = options;
-    const repoName = this.config.repoName || detectRepoName();
-    const instanceName = this.config.instanceName || 'local';
-    const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
+    const instanceName = this.infra.instanceName || 'local';
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
       instanceName,
-    });
+    } as any);
 
     this.observer.onLog?.(
       LogLevel.INFO,
       'STATION',
-      `🛰️  Station: ${this.config.instanceName}`,
+      `🛰️  Station: ${this.infra.instanceName}`,
     );
     this.observer.onLog?.(
       LogLevel.INFO,
       'CLEANUP',
-      `🧹 Surgically jettisoning capsule and worktree for #${identifier} in ${repoName}...`,
+      `🧹 Surgically jettisoning capsule and worktree for #${identifier} in ${this.projectCtx.repoName}...`,
     );
 
     const mCtx = resolveMissionContext(identifier, action);
@@ -228,12 +228,12 @@ export class MissionManager {
       }
 
       const isLocal =
-        !this.config.projectId ||
-        this.config.projectId === 'local' ||
-        (this.config.providerType as any) === 'local-worktree';
+        !this.infra.projectId ||
+        this.infra.projectId === 'local' ||
+        (this.infra.providerType as any) === 'local-worktree';
 
       if (!isLocal) {
-        const worktreePath = `${SATELLITE_WORKTREES_PATH}/${repoName}/${mCtx.worktreeName}`;
+        const worktreePath = `${SATELLITE_WORKTREES_PATH}/${this.projectCtx.repoName}/${mCtx.worktreeName}`;
         this.observer.onLog?.(
           LogLevel.INFO,
           'CLEANUP',
@@ -258,13 +258,13 @@ export class MissionManager {
    */
   async reap(options: ReapOptions): Promise<number> {
     const threshold = options.threshold ?? 4;
-    const instanceName = this.config.instanceName || 'local';
-    const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
+    const instanceName = this.infra.instanceName || 'local';
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
       instanceName,
-    });
+    } as any);
 
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -320,13 +320,13 @@ export class MissionManager {
    */
   async attach(options: AttachOptions): Promise<number> {
     const { identifier } = options;
-    const instanceName = this.config.instanceName || 'local';
-    const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
+    const instanceName = this.infra.instanceName || 'local';
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
       instanceName,
-    });
+    } as any);
 
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(identifier));
@@ -354,16 +354,19 @@ export class MissionManager {
    */
   async getLogs(options: GetLogsOptions): Promise<number> {
     const { identifier, action = 'review' } = options;
-    const instanceName = this.config.instanceName || 'local';
-    const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
+    const instanceName = this.infra.instanceName || 'local';
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
       instanceName,
-    });
+    } as any);
 
     const mId = SessionManager.generateMissionId(identifier, action);
-    const logPath = path.join(PROJECT_ORBIT_DIR, `${mId}.log`);
+    const logPath = path.join(
+      getProjectOrbitDir(this.projectCtx.repoRoot),
+      `${mId}.log`,
+    );
 
     if (fs.existsSync(logPath)) {
       this.observer.onLog?.(

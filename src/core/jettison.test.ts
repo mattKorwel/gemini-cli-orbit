@@ -12,7 +12,15 @@ import readline from 'node:readline';
 
 vi.mock('node:readline');
 vi.mock('../providers/ProviderFactory.js');
-vi.mock('./ConfigManager.js');
+vi.mock('./ConfigManager.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as any;
+  return {
+    ...actual,
+    detectRepoName: vi.fn(),
+    getRepoConfig: vi.fn(),
+    loadProjectConfig: vi.fn().mockReturnValue({}),
+  };
+});
 
 describe('runJettison', () => {
   const mockProvider = {
@@ -21,6 +29,7 @@ describe('runJettison', () => {
     listCapsules: vi.fn().mockResolvedValue(['orbit-23176-chat']),
     stopCapsule: vi.fn().mockResolvedValue(0),
     removeCapsule: vi.fn().mockResolvedValue(0),
+    getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
   };
 
   beforeEach(() => {
@@ -36,6 +45,7 @@ describe('runJettison', () => {
       projectId: 'p',
       zone: 'z',
       repoName: 'gemini-orbit-extension',
+      instanceName: 'test-station',
     });
   });
 

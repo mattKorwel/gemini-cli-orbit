@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RemoteProvisioner } from './RemoteProvisioner.js';
 import { SessionManager } from '../utils/SessionManager.js';
+import { type ProjectContext, type InfrastructureSpec } from './Constants.js';
 
 vi.mock('../utils/SessionManager.js');
 vi.mock('../utils/MissionUtils.js', () => ({
@@ -26,10 +27,13 @@ describe('RemoteProvisioner', () => {
     runCapsule: vi.fn(),
   };
 
-  const config = {
+  const projectCtx: ProjectContext = {
+    repoRoot: '/local/repo',
     repoName: 'test-repo',
+  };
+
+  const infra: InfrastructureSpec = {
     remoteWorkDir: '/mnt/disks/data/main',
-    upstreamRepo: 'google/test-repo',
   };
 
   beforeEach(() => {
@@ -41,8 +45,8 @@ describe('RemoteProvisioner', () => {
     mockProvider.getCapsuleStatus.mockResolvedValue({ exists: false });
     mockProvider.runCapsule.mockResolvedValue(0);
 
-    const provisioner = new RemoteProvisioner(mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', config);
+    const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
+    await provisioner.prepareMissionWorkspace('123', 'chat', infra);
 
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -54,8 +58,8 @@ describe('RemoteProvisioner', () => {
   it('should skip provisioning if capsule already exists', async () => {
     mockProvider.getCapsuleStatus.mockResolvedValue({ exists: true });
 
-    const provisioner = new RemoteProvisioner(mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', config);
+    const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
+    await provisioner.prepareMissionWorkspace('123', 'chat', infra);
 
     expect(mockProvider.runCapsule).not.toHaveBeenCalled();
   });

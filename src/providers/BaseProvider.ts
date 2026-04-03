@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import type { InfrastructureSpec } from '../core/Constants.js';
 
 /**
  * OrbitProvider interface defines the contract for different remote
@@ -33,7 +34,6 @@ export interface OrbitProvider {
 
   /**
    * Executes a command on the station.
-  ...
    */
   exec(command: string, options?: ExecOptions): Promise<number>;
 
@@ -60,7 +60,7 @@ export interface OrbitProvider {
   prepareMissionWorkspace(
     identifier: string,
     branch: string,
-    config: any,
+    infra: InfrastructureSpec,
   ): Promise<void>;
 
   /**

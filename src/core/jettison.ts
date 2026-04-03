@@ -18,9 +18,10 @@ export async function runJettison(
   cliFlags: Partial<OrbitConfig> = {},
 ): Promise<number> {
   try {
-    const repoName = cliFlags.repoName || detectRepoName();
-    const config = getRepoConfig(repoName, cliFlags);
-    const sdk = new OrbitSDK(config);
+    const repoRoot = process.cwd();
+    const repoName = cliFlags.repoName || detectRepoName(repoRoot);
+    const config = getRepoConfig(repoName, cliFlags, repoRoot);
+    const sdk = new OrbitSDK(config, undefined, repoRoot);
 
     const result = await sdk.jettisonMission({
       identifier,

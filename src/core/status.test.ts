@@ -10,8 +10,16 @@ import { ProviderFactory } from '../providers/ProviderFactory.js';
 import * as ConfigManager from './ConfigManager.js';
 
 vi.mock('node:fs');
-vi.mock('./providers/ProviderFactory.ts');
-vi.mock('./ConfigManager.ts');
+vi.mock('../providers/ProviderFactory.js');
+vi.mock('./ConfigManager.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as any;
+  return {
+    ...actual,
+    detectRepoName: vi.fn(),
+    getRepoConfig: vi.fn(),
+    loadProjectConfig: vi.fn().mockReturnValue({}),
+  };
+});
 
 describe('runStatus', () => {
   const mockProvider = {
@@ -52,6 +60,16 @@ describe('runStatus', () => {
     const res = await runStatus();
     expect(res).toBe(0);
     expect(mockProvider.getStatus).toHaveBeenCalled();
+  });
+
+  it('should use repoName from cliFlags if provided', async () => {
+    await runStatus({ repoName: 'override-repo' });
+    expect(ConfigManager.getRepoConfig).toHaveBeenCalledWith(
+      'override-repo',
+      expect.objectContaining({ repoName: 'override-repo' }),
+      expect.any(String),
+    );
+    expect(ConfigManager.detectRepoName).not.toHaveBeenCalled();
   });
 
   it('should return 1 when station is in invalid state', async () => {

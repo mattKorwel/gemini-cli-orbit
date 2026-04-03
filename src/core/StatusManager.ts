@@ -4,36 +4,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type OrbitConfig } from './Constants.js';
+import { type InfrastructureSpec, type ProjectContext } from './Constants.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
-import { detectRepoName } from './ConfigManager.js';
 import { type PulseInfo, type CapsuleInfo } from './types.js';
 
 export class StatusManager {
-  constructor(private readonly config: OrbitConfig) {}
+  constructor(
+    private readonly projectCtx: ProjectContext,
+    private readonly infra: InfrastructureSpec,
+  ) {}
 
   /**
    * Check station health and active mission status.
    */
   async getPulse(): Promise<PulseInfo> {
     const isLocal =
-      !this.config.projectId ||
-      this.config.projectId === 'local' ||
-      (this.config.providerType as any) === 'local-worktree';
+      !this.infra.projectId ||
+      this.infra.projectId === 'local' ||
+      (this.infra.providerType as any) === 'local-worktree';
 
-    if (!isLocal && !this.config.instanceName) {
+    if (!isLocal && !this.infra.instanceName) {
       throw new Error(
         `Station name not configured. Check your profile or environment variables (GCLI_ORBIT_INSTANCE_NAME).`,
       );
     }
 
-    const instanceName = this.config.instanceName || 'local';
-    const provider = ProviderFactory.getProvider({
-      ...this.config,
-      projectId: this.config.projectId || 'local',
-      zone: this.config.zone || 'local',
+    const instanceName = this.infra.instanceName || 'local';
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
       instanceName,
-    });
+    } as any);
 
     const statusRes = await provider.getStatus();
     if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
@@ -42,7 +44,6 @@ export class StatusManager {
       );
     }
 
-    const repoName = this.config.repoName || detectRepoName();
     const capsules: CapsuleInfo[] = [];
 
     if (statusRes.status === 'RUNNING') {
@@ -82,7 +83,7 @@ export class StatusManager {
 
     return {
       stationName: instanceName,
-      repoName,
+      repoName: this.projectCtx.repoName,
       status: statusRes.status,
       internalIp: statusRes.internalIp || undefined,
       externalIp: statusRes.externalIp || undefined,

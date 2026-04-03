@@ -8,7 +8,7 @@ import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.js';
 import { ExternalStrategy } from './strategies/ExternalStrategy.js';
 import type { BaseStrategy } from './strategies/BaseStrategy.js';
-import type { OrbitConfig } from '../core/Constants.js';
+import type { InfrastructureSpec } from '../core/Constants.js';
 
 /**
  * GceConnectionManager handles connection strategy selection and SSH execution.
@@ -20,19 +20,17 @@ export class GceConnectionManager {
     private projectId: string,
     private zone: string,
     private instanceName: string,
-    private config: OrbitConfig,
+    private infra: InfrastructureSpec,
   ) {
-    const backend = config.backendType || 'direct-internal';
+    const backend = infra.backendType || 'direct-internal';
 
     const strategyConfig = {
-      ...(config.dnsSuffix !== undefined
-        ? { dnsSuffix: config.dnsSuffix }
+      ...(infra.dnsSuffix !== undefined ? { dnsSuffix: infra.dnsSuffix } : {}),
+      ...(infra.userSuffix !== undefined
+        ? { userSuffix: infra.userSuffix }
         : {}),
-      ...(config.userSuffix !== undefined
-        ? { userSuffix: config.userSuffix }
-        : {}),
-      ...(config.backendType !== undefined
-        ? { backendType: config.backendType }
+      ...(infra.backendType !== undefined
+        ? { backendType: infra.backendType }
         : {}),
     };
 

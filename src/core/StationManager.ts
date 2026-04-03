@@ -6,8 +6,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { STATIONS_DIR } from './Constants.js';
-import { loadJson, loadSettings } from './ConfigManager.js';
+import {
+  STATIONS_DIR,
+  type ProjectContext,
+  type InfrastructureSpec,
+} from './Constants.js';
+import { loadJson, loadSettings, detectRepoName } from './ConfigManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { logger } from './Logger.js';
 
@@ -92,7 +96,12 @@ export class StationManager {
   }
 
   async getMissions(receipt: StationReceipt): Promise<string[]> {
-    const provider = ProviderFactory.getProvider({
+    const repoRoot = process.cwd();
+    const projectCtx: ProjectContext = {
+      repoRoot,
+      repoName: receipt.repo || detectRepoName(repoRoot),
+    };
+    const infra: InfrastructureSpec = {
       projectId: receipt.projectId,
       zone: receipt.zone,
       instanceName: receipt.instanceName || receipt.name,
@@ -101,11 +110,18 @@ export class StationManager {
         receipt.type === 'local-worktree'
           ? path.dirname(receipt.rootPath || '')
           : undefined,
-    });
+    };
+    const provider = ProviderFactory.getProvider(projectCtx, infra);
     return provider.listCapsules();
   }
 
   private async verifyAlive(receipt: StationReceipt): Promise<boolean> {
+    const repoRoot = process.cwd();
+    const projectCtx: ProjectContext = {
+      repoRoot,
+      repoName: receipt.repo || detectRepoName(repoRoot),
+    };
+
     if (receipt.type === 'local-worktree') {
       // For local worktrees, as long as the directory exists and is a git dir, it's alive
       return (
@@ -116,12 +132,13 @@ export class StationManager {
     }
 
     if (receipt.type === 'gce') {
-      const provider = ProviderFactory.getProvider({
+      const infra: InfrastructureSpec = {
         projectId: receipt.projectId,
         zone: receipt.zone,
         instanceName: receipt.instanceName || receipt.name,
         providerType: receipt.type,
-      });
+      };
+      const provider = ProviderFactory.getProvider(projectCtx, infra);
 
       const status = await provider.getStatus();
       return status.status !== 'NOT_FOUND';

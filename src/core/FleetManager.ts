@@ -4,14 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import readline from 'node:readline';
-import { type OrbitConfig } from './Constants.js';
+import {
+  type InfrastructureSpec,
+  type ProjectContext,
+  type OrbitConfig,
+} from './Constants.js';
 import { LogLevel } from './Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import {
-  detectRepoName,
   loadSettings,
   saveSettings,
   saveSchematic as saveSchematicToDisk,
@@ -35,7 +36,8 @@ export class FleetManager {
   private readonly schematicManager = new SchematicManager();
 
   constructor(
-    private readonly config: OrbitConfig,
+    private readonly projectCtx: ProjectContext,
+    private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
   ) {}
 
@@ -44,14 +46,13 @@ export class FleetManager {
    */
   async provision(options: ProvisionOptions): Promise<number> {
     const { schematicName, destroy } = options;
-    const repoName = this.config.repoName || detectRepoName();
-    const sName = schematicName || this.config.schematic || 'default';
+    const sName = schematicName || (this.infra as any).schematic || 'default';
     const schematic = loadSchematic(sName);
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');
     this.observer.onLog?.(LogLevel.INFO, 'SETUP', `📡 Schematic: ${sName}`);
 
-    const config = { ...this.config, ...schematic };
+    const config = { ...this.infra, ...schematic };
 
     if (!config.projectId && config.providerType !== 'local-worktree') {
       this.observer.onLog?.(
@@ -103,7 +104,11 @@ export class FleetManager {
       return 1;
     }
 
-    const provider = ProviderFactory.getProvider(config as any, state);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      config as any,
+      state,
+    );
     if (state.status === 'ready') {
       this.observer.onLog?.(
         LogLevel.INFO,
@@ -133,7 +138,7 @@ export class FleetManager {
         type: 'gce',
         projectId: config.projectId!,
         zone: config.zone || 'us-central1-a',
-        repo: repoName,
+        repo: this.projectCtx.repoName,
         schematic: sName,
         lastSeen: new Date().toISOString(),
       });
@@ -157,7 +162,7 @@ export class FleetManager {
     const receipts = await this.stationManager.listStations(options);
 
     const stationInfos: StationInfo[] = await Promise.all(
-      receipts.map(async (r) => {
+      receipts.map(async (r: any) => {
         let missions: string[] = [];
         // Only fetch missions if station is active/ready to avoid hung SSH
         if (
@@ -199,7 +204,7 @@ export class FleetManager {
       throw new Error(`Station "${name}" not found in registry.`);
     }
 
-    const provider = ProviderFactory.getProvider({
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
       instanceName: receipt.instanceName || name,
       projectId: receipt.projectId,
       zone: receipt.zone,
@@ -250,9 +255,7 @@ export class FleetManager {
   /**
    * Scoped Emergency shutdown or full decommissioning of Orbit infrastructure.
    */
-  async splashdown(
-    options: SplashdownOptions & { name?: string } = {},
-  ): Promise<number> {
+  async splashdown(options: SplashdownOptions = {}): Promise<number> {
     const { name, all } = options;
     const settings = loadSettings();
 
@@ -276,7 +279,7 @@ export class FleetManager {
     }
 
     // 3. Instantiate Scoped Provider
-    const provider = ProviderFactory.getProvider({
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
       instanceName: receipt.instanceName || receipt.name,
       projectId: receipt.projectId,
       zone: receipt.zone,

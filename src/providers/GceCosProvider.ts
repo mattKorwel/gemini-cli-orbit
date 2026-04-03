@@ -15,6 +15,10 @@ import type { InfrastructureState } from '../infrastructure/InfrastructureState.
 import { GceConnectionManager } from './GceConnectionManager.js';
 import { RemoteProvisioner } from '../core/RemoteProvisioner.js';
 import { logger } from '../core/Logger.js';
+import {
+  type ProjectContext,
+  type InfrastructureSpec,
+} from '../core/Constants.js';
 
 export class ConnectivityError extends Error {
   constructor(message: string) {
@@ -41,6 +45,7 @@ export class GceCosProvider implements OrbitProvider {
   private imageUri: string;
 
   constructor(
+    private readonly projectCtx: ProjectContext,
     projectId: string,
     zone: string,
     instanceName: string,
@@ -67,10 +72,11 @@ export class GceCosProvider implements OrbitProvider {
       this.zone,
       this.instanceName,
       {
-        backendType: config.backendType,
-        dnsSuffix: config.dnsSuffix,
-        userSuffix: config.userSuffix,
-      } as any,
+        ...config,
+        instanceName: this.instanceName,
+        projectId: this.projectId,
+        zone: this.zone,
+      } as InfrastructureSpec,
     );
   }
 
@@ -85,10 +91,10 @@ export class GceCosProvider implements OrbitProvider {
   async prepareMissionWorkspace(
     identifier: string,
     action: string,
-    config: any,
+    infra: InfrastructureSpec,
   ): Promise<void> {
-    const provisioner = new RemoteProvisioner(this);
-    await provisioner.prepareMissionWorkspace(identifier, action, config);
+    const provisioner = new RemoteProvisioner(this.projectCtx, this);
+    await provisioner.prepareMissionWorkspace(identifier, action, infra);
   }
 
   /**

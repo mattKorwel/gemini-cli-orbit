@@ -15,10 +15,11 @@ export async function runSetup(
   args: string[] = [],
   cliFlags: Partial<OrbitConfig> = {},
 ): Promise<number> {
+  const repoRoot = process.cwd();
   const schematicName = args[0] === 'liftoff' ? args[1] : args[0];
-  const repoName = cliFlags.repoName || detectRepoName();
-  const config = getRepoConfig(repoName, cliFlags);
-  const sdk = new OrbitSDK(config);
+  const repoName = cliFlags.repoName || detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, cliFlags, repoRoot);
+  const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   return sdk.provisionStation({
     schematicName,

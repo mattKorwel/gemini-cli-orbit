@@ -18,7 +18,7 @@ export class DirectInternalStrategy extends BaseStrategy {
     }
 
     // nic0.<name>.<zone>.c.<project>.internal[.<custom-suffix>]
-    const customSuffix = this.config.dnsSuffix || '';
+    const customSuffix = this.infra.dnsSuffix || '';
     const baseSuffix = `.c.${this.projectId}.internal`;
     const fullSuffix =
       baseSuffix +

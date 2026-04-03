@@ -7,14 +7,21 @@
 import { type OrbitProvider } from '../providers/BaseProvider.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
-import { ORBIT_ROOT } from './Constants.js';
+import {
+  ORBIT_ROOT,
+  type InfrastructureSpec,
+  type ProjectContext,
+} from './Constants.js';
 import { logger } from './Logger.js';
 
 /**
  * Handles remote-specific mission provisioning (Docker Capsules).
  */
 export class RemoteProvisioner {
-  constructor(private provider: OrbitProvider) {}
+  constructor(
+    private readonly projectCtx: ProjectContext,
+    private readonly provider: OrbitProvider,
+  ) {}
 
   /**
    * Orchestrates the high-level provisioning of a remote mission.
@@ -26,7 +33,7 @@ export class RemoteProvisioner {
   public async prepareMissionWorkspace(
     identifier: string,
     action: string,
-    config: any,
+    infra: InfrastructureSpec,
   ): Promise<void> {
     if (this.provider.type !== 'gce') {
       throw new Error(
@@ -37,15 +44,15 @@ export class RemoteProvisioner {
     const mCtx = resolveMissionContext(identifier, action);
     const branch = mCtx.branchName;
     const containerName = mCtx.containerName;
-    const remoteWorktreeDir = `${ORBIT_ROOT}/worktrees/${config.repoName}/${mCtx.worktreeName}`;
+    const remoteWorktreeDir = `${ORBIT_ROOT}/worktrees/${this.projectCtx.repoName}/${mCtx.worktreeName}`;
 
     // RAM-disk secret mount (ADR 14)
-    const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateSessionId(
+    const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateMissionId(
       identifier,
       action,
     )}`;
     const imageUri =
-      config.image ||
+      infra.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
     // 1. Ensure the capsule exists
@@ -56,15 +63,15 @@ export class RemoteProvisioner {
 
       const runRes = await this.provider.runCapsule({
         name: containerName,
-        image: config.image || imageUri,
+        image: infra.imageUri || imageUri,
         user: 'root',
-        cpuLimit: config.cpuLimit || '2',
-        memoryLimit: config.memoryLimit || '8g',
-        sensitiveEnv: config.sensitiveEnv || {},
+        cpuLimit: infra.cpuLimit || '2',
+        memoryLimit: infra.memoryLimit || '8g',
+        sensitiveEnv: (infra as any).sensitiveEnv || {},
         mounts: [
           {
-            host: config.remoteWorkDir,
-            capsule: config.remoteWorkDir,
+            host: infra.remoteWorkDir!,
+            capsule: infra.remoteWorkDir!,
             readonly: false,
           },
           {

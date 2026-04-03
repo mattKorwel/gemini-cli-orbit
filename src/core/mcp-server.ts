@@ -40,9 +40,10 @@ class McpObserver implements OrbitObserver {
 const observer = new McpObserver();
 
 function getSDK(repoOverride?: string): IOrbitSDK {
-  const repoName = repoOverride || detectRepoName();
-  const config = getRepoConfig(repoName);
-  return new OrbitSDK(config, observer);
+  const repoRoot = process.cwd();
+  const repoName = repoOverride || detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, undefined, repoRoot);
+  return new OrbitSDK(config, observer, repoRoot);
 }
 
 const server = new McpServer({

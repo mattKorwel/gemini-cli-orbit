@@ -10,7 +10,15 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../core/Logger.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const getDirname = () => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return __dirname;
+  }
+};
+
+const _dirname = getDirname();
 
 /**
  * Entrypoint for Orbit missions inside the capsule/worktree.
@@ -54,7 +62,7 @@ async function main() {
   // 2. Launch Worker (Station Manager)
   logger.info('GENERAL', '');
   logger.info('GENERAL', `🚀 Launching Parallel ${action} Worker...`);
-  const workerScript = path.join(__dirname, 'station.js');
+  const workerScript = path.join(_dirname, 'station.js');
   logger.info('GENERAL', `   - Script: ${workerScript}`);
   logger.info('GENERAL', `   - Action: ${action}`);
 

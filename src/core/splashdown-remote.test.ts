@@ -28,29 +28,27 @@ vi.mock('node:fs', () => ({
   unlinkSync: vi.fn(),
 }));
 
-vi.mock('./providers/ProviderFactory.ts');
-vi.mock('./ConfigManager.ts', () => ({
-  detectRepoName: vi.fn().mockReturnValue('gemini-orbit-extension'),
-  getRepoConfig: vi.fn().mockReturnValue({
-    projectId: 'remote-project',
-    zone: 'us-central1-a',
-    instanceName: 'prod-station',
-    repoName: 'gemini-orbit-extension',
-  }),
-  loadSettings: vi
-    .fn()
-    .mockReturnValue({ activeStation: 'prod-station', repos: {} }),
-  saveSettings: vi.fn(),
-  loadSchematic: vi.fn().mockReturnValue({}),
-  loadJson: vi.fn().mockReturnValue({
-    name: 'prod-station',
-    instanceName: 'prod-station',
-    type: 'gce',
-    projectId: 'remote-project',
-    zone: 'us-central1-a',
-  }),
-  sanitizeName: (n: string) => n.replace(/[^a-z0-9]/g, '-').toLowerCase(),
-}));
+vi.mock('../providers/ProviderFactory.js');
+vi.mock('./ConfigManager.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as any;
+  return {
+    ...actual,
+    detectRepoName: vi.fn().mockReturnValue('gemini-orbit-extension'),
+    getRepoConfig: vi.fn(),
+    loadSettings: vi
+      .fn()
+      .mockReturnValue({ activeStation: 'prod-station', repos: {} }),
+    saveSettings: vi.fn(),
+    loadSchematic: vi.fn().mockReturnValue({}),
+    loadJson: vi.fn().mockReturnValue({
+      name: 'prod-station',
+      instanceName: 'prod-station',
+      type: 'gce',
+      projectId: 'remote-project',
+      zone: 'us-central1-a',
+    }),
+  };
+});
 
 describe('runSplashdown (Remote Mode)', () => {
   const mockProvider = {
@@ -63,6 +61,7 @@ describe('runSplashdown (Remote Mode)', () => {
     getExecOutput: vi
       .fn()
       .mockResolvedValue({ status: 0, stdout: 'orbit-23176-open', stderr: '' }),
+    getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
   };
 
   beforeEach(() => {

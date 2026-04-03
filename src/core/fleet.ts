@@ -16,9 +16,10 @@ export async function runFleet(
   args: string[],
   cliFlags: Partial<OrbitConfig> = {},
 ) {
-  const repoName = cliFlags.repoName || detectRepoName();
-  const config = getRepoConfig(repoName, cliFlags);
-  const sdk = new OrbitSDK(config);
+  const repoRoot = process.cwd();
+  const repoName = cliFlags.repoName || detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, cliFlags, repoRoot);
+  const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   const command = args[0]; // 'schematic' or 'station'
   const action = args[1];
