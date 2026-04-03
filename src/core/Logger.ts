@@ -78,22 +78,18 @@ class Logger {
       this.logStream.write(fullMessage + '\n');
     }
 
-    const isMcp = !!process.env.GCLI_MCP;
+    const _isMcp = !!process.env.GCLI_MCP;
 
     if (level === LogLevel.ERROR) {
       console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
     } else if (level === LogLevel.WARN) {
-      console.warn(`[WARN ] ${tagStr(tag)}${message}`, ...args);
+      console.error(`[WARN ] ${tagStr(tag)}${message}`, ...args);
     } else if (
       level === LogLevel.INFO ||
       (level === LogLevel.DEBUG && this.verbose)
     ) {
       const displayLevel = level === LogLevel.DEBUG ? '[DEBUG]' : '[INFO ]';
-      if (isMcp) {
-        console.error(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
-      } else {
-        console.log(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
-      }
+      console.error(`${displayLevel} ${tagStr(tag)}${message}`, ...args);
     }
   }
 
@@ -174,23 +170,37 @@ export class ConsoleObserver {
 
   onLog(level: LogLevel, tag: string, message: string, ...args: any[]) {
     if (this.shouldFilter(message)) return;
+    const isMcp = !!process.env.GCLI_MCP;
     if (level === LogLevel.ERROR) {
       console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
     } else if (level === LogLevel.WARN) {
-      console.warn(`[WARN ] ${tagStr(tag)}${message}`, ...args);
+      console.error(`[WARN ] ${tagStr(tag)}${message}`, ...args);
     } else {
-      console.log(`[INFO ] ${tagStr(tag)}${message}`, ...args);
+      if (isMcp) {
+        console.error(`[INFO ] ${tagStr(tag)}${message}`, ...args);
+      } else {
+        console.log(`[INFO ] ${tagStr(tag)}${message}`, ...args);
+      }
     }
   }
 
   onDivider(title?: string) {
     const line = '-'.repeat(80);
+    const isMcp = !!process.env.GCLI_MCP;
     if (title) {
       const padding = Math.max(0, Math.floor((80 - title.length - 2) / 2));
       const centered = `${'-'.repeat(padding)} ${title} ${'-'.repeat(80 - padding - title.length - 2)}`;
-      console.log(`[INFO ] [SETUP   ] ${centered}`);
+      if (isMcp) {
+        console.error(`[INFO ] [SETUP   ] ${centered}`);
+      } else {
+        console.log(`[INFO ] [SETUP   ] ${centered}`);
+      }
     } else {
-      console.log(`[INFO ] [SETUP   ] ${line}`);
+      if (isMcp) {
+        console.error(`[INFO ] [SETUP   ] ${line}`);
+      } else {
+        console.log(`[INFO ] [SETUP   ] ${line}`);
+      }
     }
   }
 }

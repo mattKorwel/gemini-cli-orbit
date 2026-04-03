@@ -27,16 +27,21 @@ class McpObserver implements OrbitObserver {
     const tagStr = tag ? `[${tag.padEnd(8)}] ` : '';
     const formatted = `[${levelStr}] ${tagStr}${message}${args.length > 0 ? ' ' + JSON.stringify(args) : ''}`;
     this.buffer.push(formatted);
+    // Also write to stderr so it shows up in debug logs but doesn't corrupt stdout
+    console.error(formatted);
   }
 
   onProgress(phase: string, message: string): void {
-    this.buffer.push(`\n--- ${phase} ---`);
-    this.buffer.push(`   ${message}`);
+    const msg = `\n--- ${phase} ---\n   ${message}`;
+    this.buffer.push(msg);
+    console.error(msg);
   }
 
   onDivider(title?: string): void {
     const line = '-'.repeat(40);
-    this.buffer.push(title ? `\n--- ${title} ---` : `\n${line}`);
+    const msg = title ? `\n--- ${title} ---` : `\n${line}`;
+    this.buffer.push(msg);
+    console.error(msg);
   }
 
   getOutput(): string {
@@ -48,10 +53,20 @@ class McpObserver implements OrbitObserver {
 
 const observer = new McpObserver();
 
-function getSDK(repoOverride?: string): IOrbitSDK {
+function getSDK(
+  repoOverride?: string,
+  instanceOverride?: string,
+  schematicOverride?: string,
+): IOrbitSDK {
   const repoRoot = process.cwd();
-  const repoName = repoOverride || detectRepoName(repoRoot);
-  const config = getRepoConfig(repoName, undefined, repoRoot);
+  const repoName = repoOverride || detectRepoName(repoRoot, { silent: true });
+  const cliFlags: any = {};
+  if (instanceOverride) cliFlags.forStation = instanceOverride;
+  if (schematicOverride) cliFlags.schematic = schematicOverride;
+
+  const config = getRepoConfig(repoName, cliFlags, repoRoot, {
+    ignoreGlobalState: true,
+  });
   return new OrbitSDK(config, observer, repoRoot);
 }
 
@@ -68,6 +83,7 @@ server.registerTool(
     description: 'Launch or resume an Orbit mission for a PR or branch.',
     inputSchema: z.object({
       identifier: z.string().describe('PR number or branch name'),
+      station: z.string().optional().describe('Target station instance'),
       action: z
         .enum(['chat', 'fix', 'review', 'implement', 'eva'])
         .default('chat'),
@@ -77,8 +93,8 @@ server.registerTool(
         .describe('Initial instruction for the mission'),
     }).shape,
   },
-  async ({ identifier, action, prompt }) => {
-    const sdk = getSDK();
+  async ({ identifier, station, action, prompt }) => {
+    const sdk = getSDK(undefined, station);
     const result = await sdk.startMission({
       identifier,
       action,
@@ -102,14 +118,15 @@ server.registerTool(
     description: 'Inspect latest mission telemetry and logs.',
     inputSchema: z.object({
       identifier: z.string().describe('PR number or branch name'),
+      station: z.string().optional().describe('Target station instance'),
       action: z
         .string()
         .default('review')
         .describe('The mission type (chat, review, fix, etc.)'),
     }).shape,
   },
-  async ({ identifier, action }) => {
-    const sdk = getSDK();
+  async ({ identifier, station, action }) => {
+    const sdk = getSDK(undefined, station);
     const code = await sdk.getLogs({ identifier, action });
     const output = observer.getOutput();
     return {
@@ -152,11 +169,12 @@ server.registerTool(
       'Decommission mission-specific resources (capsules and workspaces).',
     inputSchema: z.object({
       identifier: z.string().describe('PR number or branch name'),
+      station: z.string().optional().describe('Target station instance'),
       action: z.string().default('chat'),
     }).shape,
   },
-  async ({ identifier, action }) => {
-    const sdk = getSDK();
+  async ({ identifier, station, action }) => {
+    const sdk = getSDK(undefined, station);
     const result = await sdk.jettisonMission({ identifier, action });
     const output = observer.getOutput();
     return {
@@ -198,10 +216,12 @@ server.registerTool(
   {
     description:
       'Check health and active mission capsules for the active station.',
-    inputSchema: z.object({}).shape,
+    inputSchema: z.object({
+      station: z.string().optional().describe('Target station instance'),
+    }).shape,
   },
-  async () => {
-    const sdk = getSDK();
+  async ({ station }) => {
+    const sdk = getSDK(undefined, station);
     const pulse = await sdk.getPulse();
     let text = `Station: ${pulse.stationName} (${pulse.status})\n`;
     text += `IP: ${pulse.internalIp || 'N/A'} / ${pulse.externalIp || 'N/A'}\n\n`;
@@ -290,8 +310,8 @@ server.registerTool(
       destroy: z.boolean().optional().describe('Decommission infrastructure'),
     }).shape,
   },
-  async ({ name: _name, schematic, destroy }) => {
-    const sdk = getSDK();
+  async ({ name, schematic, destroy }) => {
+    const sdk = getSDK(undefined, name, schematic);
     const code = await sdk.provisionStation({
       schematicName: schematic,
       destroy,
@@ -302,6 +322,38 @@ server.registerTool(
         { type: 'text', text: `Exit Code: ${code}\n\nLogs:\n${output}` },
       ],
     };
+  },
+);
+
+server.registerTool(
+  'infra_manage',
+  {
+    description: 'Manage infrastructure schematics (list, create, view).',
+    inputSchema: z.object({
+      action: z.enum(['list', 'create', 'view']),
+      name: z.string().describe('The name of the schematic'),
+      config: z
+        .any()
+        .optional()
+        .describe('Full configuration object for creation'),
+    }).shape,
+  },
+  async ({ action, name, config }) => {
+    const sdk = getSDK();
+    let text = '';
+    if (action === 'list') {
+      const list = sdk.listSchematics();
+      text = `Schematics:\n${list.map((s) => ` - ${s}`).join('\n')}`;
+    } else if (action === 'create' && config) {
+      await sdk.saveSchematic(name, config);
+      text = `Schematic "${name}" saved.`;
+    } else if (action === 'view') {
+      const s = sdk.getSchematic(name);
+      text = s ? JSON.stringify(s, null, 2) : `Schematic "${name}" not found.`;
+    }
+    const output = observer.getOutput();
+    if (output) text += `\n\nLogs:\n${output}`;
+    return { content: [{ type: 'text', text }] };
   },
 );
 
@@ -377,6 +429,32 @@ server.registerPrompt(
           content: {
             type: 'text',
             text: `Show me the Orbit station ${verb} status.`,
+          },
+        },
+      ],
+    };
+  },
+);
+
+server.registerPrompt(
+  'infra',
+  {
+    description: 'Infrastructure schematic management.',
+    argsSchema: {
+      action: z.string().optional().describe('Action: list, view, create'),
+      name: z.string().optional().describe('Schematic name'),
+    },
+  },
+  async ({ action, name }) => {
+    const verb = action || 'list';
+    return {
+      description: `Orbit Infra: ${verb}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `I want to ${verb} Orbit infrastructure schematics${name ? ' for ' + name : ''}.`,
           },
         },
       ],

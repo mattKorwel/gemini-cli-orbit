@@ -31,16 +31,19 @@ export function getRepoConfig(
   repoName?: string,
   cliFlags: Partial<OrbitConfig> = {},
   repoRoot: string = process.cwd(),
+  options: { ignoreGlobalState?: boolean } = {},
 ): OrbitConfig {
   const rName = repoName || cliFlags.repoName || detectRepoName(repoRoot);
-  const settings = loadSettings();
+  const settings = options.ignoreGlobalState
+    ? ({ repos: {} } as any)
+    : loadSettings();
   const projectConfig = loadProjectConfig(repoRoot);
 
   // 1. Start with Project Defaults
   let config: OrbitConfig = { ...projectConfig, repoName: rName };
 
   // 2. Global Registry (User override for this specific repo)
-  if (settings.repos[rName]) {
+  if (!options.ignoreGlobalState && settings.repos[rName]) {
     config = { ...config, ...settings.repos[rName] };
   }
 
@@ -48,7 +51,7 @@ export function getRepoConfig(
   const targetStation =
     (cliFlags as any).forStation ||
     process.env.GCLI_ORBIT_INSTANCE_NAME ||
-    settings.activeStation;
+    (options.ignoreGlobalState ? undefined : settings.activeStation);
 
   // 4. Resolve Station details from Registry if targeted
   if (targetStation) {
@@ -171,13 +174,16 @@ export function resolveContextBundles(
   };
 }
 
-export function detectRepoName(repoRoot: string = process.cwd()): string {
+export function detectRepoName(
+  repoRoot: string = process.cwd(),
+  options: { silent?: boolean } = {},
+): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
 
   try {
     // 1. Try to get the repo name from the remote URL (most accurate)
     const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
-      stdio: 'pipe',
+      stdio: options.silent ? 'pipe' : 'inherit',
       encoding: 'utf8',
       cwd: repoRoot,
     });
@@ -189,7 +195,7 @@ export function detectRepoName(repoRoot: string = process.cwd()): string {
 
     // 2. Fallback to the basename of the git root
     const rootRes = spawnSync('git', ['rev-parse', '--show-toplevel'], {
-      stdio: 'pipe',
+      stdio: options.silent ? 'pipe' : 'inherit',
       encoding: 'utf8',
       cwd: repoRoot,
     });

@@ -269,9 +269,15 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       await stack.setConfig('gcp:project', { value: this.config.projectId });
     }
 
-    console.log(`   🚀 Pulumi: Provisioning infrastructure for ${this.id}...`);
+    logger.info(
+      'SETUP',
+      `   🚀 Pulumi: Provisioning infrastructure for ${this.id}...`,
+    );
     if (!this.config.verbose) {
-      console.log(`      (Detailed logs redirected to ${this.logPath})`);
+      logger.info(
+        'SETUP',
+        `      (Detailed logs redirected to ${this.logPath})`,
+      );
     }
 
     try {
@@ -301,7 +307,10 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       { workDir: this.workDir },
     );
 
-    console.log(`   🔥 Pulumi: Destroying infrastructure for ${this.id}...`);
+    logger.info(
+      'SETUP',
+      `   🔥 Pulumi: Destroying infrastructure for ${this.id}...`,
+    );
     await stack.destroy({ onOutput: this.getOutputHandler() });
   }
 

@@ -20,7 +20,7 @@ describe('ConfigManager', () => {
       stdout: '/work-dir/test-repo\n',
     } as any);
     // Default to no files existing
-    ( fs.existsSync as any).mockReturnValue(false);
+    (fs.existsSync as any).mockReturnValue(false);
   });
 
   it('should resolve config using hierarchy', () => {
@@ -50,7 +50,7 @@ describe('ConfigManager', () => {
     const schematicData = { projectId: 'corp-p', zone: 'corp-z' };
 
     const norm = (p: any) => String(p).replace(/\\/g, '/');
-    ( fs.existsSync as any).mockImplementation((p: any) => {
+    (fs.existsSync as any).mockImplementation((p: any) => {
       const n = norm(p);
       if (n.includes('config.json')) return true;
       if (n.includes('settings.json')) return true;
@@ -59,7 +59,7 @@ describe('ConfigManager', () => {
       return false;
     });
 
-    ( fs.readFileSync as any).mockImplementation((p: any) => {
+    (fs.readFileSync as any).mockImplementation((p: any) => {
       const n = norm(p);
       if (n.includes('config.json')) return JSON.stringify(projectConfig);
       if (n.includes('settings.json')) return JSON.stringify(globalSettings);
@@ -82,13 +82,47 @@ describe('ConfigManager', () => {
   it('should override with environment variables', () => {
     process.env.GCLI_ORBIT_PROJECT_ID = 'env-p';
 
-    ( fs.existsSync as any).mockReturnValue(false);
-    ( fs.readFileSync as any).mockReturnValue('{}');
+    (fs.existsSync as any).mockReturnValue(false);
+    (fs.readFileSync as any).mockReturnValue('{}');
 
     const config = getRepoConfig();
     expect(config.projectId).toBe('env-p');
 
     delete process.env.GCLI_ORBIT_PROJECT_ID;
+  });
+
+  it('should ignore global settings when ignoreGlobalState is true', () => {
+    // Global override for this repo
+    const globalSettings = {
+      activeStation: 'global-station',
+      repos: {
+        'test-repo': { imageUri: 'user-override-image' },
+      },
+    };
+
+    const norm = (p: any) => String(p).replace(/\\/g, '/');
+    (fs.existsSync as any).mockImplementation((p: any) => {
+      const n = norm(p);
+      return n.includes('settings.json');
+    });
+
+    (fs.readFileSync as any).mockImplementation((p: any) => {
+      const n = norm(p);
+      if (n.includes('settings.json')) return JSON.stringify(globalSettings);
+      return '{}';
+    });
+
+    // 1. With global state (default)
+    const configWithState = getRepoConfig('test-repo');
+    expect(configWithState.imageUri).toBe('user-override-image');
+    expect(configWithState.stationName).toBe('global-station');
+
+    // 2. Ignoring global state
+    const configStateless = getRepoConfig('test-repo', {}, process.cwd(), {
+      ignoreGlobalState: true,
+    });
+    expect(configStateless.imageUri).not.toBe('user-override-image');
+    expect(configStateless.stationName).toBe('test-repo'); // Should fallback to repo name
   });
 
   it('should detect repo name from origin remote (HTTPS)', () => {

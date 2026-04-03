@@ -74,7 +74,7 @@ export class FleetManager {
     }
 
     const infraProvisioner = InfrastructureFactory.getProvisioner(
-      sName,
+      instanceName,
       config as any,
     );
 
@@ -354,7 +354,7 @@ export class FleetManager {
           `   🚜 Destroying Station Infrastructure: ${receipt.name}`,
         );
         const infraProvisioner = InfrastructureFactory.getProvisioner(
-          receipt.name,
+          receipt.instanceName || receipt.name,
           receipt as any,
         );
         await infraProvisioner.down();
