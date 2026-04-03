@@ -6,6 +6,7 @@
 
 import { OrbitSDK } from './OrbitSDK.js';
 import { detectRepoName, getRepoConfig } from './ConfigManager.js';
+import { type OrbitConfig } from './Constants.js';
 
 /**
  * Legacy wrapper for logs logic, now using OrbitSDK.
@@ -13,10 +14,11 @@ import { detectRepoName, getRepoConfig } from './ConfigManager.js';
 export async function runLogs(
   identifier: string,
   action: string = 'review',
+  cliFlags: Partial<OrbitConfig> = {},
 ): Promise<number> {
   const repoRoot = process.cwd();
-  const repoName = detectRepoName(repoRoot);
-  const config = getRepoConfig(repoName, undefined, repoRoot);
+  const repoName = cliFlags.repoName || detectRepoName(repoRoot);
+  const config = getRepoConfig(repoName, cliFlags, repoRoot);
   const sdk = new OrbitSDK(config, undefined, repoRoot);
 
   return sdk.getLogs({ identifier, action });

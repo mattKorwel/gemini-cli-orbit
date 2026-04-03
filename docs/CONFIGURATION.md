@@ -119,6 +119,42 @@ serve two primary purposes:
 
 ---
 
+## 🎯 Project Selection Shorthand
+
+Orbit supports a powerful shorthand for targeting a specific repository's
+configuration without providing explicit flags:
+
+**Syntax**: `orbit <repo-name>:<command> [args]`
+
+When you use a colon in the first argument, Orbit treats the prefix as the
+**logical repository name**.
+
+### How it Works
+
+1.  **Sets `GCLI_ORBIT_REPO_NAME`**: The prefix (e.g., `my-service`) is used to
+    look up settings in your Global Registry.
+2.  **Routes the Command**: The suffix (e.g., `mission`) is executed as the
+    primary command.
+3.  **Interaction with `--repo-dir`**:
+    - The shorthand specifies **who** (which configuration/station to use).
+    - The `--repo-dir` flag (or the current directory) specifies **where** the
+      source code is physically located on your disk.
+
+**Example**:
+
+```bash
+# Launch mission 123 for the 'api-server' project, using code in a specific folder
+orbit api-server:mission 123 --repo-dir ~/clones/api-v2
+```
+
+This is equivalent to:
+
+```bash
+orbit mission 123 --repo api-server --repo-dir ~/clones/api-v2
+```
+
+---
+
 ## 4. Environment Variables
 
 Highest priority overrides for the current session.

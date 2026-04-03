@@ -12,7 +12,7 @@
     "prepare": "husky",
     "sync-docs": "tsx tools/sync-docs.ts",
     "version:release": "tsx tools/prepare-release.ts",
-    "build:bundle": "tools/bundle.sh",
+    "build:bundle": "tsx tools/bundle.ts",
     "build:typecheck": "npm run typecheck",
     "build": "npm run build:typecheck && npm run build:bundle"
   },

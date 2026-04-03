@@ -62,6 +62,16 @@ describe('runStatus', () => {
     expect(mockProvider.getStatus).toHaveBeenCalled();
   });
 
+  it('should use repoName from cliFlags if provided', async () => {
+    await runStatus({ repoName: 'override-repo' });
+    expect(ConfigManager.getRepoConfig).toHaveBeenCalledWith(
+      'override-repo',
+      expect.objectContaining({ repoName: 'override-repo' }),
+      expect.any(String),
+    );
+    expect(ConfigManager.detectRepoName).not.toHaveBeenCalled();
+  });
+
   it('should return 1 when station is in invalid state', async () => {
     mockProvider.getStatus.mockResolvedValue({ status: 'UNKNOWN' });
     const res = await runStatus();

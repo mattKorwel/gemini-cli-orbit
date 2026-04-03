@@ -78,4 +78,14 @@ describe('runReap', () => {
       'orbit-123-mission',
     );
   });
+
+  it('should use repoName from cliFlags if provided', async () => {
+    await runReap({}, { repoName: 'override-repo' });
+    expect(ConfigManager.getRepoConfig).toHaveBeenCalledWith(
+      'override-repo',
+      expect.objectContaining({ repoName: 'override-repo' }),
+      expect.any(String),
+    );
+    expect(ConfigManager.detectRepoName).not.toHaveBeenCalled();
+  });
 });
