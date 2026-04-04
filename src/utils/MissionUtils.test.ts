@@ -20,13 +20,13 @@ describe('MissionUtils', () => {
   it('should resolve simple mission ID', () => {
     const ctx = resolveMissionContext('test-branch', 'chat');
     expect(ctx.containerName).toBe('orbit-test-branch-chat');
-    expect(ctx.workspaceName).toBe('mission-test-branch-chat');
+    expect(ctx.workspaceName).toBe('orbit-test-branch-chat');
   });
 
   it('should resolve named mission with suffix (id:name)', () => {
     const ctx = resolveMissionContext('123:debug', 'chat');
     expect(ctx.containerName).toBe('orbit-123-debug-chat');
-    expect(ctx.workspaceName).toBe('mission-123-debug-chat');
+    expect(ctx.workspaceName).toBe('orbit-123-debug-chat');
   });
 
   it('should resolve PR metadata using only the base ID', () => {
@@ -51,6 +51,6 @@ describe('MissionUtils', () => {
   it('should handle complex suffixes with multiple colons', () => {
     const ctx = resolveMissionContext('123:deep:dive', 'review');
     expect(ctx.containerName).toBe('orbit-123-deep-dive-review');
-    expect(ctx.workspaceName).toBe('mission-123-deep-dive-review');
+    expect(ctx.workspaceName).toBe('orbit-123-deep-dive-review');
   });
 });

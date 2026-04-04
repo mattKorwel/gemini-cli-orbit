@@ -20,6 +20,7 @@ vi.mock('../utils/MissionUtils.js', () => ({
   SessionManager: {
     generateMissionId: vi.fn().mockReturnValue('mock-mission-id'),
   },
+  MISSION_PREFIX: 'orbit-',
 }));
 vi.mock('../utils/SessionManager.js', () => ({
   SessionManager: {
@@ -32,6 +33,7 @@ vi.mock('../utils/TempManager.js', () => ({
 }));
 vi.mock('../core/ConfigManager.js', () => ({
   detectRemoteUrl: vi.fn().mockReturnValue('https://github.com/test/test.git'),
+  getProjectOrbitDir: () => '/tmp/.gemini/orbit',
 }));
 
 describe('MissionManager', () => {
@@ -69,56 +71,48 @@ describe('MissionManager', () => {
     vi.unstubAllEnvs();
   });
 
-  it('should perform chunky handshake (init then run) for a new mission', async () => {
+  it('should perform chunky handshake (init, hooks, then run) for a new mission', async () => {
+    const fullName = 'orbit-123-review';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: 'orbit-feat-review',
-      sessionName: 'orbit-feat',
-      workspaceName: 'mission-feat-review',
+      containerName: fullName,
+      sessionName: fullName,
+      workspaceName: fullName,
     });
-    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-review']);
+    mockProvider.listCapsules.mockResolvedValue([fullName]);
 
     const result = await manager.start({ identifier: '123', action: 'review' });
 
     // 1. Verify init call
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('station.js init 123 feat'),
-      expect.objectContaining({ wrapCapsule: 'orbit-feat-review' }),
+      expect.any(Object),
     );
 
-    // 2. Verify run call
+    // 2. Verify hooks call
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('station.js setup-hooks'),
+      expect.any(Object),
+    );
+
+    // 3. Verify run call
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('station.js run 123 feat review'),
-      expect.objectContaining({ wrapCapsule: 'orbit-feat-review' }),
+      expect.any(Object),
     );
 
     expect(result.exitCode).toBe(0);
   });
 
-  it('should auto-attach for CLI users (non-MCP)', async () => {
-    vi.stubEnv('GCLI_MCP', '0');
+  it('should run both init and run phases for chat action in the new architecture', async () => {
+    const fullName = 'orbit-123-chat';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: 'orbit-feat-chat',
-      sessionName: 'orbit-feat',
-      workspaceName: 'mission-feat-chat',
+      containerName: fullName,
+      sessionName: fullName,
+      workspaceName: fullName,
     });
-    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
-
-    const result = await manager.start({ identifier: '123', action: 'chat' });
-
-    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
-    expect(result.exitCode).toBe(0);
-  });
-
-  it('should skip run phase for chat action (it only needs init)', async () => {
-    (resolveMissionContext as any).mockReturnValue({
-      branchName: 'feat',
-      containerName: 'orbit-feat-chat',
-      sessionName: 'orbit-feat',
-      workspaceName: 'mission-feat-chat',
-    });
-    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
+    mockProvider.listCapsules.mockResolvedValue([fullName]);
 
     await manager.start({ identifier: '123', action: 'chat' });
 
@@ -128,8 +122,8 @@ describe('MissionManager', () => {
       expect.any(Object),
     );
 
-    // Should NOT call run
-    expect(mockProvider.exec).not.toHaveBeenCalledWith(
+    // Should ALSO call run now (to start entrypoint/doctor)
+    expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('station.js run 123 feat chat'),
       expect.any(Object),
     );

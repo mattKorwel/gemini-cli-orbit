@@ -33,7 +33,7 @@ export interface StationReceipt {
   lastSeen: string;
 }
 
-export class StationManager {
+export class StationRegistry {
   constructor() {
     if (!fs.existsSync(STATIONS_DIR)) {
       fs.mkdirSync(STATIONS_DIR, { recursive: true });

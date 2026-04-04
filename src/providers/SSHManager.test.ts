@@ -52,7 +52,7 @@ describe('GceSSHManager', () => {
       // 2. Mock remote 'cat' command to return the same hash
       (spawnSync as any).mockImplementation((bin: string, args: string[]) => {
         const lastArg = args[args.length - 1];
-        if (bin === 'ssh' && lastArg.includes('cat')) {
+        if (bin === 'ssh' && lastArg && lastArg.includes('cat')) {
           return {
             status: 0,
             stdout: Buffer.from(localHash),
@@ -84,7 +84,7 @@ describe('GceSSHManager', () => {
       // 1. Mock remote 'cat' to return different hash (error 1)
       (spawnSync as any).mockImplementation((bin: string, args: string[]) => {
         const lastArg = args[args.length - 1];
-        if (bin === 'ssh' && lastArg.includes('cat')) {
+        if (bin === 'ssh' && lastArg && lastArg.includes('cat')) {
           return {
             status: 1,
             stdout: Buffer.from(''),

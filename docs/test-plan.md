@@ -16,6 +16,7 @@ corporate-ready blueprint.
     - [x] **Verification**: `~/.zshrc` contains Orbit aliases and path exports.
 2.  **Schematic Creation (Headless)**:
     - Create a schematic with BeyondCorp settings and automated networking.
+
     ```bash
     orbit infra schematic create corp-val \
       --projectId korwel-gcli-02-sandbox-676005 \

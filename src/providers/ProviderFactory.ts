@@ -53,10 +53,9 @@ export class ProviderFactory {
       infra,
     );
 
-    const gceConfig = {
-      imageUri: infra.imageUri,
-      stationName,
-    };
+    const gceConfig: { imageUri?: string; stationName?: string } = {};
+    if (infra.imageUri) gceConfig.imageUri = infra.imageUri;
+    if (stationName) gceConfig.stationName = stationName;
 
     const provider = new GceCosProvider(
       projectCtx,

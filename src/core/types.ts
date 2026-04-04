@@ -31,8 +31,20 @@ export interface MissionResult {
  */
 export interface CapsuleInfo {
   name: string;
-  state: 'IDLE' | 'WAITING' | 'THINKING' | 'UNKNOWN';
+  state:
+    | 'IDLE'
+    | 'WAITING'
+    | 'THINKING'
+    | 'WAITING_FOR_INPUT'
+    | 'WAITING_FOR_APPROVAL'
+    | 'COMPLETED'
+    | 'UNKNOWN';
   stats?: any;
+  lastThought?: string;
+  blocker?: string;
+  progress?: string;
+  pendingTool?: string;
+  lastQuestion?: string;
 }
 
 /**
@@ -148,17 +160,42 @@ export interface SplashdownOptions {
 }
 
 /**
+ * Options for hibernating a station.
+ */
+export interface HibernateOptions {
+  name: string;
+}
+
+/**
+ * Options for deleting a station record.
+ */
+export interface DeleteStationOptions {
+  name: string;
+}
+
+/**
+ * Options for executing a command in a mission.
+ */
+export interface MissionExecOptions {
+  identifier: string;
+  command: string;
+  action?: string | undefined;
+}
+
+/**
  * The Orbit SDK - Central functional core (Facade).
  */
 export interface IOrbitSDK {
   readonly observer: OrbitObserver;
   getPulse(): Promise<PulseInfo>;
   startMission(options: MissionOptions): Promise<MissionResult>;
+  missionExec(options: MissionExecOptions): Promise<number>;
   jettisonMission(options: JettisonOptions): Promise<MissionResult>;
   reapMissions(options: ReapOptions): Promise<number>;
   monitorCI(options: MonitorCIOptions): Promise<CIStatus>;
   provisionStation(options: ProvisionOptions): Promise<number>;
   splashdown(options: SplashdownOptions): Promise<number>;
+  hibernate(options: HibernateOptions): Promise<void>;
   attach(options: AttachOptions): Promise<number>;
   getLogs(options: GetLogsOptions): Promise<number>;
   installShell(): Promise<void>;
@@ -193,4 +230,55 @@ export interface SchematicInfo {
   zone?: string;
   backendType?: string;
   machineType?: string;
+}
+
+export interface SetupOptions {
+  projectId: string;
+  zone: string;
+  dnsSuffix?: string;
+  userSuffix?: string;
+  backendType?: string;
+}
+
+export interface ExecOptions {
+  interactive?: boolean;
+  cwd?: string;
+  wrapCapsule?: string;
+  quiet?: boolean;
+  env?: Record<string, string>;
+  sensitiveEnv?: Record<string, string>;
+  user?: string;
+}
+
+export interface RemoteCommand {
+  bin: string;
+  args: string[];
+  cwd?: string;
+  user?: string;
+  env?: Record<string, string>;
+}
+
+export interface CapsuleConfig {
+  name: string;
+  image: string;
+  mounts: { host: string; capsule: string; readonly?: boolean }[];
+  env?: Record<string, string>;
+  sensitiveEnv?: Record<string, string>;
+  cpuLimit?: string;
+  memoryLimit?: string;
+  command?: string | undefined;
+  user?: string | undefined;
+}
+
+export interface SyncOptions {
+  delete?: boolean;
+  exclude?: string[];
+  sudo?: boolean;
+}
+
+export interface OrbitStatus {
+  name: string;
+  status: string;
+  internalIp?: string;
+  externalIp?: string;
 }

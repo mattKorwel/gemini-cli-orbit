@@ -7,12 +7,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'node:fs';
 
-const { mockRegister, mockRun, mockRunAll, mockRunParallel } = vi.hoisted(() => ({
-  mockRegister: vi.fn(),
-  mockRun: vi.fn().mockResolvedValue(0),
-  mockRunAll: vi.fn().mockResolvedValue(0),
-  mockRunParallel: vi.fn().mockResolvedValue(0),
-}));
+const { mockRegister, mockRun, mockRunAll, mockRunParallel } = vi.hoisted(
+  () => ({
+    mockRegister: vi.fn(),
+    mockRun: vi.fn().mockResolvedValue(0),
+    mockRunAll: vi.fn().mockResolvedValue(0),
+    mockRunParallel: vi.fn().mockResolvedValue(0),
+  }),
+);
 
 vi.mock('../core/TaskRunner.js', () => ({
   createTaskRunner: vi.fn().mockReturnValue({

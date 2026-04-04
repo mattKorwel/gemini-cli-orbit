@@ -212,7 +212,9 @@ export class GcpCosTarget implements InfrastructureProvisioner {
           initializeParams: {
             image: 'cos-cloud/cos-stable',
             size: 200,
-            type: this.config.bootDiskType, // Unspecified by default
+            ...(this.config.bootDiskType
+              ? { type: this.config.bootDiskType }
+              : {}),
           },
         },
         attachedDisks: [

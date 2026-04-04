@@ -5,6 +5,14 @@
  */
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import type { InfrastructureSpec } from '../core/Constants.js';
+import type {
+  ExecOptions,
+  SyncOptions,
+  OrbitStatus,
+  CapsuleConfig,
+  RemoteCommand,
+} from '../core/types.js';
+import { type Command } from '../core/executors/types.js';
 
 /**
  * OrbitProvider interface defines the contract for different remote
@@ -35,13 +43,13 @@ export interface OrbitProvider {
   /**
    * Executes a command on the station.
    */
-  exec(command: string, options?: ExecOptions): Promise<number>;
+  exec(command: string | Command, options?: ExecOptions): Promise<number>;
 
   /**
    * Executes a command on the station and returns the output.
    */
   getExecOutput(
-    command: string,
+    command: string | Command,
     options?: ExecOptions,
   ): Promise<{ status: number; stdout: string; stderr: string }>;
 
@@ -66,6 +74,7 @@ export interface OrbitProvider {
   prepareMissionWorkspace(
     identifier: string,
     branch: string,
+    action: string,
     infra: InfrastructureSpec,
   ): Promise<void>;
 
@@ -146,47 +155,4 @@ export interface OrbitProvider {
    * Drops into a raw interactive bash shell inside a mission capsule.
    */
   missionShell(capsuleName: string): Promise<number>;
-}
-
-export interface SetupOptions {
-  projectId: string;
-  zone: string;
-  dnsSuffix?: string;
-  userSuffix?: string;
-  backendType?: string;
-}
-
-export interface ExecOptions {
-  interactive?: boolean;
-  cwd?: string;
-  wrapCapsule?: string;
-  quiet?: boolean;
-  env?: Record<string, string>;
-  sensitiveEnv?: Record<string, string>;
-  user?: string;
-}
-
-export interface CapsuleConfig {
-  name: string;
-  image: string;
-  mounts: { host: string; capsule: string; readonly?: boolean }[];
-  env?: Record<string, string>;
-  sensitiveEnv?: Record<string, string>;
-  cpuLimit?: string;
-  memoryLimit?: string;
-  command?: string | undefined;
-  user?: string | undefined;
-}
-
-export interface SyncOptions {
-  delete?: boolean;
-  exclude?: string[];
-  sudo?: boolean;
-}
-
-export interface OrbitStatus {
-  name: string;
-  status: string;
-  internalIp?: string;
-  externalIp?: string;
 }

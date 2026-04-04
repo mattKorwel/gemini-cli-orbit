@@ -7,19 +7,16 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
-import {
-  type OrbitProvider,
-  type ExecOptions,
-  type OrbitStatus,
-} from './BaseProvider.js';
+import { type OrbitProvider } from './BaseProvider.js';
+import { type ExecOptions, type OrbitStatus } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import {
   getPrimaryRepoRoot,
   type ProjectContext,
   type InfrastructureSpec,
+  MISSION_PREFIX,
 } from '../core/Constants.js';
-
-const MISSION_PREFIX = 'orbit-';
+import { type Command, flattenCommand } from '../core/executors/types.js';
 
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
@@ -81,7 +78,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   getRunCommand(command: string, options: ExecOptions = {}): string {
     const envPrefix = options.env
       ? Object.entries(options.env)
-          .map(([k, v]) => `${k}=${this.q(v)}`)
+          .map(([k, v]) => `${k}=${this.q(v as string)}`)
           .join(' ') + ' '
       : '';
 
@@ -95,7 +92,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
       const sessionName = options.wrapCapsule
         ? `orbit-${options.wrapCapsule}`
         : 'orbit-local';
-      return `tmux new-session -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${envPrefix}${command}; exec zsh"`;
+      return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${envPrefix}${command}; exec zsh"`;
     }
 
     console.warn(
@@ -107,13 +104,16 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return `cd ${this.q(capsuleDir)} && ${envPrefix}${command}`;
   }
 
-  async exec(command: string, options: ExecOptions = {}): Promise<number> {
+  async exec(
+    command: string | Command,
+    options: ExecOptions = {},
+  ): Promise<number> {
     const res = await this.getExecOutput(command, options);
     return res.status;
   }
 
   async getExecOutput(
-    command: string,
+    command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
     let cwd = options.cwd || this.projectCtx.repoRoot;
@@ -127,7 +127,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
         );
     }
 
-    const res = spawnSync(command, {
+    const res = spawnSync(flattenCommand(command), {
       stdio: options.quiet ? 'pipe' : 'inherit',
       shell: true,
       cwd,
@@ -150,15 +150,16 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async prepareMissionWorkspace(
-    _identifier: string,
+    identifier: string,
     branch: string,
+    action: string,
     _infra: InfrastructureSpec,
   ): Promise<void> {
     const actualBranch = branch;
     const sourceDir = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const wtPath = path.join(
       this.workspacesDir,
-      `${MISSION_PREFIX}${actualBranch}`,
+      `${MISSION_PREFIX}${identifier}`,
     );
 
     if (fs.existsSync(wtPath)) {
@@ -183,10 +184,26 @@ export class LocalWorktreeProvider implements OrbitProvider {
       `refs/heads/${actualBranch}`,
     ]);
 
+    const remoteCheck = spawnSync('git', [
+      '-C',
+      sourceDir,
+      'show-ref',
+      '--verify',
+      `refs/remotes/origin/${actualBranch}`,
+    ]);
+
     if (localCheck.status === 0) {
+      // Use local branch
       args.push(wtPath, actualBranch);
-    } else {
+    } else if (remoteCheck.status === 0) {
+      // Track remote branch
       args.push('-b', actualBranch, wtPath, `origin/${actualBranch}`);
+    } else {
+      // Fallback: Create from HEAD
+      console.warn(
+        `   ⚠️  Branch '${actualBranch}' not found on origin. Creating from HEAD.`,
+      );
+      args.push('-b', actualBranch, wtPath);
     }
 
     const res = spawnSync('git', ['-C', sourceDir, ...args], {
@@ -234,7 +251,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
       console.warn('⚠️  Tmux not found. Cannot attach to persistent session.');
       return 1;
     }
-    const res = spawnSync('tmux', ['attach-session', '-t', `orbit-${name}`], {
+    const res = spawnSync('tmux', ['attach-session', '-t', name], {
       stdio: 'inherit',
     });
     return res.status ?? 0;
@@ -246,7 +263,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
   async stopCapsule(name: string): Promise<number> {
     if (this.hasTmux()) {
-      spawnSync('tmux', ['kill-session', '-t', `orbit-${name}`]);
+      spawnSync('tmux', ['kill-session', '-t', name]);
     }
     return 0;
   }
@@ -277,7 +294,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
     );
 
     if (this.hasTmux()) {
-      spawnSync('tmux', ['kill-session', '-t', `orbit-${name}`]);
+      spawnSync('tmux', ['kill-session', '-t', name]);
     }
 
     return res.status ?? 0;
