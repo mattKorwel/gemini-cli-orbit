@@ -1,6 +1,6 @@
 {
   "name": "orbit",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "High-performance remote missions with capsule-level isolation and automated station supervisor loops.",
   "author": "Matt Korwel",
   "license": "Apache-2.0",
