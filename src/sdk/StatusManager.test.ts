@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { StatusManager } from './StatusManager.js';
 import { flattenCommand } from '../core/executors/types.js';
 import { type IProviderFactory } from '../core/interfaces.js';
@@ -15,7 +15,7 @@ describe('StatusManager', () => {
     instanceName: 'test-station',
     providerType: 'local-worktree',
   };
-  let providerFactory: vi.Mocked<IProviderFactory>;
+  let providerFactory: Mocked<IProviderFactory>;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -51,7 +51,7 @@ describe('StatusManager', () => {
 
     providerFactory = {
       getProvider: vi.fn().mockReturnValue(mockProvider),
-    };
+    } as any;
 
     const manager = new StatusManager(
       mockProjectCtx as any,
@@ -89,7 +89,7 @@ describe('StatusManager', () => {
 
     providerFactory = {
       getProvider: vi.fn().mockReturnValue(mockProvider),
-    };
+    } as any;
 
     const manager = new StatusManager(
       mockProjectCtx as any,

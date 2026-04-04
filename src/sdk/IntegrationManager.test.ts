@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { IntegrationManager } from './IntegrationManager.js';
 import { type IShellIntegration } from '../core/interfaces.js';
 import fs from 'node:fs';
@@ -13,7 +13,7 @@ vi.mock('node:fs');
 
 describe('IntegrationManager', () => {
   let manager: IntegrationManager;
-  let shellIntegration: vi.Mocked<IShellIntegration>;
+  let shellIntegration: Mocked<IShellIntegration>;
   const observer = { onLog: vi.fn() };
 
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe('IntegrationManager', () => {
       detectShell: vi.fn(),
       getProfilePath: vi.fn(),
       install: vi.fn(),
-    };
+    } as any;
     manager = new IntegrationManager(observer as any, shellIntegration);
   });
 

@@ -207,7 +207,7 @@ export class FleetManager {
     options: ListStationsOptions = {},
   ): Promise<StationInfo[]> {
     const settings = this.configManager.loadSettings();
-    const receipts = await this.stationManager.listStations(options);
+    const receipts = await this.stationManager.listStations(options as any);
 
     const stationInfos: StationInfo[] = await Promise.all(
       receipts.map(async (r: StationReceipt) => {

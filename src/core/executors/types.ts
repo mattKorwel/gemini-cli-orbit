@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type RunOptions } from '../ProcessManager.js';
+import { type IRunOptions } from '../interfaces.js';
 
 /**
  * Base structure for all command executors.
@@ -12,7 +12,7 @@ import { type RunOptions } from '../ProcessManager.js';
 export interface Command {
   bin: string;
   args: string[];
-  options?: RunOptions;
+  options?: IRunOptions;
 }
 
 /**

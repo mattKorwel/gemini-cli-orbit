@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { StationRegistry } from './StationRegistry.js';
 import fs from 'node:fs';
 import {
@@ -17,14 +17,14 @@ vi.mock('../core/Logger.js');
 
 describe('StationRegistry', () => {
   let registry: StationRegistry;
-  let providerFactory: vi.Mocked<IProviderFactory>;
-  let configManager: vi.Mocked<IConfigManager>;
+  let providerFactory: Mocked<IProviderFactory>;
+  let configManager: Mocked<IConfigManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     providerFactory = {
       getProvider: vi.fn(),
-    };
+    } as any;
     configManager = {
       loadSettings: vi.fn().mockReturnValue({ repos: {} }),
       saveSettings: vi.fn(),
@@ -32,7 +32,7 @@ describe('StationRegistry', () => {
       saveSchematic: vi.fn(),
       loadJson: vi.fn(),
       detectRemoteUrl: vi.fn(),
-    };
+    } as any;
     registry = new StationRegistry(providerFactory, configManager);
   });
 
@@ -48,7 +48,7 @@ describe('StationRegistry', () => {
 
     const stations = await registry.listStations();
     expect(stations).toHaveLength(1);
-    expect(stations[0].name).toBe('station-1');
+    expect(stations[0]!.name).toBe('station-1');
   });
 
   it('should discover local stations from settings', async () => {
@@ -61,6 +61,6 @@ describe('StationRegistry', () => {
 
     const stations = await registry.listStations();
     expect(stations).toHaveLength(1);
-    expect(stations[0].name).toBe('local-some-repo');
+    expect(stations[0]!.name).toBe('local-some-repo');
   });
 });

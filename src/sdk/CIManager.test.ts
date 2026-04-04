@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { CIManager } from './CIManager.js';
 import { type IProcessManager } from '../core/interfaces.js';
 
 describe('CIManager', () => {
   let ci: CIManager;
-  let processManager: vi.Mocked<IProcessManager>;
+  let processManager: Mocked<IProcessManager>;
   const observer = { onLog: vi.fn() };
   const projectCtx = { repoRoot: '/repo', repoName: 'test-repo' };
 
@@ -18,7 +18,7 @@ describe('CIManager', () => {
     vi.clearAllMocks();
     processManager = {
       runSync: vi.fn(),
-    };
+    } as any;
     ci = new CIManager(
       projectCtx as any,
       {} as any,
@@ -29,7 +29,7 @@ describe('CIManager', () => {
 
   it('should monitor CI runs', async () => {
     // Mock git branch
-    processManager.runSync.mockImplementation((bin, args) => {
+    processManager.runSync.mockImplementation((bin: string, args: string[]) => {
       if (bin === 'git' && args.includes('--show-current')) {
         return { status: 0, stdout: 'main', stderr: '' };
       }
@@ -66,7 +66,7 @@ describe('CIManager', () => {
   });
 
   it('should detect failures', async () => {
-    processManager.runSync.mockImplementation((bin, args) => {
+    processManager.runSync.mockImplementation((bin: string, args: string[]) => {
       if (bin === 'git') return { status: 0, stdout: 'main', stderr: '' };
       if (bin === 'gh' && args.includes('list')) {
         return {

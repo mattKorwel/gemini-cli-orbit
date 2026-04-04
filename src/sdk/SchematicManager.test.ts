@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { SchematicManager } from './SchematicManager.js';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -21,7 +21,7 @@ vi.mock('../core/Logger.js');
 
 describe('SchematicManager', () => {
   let manager: SchematicManager;
-  let configManager: vi.Mocked<IConfigManager>;
+  let configManager: Mocked<IConfigManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -32,7 +32,7 @@ describe('SchematicManager', () => {
       saveSchematic: vi.fn(),
       loadJson: vi.fn(),
       detectRemoteUrl: vi.fn(),
-    };
+    } as any;
     manager = new SchematicManager(configManager);
   });
 

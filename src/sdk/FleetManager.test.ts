@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { FleetManager } from './FleetManager.js';
 import {
   type IStationRegistry,
@@ -27,12 +27,12 @@ describe('FleetManager', () => {
   let fleet: FleetManager;
   let mockProvisioner: any;
   let mockProvider: any;
-  let stationRegistry: vi.Mocked<IStationRegistry>;
-  let schematicManager: vi.Mocked<ISchematicManager>;
-  let providerFactory: vi.Mocked<IProviderFactory>;
-  let infraFactory: vi.Mocked<IInfrastructureFactory>;
-  let configManager: vi.Mocked<IConfigManager>;
-  let dependencyManager: vi.Mocked<IDependencyManager>;
+  let stationRegistry: Mocked<IStationRegistry>;
+  let schematicManager: Mocked<ISchematicManager>;
+  let providerFactory: Mocked<IProviderFactory>;
+  let infraFactory: Mocked<IInfrastructureFactory>;
+  let configManager: Mocked<IConfigManager>;
+  let dependencyManager: Mocked<IDependencyManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,21 +55,21 @@ describe('FleetManager', () => {
       saveReceipt: vi.fn(),
       deleteReceipt: vi.fn(),
       getMissions: vi.fn(),
-    };
+    } as any;
 
     schematicManager = {
       listSchematics: vi.fn(),
       importSchematic: vi.fn(),
       runWizard: vi.fn(),
-    };
+    } as any;
 
     providerFactory = {
       getProvider: vi.fn().mockReturnValue(mockProvider),
-    };
+    } as any;
 
     infraFactory = {
       getProvisioner: vi.fn().mockReturnValue(mockProvisioner),
-    };
+    } as any;
 
     configManager = {
       loadSettings: vi.fn().mockReturnValue({ repos: {} }),
@@ -78,11 +78,11 @@ describe('FleetManager', () => {
       saveSchematic: vi.fn(),
       loadJson: vi.fn(),
       detectRemoteUrl: vi.fn(),
-    };
+    } as any;
 
     dependencyManager = {
       ensurePulumi: vi.fn().mockResolvedValue('path/to/pulumi'),
-    };
+    } as any;
 
     fleet = new FleetManager(
       projectCtx as any,

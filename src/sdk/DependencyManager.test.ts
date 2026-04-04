@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { DependencyManager } from './DependencyManager.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import fs from 'node:fs';
@@ -14,18 +14,18 @@ vi.mock('../core/Logger.js');
 
 describe('DependencyManager', () => {
   let manager: DependencyManager;
-  let processManager: vi.Mocked<IProcessManager>;
+  let processManager: Mocked<IProcessManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     processManager = {
       runSync: vi.fn(),
-    };
+    } as any;
     manager = new DependencyManager(processManager);
   });
 
   it('should find pulumi in path', async () => {
-    processManager.runSync.mockImplementation((bin) => {
+    processManager.runSync.mockImplementation((bin: string) => {
       if (bin === 'which')
         return { status: 0, stdout: '/usr/bin/pulumi', stderr: '' };
       if (bin === 'pulumi') return { status: 0, stdout: '', stderr: '' };

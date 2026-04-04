@@ -5,13 +5,13 @@
  */
 
 import { type Command } from './types.js';
-import { type RunOptions } from '../ProcessManager.js';
+import { type IRunOptions } from '../interfaces.js';
 
 export class DockerExecutor {
   public static exec(
     container: string,
     innerCommand: string[],
-    options: RunOptions = {},
+    options: IRunOptions = {},
   ): Command {
     const { interactive, cwd, env } = options;
     const args = ['exec'];
@@ -26,7 +26,7 @@ export class DockerExecutor {
 
     args.push(container, ...innerCommand);
 
-    const runOptions: RunOptions = { ...options };
+    const runOptions: IRunOptions = { ...options };
     delete runOptions.env;
     delete runOptions.cwd;
 

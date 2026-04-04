@@ -55,7 +55,7 @@ describe('Worker Integration (High-Fidelity)', () => {
 
   it('should perform a full chunky initialization locally', async () => {
     // Mock fs.existsSync to return false for .git initially, and false for workspacePath
-    vi.spyOn(fs, 'existsSync').mockImplementation((p: string) => {
+    vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
       const ps = p.toString();
       if (ps.endsWith('.git')) return false;
       if (ps === workspacePath) return false;
@@ -96,7 +96,7 @@ describe('Worker Integration (High-Fidelity)', () => {
 
   it('should handle existing directories gracefully', async () => {
     // Mock fs.existsSync to return true for .git to simulate existing repo
-    vi.spyOn(fs, 'existsSync').mockImplementation((p: string) => {
+    vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
       const ps = p.toString();
       if (ps.endsWith('.git')) return true;
       return true;

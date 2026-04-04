@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mocked,
+} from 'vitest';
 
 // Set environment variables BEFORE importing MissionManager
 vi.stubEnv('GCLI_MCP', '1');
@@ -37,8 +45,8 @@ vi.mock('../utils/TempManager.js', () => ({
 describe('MissionManager', () => {
   let manager: MissionManager;
   let mockProvider: any;
-  let providerFactory: vi.Mocked<IProviderFactory>;
-  let configManager: vi.Mocked<IConfigManager>;
+  let providerFactory: Mocked<IProviderFactory>;
+  let configManager: Mocked<IConfigManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -61,7 +69,7 @@ describe('MissionManager', () => {
 
     providerFactory = {
       getProvider: vi.fn().mockReturnValue(mockProvider),
-    };
+    } as any;
 
     configManager = {
       loadSettings: vi.fn(),
@@ -72,7 +80,7 @@ describe('MissionManager', () => {
       detectRemoteUrl: vi
         .fn()
         .mockReturnValue('https://github.com/test/test.git'),
-    };
+    } as any;
 
     manager = new MissionManager(
       { repoName: 'test-repo', repoRoot: '/tmp' } as any,

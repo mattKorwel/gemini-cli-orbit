@@ -5,9 +5,9 @@
  */
 
 import { type Command } from './types.js';
-import { type RunOptions } from '../ProcessManager.js';
+import { type IRunOptions } from '../interfaces.js';
 
-export interface GeminiOptions extends RunOptions {
+export interface GeminiOptions extends IRunOptions {
   approvalMode?: 'default' | 'auto_edit' | 'yolo' | 'plan';
   policy?: string;
   promptInteractive?: string;

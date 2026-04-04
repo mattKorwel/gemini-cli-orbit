@@ -8,11 +8,6 @@ import type { InfrastructureProvisioner } from './InfrastructureProvisioner.js';
 import { GcpCosTarget } from './targets/GcpCosTarget.js';
 import { LocalNoopTarget } from './targets/LocalNoopTarget.js';
 import type { OrbitConfig } from '../core/Constants.js';
-
-import type { InfrastructureProvisioner } from './InfrastructureProvisioner.js';
-import { GcpCosTarget } from './targets/GcpCosTarget.js';
-import { LocalNoopTarget } from './targets/LocalNoopTarget.js';
-import type { OrbitConfig } from '../core/Constants.js';
 import { type IInfrastructureFactory } from '../core/interfaces.js';
 
 /**
