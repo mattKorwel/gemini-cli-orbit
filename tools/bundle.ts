@@ -57,6 +57,14 @@ async function build() {
     outdir: 'bundle/playbooks',
   });
 
+  // Bundle utils
+  console.log('   - Building Utils -> bundle/utils/');
+  await esbuild.build({
+    ...commonConfig,
+    entryPoints: ['src/utils/*.ts', 'src/utils/*.js', 'src/utils/*.mjs'],
+    outdir: 'bundle/utils',
+  });
+
   console.log('✨ Bundle complete!');
 }
 

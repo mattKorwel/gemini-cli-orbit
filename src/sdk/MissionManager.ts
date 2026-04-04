@@ -14,6 +14,8 @@ import {
   getPrimaryRepoRoot,
   getProjectOrbitDir,
   UPSTREAM_REPO_URL,
+  BUNDLE_PATH,
+  LOCAL_BUNDLE_PATH,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
@@ -59,8 +61,6 @@ export class MissionManager {
       this.infra.instanceName || `orbit-station-${this.projectCtx.repoName}`;
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
       stationName,
     } as any);
@@ -185,16 +185,49 @@ export class MissionManager {
     }
 
     // 6. Evaluation Phase (Phase 1)
-    this.observer.onProgress?.(
-      'PHASE 1',
-      '🧪 Evaluating change behavior and quality...',
-    );
+    const autonomousActions = ['review', 'fix', 'implement', 'ready'];
+    if (autonomousActions.includes(action)) {
+      this.observer.onProgress?.(
+        'PHASE 1',
+        '🧪 Evaluating change behavior and quality...',
+      );
+
+      const workerPath = isLocalWorkspace
+        ? `${LOCAL_BUNDLE_PATH}/station.js`
+        : `${BUNDLE_PATH}/station.js`;
+
+      const policyPath = isLocalWorkspace
+        ? path.join(
+            this.projectCtx.repoRoot,
+            '.gemini/policies/workspace-policy.toml',
+          )
+        : `${ORBIT_ROOT}/policies/workspace-policy.toml`;
+
+      const workerCmd = `node ${workerPath} ${identifier} ${branch} ${policyPath} ${action}`;
+
+      const exitCode = await provider.exec(workerCmd, {
+        cwd: remoteWorkspaceDir,
+        wrapCapsule: isLocalWorkspace ? undefined : containerName,
+        interactive: true,
+      });
+
+      if (exitCode !== 0) {
+        this.observer.onLog?.(
+          LogLevel.ERROR,
+          'MISSION',
+          `❌ Mission action '${action}' failed with code ${exitCode}`,
+        );
+        return { missionId, exitCode };
+      }
+    }
 
     // 7. Synthesis Phase (Phase 2)
-    this.observer.onProgress?.(
-      'PHASE 2',
-      '📝 Finalizing mission assessment...',
-    );
+    if (autonomousActions.includes(action)) {
+      this.observer.onProgress?.(
+        'PHASE 2',
+        '📝 Finalizing mission assessment...',
+      );
+    }
 
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -202,21 +235,14 @@ export class MissionManager {
       `✅ Mission '${missionId}' ready.`,
     );
 
-    // 8. Auto-Attach for Chat
-    if (action === 'chat' && process.env.GCLI_MCP === '1') {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'MISSION',
-        `🚀 Auto-attaching to ${identifier}...`,
-      );
-      const exitCode = await this.attach({ identifier, action });
-      return { missionId, exitCode };
-    }
-
-    return {
-      missionId,
-      exitCode: 0,
-    };
+    // 8. Auto-Attach
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'MISSION',
+      `🚀 Auto-attaching to ${identifier}...`,
+    );
+    const exitCode = await this.attach({ identifier, action });
+    return { missionId, exitCode };
   }
 
   /**
@@ -227,8 +253,6 @@ export class MissionManager {
       this.infra.instanceName || `orbit-station-${this.projectCtx.repoName}`;
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
     } as any);
 
@@ -249,8 +273,6 @@ export class MissionManager {
     const instanceName = this.infra.instanceName || 'local';
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
     } as any);
 
@@ -283,8 +305,6 @@ export class MissionManager {
     const instanceName = this.infra.instanceName || 'local';
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
     } as any);
 
@@ -355,8 +375,6 @@ export class MissionManager {
     const instanceName = this.infra.instanceName || 'local';
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
     } as any);
 
@@ -417,8 +435,6 @@ export class MissionManager {
     const instanceName = this.infra.instanceName || 'local';
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
     } as any);
 
@@ -459,8 +475,6 @@ export class MissionManager {
     const instanceName = this.infra.instanceName || 'local';
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
       instanceName,
     } as any);
 
