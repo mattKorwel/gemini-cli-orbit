@@ -71,3 +71,4 @@ evals/logs/
 temp_agents/
 bundle/
 dist/
+mcp.json
