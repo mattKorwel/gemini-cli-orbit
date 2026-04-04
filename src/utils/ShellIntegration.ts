@@ -181,7 +181,7 @@ export class ShellIntegration {
     const quotedShim = `"${shimPath}"`;
 
     // Determine if we should use node or tsx
-    const exec = shimPath.endsWith('.js') ? 'node' : 'npx tsx';
+    const exec = shimPath.endsWith('.js') ? 'node' : 'node --import tsx';
 
     if (shell === 'powershell') {
       return `${header}

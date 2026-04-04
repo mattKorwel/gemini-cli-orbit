@@ -6,9 +6,13 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { LogLevel } from '../core/Logger.js';
 import { type OrbitObserver } from '../core/types.js';
+import { ShellIntegration } from '../utils/ShellIntegration.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export class IntegrationManager {
   constructor(private readonly observer: OrbitObserver) {}
@@ -22,24 +26,45 @@ export class IntegrationManager {
       'SETUP',
       '🐚 Installing Orbit shell integration...',
     );
-    const home = os.homedir();
-    const zshrc = path.join(home, '.zshrc');
-    const bashrc = path.join(home, '.bashrc');
 
-    const line = 'alias orbit="npx @google/gemini-orbit-extension"';
+    const integration = new ShellIntegration();
 
-    [zshrc, bashrc].forEach((p) => {
-      if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, 'utf8');
-        if (!content.includes(line)) {
-          fs.appendFileSync(p, `\n${line}\n`);
-          this.observer.onLog?.(
-            LogLevel.INFO,
-            'SETUP',
-            `✅ Added alias to ${p}`,
-          );
-        }
-      }
-    });
+    // Resolve shim path (similar to src/core/install-shell.ts)
+    let extensionRoot = path.resolve(__dirname, '../..');
+    if (!fs.existsSync(path.join(extensionRoot, 'package.json'))) {
+      extensionRoot = path.resolve(__dirname, '..');
+    }
+
+    const bundlePath = path.join(extensionRoot, 'bundle', 'orbit-cli.js');
+    const sourcePath = path.join(extensionRoot, 'src', 'cli', 'cli.ts');
+
+    let shimPath = '';
+    if (fs.existsSync(bundlePath)) {
+      shimPath = bundlePath;
+    } else if (fs.existsSync(sourcePath)) {
+      shimPath = sourcePath;
+    } else {
+      this.observer.onLog?.(
+        LogLevel.ERROR,
+        'SETUP',
+        '❌ Could not find Orbit CLI entry point.',
+      );
+      return;
+    }
+
+    const success = integration.install(shimPath);
+    if (success) {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'SETUP',
+        '✅ Shell integration installed successfully.',
+      );
+    } else {
+      this.observer.onLog?.(
+        LogLevel.ERROR,
+        'SETUP',
+        '❌ Failed to install shell integration.',
+      );
+    }
   }
 }
