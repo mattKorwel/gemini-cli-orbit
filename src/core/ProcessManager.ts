@@ -6,32 +6,24 @@
 
 import { spawn, spawnSync, type SpawnSyncOptions } from 'node:child_process';
 import { logger } from './Logger.js';
-
-export interface ProcessResult {
-  status: number;
-  stdout: string;
-  stderr: string;
-}
-
-export interface RunOptions {
-  cwd?: string;
-  env?: Record<string, string>;
-  interactive?: boolean;
-  quiet?: boolean;
-}
+import {
+  type IProcessManager,
+  type IProcessResult,
+  type IRunOptions,
+} from './interfaces.js';
 
 /**
  * ProcessManager: Centralized utility for consistent process execution.
  */
-export class ProcessManager {
+export class ProcessManager implements IProcessManager {
   /**
    * Runs a command synchronously.
    */
-  public static runSync(
+  public runSync(
     bin: string,
     args: string[],
-    options: RunOptions = {},
-  ): ProcessResult {
+    options: IRunOptions = {},
+  ): IProcessResult {
     const { cwd, env, interactive, quiet } = options;
 
     if (!quiet) {
@@ -55,13 +47,20 @@ export class ProcessManager {
   }
 
   /**
-   * Runs a command asynchronously (Legacy/Background support).
+   * Legacy static support
    */
-  public static runAsync(
+  public static runSync(
     bin: string,
     args: string[],
-    options: RunOptions = {},
-  ) {
+    options: IRunOptions = {},
+  ): IProcessResult {
+    return new ProcessManager().runSync(bin, args, options);
+  }
+
+  /**
+   * Runs a command asynchronously (Legacy/Background support).
+   */
+  public runAsync(bin: string, args: string[], options: IRunOptions = {}) {
     const { cwd, env } = options;
 
     return spawn(bin, args, {
@@ -70,5 +69,16 @@ export class ProcessManager {
       stdio: 'inherit',
       detached: true,
     });
+  }
+
+  /**
+   * Legacy static support
+   */
+  public static runAsync(
+    bin: string,
+    args: string[],
+    options: IRunOptions = {},
+  ) {
+    return new ProcessManager().runAsync(bin, args, options);
   }
 }

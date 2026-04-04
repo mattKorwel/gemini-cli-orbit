@@ -17,10 +17,8 @@ import {
   LOCAL_BUNDLE_PATH,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
-import { detectRemoteUrl } from '../core/ConfigManager.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { type Command } from '../core/executors/types.js';
 import {
@@ -34,12 +32,18 @@ import {
   type ExecOptions,
   type MissionExecOptions,
 } from '../core/types.js';
+import {
+  type IProviderFactory,
+  type IConfigManager,
+} from '../core/interfaces.js';
 
 export class MissionManager {
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
+    private readonly providerFactory: IProviderFactory,
+    private readonly configManager: IConfigManager,
   ) {}
 
   /**
@@ -56,7 +60,7 @@ export class MissionManager {
     );
 
     // 1. Provider Resolution
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -121,7 +125,8 @@ export class MissionManager {
 
     const upstreamUrl = this.infra.upstreamRepo
       ? `https://github.com/${this.infra.upstreamRepo}.git`
-      : detectRemoteUrl(this.projectCtx.repoRoot) || UPSTREAM_REPO_URL;
+      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
+        UPSTREAM_REPO_URL;
 
     const mirrorPath = `${ORBIT_ROOT}/main`;
 
@@ -196,7 +201,7 @@ export class MissionManager {
    * Drops into a raw interactive shell on the hardware host.
    */
   async stationShell(): Promise<number> {
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -213,7 +218,7 @@ export class MissionManager {
    * Drops into a raw interactive shell inside a mission capsule.
    */
   async missionShell(options: { identifier: string }): Promise<number> {
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -242,7 +247,7 @@ export class MissionManager {
    */
   async jettison(options: JettisonOptions): Promise<MissionResult> {
     const { identifier, action = 'chat' } = options;
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -276,7 +281,7 @@ export class MissionManager {
    */
   async reap(options: ReapOptions): Promise<number> {
     const threshold = options.threshold ?? 4;
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -300,7 +305,7 @@ export class MissionManager {
    */
   async exec(options: MissionExecOptions): Promise<number> {
     const { identifier, command, action = 'chat' } = options;
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -332,7 +337,7 @@ export class MissionManager {
    */
   async attach(options: AttachOptions): Promise<number> {
     const { identifier, action = 'chat' } = options;
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
@@ -360,7 +365,7 @@ export class MissionManager {
    */
   async getLogs(options: GetLogsOptions): Promise<number> {
     const { identifier, action = 'review' } = options;
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );

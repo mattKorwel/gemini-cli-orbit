@@ -8,11 +8,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { logger } from '../core/Logger.js';
+import { type IShellIntegration } from '../core/interfaces.js';
 
 /**
  * Manages shell profile integration for Gemini Orbit.
  */
-export class ShellIntegration {
+export class ShellIntegration implements IShellIntegration {
   private readonly home: string;
 
   constructor() {

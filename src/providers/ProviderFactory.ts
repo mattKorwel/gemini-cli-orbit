@@ -16,8 +16,21 @@ import {
 } from '../core/Constants.js';
 import path from 'node:path';
 
-export class ProviderFactory {
-  static getProvider(
+import { GceCosProvider } from './GceCosProvider.js';
+import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
+import type { OrbitProvider } from './BaseProvider.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import { GceSSHManager } from './SSHManager.js';
+import {
+  getPrimaryRepoRoot,
+  type InfrastructureSpec,
+  type ProjectContext,
+} from '../core/Constants.js';
+import path from 'node:path';
+import { type IProviderFactory } from '../core/interfaces.js';
+
+export class ProviderFactory implements IProviderFactory {
+  getProvider(
     projectCtx: ProjectContext,
     infra: InfrastructureSpec,
     state?: InfrastructureState,

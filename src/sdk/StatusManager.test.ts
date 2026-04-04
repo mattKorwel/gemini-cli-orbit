@@ -6,10 +6,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StatusManager } from './StatusManager.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { flattenCommand } from '../core/executors/types.js';
-
-vi.mock('../providers/ProviderFactory.js');
+import { type IProviderFactory } from '../core/interfaces.js';
 
 describe('StatusManager', () => {
   const mockProjectCtx = { repoRoot: '/root', repoName: 'test-repo' };
@@ -17,6 +15,7 @@ describe('StatusManager', () => {
     instanceName: 'test-station',
     providerType: 'local-worktree',
   };
+  let providerFactory: vi.Mocked<IProviderFactory>;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -50,9 +49,15 @@ describe('StatusManager', () => {
       type: 'local-worktree',
     };
 
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
+    providerFactory = {
+      getProvider: vi.fn().mockReturnValue(mockProvider),
+    };
 
-    const manager = new StatusManager(mockProjectCtx, mockInfra as any);
+    const manager = new StatusManager(
+      mockProjectCtx as any,
+      mockInfra as any,
+      providerFactory,
+    );
     const pulse = await manager.getPulse();
 
     expect(pulse.capsules).toHaveLength(1);
@@ -82,9 +87,15 @@ describe('StatusManager', () => {
       type: 'local-worktree',
     };
 
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
+    providerFactory = {
+      getProvider: vi.fn().mockReturnValue(mockProvider),
+    };
 
-    const manager = new StatusManager(mockProjectCtx, mockInfra as any);
+    const manager = new StatusManager(
+      mockProjectCtx as any,
+      mockInfra as any,
+      providerFactory,
+    );
     const pulse = await manager.getPulse();
 
     expect(pulse.capsules[0]!.state).toBe('WAITING'); // Legacy WAITING detection

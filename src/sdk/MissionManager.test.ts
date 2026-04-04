@@ -11,10 +11,12 @@ vi.stubEnv('GCLI_MCP', '1');
 vi.stubEnv('GCLI_ORBIT_PROVIDER', 'gce');
 
 import { MissionManager } from './MissionManager.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
+import {
+  type IProviderFactory,
+  type IConfigManager,
+} from '../core/interfaces.js';
 
-vi.mock('../providers/ProviderFactory.js');
 vi.mock('../utils/MissionUtils.js', () => ({
   resolveMissionContext: vi.fn(),
   SessionManager: {
@@ -31,14 +33,12 @@ vi.mock('../utils/SessionManager.js', () => ({
 vi.mock('../utils/TempManager.js', () => ({
   TempManager: { getToken: () => 'mock-token' },
 }));
-vi.mock('../core/ConfigManager.js', () => ({
-  detectRemoteUrl: vi.fn().mockReturnValue('https://github.com/test/test.git'),
-  getProjectOrbitDir: () => '/tmp/.gemini/orbit',
-}));
 
 describe('MissionManager', () => {
   let manager: MissionManager;
   let mockProvider: any;
+  let providerFactory: vi.Mocked<IProviderFactory>;
+  let configManager: vi.Mocked<IConfigManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,12 +58,28 @@ describe('MissionManager', () => {
       syncIfChanged: vi.fn().mockResolvedValue(0),
       ensureReady: vi.fn().mockResolvedValue(0),
     };
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
+
+    providerFactory = {
+      getProvider: vi.fn().mockReturnValue(mockProvider),
+    };
+
+    configManager = {
+      loadSettings: vi.fn(),
+      saveSettings: vi.fn(),
+      loadSchematic: vi.fn(),
+      saveSchematic: vi.fn(),
+      loadJson: vi.fn(),
+      detectRemoteUrl: vi
+        .fn()
+        .mockReturnValue('https://github.com/test/test.git'),
+    };
 
     manager = new MissionManager(
       { repoName: 'test-repo', repoRoot: '/tmp' } as any,
       { projectId: 'p1', zone: 'z1' } as any,
       { onLog: vi.fn(), onProgress: vi.fn() } as any,
+      providerFactory,
+      configManager,
     );
   });
 

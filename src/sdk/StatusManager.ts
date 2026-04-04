@@ -8,14 +8,15 @@ import {
   type InfrastructureSpec,
   type ProjectContext,
 } from '../core/Constants.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { type PulseInfo, type CapsuleInfo } from '../core/types.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { type IProviderFactory } from '../core/interfaces.js';
 
 export class StatusManager {
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
+    private readonly providerFactory: IProviderFactory,
   ) {}
 
   /**
@@ -34,7 +35,7 @@ export class StatusManager {
     }
 
     const instanceName = this.infra.instanceName || 'local';
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
+    const provider = this.providerFactory.getProvider(this.projectCtx, {
       ...this.infra,
       projectId: this.infra.projectId || 'local',
       zone: this.infra.zone || 'local',

@@ -6,24 +6,34 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SchematicManager } from './SchematicManager.js';
-import * as ConfigManager from '../core/ConfigManager.js';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { type IConfigManager } from '../core/interfaces.js';
 
 vi.mock('node:fs');
 vi.mock('node:child_process');
-vi.mock('../core/ConfigManager.js');
+vi.mock('../core/ConfigManager.js', () => ({
+  sanitizeName: vi.fn((n: string) =>
+    n.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+  ),
+}));
 vi.mock('../core/Logger.js');
 
 describe('SchematicManager', () => {
   let manager: SchematicManager;
+  let configManager: vi.Mocked<IConfigManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    manager = new SchematicManager();
-    (ConfigManager.sanitizeName as any).mockImplementation((n: string) =>
-      n.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-    );
+    configManager = {
+      loadSettings: vi.fn(),
+      saveSettings: vi.fn(),
+      loadSchematic: vi.fn(),
+      saveSchematic: vi.fn(),
+      loadJson: vi.fn(),
+      detectRemoteUrl: vi.fn(),
+    };
+    manager = new SchematicManager(configManager);
   });
 
   it('should list available schematics', () => {
@@ -33,7 +43,7 @@ describe('SchematicManager', () => {
       'personal.json',
       'README.md',
     ] as any);
-    (ConfigManager.loadSchematic as any).mockReturnValue({
+    configManager.loadSchematic.mockReturnValue({
       projectId: 'p1',
       zone: 'z1',
       backendType: 'external',
@@ -63,7 +73,7 @@ describe('SchematicManager', () => {
 
     const name = await manager.importSchematic('https://example.com/corp.json');
     expect(name).toBe('corp');
-    expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
+    expect(configManager.saveSchematic).toHaveBeenCalledWith(
       'corp',
       expect.objectContaining({ projectId: 'remote-p' }),
     );
@@ -94,7 +104,7 @@ describe('SchematicManager', () => {
   });
 
   it('should perform headless update when configuration flags are provided', async () => {
-    (ConfigManager.loadJson as any).mockReturnValue({
+    configManager.loadJson.mockReturnValue({
       projectId: 'old-project',
       vpcName: 'old-vpc',
     });
@@ -106,7 +116,7 @@ describe('SchematicManager', () => {
     await manager.runWizard('test-schematic', cliFlags);
 
     // Should NOT call any UI but SHOULD save the merged config
-    expect(ConfigManager.saveSchematic).toHaveBeenCalledWith(
+    expect(configManager.saveSchematic).toHaveBeenCalledWith(
       'test-schematic',
       expect.objectContaining({
         projectId: 'new-project',

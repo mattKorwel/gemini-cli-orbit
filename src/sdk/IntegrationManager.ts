@@ -9,13 +9,16 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { LogLevel } from '../core/Logger.js';
 import { type OrbitObserver } from '../core/types.js';
-import { ShellIntegration } from '../utils/ShellIntegration.js';
+import { type IShellIntegration } from '../core/interfaces.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class IntegrationManager {
-  constructor(private readonly observer: OrbitObserver) {}
+  constructor(
+    private readonly observer: OrbitObserver,
+    private readonly integration: IShellIntegration,
+  ) {}
 
   /**
    * Install Orbit shell aliases and tab-completion.
@@ -26,8 +29,6 @@ export class IntegrationManager {
       'SETUP',
       '🐚 Installing Orbit shell integration...',
     );
-
-    const integration = new ShellIntegration();
 
     // Resolve shim path (similar to src/core/install-shell.ts)
     let extensionRoot = path.resolve(__dirname, '../..');
@@ -52,7 +53,7 @@ export class IntegrationManager {
       return;
     }
 
-    const success = integration.install(shimPath);
+    const success = this.integration.install(shimPath);
     if (success) {
       this.observer.onLog?.(
         LogLevel.INFO,

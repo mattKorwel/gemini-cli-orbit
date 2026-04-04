@@ -9,14 +9,13 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { SCHEMATICS_DIR, type OrbitConfig } from '../core/Constants.js';
-import {
-  saveSchematic,
-  loadJson,
-  loadSchematic,
-  sanitizeName,
-} from '../core/ConfigManager.js';
+import { sanitizeName } from '../core/ConfigManager.js';
 import { logger } from '../core/Logger.js';
 import { type SchematicInfo } from '../core/types.js';
+import {
+  type ISchematicManager,
+  type IConfigManager,
+} from '../core/interfaces.js';
 
 function ask(query: string): Promise<string> {
   const rl = readline.createInterface({
@@ -32,7 +31,9 @@ function ask(query: string): Promise<string> {
   );
 }
 
-export class SchematicManager {
+export class SchematicManager implements ISchematicManager {
+  constructor(private readonly configManager: IConfigManager) {}
+
   /**
    * Runs the interactive wizard to create or edit an infrastructure schematic.
    */
@@ -41,7 +42,7 @@ export class SchematicManager {
     cliFlags: Partial<OrbitConfig> = {},
   ): Promise<void> {
     const schematicPath = path.join(SCHEMATICS_DIR, `${name}.json`);
-    const existingConfig = loadJson(schematicPath) || {};
+    const existingConfig = this.configManager.loadJson(schematicPath) || {};
 
     // Pick only known config keys
     const knownKeys = [
@@ -80,7 +81,7 @@ export class SchematicManager {
 
     if (hasConfigFlags) {
       const merged = { ...existingConfig, ...cleanFlags };
-      saveSchematic(name, merged);
+      this.configManager.saveSchematic(name, merged);
       logger.info(
         'CONFIG',
         `✅ Headless update: Schematic "${name}" updated and saved.`,
@@ -177,7 +178,7 @@ export class SchematicManager {
       sshSourceRanges,
     };
 
-    saveSchematic(name, newConfig);
+    this.configManager.saveSchematic(name, newConfig);
     logger.info(
       'CONFIG',
       `✨ Schematic "${name}" saved to ${SCHEMATICS_DIR}/${name}.json`,
@@ -222,7 +223,7 @@ export class SchematicManager {
           path.basename(source, '.json'),
       );
 
-      saveSchematic(name, config);
+      this.configManager.saveSchematic(name, config);
       return name;
     } catch (e: any) {
       throw new Error(`Invalid JSON schematic: ${e.message}`, { cause: e });
@@ -237,7 +238,7 @@ export class SchematicManager {
 
     return files.map((f) => {
       const name = f.replace('.json', '');
-      const config = loadSchematic(name);
+      const config = this.configManager.loadSchematic(name);
       const info: SchematicInfo = { name };
       if (config?.projectId) info.projectId = config.projectId;
       if (config?.zone) info.zone = config.zone;

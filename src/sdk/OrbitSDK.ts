@@ -32,7 +32,14 @@ import { FleetManager } from './FleetManager.js';
 import { StatusManager } from './StatusManager.js';
 import { CIManager } from './CIManager.js';
 import { IntegrationManager } from './IntegrationManager.js';
-import { resolveContextBundles } from '../core/ConfigManager.js';
+import { resolveContextBundles, ConfigManager } from '../core/ConfigManager.js';
+import { StationRegistry } from './StationRegistry.js';
+import { SchematicManager } from './SchematicManager.js';
+import { ProviderFactory } from '../providers/ProviderFactory.js';
+import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
+import { ProcessManager } from '../core/ProcessManager.js';
+import { ShellIntegration } from '../utils/ShellIntegration.js';
+import { DependencyManager } from './DependencyManager.js';
 
 export * from '../core/types.js';
 
@@ -79,19 +86,46 @@ export class OrbitSDK implements IOrbitSDK {
     // Ensure logger uses the correct repo root for its stream
     logger.setRepoRoot(this.projectCtx.repoRoot);
 
+    // Dependencies
+    const configManager = new ConfigManager();
+    const providerFactory = new ProviderFactory();
+    const infraFactory = new InfrastructureFactory();
+    const processManager = new ProcessManager();
+    const shellIntegration = new ShellIntegration();
+    const dependencyManager = new DependencyManager(processManager);
+    const stationRegistry = new StationRegistry(providerFactory, configManager);
+    const schematicManager = new SchematicManager(configManager);
+
     this.missions = new MissionManager(
       this.projectCtx,
       bundles.infra,
       this.observer,
+      providerFactory,
+      configManager,
     );
     this.fleet = new FleetManager(
       this.projectCtx,
       bundles.infra,
       this.observer,
+      stationRegistry,
+      schematicManager,
+      providerFactory,
+      infraFactory,
+      configManager,
+      dependencyManager,
     );
-    this.status = new StatusManager(this.projectCtx, bundles.infra);
-    this.ci = new CIManager(this.projectCtx, bundles.infra, this.observer);
-    this.integrations = new IntegrationManager(this.observer);
+    this.status = new StatusManager(
+      this.projectCtx,
+      bundles.infra,
+      providerFactory,
+    );
+    this.ci = new CIManager(
+      this.projectCtx,
+      bundles.infra,
+      this.observer,
+      processManager,
+    );
+    this.integrations = new IntegrationManager(this.observer, shellIntegration);
   }
 
   /**

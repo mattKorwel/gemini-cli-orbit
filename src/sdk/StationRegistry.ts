@@ -11,30 +11,20 @@ import {
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
-import {
-  loadJson,
-  loadSettings,
-  detectRepoName,
-} from '../core/ConfigManager.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
+import { detectRepoName } from '../core/ConfigManager.js';
 import { logger } from '../core/Logger.js';
+import {
+  type IStationRegistry,
+  type IProviderFactory,
+  type IConfigManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
-export interface StationReceipt {
-  name: string;
-  instanceName: string;
-  type: 'gce' | 'local-worktree';
-  projectId: string;
-  zone: string;
-  repo: string;
-  status?: string;
-  backendType?: 'direct-internal' | 'external';
-  schematic?: string;
-  rootPath?: string;
-  lastSeen: string;
-}
-
-export class StationRegistry {
-  constructor() {
+export class StationRegistry implements IStationRegistry {
+  constructor(
+    private readonly providerFactory: IProviderFactory,
+    private readonly configManager: IConfigManager,
+  ) {
     if (!fs.existsSync(STATIONS_DIR)) {
       fs.mkdirSync(STATIONS_DIR, { recursive: true });
     }
@@ -53,7 +43,7 @@ export class StationRegistry {
   async listStations(
     options: { syncWithReality?: boolean | undefined } = {},
   ): Promise<StationReceipt[]> {
-    const settings = loadSettings();
+    const settings = this.configManager.loadSettings();
     const files = fs
       .readdirSync(STATIONS_DIR)
       .filter((f) => f.endsWith('.json'));
@@ -63,7 +53,9 @@ export class StationRegistry {
 
     // 1. Load Hardware Receipts (GCE, etc.)
     for (const f of files) {
-      const receipt = loadJson(path.join(STATIONS_DIR, f)) as StationReceipt;
+      const receipt = this.configManager.loadJson(
+        path.join(STATIONS_DIR, f),
+      ) as StationReceipt;
       if (!receipt) continue;
 
       if (options.syncWithReality) {
@@ -123,7 +115,7 @@ export class StationRegistry {
           ? path.dirname(receipt.rootPath || '')
           : undefined,
     };
-    const provider = ProviderFactory.getProvider(projectCtx, infra);
+    const provider = this.providerFactory.getProvider(projectCtx, infra);
     return provider.listCapsules();
   }
 
@@ -150,7 +142,7 @@ export class StationRegistry {
         providerType: receipt.type,
         backendType: receipt.backendType,
       };
-      const provider = ProviderFactory.getProvider(projectCtx, infra);
+      const provider = this.providerFactory.getProvider(projectCtx, infra);
 
       const status = await provider.getStatus();
       return status.status;

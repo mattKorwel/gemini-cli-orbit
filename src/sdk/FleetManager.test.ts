@@ -6,28 +6,14 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FleetManager } from './FleetManager.js';
-import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
-import { StationRegistry } from './StationRegistry.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
-import { loadSchematic, loadSettings } from '../core/ConfigManager.js';
-
-vi.mock('../infrastructure/InfrastructureFactory.js');
-vi.mock('./StationRegistry.js');
-vi.mock('../providers/ProviderFactory.js');
-vi.mock('../core/ConfigManager.js');
-vi.mock('./DependencyManager.js', () => ({
-  DependencyManager: {
-    ensurePulumi: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-vi.mock('node:readline', () => ({
-  default: {
-    createInterface: vi.fn().mockReturnValue({
-      question: vi.fn().mockImplementation((_q, cb) => cb('y')),
-      close: vi.fn(),
-    }),
-  },
-}));
+import {
+  type IStationRegistry,
+  type ISchematicManager,
+  type IProviderFactory,
+  type IInfrastructureFactory,
+  type IConfigManager,
+  type IDependencyManager,
+} from '../core/interfaces.js';
 
 describe('FleetManager', () => {
   const projectCtx = { repoRoot: '/repo', repoName: 'test-repo' };
@@ -41,6 +27,12 @@ describe('FleetManager', () => {
   let fleet: FleetManager;
   let mockProvisioner: any;
   let mockProvider: any;
+  let stationRegistry: vi.Mocked<IStationRegistry>;
+  let schematicManager: vi.Mocked<ISchematicManager>;
+  let providerFactory: vi.Mocked<IProviderFactory>;
+  let infraFactory: vi.Mocked<IInfrastructureFactory>;
+  let configManager: vi.Mocked<IConfigManager>;
+  let dependencyManager: vi.Mocked<IDependencyManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,21 +50,57 @@ describe('FleetManager', () => {
       exec: vi.fn().mockResolvedValue(0),
     };
 
-    (InfrastructureFactory.getProvisioner as any).mockReturnValue(
-      mockProvisioner,
-    );
-    (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
-    (StationRegistry.prototype.listStations as any).mockResolvedValue([]);
-    (loadSchematic as any).mockReturnValue({});
-    (loadSettings as any).mockReturnValue({ repos: {} });
+    stationRegistry = {
+      listStations: vi.fn().mockResolvedValue([]),
+      saveReceipt: vi.fn(),
+      deleteReceipt: vi.fn(),
+      getMissions: vi.fn(),
+    };
 
-    fleet = new FleetManager(projectCtx, infraSpec as any, observer as any);
+    schematicManager = {
+      listSchematics: vi.fn(),
+      importSchematic: vi.fn(),
+      runWizard: vi.fn(),
+    };
+
+    providerFactory = {
+      getProvider: vi.fn().mockReturnValue(mockProvider),
+    };
+
+    infraFactory = {
+      getProvisioner: vi.fn().mockReturnValue(mockProvisioner),
+    };
+
+    configManager = {
+      loadSettings: vi.fn().mockReturnValue({ repos: {} }),
+      saveSettings: vi.fn(),
+      loadSchematic: vi.fn().mockReturnValue({}),
+      saveSchematic: vi.fn(),
+      loadJson: vi.fn(),
+      detectRemoteUrl: vi.fn(),
+    };
+
+    dependencyManager = {
+      ensurePulumi: vi.fn().mockResolvedValue('path/to/pulumi'),
+    };
+
+    fleet = new FleetManager(
+      projectCtx as any,
+      infraSpec as any,
+      observer as any,
+      stationRegistry,
+      schematicManager,
+      providerFactory,
+      infraFactory,
+      configManager,
+      dependencyManager,
+    );
   });
 
   it('should use instanceName as the provisioner key for isolated stacks during provision', async () => {
     await fleet.provision({ schematicName: 'some-schematic' });
 
-    expect(InfrastructureFactory.getProvisioner).toHaveBeenCalledWith(
+    expect(infraFactory.getProvisioner).toHaveBeenCalledWith(
       'test-station', // instanceName
       expect.any(Object),
     );
@@ -86,13 +114,11 @@ describe('FleetManager', () => {
       projectId: 'p',
       zone: 'z',
     };
-    (StationRegistry.prototype.listStations as any).mockResolvedValue([
-      mockReceipt,
-    ]);
+    stationRegistry.listStations.mockResolvedValue([mockReceipt as any]);
 
     await fleet.splashdown({ name: 'test-station', force: true });
 
-    expect(InfrastructureFactory.getProvisioner).toHaveBeenCalledWith(
+    expect(infraFactory.getProvisioner).toHaveBeenCalledWith(
       'actual-instance-name',
       expect.objectContaining({ name: 'test-station' }),
     );
