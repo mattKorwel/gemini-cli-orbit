@@ -33,11 +33,20 @@ describe('SchematicManager', () => {
       'personal.json',
       'README.md',
     ] as any);
+    (ConfigManager.loadSchematic as any).mockReturnValue({
+      projectId: 'p1',
+      zone: 'z1',
+      backendType: 'external',
+    });
 
     const list = manager.listSchematics();
-    expect(list).toContain('corp');
-    expect(list).toContain('personal');
-    expect(list).not.toContain('README');
+    expect(list).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'corp', projectId: 'p1' }),
+        expect.objectContaining({ name: 'personal', projectId: 'p1' }),
+      ]),
+    );
+    expect(list.map((s) => s.name)).not.toContain('README');
   });
 
   it('should import a remote schematic via curl', async () => {

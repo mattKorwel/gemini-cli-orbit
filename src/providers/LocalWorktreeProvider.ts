@@ -296,6 +296,27 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return 0;
   }
 
+  async stationShell(): Promise<number> {
+    const res = spawnSync('zsh', { stdio: 'inherit', shell: true });
+    return res.status ?? 0;
+  }
+
+  async missionShell(capsuleName: string): Promise<number> {
+    // For local worktree, a "shell" is just another terminal in the same worktree.
+    // We use tmux to ensure persistence if possible.
+    const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
+    const wtPath =
+      this.findExistingWorktree(capsuleName, primaryRoot) ||
+      path.join(this.workspacesDir, `${MISSION_PREFIX}${capsuleName}`);
+
+    const res = spawnSync('zsh', {
+      stdio: 'inherit',
+      shell: true,
+      cwd: wtPath,
+    });
+    return res.status ?? 0;
+  }
+
   async listCapsules(): Promise<string[]> {
     const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const res = spawnSync(

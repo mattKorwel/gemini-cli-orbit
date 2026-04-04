@@ -125,6 +125,30 @@ describe('ConfigManager', () => {
     expect(configStateless.stationName).toBe('test-repo'); // Should fallback to repo name
   });
 
+  it('should prioritize per-repo activeStation over global', () => {
+    const globalSettings = {
+      activeStation: 'global-station',
+      repos: {
+        'my-repo': { activeStation: 'repo-specific-station' },
+      },
+    };
+
+    const norm = (p: any) => String(p).replace(/\\/g, '/');
+    (fs.existsSync as any).mockImplementation((p: any) => {
+      const n = norm(p);
+      return n.includes('settings.json');
+    });
+
+    (fs.readFileSync as any).mockImplementation((p: any) => {
+      const n = norm(p);
+      if (n.includes('settings.json')) return JSON.stringify(globalSettings);
+      return '{}';
+    });
+
+    const config = getRepoConfig('my-repo');
+    expect(config.stationName).toBe('repo-specific-station');
+  });
+
   it('should detect repo name from origin remote (HTTPS)', () => {
     (spawnSync as any).mockImplementation((cmd: string, args: string[]) => {
       if (cmd === 'git' && args?.[0] === 'remote') {

@@ -29,7 +29,7 @@ export async function runInstallShell(): Promise<void> {
     extensionRoot = path.resolve(__dirname, '..');
   }
 
-  const bundlePath = path.join(extensionRoot, 'bundle', 'cli.js');
+  const bundlePath = path.join(extensionRoot, 'bundle', 'orbit-cli.js');
   const sourcePath = path.join(extensionRoot, 'src', 'cli', 'cli.ts');
 
   let shimPath = '';

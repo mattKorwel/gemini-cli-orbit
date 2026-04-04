@@ -169,13 +169,14 @@ orbit mission <ISSUE_NUMBER> implement
 
 _Focused on the PR or Issue you are working on._
 
-| Maneuver         | Command                       | Description                                    |
-| :--------------- | :---------------------------- | :--------------------------------------------- |
-| **Start/Resume** | `orbit mission <id> [action]` | Launch or resume a developer presence.         |
-| **Uplink**       | `orbit mission uplink <id>`   | View latest mission telemetry and logs.        |
-| **Attach**       | `orbit mission attach <id>`   | Re-attach to the persistent terminal session.  |
-| **CI**           | `orbit mission ci <id>`       | Monitor GitHub Actions status for the branch.  |
-| **Jettison**     | `orbit mission jettison <id>` | Cleanup mission-specific worktree and capsule. |
+| Maneuver     | Command                       | Description                                     |
+| :----------- | :---------------------------- | :---------------------------------------------- |
+| **Chat**     | `orbit mission chat <id>`     | **Drop in or resume.** Auto-starts or attaches. |
+| **Shell**    | `orbit mission shell <id>`    | **Side-terminal.** Raw bash in mission capsule. |
+| **Uplink**   | `orbit mission uplink <id>`   | View latest mission telemetry and logs.         |
+| **Attach**   | `orbit mission attach <id>`   | Re-attach to the persistent terminal session.   |
+| **CI**       | `orbit mission ci <id>`       | Monitor GitHub Actions status for the branch.   |
+| **Jettison** | `orbit mission jettison <id>` | Cleanup mission-specific worktree and capsule.  |
 
 ### 2. Station (The Hardware)
 
@@ -184,6 +185,7 @@ _Focused on managing the compute instances._
 | Maneuver      | Command                          | Description                                     |
 | :------------ | :------------------------------- | :---------------------------------------------- |
 | **List**      | `orbit station list`             | View your constellation status (Cloud + Local). |
+| **Shell**     | `orbit station shell [name]`     | **Host Access.** Raw shell on hardware VM.      |
 | **Activate**  | `orbit station activate <name>`  | Set the active target for future missions.      |
 | **Hibernate** | `orbit station hibernate <name>` | Safe compute-only shutdown to save cost.        |
 | **Pulse**     | `orbit station pulse`            | Health check for the active station.            |

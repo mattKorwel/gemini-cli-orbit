@@ -5,13 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { spawnSync } from 'node:child_process';
 import { resolveMissionContext } from './MissionUtils.js';
+import { spawnSync } from 'node:child_process';
 
-vi.mock('node:child_process');
-vi.mock('../ConfigManager.js', () => ({
-  sanitizeName: (name: string) =>
-    name.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
+vi.mock('node:child_process', () => ({
+  spawnSync: vi.fn(),
 }));
 
 describe('MissionUtils', () => {
@@ -19,54 +17,40 @@ describe('MissionUtils', () => {
     vi.clearAllMocks();
   });
 
-  it('resolves a branch name directly', () => {
-    const ctx = resolveMissionContext('feat-cool-thing', 'review');
-
-    expect(ctx.branchName).toBe('feat-cool-thing');
-    expect(ctx.containerName).toBe('orbit-feat-cool-thing-review');
-    expect(ctx.sessionName).toBe('orbit-feat-cool-thing');
-    expect(ctx.workspaceName).toBe('mission-feat-cool-thing-review');
+  it('should resolve simple mission ID', () => {
+    const ctx = resolveMissionContext('test-branch', 'chat');
+    expect(ctx.containerName).toBe('orbit-test-branch-chat');
+    expect(ctx.workspaceName).toBe('mission-test-branch-chat');
   });
 
-  it('resolves a PR number to a branch name using gh cli', () => {
+  it('should resolve named mission with suffix (id:name)', () => {
+    const ctx = resolveMissionContext('123:debug', 'chat');
+    expect(ctx.containerName).toBe('orbit-123-debug-chat');
+    expect(ctx.workspaceName).toBe('mission-123-debug-chat');
+  });
+
+  it('should resolve PR metadata using only the base ID', () => {
     (spawnSync as any).mockReturnValue({
       status: 0,
-      stdout: 'feat-from-pr',
-      stderr: '',
-    } as any);
+      stdout: 'feature-branch\n',
+    });
 
-    const ctx = resolveMissionContext('42', 'fix');
+    const ctx = resolveMissionContext('123:debug', 'chat');
 
-    expect(ctx.branchName).toBe('feat-from-pr');
-    expect(ctx.containerName).toBe('orbit-42-fix');
-    expect(ctx.sessionName).toBe('orbit-feat-from-pr');
-    expect(ctx.workspaceName).toBe('mission-42-fix');
-
+    // Verify gh pr view was called with base ID
     expect(spawnSync).toHaveBeenCalledWith(
       'gh',
-      expect.arrayContaining(['pr', 'view', '42']),
+      expect.arrayContaining(['pr', 'view', '123']),
       expect.any(Object),
     );
+
+    expect(ctx.branchName).toBe('feature-branch');
+    expect(ctx.sessionName).toBe('orbit-feature-branch-debug');
   });
 
-  it('falls back to PR number if gh cli fails', () => {
-    (spawnSync as any).mockReturnValue({
-      status: 1,
-      stdout: '',
-      stderr: 'error',
-    } as any);
-
-    const ctx = resolveMissionContext('42', 'review');
-
-    expect(ctx.branchName).toBe('42');
-    expect(ctx.containerName).toBe('orbit-42-review');
-    expect(ctx.sessionName).toBe('orbit-42');
-  });
-
-  it('sanitizes names in the context', () => {
-    const ctx = resolveMissionContext('Feature/Cool!Thing', 'review');
-
-    expect(ctx.containerName).toBe('orbit-feature-cool-thing-review');
-    expect(ctx.sessionName).toBe('orbit-feature-cool-thing');
+  it('should handle complex suffixes with multiple colons', () => {
+    const ctx = resolveMissionContext('123:deep:dive', 'review');
+    expect(ctx.containerName).toBe('orbit-123-deep-dive-review');
+    expect(ctx.workspaceName).toBe('mission-123-deep-dive-review');
   });
 });

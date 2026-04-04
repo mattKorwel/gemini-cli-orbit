@@ -67,9 +67,20 @@ export class MissionManager {
 
     const isLocalWorkspace = provider.type === 'local-worktree';
 
-    // 2. Context Resolution
     const mCtx = resolveMissionContext(identifier, action);
     const branch = mCtx.branchName;
+    const containerName = mCtx.containerName;
+
+    // 2. Smart Resumption Check
+    const capsuleStatus = await provider.getCapsuleStatus(containerName);
+    if (capsuleStatus.exists && action === 'chat') {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'MISSION',
+        `👋 Resuming existing '${action}' mission for ${identifier}...`,
+      );
+      return { missionId, exitCode: await this.attach({ identifier }) };
+    }
 
     const repoWorkspacesDir = isLocalWorkspace
       ? path.resolve(
@@ -188,13 +199,80 @@ export class MissionManager {
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
-      `✅ Mission '${missionId}' completed successfully.`,
+      `✅ Mission '${missionId}' ready.`,
     );
+
+    // 8. Auto-Attach for Chat
+    if (action === 'chat' && process.env.GCLI_MCP === '1') {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'MISSION',
+        `🚀 Auto-attaching to ${identifier}...`,
+      );
+      const exitCode = await this.attach({ identifier, action });
+      return { missionId, exitCode };
+    }
 
     return {
       missionId,
       exitCode: 0,
     };
+  }
+
+  /**
+   * Drops into a raw interactive shell on the hardware host.
+   */
+  async stationShell(): Promise<number> {
+    const instanceName =
+      this.infra.instanceName || `orbit-station-${this.projectCtx.repoName}`;
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
+      instanceName,
+    } as any);
+
+    await provider.ensureReady();
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'STATION',
+      `🛰️  Entering raw shell on station: ${instanceName}`,
+    );
+    return provider.stationShell();
+  }
+
+  /**
+   * Drops into a raw interactive shell inside a mission capsule.
+   */
+  async missionShell(options: { identifier: string }): Promise<number> {
+    const { identifier } = options;
+    const instanceName = this.infra.instanceName || 'local';
+    const provider = ProviderFactory.getProvider(this.projectCtx, {
+      ...this.infra,
+      projectId: this.infra.projectId || 'local',
+      zone: this.infra.zone || 'local',
+      instanceName,
+    } as any);
+
+    const capsules = await provider.listCapsules();
+    const target = capsules.find((c) => c.includes(identifier));
+
+    if (!target) {
+      this.observer.onLog?.(
+        LogLevel.ERROR,
+        'SHELL',
+        `❌ No active mission found for ${identifier}`,
+      );
+      return 1;
+    }
+
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'SHELL',
+      `🛰️  Entering raw shell in capsule: ${target}`,
+    );
+
+    return provider.missionShell(target);
   }
 
   /**
@@ -335,7 +413,7 @@ export class MissionManager {
    * Attach to an active mission session.
    */
   async attach(options: AttachOptions): Promise<number> {
-    const { identifier } = options;
+    const { identifier, action = 'chat' } = options;
     const instanceName = this.infra.instanceName || 'local';
     const provider = ProviderFactory.getProvider(this.projectCtx, {
       ...this.infra,
@@ -344,8 +422,16 @@ export class MissionManager {
       instanceName,
     } as any);
 
+    const mCtx = resolveMissionContext(identifier, action);
     const capsules = await provider.listCapsules();
-    const target = capsules.find((c) => c.includes(identifier));
+
+    // 1. Try exact match first
+    let target = capsules.find((c) => c === mCtx.containerName);
+
+    // 2. Fallback to includes check (legacy/partial)
+    if (!target) {
+      target = capsules.find((c) => c.includes(identifier));
+    }
 
     if (!target) {
       this.observer.onLog?.(
@@ -400,8 +486,16 @@ export class MissionManager {
       `🛰️  Fetching remote telemetry for ${mId}...`,
     );
     // Heuristic: try to find the capsule and read logs from it
+    const mCtx = resolveMissionContext(identifier, action);
     const capsules = await provider.listCapsules();
-    const target = capsules.find((c) => c.includes(identifier));
+
+    // 1. Exact match
+    let target = capsules.find((c) => c === mCtx.containerName);
+
+    // 2. Partial match
+    if (!target) {
+      target = capsules.find((c) => c.includes(identifier));
+    }
 
     if (target) {
       await provider.exec(`cat /tmp/mission.log`, {

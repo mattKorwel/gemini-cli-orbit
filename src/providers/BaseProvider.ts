@@ -130,6 +130,16 @@ export interface OrbitProvider {
    */
   listCapsules(): Promise<string[]>;
   provisionMirror(remoteUrl: string): Promise<number>;
+
+  /**
+   * Drops into a raw interactive shell on the hardware host.
+   */
+  stationShell(): Promise<number>;
+
+  /**
+   * Drops into a raw interactive bash shell inside a mission capsule.
+   */
+  missionShell(capsuleName: string): Promise<number>;
 }
 
 export interface SetupOptions {

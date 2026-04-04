@@ -114,6 +114,20 @@ export class OrbitSDK implements IOrbitSDK {
   }
 
   /**
+   * Drops into a raw interactive shell on the hardware host.
+   */
+  async stationShell(): Promise<number> {
+    return this.missions.stationShell();
+  }
+
+  /**
+   * Drops into a raw interactive shell inside a mission capsule.
+   */
+  async missionShell(options: { identifier: string }): Promise<number> {
+    return this.missions.missionShell(options);
+  }
+
+  /**
    * Identify and remove idle mission capsules based on inactivity.
    */
   async reapMissions(options: ReapOptions = {}): Promise<number> {
@@ -188,7 +202,7 @@ export class OrbitSDK implements IOrbitSDK {
   /**
    * List all available infrastructure schematics.
    */
-  listSchematics(): string[] {
+  listSchematics(): SchematicInfo[] {
     return this.fleet.listSchematics();
   }
 

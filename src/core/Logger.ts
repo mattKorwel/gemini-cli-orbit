@@ -171,10 +171,16 @@ export class ConsoleObserver {
   onLog(level: LogLevel, tag: string, message: string, ...args: any[]) {
     if (this.shouldFilter(message)) return;
     const isMcp = !!process.env.GCLI_MCP;
+    const isVerbose = process.env.GCLI_ORBIT_VERBOSE === '1';
+
+    if (level === LogLevel.DEBUG && !isVerbose) return;
+
     if (level === LogLevel.ERROR) {
       console.error(`[ERROR] ${tagStr(tag)}${message}`, ...args);
     } else if (level === LogLevel.WARN) {
       console.error(`[WARN ] ${tagStr(tag)}${message}`, ...args);
+    } else if (level === LogLevel.DEBUG) {
+      console.error(`[DEBUG] ${tagStr(tag)}${message}`, ...args);
     } else {
       if (isMcp) {
         console.error(`[INFO ] ${tagStr(tag)}${message}`, ...args);

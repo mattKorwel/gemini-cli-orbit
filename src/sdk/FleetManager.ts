@@ -26,6 +26,7 @@ import { DependencyManager } from './DependencyManager.js';
 import {
   type OrbitObserver,
   type StationInfo,
+  type SchematicInfo,
   type ProvisionOptions,
   type ListStationsOptions,
   type DeleteStationOptions,
@@ -159,13 +160,20 @@ export class FleetManager {
     if (state.status !== 'destroyed' && !isLocal) {
       const settings = loadSettings();
       const stationName = instanceName;
+      const rName = this.projectCtx.repoName;
 
-      settings.activeStation = stationName;
+      if (rName && rName !== 'gemini-cli') {
+        if (!settings.repos[rName]) settings.repos[rName] = {} as any;
+        settings.repos[rName].activeStation = stationName;
+      } else {
+        settings.activeStation = stationName;
+      }
+
       saveSettings(settings);
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
-        `🎯 Active Station set to: ${stationName}`,
+        `🎯 Active Station for ${rName || 'global'} set to: ${stationName}`,
       );
 
       this.stationManager.saveReceipt({
@@ -174,6 +182,7 @@ export class FleetManager {
         type: 'gce',
         projectId: config.projectId!,
         zone: config.zone || 'us-central1-a',
+        backendType: config.backendType as any,
         repo: this.projectCtx.repoName,
         schematic: sName,
         lastSeen: new Date().toISOString(),
@@ -200,21 +209,38 @@ export class FleetManager {
     const stationInfos: StationInfo[] = await Promise.all(
       receipts.map(async (r: any) => {
         let missions: string[] = [];
+        let status = r.status || 'READY';
+
         // Only fetch missions if station is active/ready to avoid hung SSH
         if (
           options.includeMissions &&
-          (r.status === 'RUNNING' || r.status === 'READY')
+          (status === 'RUNNING' || status === 'READY')
         ) {
           try {
             missions = await this.stationManager.getMissions(r);
-          } catch (_e) {}
+            this.observer.onLog?.(
+              LogLevel.DEBUG,
+              'FLEET',
+              `Fetched ${missions.length} missions for ${r.name}`,
+            );
+          } catch (e: any) {
+            this.observer.onLog?.(
+              LogLevel.DEBUG,
+              'FLEET',
+              `Failed to fetch missions for ${r.name}: ${e.message}`,
+            );
+            // If we can't talk to it, mark it as unreachable if it was supposed to be running
+            if (status === 'RUNNING') {
+              status = 'UNREACHABLE';
+            }
+          }
         }
 
         return {
           name: r.name,
           type: r.type,
           repo: r.repo,
-          status: r.status,
+          status,
           projectId: r.projectId,
           zone: r.zone,
           rootPath: r.rootPath || undefined,
@@ -267,12 +293,19 @@ export class FleetManager {
       throw new Error(`Station "${name}" not found in registry.`);
     }
 
-    settings.activeStation = station.name;
+    const rName = this.projectCtx.repoName;
+    if (rName && rName !== 'gemini-cli') {
+      if (!settings.repos[rName]) settings.repos[rName] = {} as any;
+      settings.repos[rName].activeStation = station.name;
+    } else {
+      settings.activeStation = station.name;
+    }
+
     saveSettings(settings);
     this.observer.onLog?.(
       LogLevel.INFO,
       'CONFIG',
-      `🎯 Active Station set to: ${station.name}`,
+      `🎯 Active Station for ${rName || 'global'} set to: ${station.name}`,
     );
   }
 
@@ -389,7 +422,7 @@ export class FleetManager {
   /**
    * List all available infrastructure schematics.
    */
-  listSchematics(): string[] {
+  listSchematics(): SchematicInfo[] {
     return this.schematicManager.listSchematics();
   }
 

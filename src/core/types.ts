@@ -159,13 +159,12 @@ export interface IOrbitSDK {
   monitorCI(options: MonitorCIOptions): Promise<CIStatus>;
   provisionStation(options: ProvisionOptions): Promise<number>;
   splashdown(options: SplashdownOptions): Promise<number>;
-  hibernate(options: { name: string }): Promise<void>;
   attach(options: AttachOptions): Promise<number>;
   getLogs(options: GetLogsOptions): Promise<number>;
   installShell(): Promise<void>;
   listStations(options: ListStationsOptions): Promise<StationInfo[]>;
   activateStation(name: string): Promise<void>;
-  listSchematics(): string[];
+  listSchematics(): SchematicInfo[];
   getSchematic(name: string): OrbitConfig | null;
   saveSchematic(name: string, config: Partial<OrbitConfig>): Promise<void>;
   importSchematic(source: string): Promise<string>;
@@ -173,4 +172,25 @@ export interface IOrbitSDK {
     name: string,
     cliFlags?: Partial<OrbitConfig>,
   ): Promise<void>;
+
+  /**
+   * Drops into a raw interactive shell on the hardware host.
+   */
+  stationShell(): Promise<number>;
+
+  /**
+   * Drops into a raw interactive shell inside a mission capsule.
+   */
+  missionShell(options: { identifier: string }): Promise<number>;
+}
+
+/**
+ * Metadata about an infrastructure blueprint.
+ */
+export interface SchematicInfo {
+  name: string;
+  projectId?: string;
+  zone?: string;
+  backendType?: string;
+  machineType?: string;
 }

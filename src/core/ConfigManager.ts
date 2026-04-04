@@ -51,7 +51,9 @@ export function getRepoConfig(
   const targetStation =
     (cliFlags as any).forStation ||
     process.env.GCLI_ORBIT_INSTANCE_NAME ||
-    (options.ignoreGlobalState ? undefined : settings.activeStation);
+    (options.ignoreGlobalState
+      ? undefined
+      : settings.repos[rName]?.activeStation || settings.activeStation);
 
   // 4. Resolve Station details from Registry if targeted
   if (targetStation) {
@@ -183,7 +185,7 @@ export function detectRepoName(
   try {
     // 1. Try to get the repo name from the remote URL (most accurate)
     const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
-      stdio: options.silent ? 'pipe' : 'inherit',
+      stdio: 'pipe',
       encoding: 'utf8',
       cwd: repoRoot,
     });

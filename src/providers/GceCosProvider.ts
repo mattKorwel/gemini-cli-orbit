@@ -261,9 +261,12 @@ export class GceCosProvider implements OrbitProvider {
     }
 
     const data = JSON.parse(res.stdout.toString());
+    let status = data.status;
+    if (status === 'TERMINATED') status = 'HIBERNATING';
+
     return {
       name: data.name,
-      status: data.status,
+      status,
       internalIp: data.networkInterfaces[0].networkIP,
       externalIp: data.networkInterfaces[0].accessConfigs?.[0]?.natIP,
     };
@@ -414,6 +417,11 @@ export class GceCosProvider implements OrbitProvider {
       "sudo docker ps --format '{{.Names}}' | grep '^orbit-'",
       { quiet: true },
     );
+    if (res.status !== 0) {
+      throw new Error(
+        `Failed to list capsules: ${res.stderr || 'Connection failed'}`,
+      );
+    }
     return res.stdout.trim().split('\n').filter(Boolean);
   }
 
@@ -433,5 +441,17 @@ export class GceCosProvider implements OrbitProvider {
       if (res !== 0) return res;
     }
     return 0;
+  }
+
+  async stationShell(): Promise<number> {
+    return this.exec('/bin/bash', { interactive: true });
+  }
+
+  async missionShell(capsuleName: string): Promise<number> {
+    return this.exec('/bin/bash', {
+      wrapCapsule: capsuleName,
+      interactive: true,
+      user: 'node',
+    });
   }
 }

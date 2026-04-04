@@ -27,6 +27,7 @@ export interface StationReceipt {
   zone: string;
   repo: string;
   status?: string;
+  backendType?: 'direct-internal' | 'external';
   schematic?: string;
   rootPath?: string;
   lastSeen: string;
@@ -112,6 +113,7 @@ export class StationManager {
       zone: receipt.zone,
       instanceName: receipt.instanceName || receipt.name,
       providerType: receipt.type,
+      backendType: receipt.backendType,
       workspacesDir:
         receipt.type === 'local-worktree'
           ? path.dirname(receipt.rootPath || '')
@@ -146,6 +148,7 @@ export class StationManager {
         zone: receipt.zone,
         instanceName: receipt.instanceName || receipt.name,
         providerType: receipt.type,
+        backendType: receipt.backendType,
       };
       const provider = ProviderFactory.getProvider(projectCtx, infra);
 

@@ -12,9 +12,11 @@ import { SCHEMATICS_DIR, type OrbitConfig } from '../core/Constants.js';
 import {
   saveSchematic,
   loadJson,
+  loadSchematic,
   sanitizeName,
 } from '../core/ConfigManager.js';
 import { logger } from '../core/Logger.js';
+import { type SchematicInfo } from '../core/types.js';
 
 function ask(query: string): Promise<string> {
   const rl = readline.createInterface({
@@ -41,41 +43,40 @@ export class SchematicManager {
     const schematicPath = path.join(SCHEMATICS_DIR, `${name}.json`);
     const existingConfig = loadJson(schematicPath) || {};
 
-    // If surgical flags are provided, perform a headless update and exit
-    // We check if any of our known config keys are present in cliFlags
-    const hasConfigFlags = Object.keys(cliFlags).length > 0;
+    // Pick only known config keys
+    const knownKeys = [
+      'projectId',
+      'zone',
+      'backendType',
+      'dnsSuffix',
+      'userSuffix',
+      'vpcName',
+      'subnetName',
+      'instanceName',
+      'machineType',
+      'imageUri',
+      'manageNetworking',
+      'sshSourceRanges',
+    ];
+
+    const cleanFlags: any = {};
+    for (const key of knownKeys) {
+      let val = (cliFlags as any)[key];
+      if (val !== undefined) {
+        // Handle type casting from CLI strings
+        if (key === 'manageNetworking' && typeof val === 'string') {
+          val = val.toLowerCase() === 'true';
+        }
+        if (key === 'sshSourceRanges' && typeof val === 'string') {
+          val = val.split(',').map((s) => s.trim());
+        }
+        cleanFlags[key] = val;
+      }
+    }
+
+    const hasConfigFlags = Object.keys(cleanFlags).length > 0;
 
     if (hasConfigFlags) {
-      // Pick only known config keys
-      const knownKeys = [
-        'projectId',
-        'zone',
-        'backendType',
-        'dnsSuffix',
-        'userSuffix',
-        'vpcName',
-        'subnetName',
-        'instanceName',
-        'machineType',
-        'imageUri',
-        'manageNetworking',
-        'sshSourceRanges',
-      ];
-      const cleanFlags: any = {};
-      for (const key of knownKeys) {
-        let val = (cliFlags as any)[key];
-        if (val !== undefined) {
-          // Handle type casting from CLI strings
-          if (key === 'manageNetworking' && typeof val === 'string') {
-            val = val.toLowerCase() === 'true';
-          }
-          if (key === 'sshSourceRanges' && typeof val === 'string') {
-            val = val.split(',').map((s) => s.trim());
-          }
-          cleanFlags[key] = val;
-        }
-      }
-
       const merged = { ...existingConfig, ...cleanFlags };
       saveSchematic(name, merged);
       logger.info(
@@ -226,11 +227,22 @@ export class SchematicManager {
     }
   }
 
-  listSchematics(): string[] {
+  listSchematics(): SchematicInfo[] {
     if (!fs.existsSync(SCHEMATICS_DIR)) return [];
-    return fs
+    const files = fs
       .readdirSync(SCHEMATICS_DIR)
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => f.replace('.json', ''));
+      .filter((f) => f.endsWith('.json'));
+
+    return files.map((f) => {
+      const name = f.replace('.json', '');
+      const config = loadSchematic(name);
+      return {
+        name,
+        projectId: config?.projectId,
+        zone: config?.zone,
+        backendType: config?.backendType,
+        machineType: config?.machineType,
+      };
+    });
   }
 }

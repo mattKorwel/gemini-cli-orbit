@@ -2,48 +2,66 @@
 
 The **Mission** command is the primary way to launch your developer presence
 into an isolated orbital environment. It creates a dedicated **Mission Capsule**
-for a specific Pull Request or task. Missions can be **Interactions**
-(manual/chat-first) or **Maneuvers** (autonomous/task-first).
+for a specific Pull Request or task.
 
 ## 🚀 Mission Modes
 
 Launch a mission by providing a PR number or branch:
 
 ```bash
-orbit mission 123
+orbit mission start 123 chat
 ```
 
-### 1. Manual Interaction Modes (Default)
+### 1. Manual Interaction (`chat`)
 
-These modes are for hands-on work inside the capsule alongside the agent.
+This is the default mode for hands-on work inside the capsule alongside Gemini.
 
-- `orbit mission 123` (Default): Opens an interactive **Gemini CLI** session.
-- `orbit mission 123 "your prompt"`: Executes the prompt in Gemini and stays
-  open.
-- `orbit mission 123 shell`: Drops you into a raw **Bash** shell in the
-  worktree.
+- **Smart Resumption**: Running `mission chat` again will automatically attach
+  you to your existing session.
+- **Persistence**: Sessions are wrapped in `tmux` so they stay alive even if you
+  disconnect.
 
-### 2. Autonomous Mission Maneuvers
+### 🧪 Named Missions (Multi-tasking)
+
+If you need multiple independent environments for the same PR (e.g., one for
+debugging, one for a feature), use the `:suffix` syntax:
+
+```bash
+orbit 123:debug chat   # Session A
+orbit 123:review chat  # Session B (completely isolated)
+```
+
+Orbit shares the PR context (branch, code) but provisions **separate Docker
+containers** and **separate workspaces** for each named instance.
+
+### 2. Side-Terminals (`shell`)
+
+If you want a raw shell _next to_ your chat window (e.g. to run manual tests),
+use:
+
+```bash
+orbit mission shell 123
+```
+
+This drops you into a raw bash session inside the _same_ container as your chat.
+
+### 3. Autonomous Mission Maneuvers
 
 Execute specialized autonomous tasks on your mission:
 
-- `orbit mission 123 review`: Parallel analysis, build, and behavioral proof.
-- `orbit mission 123 fix`: Iterative CI repair and conflict resolution.
-- `orbit mission 123 implement`: Feature execution with test-first logic.
+- `orbit mission start 123 review`: Parallel analysis, build, and behavioral
+  proof.
+- `orbit mission start 123 fix`: Iterative CI repair and conflict resolution.
+- `orbit mission start 123 implement`: Feature execution with test-first logic.
 
 [Learn more about Maneuvers](./MANEUVERS.md).
-
-> [!NOTE] **Compatibility**: While Orbit infrastructure is language-agnostic,
-> high-fidelity maneuvers (`review`, `fix`, `implement`) are currently
-> **optimized for NPM/Node.js**. Advanced phases like automated builds and
-> behavioral proofs will be skipped on non-Node repositories.
 
 ---
 
 ## ✨ Quick Commands
 
-- `orbit mission <PR> [action]`: Launch a mission (fix, review, implement).
-- `orbit pulse`: Monitor host and capsule health.
-- `orbit ci [branch]`: Monitor GitHub Actions status for the mission branch.
-- `orbit uplink <PR> [action]`: (Uplink) Inspect local or remote mission
-  telemetry.
+- `orbit mission start <PR> [action]`: Launch a mission (chat, fix, review,
+  etc).
+- `orbit mission shell <PR>`: Enter a raw side-terminal in the mission capsule.
+- `orbit mission ci <PR>`: Monitor GitHub Actions status for the PR.
+- `orbit mission jettison <PR>`: Purge remote container and workspace.

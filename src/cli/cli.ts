@@ -36,19 +36,22 @@ export async function dispatch(argv: string[]): Promise<number> {
 
   // Top-level Aliases (Plurals & High-velocity)
   const topAliases: Record<string, string> = {
-    stations: 'station',
-    missions: 'mission',
-    schematics: 'infra',
-    pulses: 'station',
-    provision: 'infra',
+    stations: 'station list',
+    missions: 'mission start',
+    schematics: 'infra schematic list',
+    pulses: 'station pulse',
+    provision: 'infra liftoff',
   };
   if (processedArgv[0] && topAliases[processedArgv[0]]) {
-    processedArgv[0] = topAliases[processedArgv[0]] || '';
+    const alias = topAliases[processedArgv[0]];
+    processedArgv.splice(0, 1, ...alias.split(' '));
   }
-
   const parser = yargs(processedArgv)
     .scriptName('orbit')
     .usage('$0 <command> [args]')
+    .demandCommand(1, 'Please specify a command.')
+    .strict()
+
     .demandCommand(1, 'Please specify a command.')
     .showHelpOnFail(true)
     .exitProcess(false)
@@ -84,330 +87,482 @@ export async function dispatch(argv: string[]): Promise<number> {
       description: 'The blueprint to use for liftoff',
     })
 
-    .group(['verbose'], 'Output Options:')
+    .group(['verbose', 'json'], 'Output Options:')
     .option('verbose', {
       type: 'boolean',
       description: 'Show detailed infrastructure logs',
     })
+    .option('json', {
+      type: 'boolean',
+      description: 'Output raw JSON results',
+    })
 
-    // --- COMMANDS ---
-
-    // 1. MISSION
+    // --- DEFAULT COMMAND (High Velocity) ---
     .command(
-      'mission [identifier] [action] [extra..]',
-      'The Workflow: Start, uplink, attach, ci, or jettison.',
+      '$0 [id] [verb] [extra..]',
+      false,
       (y: Argv) => {
         return y
-          .positional('identifier', {
-            type: 'string',
-            description: 'PR or Issue ID (Optional inside capsule)',
-          })
-          .positional('action', {
-            type: 'string',
-            default: 'chat',
-            description:
-              'Verb: chat, uplink, attach, ci, jettison, fix, review, implement',
-          });
+          .positional('id', { type: 'string' })
+          .positional('verb', { type: 'string', default: 'chat' });
       },
       async (args: any) => {
+        if (!args.id) {
+          parser.showHelp();
+          return;
+        }
         const sdk = createSDK(args);
-        const mId =
-          (args.identifier as string) || process.env.GCLI_ORBIT_MISSION_ID;
-        const { action, extra = [] } = args;
-
-        if (!mId) {
-          console.error('\n❌ Error: Mission identifier is required.');
-          console.log(
-            '💡 Tip: If you are not inside a capsule, you must provide the PR/Issue ID.',
-          );
-          args.exitCode = 1;
-          return;
-        }
-
-        if (action === 'uplink') {
-          args.exitCode = await sdk.getLogs({
-            identifier: mId,
-            action: extra[0] || 'chat',
-          });
-          return;
-        }
-        if (action === 'attach') {
-          args.exitCode = await sdk.attach({
-            identifier: mId,
-            action: extra[0] || 'chat',
-          });
-          return;
-        }
-        if (action === 'ci') {
-          const status = await sdk.monitorCI({ branch: mId });
-          console.log(
-            `CI Status: ${status.status} (${status.runs.join(', ')})`,
-          );
-          args.exitCode = status.status === 'FAILED' ? 1 : 0;
-          return;
-        }
-        if (action === 'jettison') {
-          const res = await sdk.jettisonMission({
-            identifier: mId,
-            action: extra[0] || 'chat',
-          });
-          args.exitCode = res.exitCode;
-          return;
-        }
-
         const result = await sdk.startMission({
-          identifier: mId,
-          action,
-          args: extra,
+          identifier: args.id,
+          action: args.verb,
+          args: args.extra,
         });
         args.exitCode = result.exitCode;
       },
     )
 
+    // --- COMMANDS ---
+
+    // 1. MISSION
+    .command(
+      'mission',
+      'The Workflow: Start, uplink, attach, ci, or jettison.',
+      (y: Argv) => {
+        return y
+          .command(
+            'start <identifier> [action] [extra..]',
+            'Start a new PR or Issue mission.',
+            (y2) =>
+              y2
+                .positional('identifier', {
+                  type: 'string',
+                  description: 'PR or Issue ID',
+                })
+                .positional('action', {
+                  type: 'string',
+                  default: 'chat',
+                  description: 'Verb: chat, fix, review, implement',
+                }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              const { action, extra = [] } = args;
+              const result = await sdk.startMission({
+                identifier: args.identifier,
+                action,
+                args: extra,
+              });
+              args.exitCode = result.exitCode;
+            },
+          )
+          .command(
+            'attach <identifier>',
+            'Resume an active mission.',
+            (y2) =>
+              y2.positional('identifier', {
+                type: 'string',
+                description: 'PR or Issue ID',
+              }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.attach({ identifier: args.identifier });
+            },
+          )
+          .command(
+            'uplink <identifier> [action]',
+            'Inspect mission telemetry.',
+            (y2) =>
+              y2
+                .positional('identifier', {
+                  type: 'string',
+                  description: 'PR or Issue ID',
+                })
+                .positional('action', {
+                  type: 'string',
+                  description: 'Specific playbook action',
+                }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.getLogs({
+                identifier: args.identifier,
+                action: args.action,
+              });
+            },
+          )
+          .command(
+            'ci <identifier>',
+            'Monitor CI status for a branch.',
+            (y2) =>
+              y2.positional('identifier', {
+                type: 'string',
+                description: 'Branch or PR ID',
+              }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              const status = await sdk.monitorCI({ branch: args.identifier });
+              console.log(
+                `CI Status: ${status.status} (${status.runs.join(', ')})`,
+              );
+              args.exitCode = status.status === 'FAILED' ? 1 : 0;
+            },
+          )
+          .command(
+            'jettison <identifier>',
+            'Decommission a specific mission.',
+            (y2) =>
+              y2.positional('identifier', {
+                type: 'string',
+                description: 'PR or Issue ID',
+              }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              const res = await sdk.jettisonMission({
+                identifier: args.identifier,
+              });
+              args.exitCode = res.exitCode;
+            },
+          )
+          .command(
+            'shell <identifier>',
+            'Drop into a raw shell inside a mission capsule.',
+            (y2) =>
+              y2.positional('identifier', {
+                type: 'string',
+                description: 'PR or Issue ID',
+              }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.missionShell({
+                identifier: args.identifier,
+              });
+            },
+          )
+          .demandCommand(1, 'Please specify a mission action.');
+      },
+    )
+
     // 2. STATION
     .command(
-      'station <action> [name]',
+      'station',
       'The Hardware: List, activate, hibernate, pulse, or reap.',
       (y: Argv) => {
         return y
-          .positional('action', {
-            choices: [
-              'list',
-              'ls',
-              'activate',
-              'use',
-              'hibernate',
-              'stop',
-              'delete',
-              'rm',
-              'pulse',
-              'reap',
-            ],
-            demandOption: true,
-          })
-          .positional('name', { type: 'string', description: 'Instance name' })
-          .option('sync', {
-            alias: 's',
-            type: 'boolean',
-            description: 'Sync with reality',
-          });
-      },
-      async (args: any) => {
-        const sdk = createSDK(args);
-        const { action, name, sync } = args;
+          .command(
+            ['list', 'ls'],
+            'List all provisioned stations.',
+            (y2) =>
+              y2.option('sync', {
+                alias: 's',
+                type: 'boolean',
+                default: true,
+                description: 'Sync with reality (use --no-sync to skip)',
+              }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              const { sync } = args;
+              if (sync && !args.json) {
+                process.stderr.write(
+                  '📡 Synchronizing constellation . . . . .\n',
+                );
+              }
+              const stations = await sdk.listStations({
+                syncWithReality: sync,
+                includeMissions: sync,
+              });
 
-        if ((action === 'activate' || action === 'use') && name) {
-          await sdk.activateStation(name);
-          return;
-        }
-        if ((action === 'hibernate' || action === 'stop') && name) {
-          await sdk.hibernate({ name });
-          return;
-        }
-        if (action === 'list' || action === 'ls') {
-          const stations = await sdk.listStations({ syncWithReality: sync });
-          sdk.observer.onDivider?.('ORBIT CONSTELLATION');
-          if (stations.length === 0) {
-            console.log('✅ No provisioned stations found.');
-            return;
-          }
-          stations.forEach((s) => {
-            const typeIcon = s.type === 'gce' ? '☁️ ' : '🏠';
-            console.log(
-              `${s.isActive ? '➡️ ' : '  '} ${typeIcon} ${s.name.padEnd(30)} [${s.status || 'READY'}] [${s.repo}]`,
-            );
-          });
-          return;
-        }
-        if (action === 'pulse') {
-          const pulse = await sdk.getPulse();
-          console.log(
-            `\n🛰️  ORBIT PULSE: ${pulse.stationName} (${pulse.repoName})`,
-          );
-          console.log('-'.repeat(80));
-          console.log(`   - Station State:  ${pulse.status}`);
-          if (pulse.internalIp)
-            console.log(`   - Internal IP:    ${pulse.internalIp}`);
-          if (pulse.externalIp)
-            console.log(`   - External IP:    ${pulse.externalIp}`);
+              if (args.json) {
+                console.log(JSON.stringify(stations, null, 2));
+                return;
+              }
+              console.log('\n🛰️  ORBIT CONSTELLATION');
+              if (stations.length === 0) {
+                console.log('   ✅ No provisioned stations found.');
+                return;
+              }
 
-          console.log('\n📦 ACTIVE MISSION CAPSULES:');
-          if (pulse.capsules.length === 0) {
-            console.log('     - No mission capsules found');
-          } else {
-            pulse.capsules.forEach((c) => {
-              const stateIcon =
-                c.state === 'WAITING'
-                  ? '⏳'
-                  : c.state === 'THINKING'
-                    ? '🧠'
-                    : '💤';
-              const statsStr =
-                typeof c.stats === 'string'
-                  ? c.stats
-                  : `CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`;
-              console.log(
-                `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] ${statsStr}`,
+              const grouped = stations.reduce(
+                (acc, s) => {
+                  const repo = s.repo || 'unknown';
+                  if (!acc[repo]) acc[repo] = [];
+                  acc[repo].push(s);
+                  return acc;
+                },
+                {} as Record<string, typeof stations>,
               );
-            });
-          }
-          console.log('-'.repeat(80));
-          args.exitCode = 0;
-          return;
-        }
-        if (action === 'reap') {
-          await sdk.reapMissions({
-            threshold: args.threshold,
-            force: args.force,
-          });
-          return;
-        }
-        if ((action === 'delete' || action === 'rm') && name) {
-          await sdk.splashdown({ name });
-          return;
-        }
+
+              Object.entries(grouped).forEach(([repo, repoStations]) => {
+                console.log(`\n📦 REPOSITORY: ${repo}`);
+                repoStations.forEach((s) => {
+                  const typeIcon = s.type === 'gce' ? '☁️' : '🏠';
+                  const activeMarker = s.isActive ? '➡️' : '  ';
+                  const status = s.status || 'READY';
+                  const missions = (s.missions || []).length;
+                  const project = s.projectId || 'local';
+                  console.log(
+                    `${activeMarker} ${typeIcon}  ${s.name.padEnd(20)} → ${status}, ${missions} missions, ${project}`,
+                  );
+                });
+              });
+            },
+          )
+          .command(
+            ['activate <name>', 'use <name>'],
+            'Set the active target station.',
+            (y2) =>
+              y2.positional('name', { type: 'string', demandOption: true }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              await sdk.activateStation(args.name);
+            },
+          )
+          .command(
+            ['hibernate <name>', 'stop <name>'],
+            'Stop station hardware without destroying it.',
+            (y2) =>
+              y2.positional('name', { type: 'string', demandOption: true }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              await sdk.hibernate({ name: args.name });
+            },
+          )
+          .command(
+            'pulse',
+            'Check health and mission status.',
+            () => {},
+            async (args: any) => {
+              const sdk = createSDK(args);
+              if (!args.json) {
+                process.stderr.write('📡 Requesting status . . . . .\n');
+              }
+              const pulse = await sdk.getPulse();
+
+              if (args.json) {
+                console.log(JSON.stringify(pulse, null, 2));
+                return;
+              }
+              console.log(`\n🛰️  ORBIT PULSE: ${pulse.stationName}`);
+              console.log(`   Repo Context: ${pulse.repoName}`);
+              console.log('-'.repeat(80));
+              console.log(`   - Station State:  ${pulse.status}`);
+              if (pulse.internalIp)
+                console.log(`   - Internal IP:    ${pulse.internalIp}`);
+              if (pulse.externalIp)
+                console.log(`   - External IP:    ${pulse.externalIp}`);
+
+              console.log('\n📦 ACTIVE MISSION CAPSULES:');
+              if (pulse.capsules.length === 0) {
+                console.log('     - No mission capsules found');
+              } else {
+                pulse.capsules.forEach((c) => {
+                  const stateIcon =
+                    c.state === 'WAITING'
+                      ? '⏳'
+                      : c.state === 'THINKING'
+                        ? '🧠'
+                        : '💤';
+                  const statsStr =
+                    typeof c.stats === 'string'
+                      ? c.stats
+                      : `CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`;
+                  console.log(
+                    `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] ${statsStr}`,
+                  );
+                });
+              }
+              console.log('-'.repeat(80));
+            },
+          )
+          .command(
+            'shell [name]',
+            'Drop into a raw shell on the hardware host.',
+            (y2) => y2.positional('name', { type: 'string' }),
+            async (args: any) => {
+              if (args.name) process.env.GCLI_ORBIT_INSTANCE_NAME = args.name;
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.stationShell();
+            },
+          )
+          .command(
+            'reap',
+            'Identify and remove idle missions.',
+            (y2) =>
+              y2
+                .option('threshold', {
+                  type: 'number',
+                  description: 'Idle hours',
+                })
+                .option('force', { type: 'boolean' }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              await sdk.reapMissions({
+                threshold: args.threshold,
+                force: args.force,
+              });
+            },
+          )
+          .command(
+            ['delete <name>', 'rm <name>'],
+            'Decommission Orbit hardware.',
+            (y2) =>
+              y2.positional('name', { type: 'string', demandOption: true }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              await sdk.splashdown({ name: args.name });
+            },
+          )
+          .demandCommand(1, 'Please specify a station action.');
       },
     )
 
     // 3. INFRA
     .command(
-      'infra <action> [name]',
+      'infra',
       'The Foundation: Liftoff, splashdown, or schematic.',
       (y: Argv) => {
         return y
-          .positional('action', {
-            choices: ['liftoff', 'splashdown', 'schematic'],
-            demandOption: true,
-          })
-          .positional('name', { type: 'string' })
-          .option('schematic', {
-            alias: 's',
-            type: 'string',
-            description: 'Blueprint to use',
-          })
-          .option('destroy', {
-            type: 'boolean',
-            description: 'Decommission infrastructure',
-          })
-          .option('import', {
-            type: 'string',
-            description: 'Import schematic from file or URL',
-          })
-          .option('show', {
-            type: 'boolean',
-            description: 'Show schematic details',
-          });
-      },
-      async (args: any) => {
-        const { action, name, schematic, destroy } = args;
-        if (action === 'liftoff') {
-          process.env.GCLI_ORBIT_INSTANCE_NAME = name;
-          const sdk = createSDK(args);
-          args.exitCode = await sdk.provisionStation({
-            schematicName: schematic,
-            destroy,
-          });
-        } else if (action === 'splashdown') {
-          const sdk = createSDK(args);
-          args.exitCode = await sdk.splashdown({ name, all: args.all });
-        } else if (action === 'schematic') {
-          const sdk = createSDK(args);
-          if (args.import) {
-            const imported = await sdk.importSchematic(args.import);
-            console.log(`✅ Schematic "${imported}" imported.`);
-            return;
-          }
-          if (name) {
-            if (args.show) {
-              const config = sdk.getSchematic(name);
-              if (!config) {
-                console.error(`❌ Schematic "${name}" not found.`);
-                args.exitCode = 1;
-                return;
+          .command(
+            'liftoff [name]',
+            'Build or wake infrastructure.',
+            (y2) =>
+              y2
+                .positional('name', { type: 'string' })
+                .option('schematic', {
+                  alias: 's',
+                  type: 'string',
+                  description: 'Blueprint to use',
+                })
+                .option('destroy', {
+                  type: 'boolean',
+                  description: 'Decommission infrastructure',
+                }),
+            async (args: any) => {
+              process.env.GCLI_ORBIT_INSTANCE_NAME = args.name;
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.provisionStation({
+                schematicName: args.schematic,
+                destroy: args.destroy,
+              });
+            },
+          )
+          .command(
+            'splashdown [name]',
+            'Emergency shutdown of Orbit infrastructure.',
+            (y2) =>
+              y2
+                .positional('name', { type: 'string' })
+                .option('all', {
+                  type: 'boolean',
+                  description: 'All active remote capsules',
+                }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.splashdown({
+                name: args.name,
+                all: args.all,
+              });
+            },
+          )
+          .command(
+            'schematic <action> [name]',
+            'Manage infrastructure blueprints.',
+            (y2) =>
+              y2
+                .positional('action', {
+                  choices: ['list', 'show', 'import', 'create', 'edit'],
+                  demandOption: true,
+                })
+                .positional('name', {
+                  type: 'string',
+                  description: 'Schematic name or source',
+                }),
+            async (args: any) => {
+              const sdk = createSDK(args);
+              const sub = args.action;
+              const sName = args.name;
+
+              if (sub === 'list') {
+                const schematics = sdk.listSchematics();
+                if (args.json) {
+                  console.log(JSON.stringify(schematics, null, 2));
+                  return;
+                }
+                console.log('\n📐 ORBIT SCHEMATICS');
+                console.log(
+                  `   ${'NAME'.padEnd(20)} [PROJECT ID] [ZONE] (BACKEND)`,
+                );
+                schematics.forEach((s) => {
+                  const project = s.projectId ? ` [${s.projectId}]` : '';
+                  const zone = s.zone ? ` [${s.zone}]` : '';
+                  const type = s.backendType ? ` (${s.backendType})` : '';
+                  console.log(
+                    `   ${s.name.padEnd(20)}${project}${zone}${type}`,
+                  );
+                });
+              } else if (sub === 'show') {
+                if (!sName) throw new Error('Schematic name required.');
+                const config = sdk.getSchematic(sName);
+                if (!config) {
+                  if (args.json)
+                    console.log(JSON.stringify({ error: 'Not found' }));
+                  else console.error(`❌ Schematic "${sName}" not found.`);
+                  args.exitCode = 1;
+                  return;
+                }
+                if (args.json) {
+                  console.log(JSON.stringify(config, null, 2));
+                  return;
+                }
+                console.log(`\n📐 ORBIT SCHEMATIC: ${sName}`);
+                console.log('-'.repeat(80));
+                console.log(JSON.stringify(config, null, 2));
+                console.log('-'.repeat(80));
+              } else if (sub === 'import') {
+                if (!sName) throw new Error('Source (file or URL) required.');
+                const imported = await sdk.importSchematic(sName);
+                if (args.json) console.log(JSON.stringify({ imported }));
+                else console.log(`✅ Schematic "${imported}" imported.`);
+              } else if (sub === 'create' || sub === 'edit') {
+                if (!sName) throw new Error('Schematic name required.');
+                await sdk.runSchematicWizard(sName, args);
               }
-              console.log(`\n📐 ORBIT SCHEMATIC: ${name}`);
-              console.log('-'.repeat(80));
-              console.log(JSON.stringify(config, null, 2));
-              console.log('-'.repeat(80));
-              return;
-            }
-            await sdk.runSchematicWizard(name, args);
-            return;
-          }
-          const schematics = sdk.listSchematics();
-          console.log('\n📐 ORBIT SCHEMATICS');
-          schematics.forEach((s) => console.log(`   ${s}`));
-        }
+            },
+          );
       },
     )
 
     // 4. CONFIG
     .command(
-      'config <action>',
+      'config',
       'The Local: Setup environment and integrations.',
       (y: Argv) => {
-        return y.positional('action', {
-          choices: ['install', 'show'],
-          demandOption: true,
-        });
+        return y
+          .command(
+            'install',
+            'Install Orbit shell aliases and tab-completion.',
+            () => {},
+            async (args: any) => {
+              const sdk = createSDK(args);
+              await sdk.installShell();
+            },
+          )
+          .command(
+            'show',
+            'Display resolved Orbit configuration.',
+            () => {},
+            async (args: any) => {
+              const config = getRepoConfig();
+              if (args.json) {
+                console.log(JSON.stringify(config, null, 2));
+                return;
+              }
+              console.log('\n🛠️  ORBIT RESOLVED CONFIG');
+              console.log('-'.repeat(80));
+              console.log(JSON.stringify(config, null, 2));
+              console.log('-'.repeat(80));
+            },
+          )
+          .demandCommand(1, 'Please specify a config action.');
       },
-      async (args: any) => {
-        const sdk = createSDK(args);
-        if (args.action === 'install') {
-          await sdk.installShell();
-        } else if (args.action === 'show') {
-          const config = getRepoConfig();
-          console.log('\n🛠️  ORBIT RESOLVED CONFIG');
-          console.log('-'.repeat(80));
-          console.log(JSON.stringify(config, null, 2));
-          console.log('-'.repeat(80));
-        }
-      },
-    )
-
-    // --- HIDDEN VELOCITY ALIASES ---
-    .command('uplink <identifier> [action]', false, {}, async (args: any) => {
-      const sdk = createSDK(args);
-      args.exitCode = await sdk.getLogs({
-        identifier: args.identifier,
-        action: args.action,
-      });
-    })
-    .command('attach <identifier>', false, {}, async (args: any) => {
-      const sdk = createSDK(args);
-      args.exitCode = await sdk.attach({ identifier: args.identifier });
-    })
-    .command('ci [branch]', false, {}, async (args: any) => {
-      const sdk = createSDK(args);
-      const s = await sdk.monitorCI({ branch: args.branch });
-      args.exitCode = s.status === 'FAILED' ? 1 : 0;
-    })
-    .command('jettison <identifier>', false, {}, async (args: any) => {
-      const sdk = createSDK(args);
-      const res = await sdk.jettisonMission({ identifier: args.identifier });
-      args.exitCode = res.exitCode;
-    })
-    .command(
-      'liftoff <name>',
-      false,
-      (y: Argv) => y.option('schematic', { alias: 's' }),
-      async (args: any) => {
-        process.env.GCLI_ORBIT_INSTANCE_NAME = args.name;
-        const sdk = createSDK(args);
-        args.exitCode = await sdk.provisionStation({
-          schematicName: args.schematic,
-        });
-      },
-    )
-    .command('pulse', false, {}, async (args: any) => {
-      const sdk = createSDK(args);
-      const p = await sdk.getPulse();
-      console.log(`🛰️  PULSE: ${p.status}`);
-    })
-    .command('install-shell', false, {}, async (args: any) => {
-      const sdk = createSDK(args);
-      await sdk.installShell();
-    });
+    );
 
   function applyGlobalFlags(args: any): string {
     if (args.local) {
@@ -435,7 +590,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     const root = applyGlobalFlags(args);
     const name = args.repo || detectRepoName(root);
     const config = getRepoConfig(name, args, root);
-    return new OrbitSDK(config, new ConsoleObserver(), root);
+    return new OrbitSDK(config, consoleObserver, root);
   }
 
   try {
@@ -455,6 +610,8 @@ async function main() {
   const code = await dispatch(process.argv.slice(2));
   process.exit(code);
 }
+
+const consoleObserver = new ConsoleObserver();
 
 const isMain = () => {
   try {

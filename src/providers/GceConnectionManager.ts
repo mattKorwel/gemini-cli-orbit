@@ -143,7 +143,7 @@ export class GceConnectionManager {
         .join('\n')
         .trim();
 
-      if (filtered) {
+      if (filtered && !options.quiet) {
         process.stderr.write(filtered + '\n');
       }
     }

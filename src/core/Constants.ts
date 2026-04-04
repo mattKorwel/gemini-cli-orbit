@@ -208,9 +208,14 @@ export interface OrbitConfig extends InfrastructureSpec {
  * Global Settings File Structure
  */
 export interface OrbitSettings {
-  repos: Record<string, OrbitConfig>;
+  repos: Record<
+    string,
+    OrbitConfig & {
+      activeStation?: string | undefined;
+    }
+  >;
   activeRepo?: string | undefined;
-  activeStation?: string | undefined;
+  activeStation?: string | undefined; // Global default
   tempDir?: string | undefined;
   workspacesDir?: string | undefined;
   worktreesDir?: string | undefined; // Compatibility

@@ -23,21 +23,22 @@ export function resolveMissionContext(
   action: string,
 ): MissionContext {
   let branchName = identifier;
+  let prId = identifier;
+  let suffix = '';
+
+  // Support id:name syntax (e.g. 1234:debug)
+  if (identifier.includes(':')) {
+    const [id, ...parts] = identifier.split(':');
+    prId = id!;
+    suffix = parts.join('-');
+  }
 
   // 1. Resolve PR number to branch name via GH CLI if needed
-  if (/^\d+$/.test(identifier)) {
+  if (/^\d+$/.test(prId)) {
     try {
       const res = spawnSync(
         'gh',
-        [
-          'pr',
-          'view',
-          identifier,
-          '--json',
-          'headRefName',
-          '-q',
-          '.headRefName',
-        ],
+        ['pr', 'view', prId, '--json', 'headRefName', '-q', '.headRefName'],
         { stdio: 'pipe', encoding: 'utf8' },
       );
       if (res.status === 0 && res.stdout.trim()) {
@@ -49,15 +50,16 @@ export function resolveMissionContext(
   }
 
   const sBranch = sanitizeName(branchName);
-  const sId = sanitizeName(identifier);
+  const sId = sanitizeName(prId);
+  const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
 
   return {
     branchName,
-    // Containers are specific to the branch and action
-    containerName: `orbit-${sId}-${action}`,
-    // Sessions are specific to the branch (idempotent across actions)
-    sessionName: `orbit-${sBranch}`,
-    // Workspaces are specific to the branch and action for maximum isolation
-    workspaceName: `mission-${sId}-${action}`,
+    // Containers are specific to the branch, action, and optional suffix
+    containerName: `orbit-${sId}${sSuffix}-${action}`,
+    // Sessions are specific to the branch and suffix
+    sessionName: `orbit-${sBranch}${sSuffix}`,
+    // Workspaces are specific to the branch, action, and suffix
+    workspaceName: `mission-${sId}${sSuffix}-${action}`,
   };
 }

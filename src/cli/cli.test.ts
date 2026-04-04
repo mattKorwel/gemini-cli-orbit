@@ -19,7 +19,7 @@ const mockListStations = vi.fn().mockResolvedValue([]);
 const mockActivateStation = vi.fn().mockResolvedValue(undefined);
 const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
 const mockHibernate = vi.fn().mockResolvedValue(undefined);
-const mockListSchematics = vi.fn().mockReturnValue(['default']);
+const mockListSchematics = vi.fn().mockReturnValue([{ name: 'default' }]);
 const mockImportSchematic = vi.fn().mockResolvedValue('new-schematic');
 const mockSaveSchematic = vi.fn().mockResolvedValue(undefined);
 const mockJettisonMission = vi
@@ -124,18 +124,18 @@ describe('orbit-cli dispatch()', () => {
     dispatch = mod.dispatch;
   });
 
-  it('returns 1 for empty argv (demands command)', async () => {
+  it('returns 0 for empty argv (shows help via default)', async () => {
     const code = await dispatch([]);
-    expect(code).toBe(1);
+    expect(code).toBe(0);
   });
 
-  it('returns 1 for unknown command', async () => {
+  it('returns 0 for unknown command (attempts start via default)', async () => {
     const code = await dispatch(['notacommand', 'something']);
-    expect(code).toBe(1);
+    expect(code).toBe(0);
   });
 
-  it('routes "mission <id>" to OrbitSDK.startMission', async () => {
-    await dispatch(['mission', '42']);
+  it('routes "mission start <id>" to OrbitSDK.startMission', async () => {
+    await dispatch(['mission', 'start', '42']);
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',
@@ -143,11 +143,11 @@ describe('orbit-cli dispatch()', () => {
     });
   });
 
-  it('routes "mission 42 uplink" to OrbitSDK.getLogs', async () => {
-    await dispatch(['mission', '42', 'uplink']);
+  it('routes "mission uplink <id>" to OrbitSDK.getLogs', async () => {
+    await dispatch(['mission', 'uplink', '42']);
     expect(mockGetLogs).toHaveBeenCalledWith({
       identifier: '42',
-      action: 'chat',
+      action: undefined,
     });
   });
 
@@ -157,7 +157,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('routes "infra schematic list" to OrbitSDK.listSchematics', async () => {
-    await dispatch(['infra', 'schematic']);
+    await dispatch(['infra', 'schematic', 'list']);
     expect(mockListSchematics).toHaveBeenCalled();
   });
 
@@ -169,29 +169,27 @@ describe('orbit-cli dispatch()', () => {
     });
   });
 
-  it('routes "station stop <name>" to OrbitSDK.hibernate', async () => {
-    await dispatch(['station', 'stop', 'my-box']);
+  it('routes "station hibernate <name>" to OrbitSDK.hibernate', async () => {
+    await dispatch(['station', 'hibernate', 'my-box']);
     expect(mockHibernate).toHaveBeenCalledWith({ name: 'my-box' });
   });
 
-  it('routes "mission 42 jettison" to OrbitSDK.jettisonMission', async () => {
-    await dispatch(['mission', '42', 'jettison']);
+  it('routes "mission jettison <id>" to OrbitSDK.jettisonMission', async () => {
+    await dispatch(['mission', 'jettison', '42']);
     expect(mockJettisonMission).toHaveBeenCalledWith({
       identifier: '42',
-      action: 'chat',
     });
   });
 
-  it('routes "mission 42 attach" to OrbitSDK.attach', async () => {
-    await dispatch(['mission', '42', 'attach']);
+  it('routes "mission attach <id>" to OrbitSDK.attach', async () => {
+    await dispatch(['mission', 'attach', '42']);
     expect(mockAttach).toHaveBeenCalledWith({
       identifier: '42',
-      action: 'chat',
     });
   });
 
   it('--local flag sets GCLI_ORBIT_PROVIDER=local-worktree', async () => {
-    await dispatch(['mission', '--local', '42']);
+    await dispatch(['mission', 'start', '--local', '42']);
     expect(process.env.GCLI_ORBIT_PROVIDER).toBe('local-worktree');
     expect(process.env.GCLI_MCP).toBe('0');
     expect(mockStartMission).toHaveBeenCalledWith({
@@ -202,7 +200,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('-l flag sets GCLI_ORBIT_PROVIDER=local-worktree', async () => {
-    await dispatch(['mission', '-l', '42']);
+    await dispatch(['mission', 'start', '-l', '42']);
     expect(process.env.GCLI_ORBIT_PROVIDER).toBe('local-worktree');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -212,7 +210,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--repo flag sets GCLI_ORBIT_REPO_NAME', async () => {
-    await dispatch(['mission', '--repo', 'my-repo', '42']);
+    await dispatch(['mission', 'start', '--repo', 'my-repo', '42']);
     expect(process.env.GCLI_ORBIT_REPO_NAME).toBe('my-repo');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -222,7 +220,8 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('repo:cmd shorthand sets GCLI_ORBIT_REPO_NAME and routes correctly', async () => {
-    await dispatch(['dotfiles:mission', '42']);
+    // Shorthand still works via top-level default command
+    await dispatch(['dotfiles:42']);
     expect(process.env.GCLI_ORBIT_REPO_NAME).toBe('dotfiles');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -232,7 +231,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--repo-dir flag changes working directory', async () => {
-    await dispatch(['mission', '--repo-dir=/tmp/foo', '42']);
+    await dispatch(['mission', 'start', '--repo-dir=/tmp/foo', '42']);
     expect(chdirSpy).toHaveBeenCalledWith('/tmp/foo');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -242,7 +241,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--repo-dir flag with space changes working directory', async () => {
-    await dispatch(['mission', '--repo-dir', '/tmp/bar', '42']);
+    await dispatch(['mission', 'start', '--repo-dir', '/tmp/bar', '42']);
     expect(chdirSpy).toHaveBeenCalledWith('/tmp/bar');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -252,7 +251,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--repo-dir flag expands tilde (~)', async () => {
-    await dispatch(['mission', '--repo-dir=~/dev/foo', '42']);
+    await dispatch(['mission', 'start', '--repo-dir=~/dev/foo', '42']);
     expect(chdirSpy).toHaveBeenCalledWith('/home/user/dev/foo');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -263,12 +262,17 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag returns 1 if directory missing', async () => {
     mockExistsSync.mockReturnValue(false);
-    const code = await dispatch(['mission', '--repo-dir=/missing', '42']);
+    const code = await dispatch([
+      'mission',
+      'start',
+      '--repo-dir=/missing',
+      '42',
+    ]);
     expect(code).toBe(1);
   });
 
   it('--for-station=<val> sets GCLI_ORBIT_INSTANCE_NAME', async () => {
-    await dispatch(['mission', '--for-station=corp-vm', '42']);
+    await dispatch(['mission', 'start', '--for-station=corp-vm', '42']);
     expect(process.env.GCLI_ORBIT_INSTANCE_NAME).toBe('corp-vm');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -278,7 +282,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--for-station <val> (space form) sets GCLI_ORBIT_INSTANCE_NAME', async () => {
-    await dispatch(['mission', '--for-station', 'corp-vm', '42']);
+    await dispatch(['mission', 'start', '--for-station', 'corp-vm', '42']);
     expect(process.env.GCLI_ORBIT_INSTANCE_NAME).toBe('corp-vm');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -288,7 +292,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--schematic=<val> sets GCLI_ORBIT_SCHEMATIC', async () => {
-    await dispatch(['mission', '--schematic=custom', '42']);
+    await dispatch(['mission', 'start', '--schematic=custom', '42']);
     expect(process.env.GCLI_ORBIT_SCHEMATIC).toBe('custom');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -298,7 +302,7 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('--schematic <val> (space form) sets GCLI_ORBIT_SCHEMATIC', async () => {
-    await dispatch(['mission', '--schematic', 'custom', '42']);
+    await dispatch(['mission', 'start', '--schematic', 'custom', '42']);
     expect(process.env.GCLI_ORBIT_SCHEMATIC).toBe('custom');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',
@@ -319,8 +323,8 @@ describe('orbit-cli dispatch()', () => {
     expect(mockStartMission).not.toHaveBeenCalled();
   });
 
-  it('sub-command help support: "orbit station liftoff --help" shows liftoff help', async () => {
-    const code = await dispatch(['station', 'liftoff', '--help']);
+  it('sub-command help support: "orbit station list --help" shows help', async () => {
+    const code = await dispatch(['station', 'list', '--help']);
     expect(code).toBe(0);
   });
 
@@ -340,12 +344,12 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('sets GCLI_ORBIT_SHIM=1 before calling runner', async () => {
-    await dispatch(['mission', '42']);
+    await dispatch(['mission', 'start', '42']);
     expect(process.env.GCLI_ORBIT_SHIM).toBe('1');
   });
 
   it('multiple global flags coexist: --local and --repo', async () => {
-    await dispatch(['mission', '--local', '--repo', 'my-repo', '42']);
+    await dispatch(['mission', 'start', '--local', '--repo', 'my-repo', '42']);
     expect(process.env.GCLI_ORBIT_PROVIDER).toBe('local-worktree');
     expect(process.env.GCLI_ORBIT_REPO_NAME).toBe('my-repo');
     expect(mockStartMission).toHaveBeenCalledWith({
@@ -357,13 +361,13 @@ describe('orbit-cli dispatch()', () => {
 
   it('propagates non-zero exit code from runner', async () => {
     mockStartMission.mockResolvedValueOnce({ exitCode: 2, missionId: 'test' });
-    const code = await dispatch(['mission', '42']);
+    const code = await dispatch(['mission', 'start', '42']);
     expect(code).toBe(2);
   });
 
   it('returns 1 when runner throws', async () => {
     mockStartMission.mockRejectedValueOnce(new Error('boom'));
-    const code = await dispatch(['mission', '42']);
+    const code = await dispatch(['mission', 'start', '42']);
     expect(code).toBe(1);
   });
 });
