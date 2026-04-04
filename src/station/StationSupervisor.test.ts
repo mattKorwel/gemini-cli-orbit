@@ -6,16 +6,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StationSupervisor } from './StationSupervisor.js';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import * as ConfigManager from '../core/ConfigManager.js';
+import { ProcessManager } from '../core/ProcessManager.js';
 
-vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('../playbooks/fix.js');
 vi.mock('../playbooks/ready.js');
 vi.mock('../playbooks/review.js');
 vi.mock('../core/ConfigManager.js');
+vi.mock('../core/ProcessManager.js');
 
 describe('StationSupervisor', () => {
   let manager: StationSupervisor;
@@ -23,11 +23,11 @@ describe('StationSupervisor', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     manager = new StationSupervisor('/mock/dirname');
-    (spawnSync as any).mockReturnValue({
+    (ProcessManager.runSync as any).mockReturnValue({
       status: 0,
-      stdout: Buffer.from(''),
-      stderr: Buffer.from(''),
-    } as any);
+      stdout: '',
+      stderr: '',
+    });
     (fs.existsSync as any).mockReturnValue(true);
     (ConfigManager.getRepoConfig as any).mockReturnValue({
       repoName: 'test-repo',
@@ -47,8 +47,12 @@ describe('StationSupervisor', () => {
       '/mnt/disks/data/main',
     );
 
-    expect(spawnSync).toHaveBeenCalledWith('git', ['init'], expect.any(Object));
-    expect(spawnSync).toHaveBeenCalledWith(
+    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+      'git',
+      ['init'],
+      expect.any(Object),
+    );
+    expect(ProcessManager.runSync).toHaveBeenCalledWith(
       'git',
       ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
       expect.any(Object),
