@@ -20,4 +20,19 @@ describe('GitExecutor', () => {
     expect(cmd.args).toEqual(['worktree', 'add', '/wt', 'feat']);
     expect(cmd.options?.cwd).toBe('/src');
   });
+
+  it('creates a fetch command with explicit refspec', () => {
+    const cmd = GitExecutor.fetch('/test', 'origin', 'feat/test');
+    expect(cmd.args).toEqual([
+      'fetch',
+      '--depth=1',
+      'origin',
+      'refs/heads/feat/test:refs/heads/feat/test',
+    ]);
+  });
+
+  it('creates a checkout command', () => {
+    const cmd = GitExecutor.checkout('/test', 'feat/test');
+    expect(cmd.args).toEqual(['checkout', 'feat/test']);
+  });
 });

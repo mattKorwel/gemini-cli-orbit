@@ -19,6 +19,8 @@ import { SessionManager } from '../utils/SessionManager.js';
 import { TempManager } from '../utils/TempManager.js';
 import { getRepoConfig } from '../core/ConfigManager.js';
 
+import { type Command } from '../core/executors/types.js';
+
 /**
  * StationSupervisor: Remote host management layer.
  * Responsible for workspace setup and mission spawning.
@@ -80,6 +82,16 @@ export class StationSupervisor {
     branch: string,
     mirrorPath?: string,
   ) {
+    const run = (cmd: Command) => {
+      const res = ProcessManager.runSync(cmd.bin, cmd.args, cmd.options);
+      if (res.status !== 0) {
+        throw new Error(
+          `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n${res.stderr}`,
+        );
+      }
+      return res;
+    };
+
     if (fs.existsSync(path.join(targetDir, '.git'))) {
       console.log(`✅ Git workspace already initialized at ${targetDir}`);
       const checkoutCmd = GitExecutor.checkout(targetDir, branch);
@@ -91,12 +103,8 @@ export class StationSupervisor {
       if (res.status !== 0) {
         console.log(`   - Branch ${branch} not found locally, fetching...`);
         const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-        ProcessManager.runSync(fetchCmd.bin, fetchCmd.args, fetchCmd.options);
-        ProcessManager.runSync(
-          checkoutCmd.bin,
-          checkoutCmd.args,
-          checkoutCmd.options,
-        );
+        run(fetchCmd);
+        run(checkoutCmd);
       }
       return 0;
     }
@@ -106,11 +114,8 @@ export class StationSupervisor {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const initCmd = GitExecutor.init(targetDir);
-    ProcessManager.runSync(initCmd.bin, initCmd.args, initCmd.options);
-
-    const remoteCmd = GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl);
-    ProcessManager.runSync(remoteCmd.bin, remoteCmd.args, remoteCmd.options);
+    run(GitExecutor.init(targetDir));
+    run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
 
     if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
       console.log(`   - Using reference mirror: ${mirrorPath}`);
@@ -123,15 +128,8 @@ export class StationSupervisor {
       fs.writeFileSync(alternatesPath, mirrorObjects);
     }
 
-    const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-    ProcessManager.runSync(fetchCmd.bin, fetchCmd.args, fetchCmd.options);
-
-    const finalCheckout = GitExecutor.checkout(targetDir, branch);
-    ProcessManager.runSync(
-      finalCheckout.bin,
-      finalCheckout.args,
-      finalCheckout.options,
-    );
+    run(GitExecutor.fetch(targetDir, 'origin', branch));
+    run(GitExecutor.checkout(targetDir, branch));
 
     console.log(`✅ Workspace ready on branch: ${branch}`);
     return 0;
