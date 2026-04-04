@@ -131,14 +131,6 @@ export interface ListStationsOptions {
 }
 
 /**
- * Options for deleting a station.
- */
-export interface DeleteStationOptions {
-  name?: string | undefined;
-  force?: boolean | undefined;
-}
-
-/**
  * Options for monitoring CI.
  */
 export interface MonitorCIOptions {
@@ -152,6 +144,7 @@ export interface MonitorCIOptions {
 export interface SplashdownOptions {
   name?: string | undefined;
   all?: boolean | undefined;
+  force?: boolean | undefined;
 }
 
 /**
@@ -172,7 +165,6 @@ export interface IOrbitSDK {
   installShell(): Promise<void>;
   listStations(options: ListStationsOptions): Promise<StationInfo[]>;
   activateStation(name: string): Promise<void>;
-  deleteStation(options: DeleteStationOptions): Promise<void>;
   listSchematics(): string[];
   getSchematic(name: string): OrbitConfig | null;
   saveSchematic(name: string, config: Partial<OrbitConfig>): Promise<void>;

@@ -277,22 +277,10 @@ export class FleetManager {
   }
 
   /**
-   * Decommission a specific station or all remote capsules.
-   */
-  async deleteStation(options: DeleteStationOptions): Promise<void> {
-    // Strictly redirect to scoped splashdown
-    if (options.name) {
-      await this.splashdown({ name: options.name });
-    } else {
-      await this.splashdown({ all: true });
-    }
-  }
-
-  /**
    * Scoped Emergency shutdown or full decommissioning of Orbit infrastructure.
    */
   async splashdown(options: SplashdownOptions = {}): Promise<number> {
-    const { name, all } = options;
+    const { name, all, force } = options;
     const settings = loadSettings();
 
     // 1. Resolve Target Station (Explicit Name > Active Station)
@@ -343,9 +331,11 @@ export class FleetManager {
     // 5. Destructive Hardware Decommissioning (--all or named)
     // If a name was provided, we assume they want to decommission that station
     if (all || name) {
-      const confirmed = await this.confirm(
-        `⚠️  DESTRUCTIVE: This will PERMANENTLY DELETE all resources for station "${receipt.name}". Proceed? (y/n): `,
-      );
+      const confirmed =
+        force ||
+        (await this.confirm(
+          `⚠️  DESTRUCTIVE: This will PERMANENTLY DELETE all resources for station "${receipt.name}". Proceed? (y/n): `,
+        ));
 
       if (confirmed) {
         this.observer.onLog?.(

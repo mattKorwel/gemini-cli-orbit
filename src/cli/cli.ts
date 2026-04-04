@@ -263,7 +263,7 @@ export async function dispatch(argv: string[]): Promise<number> {
           return;
         }
         if ((action === 'delete' || action === 'rm') && name) {
-          await sdk.deleteStation({ name });
+          await sdk.splashdown({ name });
           return;
         }
       },

@@ -186,13 +186,6 @@ export class OrbitSDK implements IOrbitSDK {
   }
 
   /**
-   * Decommission a specific station or all remote capsules.
-   */
-  async deleteStation(options: DeleteStationOptions): Promise<void> {
-    return this.fleet.deleteStation(options);
-  }
-
-  /**
    * List all available infrastructure schematics.
    */
   listSchematics(): string[] {

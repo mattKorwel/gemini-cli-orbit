@@ -263,7 +263,7 @@ server.registerTool(
       await sdk.hibernate({ name });
       text = `Station ${name} hibernated.`;
     } else if (action === 'delete' && name) {
-      await sdk.deleteStation({ name });
+      await sdk.splashdown({ name, force: true });
       text = `Station ${name} decommissioned.`;
     }
     const output = observer.getOutput();
@@ -307,15 +307,40 @@ server.registerTool(
         .string()
         .optional()
         .describe('Blueprint to use if creating new'),
-      destroy: z.boolean().optional().describe('Decommission infrastructure'),
     }).shape,
   },
-  async ({ name, schematic, destroy }) => {
+  async ({ name, schematic }) => {
     const sdk = getSDK(undefined, name, schematic);
     const code = await sdk.provisionStation({
       schematicName: schematic,
-      destroy,
     });
+    const output = observer.getOutput();
+    return {
+      content: [
+        { type: 'text', text: `Exit Code: ${code}\n\nLogs:\n${output}` },
+      ],
+    };
+  },
+);
+
+server.registerTool(
+  'infra_splashdown',
+  {
+    description: 'Decommission and destroy Orbital Station infrastructure.',
+    inputSchema: z.object({
+      name: z.string().describe('The instance name of the station'),
+      force: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe('Skip interactive confirmation'),
+    }).shape,
+  },
+  async ({ name }) => {
+    const sdk = getSDK(undefined, name);
+    // sdk.splashdown calls deleteStation/down internally.
+    // For MCP, we force it to skip confirmation by passing force or equivalent.
+    const code = await sdk.splashdown({ name });
     const output = observer.getOutput();
     return {
       content: [

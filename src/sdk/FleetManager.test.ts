@@ -90,7 +90,7 @@ describe('FleetManager', () => {
       mockReceipt,
     ]);
 
-    await fleet.deleteStation({ name: 'test-station' });
+    await fleet.splashdown({ name: 'test-station', force: true });
 
     expect(InfrastructureFactory.getProvisioner).toHaveBeenCalledWith(
       'actual-instance-name',
