@@ -5,7 +5,6 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
 import {
   type InfrastructureSpec,
   type ProjectContext,
@@ -21,9 +20,7 @@ import { LogLevel } from '../core/Logger.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
-import { TempManager } from '../utils/TempManager.js';
 import { detectRemoteUrl } from '../core/ConfigManager.js';
-import type { ExecOptions } from '../providers/BaseProvider.js';
 import {
   type OrbitObserver,
   type MissionOptions,
@@ -61,7 +58,6 @@ export class MissionManager {
     );
 
     const isLocalWorkspace = provider.type === 'local-worktree';
-
     const mCtx = resolveMissionContext(identifier, action);
     const branch = mCtx.branchName;
     const containerName = mCtx.containerName;
@@ -77,175 +73,93 @@ export class MissionManager {
       return { missionId, exitCode: await this.attach({ identifier }) };
     }
 
-    const repoWorkspacesDir = isLocalWorkspace
-      ? path.resolve(
-          getPrimaryRepoRoot(this.projectCtx.repoRoot),
-          '..',
-          'workspaces',
-          this.projectCtx.repoName || '',
-        )
-      : `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName || ''}`;
-
-    let upstreamUrl = this.infra.upstreamRepo
-      ? `https://github.com/${this.infra.upstreamRepo}.git`
-      : detectRemoteUrl(this.projectCtx.repoRoot);
-
-    if (!upstreamUrl) {
-      upstreamUrl = UPSTREAM_REPO_URL;
-    }
-    this.observer.onLog?.(
-      LogLevel.DEBUG,
-      'MISSION',
-      `Upstream URL: ${upstreamUrl}`,
-    );
-
-    const remoteWorkspaceDir = isLocalWorkspace
-      ? path.join(
-          getPrimaryRepoRoot(this.projectCtx.repoRoot),
-          '..',
-          'workspaces',
-          this.projectCtx.repoName || '',
-          branch,
-        )
-      : `${repoWorkspacesDir}/${mCtx.workspaceName}`;
-
-    // 3. Preparation & Auth
-    let githubToken = '';
+    // 3. Environment Sync (Phase 0) - Only for Remote
     if (!isLocalWorkspace) {
-      try {
-        githubToken = TempManager.getToken(this.projectCtx.repoName || '');
-      } catch (_e) {
-        this.observer.onLog?.(
-          LogLevel.WARN,
-          'AUTH',
-          'No GitHub token found. Private repos may fail.',
-        );
-      }
+      this.observer.onProgress?.('PHASE 0', '📦 Synchronizing environment...');
+
+      // Lazy Sync Bundle (Trailing slash means sync contents)
+      await provider.syncIfChanged(`${LOCAL_BUNDLE_PATH}/`, BUNDLE_PATH, {
+        sudo: true,
+      });
+
+      // Lazy Sync Project Configs (.gemini)
+      const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
+      const remoteConfigDir = `${ORBIT_ROOT}/project-configs`;
+      await provider.syncIfChanged(`${localConfigDir}/`, remoteConfigDir, {
+        sudo: true,
+      });
     }
 
-    // 4. Mission Preparation
+    // 4. Mission Preparation (Hardware/Container Layer)
     await provider.prepareMissionWorkspace(identifier, action, this.infra);
 
-    // 5. Build/Sync Phase (Phase 0)
-    if (!isLocalWorkspace) {
-      this.observer.onProgress?.(
-        'PHASE 0',
-        '📦 Synchronizing source and preparing environment...',
-      );
+    // 5. Worker Handshake (Phase 1 & 2)
+    this.observer.onProgress?.(
+      'PHASE 1',
+      '🧪 Running worker initialization...',
+    );
 
-      // Deploy Extension Bundle to Station (ensures remote worker has latest code)
+    const workerPath = isLocalWorkspace
+      ? `${LOCAL_BUNDLE_PATH}/station.js`
+      : `${BUNDLE_PATH}/station.js`;
+
+    const policyPath = isLocalWorkspace
+      ? path.join(
+          this.projectCtx.repoRoot,
+          '.gemini/policies/workspace-policy.toml',
+        )
+      : `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+
+    const upstreamUrl = this.infra.upstreamRepo
+      ? `https://github.com/${this.infra.upstreamRepo}.git`
+      : detectRemoteUrl(this.projectCtx.repoRoot) || UPSTREAM_REPO_URL;
+
+    const mirrorPath = `${ORBIT_ROOT}/main`;
+
+    // Step A: INIT (Git layer)
+    const initCmd = `node ${workerPath} init ${identifier} ${branch} ${upstreamUrl} ${mirrorPath}`;
+    const initExitCode = await provider.exec(initCmd, {
+      wrapCapsule: isLocalWorkspace ? undefined : containerName,
+      interactive: true,
+    });
+
+    if (initExitCode !== 0) {
       this.observer.onLog?.(
-        LogLevel.DEBUG,
-        'SETUP',
-        '   - Syncing extension bundle...',
+        LogLevel.ERROR,
+        'MISSION',
+        `❌ Git initialization failed.`,
       );
-      await provider.sync(LOCAL_BUNDLE_PATH, BUNDLE_PATH, { sudo: true });
-
-      const buildOptions: ExecOptions = {
-        cwd: remoteWorkspaceDir,
-        interactive: true,
-        sensitiveEnv: { GITHUB_TOKEN: githubToken },
-      };
-
-      // Ensure Workspace exists
-      const wtStatus = await provider.exec(
-        `ls -d ${remoteWorkspaceDir}`,
-        { ...buildOptions, cwd: undefined }, // Don't use non-existent CWD for the existence check!
-      );
-      if (wtStatus !== 0) {
-        this.observer.onLog?.(
-          LogLevel.INFO,
-          'SETUP',
-          `   - Preparing git workspace...`,
-        );
-        const mirrorPath = `${ORBIT_ROOT}/main`;
-        const hasMirror =
-          (await provider.exec(`ls -d ${mirrorPath}/.git`, { quiet: true })) ===
-          0;
-
-        const quietOptions = { ...buildOptions, quiet: true };
-
-        const setupCmds = [
-          { cmd: `sudo mkdir -p ${repoWorkspacesDir}`, options: quietOptions },
-          { cmd: `sudo chmod -R 777 ${ORBIT_ROOT}`, options: quietOptions },
-          {
-            cmd: `mkdir -p ${remoteWorkspaceDir} && cd ${remoteWorkspaceDir} && git init && git remote add origin ${upstreamUrl} && git fetch --depth=1 ${hasMirror ? `--reference ${mirrorPath}` : ''} origin ${branch} && git checkout ${branch}`,
-            options: quietOptions,
-          },
-          {
-            cmd: `sudo chmod -R 777 ${remoteWorkspaceDir}`,
-            options: quietOptions,
-          },
-        ];
-        for (const setup of setupCmds) {
-          const res = await provider.exec(setup.cmd, setup.options);
-          if (res !== 0) throw new Error(`Setup command failed: ${setup.cmd}`);
-        }
-      }
+      return { missionId, exitCode: initExitCode };
     }
 
-    // 6. Evaluation Phase (Phase 1)
-    const autonomousActions = ['review', 'fix', 'implement', 'ready'];
-    if (autonomousActions.includes(action)) {
+    // Step B: RUN (Task layer)
+    if (action !== 'chat') {
       this.observer.onProgress?.(
-        'PHASE 1',
-        '🧪 Evaluating change behavior and quality...',
+        'PHASE 2',
+        `🏃 Executing ${action} playbook...`,
       );
-
-      const workerPath = isLocalWorkspace
-        ? `${LOCAL_BUNDLE_PATH}/station.js`
-        : `${BUNDLE_PATH}/station.js`;
-
-      const policyPath = isLocalWorkspace
-        ? path.join(
-            this.projectCtx.repoRoot,
-            '.gemini/policies/workspace-policy.toml',
-          )
-        : `${ORBIT_ROOT}/policies/workspace-policy.toml`;
-
-      const workerCmd = `node ${workerPath} ${identifier} ${branch} ${policyPath} ${action}`;
-
-      const exitCode = await provider.exec(workerCmd, {
-        cwd: remoteWorkspaceDir,
+      const runCmd = `node ${workerPath} run ${identifier} ${branch} ${action} ${policyPath}`;
+      const runExitCode = await provider.exec(runCmd, {
         wrapCapsule: isLocalWorkspace ? undefined : containerName,
         interactive: true,
       });
 
-      if (exitCode !== 0) {
-        this.observer.onLog?.(
-          LogLevel.ERROR,
-          'MISSION',
-          `❌ Mission action '${action}' failed with code ${exitCode}`,
-        );
-        return { missionId, exitCode };
+      if (runExitCode !== 0) {
+        return { missionId, exitCode: runExitCode };
       }
     }
 
-    // 7. Synthesis Phase (Phase 2)
-    if (autonomousActions.includes(action)) {
-      this.observer.onProgress?.(
-        'PHASE 2',
-        '📝 Finalizing mission assessment...',
-      );
-    }
-
+    // 6. Finalization & Auto-Attach
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
       `✅ Mission '${missionId}' ready.`,
     );
 
-    // 8. Auto-Attach
     if (!isLocalWorkspace) {
-      this.observer.onLog?.(
-        LogLevel.DEBUG,
-        'MISSION',
-        '   - Initializing persistent session...',
-      );
+      const remoteWorkspaceDir = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
       const tmuxCmd = `tmux new-session -d -s default -c ${remoteWorkspaceDir} "exec /bin/bash"`;
-      await provider.exec(tmuxCmd, {
-        wrapCapsule: containerName,
-      });
+      await provider.exec(tmuxCmd, { wrapCapsule: containerName });
     }
 
     this.observer.onLog?.(
@@ -265,12 +179,11 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-
     await provider.ensureReady();
     this.observer.onLog?.(
       LogLevel.INFO,
       'STATION',
-      `🛰️  Entering raw shell on station: ${this.infra.instanceName}`,
+      `🛰️ Entering raw shell on station: ${this.infra.instanceName}`,
     );
     return provider.stationShell();
   }
@@ -279,20 +192,18 @@ export class MissionManager {
    * Drops into a raw interactive shell inside a mission capsule.
    */
   async missionShell(options: { identifier: string }): Promise<number> {
-    const { identifier } = options;
     const provider = ProviderFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
-
     const capsules = await provider.listCapsules();
-    const target = capsules.find((c) => c.includes(identifier));
+    const target = capsules.find((c) => c.includes(options.identifier));
 
     if (!target) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'SHELL',
-        `❌ No active mission found for ${identifier}`,
+        `❌ No active mission found for ${options.identifier}`,
       );
       return 1;
     }
@@ -300,9 +211,8 @@ export class MissionManager {
     this.observer.onLog?.(
       LogLevel.INFO,
       'SHELL',
-      `🛰️  Entering raw shell in capsule: ${target}`,
+      `🛰️ Entering raw shell in capsule: ${target}`,
     );
-
     return provider.missionShell(target);
   }
 
@@ -315,60 +225,24 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'STATION',
-      `🛰️  Station: ${this.infra.instanceName}`,
-    );
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'CLEANUP',
-      `🧹 Surgically jettisoning capsule and workspace for #${identifier} in ${this.projectCtx.repoName}...`,
-    );
-
     const mCtx = resolveMissionContext(identifier, action);
 
     try {
       const capsules = await provider.listCapsules();
       const targetCapsule = capsules.find((c) => c.includes(identifier));
 
-      if (!targetCapsule) {
-        this.observer.onLog?.(
-          LogLevel.INFO,
-          'CLEANUP',
-          `ℹ️  No active capsule found for identifier ${identifier}.`,
-        );
-      } else {
-        this.observer.onLog?.(
-          LogLevel.INFO,
-          'CLEANUP',
-          `   🔥 Decommissioning capsule: ${targetCapsule}`,
-        );
+      if (targetCapsule) {
         await provider.stopCapsule(targetCapsule);
         await provider.removeCapsule(targetCapsule);
       }
 
-      const isLocal =
-        !this.infra.projectId ||
-        this.infra.projectId === 'local' ||
-        (this.infra.providerType as any) === 'local-worktree';
-
-      if (!isLocal) {
+      if (!this.infra.projectId || this.infra.projectId === 'local') {
+        // Local cleanup if needed
+      } else {
         const workspacePath = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
-        this.observer.onLog?.(
-          LogLevel.INFO,
-          'CLEANUP',
-          `   📂 Purging remote workspace: ${workspacePath}`,
-        );
         await provider.exec(`rm -rf ${workspacePath}`);
       }
 
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'CLEANUP',
-        `✅ Mission resources for ${identifier} have been jettisoned.`,
-      );
       return { missionId: identifier, exitCode: 0 };
     } catch (e: any) {
       throw new Error(`Jettison failed: ${e.message}`, { cause: e });
@@ -376,7 +250,7 @@ export class MissionManager {
   }
 
   /**
-   * Identify and remove idle mission capsules based on inactivity.
+   * Identify and remove idle mission capsules.
    */
   async reap(options: ReapOptions): Promise<number> {
     const threshold = options.threshold ?? 4;
@@ -384,53 +258,18 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'REAPER',
-      `🧹 Orbit Reaper: Scanning for idle missions (threshold: ${threshold}h)...`,
-    );
-
     const capsules = await provider.listCapsules();
-    if (capsules.length === 0) {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'REAPER',
-        '✅ No active mission capsules found.',
-      );
-      return 0;
-    }
 
     let reapedCount = 0;
     for (const capsule of capsules) {
       if (capsule === 'main' || capsule === 'primary') continue;
-
       const idleTimeSeconds = await provider.getCapsuleIdleTime(capsule);
       const idleTimeHours = Math.floor(idleTimeSeconds / 3600);
-      const shouldReap = options.force || idleTimeHours >= threshold;
-
-      if (shouldReap) {
-        this.observer.onLog?.(
-          LogLevel.INFO,
-          'REAPER',
-          `🔥 Reaping idle capsule: ${capsule} (Idle: ${idleTimeHours}h)`,
-        );
+      if (options.force || idleTimeHours >= threshold) {
         const res = await provider.removeCapsule(capsule);
         if (res === 0) reapedCount++;
-      } else {
-        this.observer.onLog?.(
-          LogLevel.INFO,
-          'REAPER',
-          `💤 Skipping active capsule: ${capsule} (Idle: ${idleTimeHours}h)`,
-        );
       }
     }
-
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'REAPER',
-      `✅ Reaper complete. ${reapedCount} missions decommissioned.`,
-    );
     return reapedCount;
   }
 
@@ -443,17 +282,12 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-
     const mCtx = resolveMissionContext(identifier, action);
     const capsules = await provider.listCapsules();
 
-    // 1. Try exact match first
-    let target = capsules.find((c) => c === mCtx.containerName);
-
-    // 2. Fallback to includes check (legacy/partial)
-    if (!target) {
-      target = capsules.find((c) => c.includes(identifier));
-    }
+    const target =
+      capsules.find((c) => c === mCtx.containerName) ||
+      capsules.find((c) => c.includes(identifier));
 
     if (!target) {
       this.observer.onLog?.(
@@ -464,17 +298,11 @@ export class MissionManager {
       return 1;
     }
 
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'ATTACH',
-      `🛰️  Attaching to mission: ${target}`,
-    );
-
     return provider.attach(target);
   }
 
   /**
-   * Inspect latest local or remote mission telemetry.
+   * Inspect latest mission telemetry.
    */
   async getLogs(options: GetLogsOptions): Promise<number> {
     const { identifier, action = 'review' } = options;
@@ -482,7 +310,6 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-
     const mId = SessionManager.generateMissionId(identifier, action);
     const logPath = path.join(
       getProjectOrbitDir(this.projectCtx.repoRoot),
@@ -490,31 +317,15 @@ export class MissionManager {
     );
 
     if (fs.existsSync(logPath)) {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'LOGS',
-        `📄 Showing local logs for ${mId}:`,
-      );
       console.log(fs.readFileSync(logPath, 'utf8'));
       return 0;
     }
 
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'LOGS',
-      `🛰️  Fetching remote telemetry for ${mId}...`,
-    );
-    // Heuristic: try to find the capsule and read logs from it
     const mCtx = resolveMissionContext(identifier, action);
     const capsules = await provider.listCapsules();
-
-    // 1. Exact match
-    let target = capsules.find((c) => c === mCtx.containerName);
-
-    // 2. Partial match
-    if (!target) {
-      target = capsules.find((c) => c.includes(identifier));
-    }
+    const target =
+      capsules.find((c) => c === mCtx.containerName) ||
+      capsules.find((c) => c.includes(identifier));
 
     if (target) {
       await provider.exec(`cat /tmp/mission.log`, {
@@ -524,11 +335,6 @@ export class MissionManager {
       return 0;
     }
 
-    this.observer.onLog?.(
-      LogLevel.ERROR,
-      'LOGS',
-      `❌ No logs found for ${mId}`,
-    );
     return 1;
   }
 }

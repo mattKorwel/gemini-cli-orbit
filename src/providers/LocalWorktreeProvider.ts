@@ -141,7 +141,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
     };
   }
 
-  async sync(): Promise<number> {
+  async sync(_local: string, _remote: string): Promise<number> {
+    return 0;
+  }
+
+  async syncIfChanged(_local: string, _remote: string): Promise<number> {
     return 0;
   }
 

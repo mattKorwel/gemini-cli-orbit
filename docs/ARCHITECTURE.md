@@ -1,129 +1,45 @@
-# Orbit Architecture: Sovereign Orbital Infrastructure
+# Orbit Architecture: Tiered Handshake 🛰️
 
-Orbit is designed to decouple your development presence from your physical
-hardware, allowing you to **Escape the Gravity** of terrestrial constraints like
-CPU limits, battery life, and network dependency.
+Orbit uses a two-tier "Chunky Handshake" model to minimize SSH overhead and
+maximize execution speed.
 
-## 🛰️ The Hub & Spoke Model
+## 🏗️ The Two-Tier Model
 
-Orbit operates on a distributed architecture consisting of a persistent central
-station and ephemeral mission environments.
+### Tier 1: Hardware & Base Software (`infra liftoff`)
 
-### 1. The Host Station (The Hub)
+The local SDK uses Pulumi to provision the cloud resources.
 
-The **Orbital Station** is a persistent, high-performance host (typically
-running Container-Optimized OS) that acts as your primary digital outpost.
+1.  **GCE VM & Disk**: High-performance compute and a persistent 500GB data
+    disk.
+2.  **Supervisor**: A permanent Docker container that maintains the signal lock.
+3.  **Hashed Sync**: The extension `bundle/` and project `.gemini` configs are
+    synced to the host using MD5 content hashing to avoid redundant transfers.
 
-- **Persistence**: Maintains a large, high-performance data disk
-  (`/mnt/disks/data`).
-- **Identity**: Houses your shared credentials, shell aliases, and Gemini
-  extensions.
-- **Mirroring**: Maintains a "Source of Truth" mirror of your primary
-  repositories.
+### Tier 2: Execution & Mission Start (`mission start`)
 
-### 2. Mission Capsules (The Spokes)
+The local SDK performs a lightweight handshake with the remote **Worker**.
 
-When you launch a mission (e.g., `/orbit:mission 123`), Orbit spawns an isolated
-**Mission Capsule**.
+1.  **Capsule Provisioning**: A fresh, isolated container is started for the PR.
+2.  **Chunky Handshake**: The SDK sends exactly **one** "init" command and
+    **one** "run" command to the worker.
+3.  **The Worker (`station.js`)**:
+    - **Init Phase**: The worker (running inside the capsule) initializes the
+      Git workspace from the host mirror using `--reference`.
+    - **Run Phase**: The worker executes the mission playbook (`review`, `fix`,
+      etc.).
 
-- **Isolation**: Every mission runs in its own process-isolated container.
-- **Speed**: Uses **Git Reference Clones** against the Host Station's mirror,
-  making checkouts nearly instantaneous.
-- **Statelessness**: Capsules are ephemeral. You can "Jettison" them when a
-  mission is complete without affecting the Host Station.
+## 🔄 Self-Healing & Lazy Sync
 
-### 3. Shared State Strategy
+Orbit automatically detects if your local extension code or project policies
+have changed. It performs a content-hash check against the remote host before
+every mission start. If they match, zero bytes are transferred. If they differ,
+only the changed files are `rsync`'d.
 
-Orbit synchronizes your terrestrial environment to the orbital environment via a
-shared configuration mount. This ensures that your UI themes, plugins, and
-custom logic are available in every mission capsule.
+## 💾 Data Persistence
 
-## 🔗 Persistence & Re-attachment
+All data lives on the persistent data disk mounted at `/mnt/disks/data`.
 
-Unlike traditional remote environments, Orbit sessions are persistent.
-
-- You can **Attach** to a running mission from any terrestrial machine.
-- If your local machine sleeps or loses power, the Mission Capsule continues its
-  trajectory.
-- Autonomous missions (like automated refactoring or deep reviews) run
-  independently in the background.
-
-## 4. Cost Management & The Auto-Reaper
-
-To ensure your digital outpost doesn't incur unnecessary costs, Orbit includes
-mechanisms for resource lifecycle management.
-
-### The Auto-Reaper
-
-Orbit provides an optional **Station Autopilot** (The Reaper) that monitors
-station and capsule activity.
-
-- **Idle Detection**: If a mission capsule has had no terminal activity or
-  background task progression for a configurable threshold (e.g., 4 hours), the
-  Reaper can automatically **Jettison** the capsule.
-- **Station Sleep**: If all mission capsules are idle or removed, the Reaper can
-  initiate a **Splashdown** of the Host Station itself, stopping the Station
-  while preserving the persistent data disk.
-- **TTL Policies**: Missions can be launched with a "Time-To-Live," after which
-  they are automatically cleaned up regardless of activity.
-
-## 🛡️ Security & Sovereignty
-
-Orbit is **Sovereign Infrastructure**. You own the host, you own the network,
-and you own the data.
-
-### Hardened Isolation
-
-- **Permissions**: The persistent Host Station data is protected with
-  restrictive permissions (UID 1000, 770), ensuring only the mission user and
-  capsule processes have access.
-- **Network Sovereignty**: You connect directly to your own infrastructure. SSH
-  access is restricted via configurable firewall rules (Step 1).
-- **Read-Only Core**: The primary repository mirror is mounted **Read-Only**
-  into mission capsules for maximum safety.
-
-### Secure Secret Management
-
-- **RAM-based Injection**: Sensitive credentials (like GitHub PATs) are injected
-  into Mission Capsules via temporary RAM-based file mounts (`/dev/shm`),
-  preventing them from leaking into system process lists or persistent logs.
-- **Redaction**: GitHub tokens are never passed in `git clone` URLs, relying
-  instead on the station's secure `.netrc` configuration.
-- **Least-Privilege Scopes**: Stations are provisioned with granular IAM scopes
-  (Logging, Monitoring, Storage) instead of broad Cloud Platform access.
-
-### Defensive Execution
-
-- **Input Sanitization**: All user-provided names for schematics and stations
-  are sanitized to prevent path traversal and shell injection.
-- **Safe Command Execution**: Remote commands are executed using argument arrays
-  rather than raw shell strings, eliminating entire classes of shell injection
-  vulnerabilities.
-- **Policy Enforcement**: Fine-grained security rules in `.gemini/policies/`
-  control what the orbital agent can and cannot do.
-
-## 🤖 MCP-Powered Interface
-
-Orbit uses the **Model Context Protocol (MCP)** as its primary interface for
-both human and autonomous interactions.
-
-### 1. Centralized Command Logic
-
-All Orbit functionality is consolidated into a single, persistent MCP server.
-This eliminates path-resolution issues and ensures that the extension behaves
-consistently across different platforms and installation methods.
-
-### 2. Autonomous Mission Management
-
-By exposing mission logic as type-safe **MCP Tools**, Orbit allows autonomous
-agents to:
-
-- **Provision** their own mission environments.
-- **Check** the status of the orbital constellation.
-- **Cleanup** resources when tasks are complete.
-
-### 3. Unified User Experience
-
-User-facing slash commands (e.g., `/orbit:mission`) are powered by **MCP
-Prompts**, providing structured argument parsing, real-time validation, and rich
-inline documentation.
+- `/mnt/disks/data/main`: The bare repository mirror.
+- `/mnt/disks/data/workspaces/`: Individual mission worktrees.
+- `/mnt/disks/data/bundle/`: The active Orbit extension code.
+- `/mnt/disks/data/project-configs/`: Your project's `.gemini` configuration.

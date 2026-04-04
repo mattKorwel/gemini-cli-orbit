@@ -12,9 +12,9 @@ import {
   type CapsuleConfig,
 } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import { GceConnectionManager } from './GceConnectionManager.js';
+import { type SSHManager, type RemoteCommand } from './SSHManager.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
-import { logger } from '../core/Logger.js';
+import { logger, LogLevel } from '../core/Logger.js';
 import {
   type ProjectContext,
   type InfrastructureSpec,
@@ -29,20 +29,19 @@ export class ConnectivityError extends Error {
 
 /**
  * GCE Container-Optimized OS (COS) Execution Provider.
- * Focuses strictly on command execution and capsule management.
- * Infrastructure provisioning is handled by InfrastructureProvisioners.
  */
 export class GceCosProvider implements OrbitProvider {
   public readonly type = 'gce';
   public readonly isLocal = false;
-  projectId: string;
 
-  public zone: string;
-  public stationName: string;
-  private instanceName: string;
-  private repoRoot: string;
-  private conn: GceConnectionManager;
-  private imageUri: string;
+  public readonly projectId: string;
+  public readonly zone: string;
+  public readonly stationName: string;
+
+  private readonly instanceName: string;
+  private readonly repoRoot: string;
+  private readonly imageUri: string;
+  private readonly ssh: SSHManager;
 
   constructor(
     private readonly projectCtx: ProjectContext,
@@ -50,10 +49,8 @@ export class GceCosProvider implements OrbitProvider {
     zone: string,
     instanceName: string,
     repoRoot: string,
+    ssh: SSHManager,
     config: {
-      dnsSuffix?: string;
-      userSuffix?: string;
-      backendType?: 'direct-internal' | 'external';
       imageUri?: string;
       stationName?: string;
     } = {},
@@ -62,31 +59,17 @@ export class GceCosProvider implements OrbitProvider {
     this.zone = zone;
     this.instanceName = instanceName;
     this.repoRoot = repoRoot;
+    this.ssh = ssh;
     this.imageUri =
       config.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
     this.stationName = config.stationName || instanceName;
-
-    this.conn = new GceConnectionManager(
-      this.projectId,
-      this.zone,
-      this.instanceName,
-      {
-        ...config,
-        instanceName: this.instanceName,
-        projectId: this.projectId,
-        zone: this.zone,
-      } as InfrastructureSpec,
-    );
   }
 
   injectState(state: InfrastructureState): void {
-    // In direct-internal mode, we must NOT override the hostname with a direct IP
-    // because BeyondCorp SSH relays (gcpnode.com) only accept the full hostname.
-    if (this.conn.getBackendType() === 'external') {
-      if (state.publicIp) {
-        this.conn.setOverrideHost(state.publicIp);
-      }
+    // If we have a public IP (external backend), override the host in SSH manager
+    if (state.publicIp) {
+      this.ssh.setOverrideHost(state.publicIp);
     }
   }
 
@@ -103,8 +86,6 @@ export class GceCosProvider implements OrbitProvider {
    * Ensures the station is responsive and the supervisor capsule is running.
    */
   async ensureReady(): Promise<number> {
-    await this.conn.onProvisioned();
-
     // Verify main repo existence on host
     const repoCheck = await this.getExecOutput(`ls -d ${this.repoRoot}/.git`, {
       quiet: true,
@@ -117,7 +98,7 @@ export class GceCosProvider implements OrbitProvider {
     }
 
     try {
-      const remote = this.conn.getMagicRemote();
+      const remote = this.ssh.getMagicRemote();
       logger.info(
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
@@ -125,7 +106,7 @@ export class GceCosProvider implements OrbitProvider {
       let check: { exists: boolean; running: boolean } | null = null;
       let lastErr: any = null;
 
-      // SSH Retry Loop: Wait for SSH to actually be available
+      // SSH Retry Loop
       for (let i = 0; i < 10; i++) {
         try {
           check = await this.getCapsuleStatus(this.instanceName);
@@ -185,20 +166,8 @@ export class GceCosProvider implements OrbitProvider {
     return 1;
   }
 
-  getRunCommand(command: string, options: ExecOptions = {}): string {
-    const finalCmd = options.wrapCapsule
-      ? `sudo docker exec ${options.interactive ? '-it' : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} /bin/bash -c ${this.q(command)}`
-      : command;
-
-    return this.conn.getRunCommand(finalCmd, {
-      ...(options.interactive !== undefined
-        ? { interactive: options.interactive }
-        : {}),
-    });
-  }
-
-  private q(val: string): string {
-    return `'${val.replace(/'/g, "'\\''")}'`;
+  getRunCommand(_command: string, _options: ExecOptions = {}): string {
+    return 'NOT_IMPLEMENTED_USE_SSH_MANAGER';
   }
 
   async exec(command: string, options: ExecOptions = {}): Promise<number> {
@@ -210,42 +179,18 @@ export class GceCosProvider implements OrbitProvider {
     command: string,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    const finalCmd = options.wrapCapsule
-      ? `sudo docker exec ${options.interactive ? '-it' : ''} ${options.user ? `-u ${options.user}` : ''} ${options.cwd ? `-w ${options.cwd}` : ''} ${options.wrapCapsule} /bin/bash -c ${this.q(command)}`
-      : command;
-
-    const res = this.conn.run(finalCmd, {
-      ...(options.interactive !== undefined
-        ? { interactive: options.interactive }
-        : {}),
-      ...(options.quiet !== undefined ? { quiet: options.quiet } : {}),
-      ...(options.env !== undefined ? { env: options.env } : {}),
-    });
-
-    let stdout = res.stdout?.toString() || '';
-    let stderr = res.stderr?.toString() || '';
-
-    // Filter out gcloud noise that sometimes leaks into stdout/stderr
-    const filterNoise = (text: string) =>
-      text
-        .split('\n')
-        .filter((line) => {
-          const l = line.toLowerCase();
-          if (l.includes('existing host keys found')) return false;
-          if (l.includes('created [https://www.googleapis.com/')) return false;
-          return true;
-        })
-        .join('\n')
-        .trim();
-
-    stdout = filterNoise(stdout);
-    stderr = filterNoise(stderr);
-
-    return {
-      status: res.status ?? (res.error ? 1 : 0),
-      stdout,
-      stderr,
+    const cmdObj: RemoteCommand = {
+      bin: '/bin/bash',
+      args: ['-c', this.sshQuote(command)],
+      cwd: options.cwd,
+      user: options.user,
+      env: options.env,
     };
+
+    if (options.wrapCapsule) {
+      return this.ssh.runDockerExec(options.wrapCapsule, cmdObj, options);
+    }
+    return this.ssh.runHostCommand(cmdObj, options);
   }
 
   async sync(
@@ -253,7 +198,15 @@ export class GceCosProvider implements OrbitProvider {
     remotePath: string,
     options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
   ): Promise<number> {
-    return this.conn.sync(localPath, remotePath, options);
+    return this.ssh.syncPath(localPath, remotePath, options);
+  }
+
+  async syncIfChanged(
+    localPath: string,
+    remotePath: string,
+    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+  ): Promise<number> {
+    return this.ssh.syncPathIfChanged(localPath, remotePath, options);
   }
 
   async getStatus(): Promise<OrbitStatus> {
@@ -345,32 +298,31 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async attach(name: string): Promise<number> {
-    return this.exec(
-      `sudo docker exec -it ${name} tmux attach -t default || sudo docker exec -it ${name} /bin/bash`,
-      {
-        interactive: true,
-      },
-    );
+    return this.ssh.attachToTmux(name);
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const mounts = config.mounts
       .map((m) => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`)
       .join(' ');
-    const envFlags = config.env
-      ? Object.entries(config.env)
-          .map(([k, v]) => `-e ${k}=${this.q(v)}`)
-          .join(' ')
-      : '';
-    const sensitiveEnvFlags = config.sensitiveEnv
-      ? Object.entries(config.sensitiveEnv)
-          .map(([k, v]) => `-e ${k}=${this.q(v)}`)
-          .join(' ')
-      : '';
+
+    const envFlags = [
+      ...(config.env
+        ? Object.entries(config.env).map(
+            ([k, v]) => `-e ${k}=${this.sshQuote(v)}`,
+          )
+        : []),
+      ...(config.sensitiveEnv
+        ? Object.entries(config.sensitiveEnv).map(
+            ([k, v]) => `-e ${k}=${this.sshQuote(v)}`,
+          )
+        : []),
+    ].join(' ');
+
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
 
     const cmd = config.command || 'while true; do sleep 1000; done';
-    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${sensitiveEnvFlags} ${config.image} /bin/bash -c ${this.q(cmd)}`;
+    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.sshQuote(cmd)}`;
 
     return this.exec(dockerCmd);
   }
@@ -477,5 +429,9 @@ export class GceCosProvider implements OrbitProvider {
       interactive: true,
       user: 'node',
     });
+  }
+
+  private sshQuote(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 }

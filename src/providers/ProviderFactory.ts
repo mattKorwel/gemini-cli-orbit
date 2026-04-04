@@ -8,6 +8,7 @@ import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
 import type { OrbitProvider } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import { GceSSHManager } from './SSHManager.js';
 import {
   getPrimaryRepoRoot,
   type InfrastructureSpec,
@@ -44,35 +45,26 @@ export class ProviderFactory {
       );
     }
 
+    // GCE flow: Initialize SSH Manager first
+    const ssh = new GceSSHManager(
+      infra.projectId!,
+      infra.zone!,
+      infra.instanceName!,
+      infra,
+    );
+
     const gceConfig = {
-      ...(infra.dnsSuffix !== undefined ? { dnsSuffix: infra.dnsSuffix } : {}),
-      ...(infra.userSuffix !== undefined
-        ? { userSuffix: infra.userSuffix }
-        : {}),
-      ...(infra.backendType !== undefined
-        ? { backendType: infra.backendType as 'direct-internal' | 'external' }
-        : {}),
-      ...(infra.imageUri !== undefined ? { imageUri: infra.imageUri } : {}),
-      ...(infra.vpcName !== undefined ? { vpcName: infra.vpcName } : {}),
-      ...(infra.subnetName !== undefined
-        ? { subnetName: infra.subnetName }
-        : {}),
-      ...(infra.machineType !== undefined
-        ? { machineType: infra.machineType }
-        : {}),
-      ...(infra.reaperIdleLimit !== undefined
-        ? { reaperIdleLimit: infra.reaperIdleLimit }
-        : {}),
+      imageUri: infra.imageUri,
       stationName,
     };
 
-    // Default to GCE
     const provider = new GceCosProvider(
       projectCtx,
       infra.projectId!,
       infra.zone!,
       infra.instanceName!,
       getPrimaryRepoRoot(projectCtx.repoRoot),
+      ssh,
       gceConfig,
     );
 

@@ -19,23 +19,22 @@ vi.mock('../core/Logger.js', () => ({
     warn: vi.fn(),
     logOutput: vi.fn(),
   },
-}));
-
-const mockConn = {
-  run: vi.fn(),
-  sync: vi.fn().mockResolvedValue(0),
-  getMagicRemote: vi.fn().mockReturnValue('user@host'),
-  getBackendType: vi.fn().mockReturnValue('direct-internal'),
-  getRunCommand: vi.fn().mockReturnValue('ssh-cmd'),
-  onProvisioned: vi.fn().mockResolvedValue(undefined),
-  setOverrideHost: vi.fn(),
-};
-
-vi.mock('./GceConnectionManager.js', () => ({
-  GceConnectionManager: function () {
-    return mockConn;
+  LogLevel: {
+    INFO: 'INFO',
+    ERROR: 'ERROR',
+    WARN: 'WARN',
   },
 }));
+
+const mockSsh = {
+  runHostCommand: vi.fn(),
+  runDockerExec: vi.fn(),
+  syncPath: vi.fn().mockResolvedValue(0),
+  getMagicRemote: vi.fn().mockReturnValue('user@host'),
+  getBackendType: vi.fn().mockReturnValue('direct-internal'),
+  setOverrideHost: vi.fn(),
+  attachToTmux: vi.fn().mockResolvedValue(0),
+};
 
 describe('GceCosProvider', () => {
   const projectId = 'test-p';
@@ -54,8 +53,17 @@ describe('GceCosProvider', () => {
     (fs.existsSync as any).mockReturnValue(true);
     (fs.mkdirSync as any).mockReturnValue(undefined);
 
-    mockConn.run.mockReturnValue({ status: 0, stdout: '', stderr: '' });
-    mockConn.sync.mockResolvedValue(0);
+    mockSsh.runHostCommand.mockResolvedValue({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    });
+    mockSsh.runDockerExec.mockResolvedValue({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    });
+    mockSsh.syncPath.mockResolvedValue(0);
 
     provider = new GceCosProvider(
       projectCtx,
@@ -63,6 +71,7 @@ describe('GceCosProvider', () => {
       zone,
       instanceName,
       repoRoot,
+      mockSsh as any, // Inject the mock
     );
   });
 
@@ -118,32 +127,10 @@ describe('GceCosProvider', () => {
     );
   });
 
-  it('should destroy the station and its resources', async () => {
-    (spawnSync as any).mockReturnValue({ status: 0 } as any);
-    const res = await provider.destroy();
-    expect(res).toBe(0);
-    expect(spawnSync).toHaveBeenCalledWith(
-      'gcloud',
-      [
-        '--verbosity=error',
-        'compute',
-        'instances',
-        'delete',
-        'test-i',
-        '--project',
-        'test-p',
-        '--zone',
-        'us-west1-a',
-        '--quiet',
-      ],
-      expect.objectContaining({ stdio: 'inherit' }),
-    );
-  });
-
   it('should list active orbit capsules', async () => {
-    mockConn.run.mockReturnValue({
+    mockSsh.runHostCommand.mockResolvedValue({
       status: 0,
-      stdout: Buffer.from('orbit-pr-123\norbit-pr-456\n'),
+      stdout: 'orbit-pr-123\norbit-pr-456\n',
       stderr: '',
     });
 
@@ -152,21 +139,29 @@ describe('GceCosProvider', () => {
   });
 
   it('should execute ensureReady and refresh capsule if missing', async () => {
-    // 1. inspect check returns status 1 (capsule missing)
-    mockConn.run.mockReturnValueOnce({
+    // 1. repo check success
+    mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
-      stdout: '0', // ls -d success
+      stdout: '',
+      stderr: '',
     });
-    mockConn.run.mockReturnValueOnce({
+    // 2. initial capsule check (missing)
+    mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 1,
-      stdout: Buffer.from(''),
-      stderr: Buffer.from('Error: No such object'),
+      stdout: '',
+      stderr: 'No such object',
     });
-    // 2. Refresh commands (pull, rm, run)
-    mockConn.run.mockReturnValue({
+    // 3. refresh commands (pull, rm, run)
+    mockSsh.runHostCommand.mockResolvedValue({
       status: 0,
-      stdout: Buffer.from('true'),
-      stderr: Buffer.from(''),
+      stdout: '',
+      stderr: '',
+    });
+    // 4. Signal lock checks (running)
+    mockSsh.runHostCommand.mockResolvedValue({
+      status: 0,
+      stdout: 'true',
+      stderr: '',
     });
 
     const readyPromise = provider.ensureReady();
@@ -174,35 +169,52 @@ describe('GceCosProvider', () => {
     const res = await readyPromise;
 
     expect(res).toBe(0);
-    expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('ls -d /repo/.git'),
+    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bin: '/bin/bash',
+        args: expect.arrayContaining([
+          expect.stringContaining('ls -d /repo/.git'),
+        ]),
+      }),
       expect.any(Object),
     );
   });
 
   it('should inject infrastructure state into connection manager', () => {
-    mockConn.getBackendType.mockReturnValue('external');
+    (provider as any).projectCtx.backendType = 'external';
     provider.injectState({
       status: 'ready',
       privateIp: '10.0.0.5',
       publicIp: '34.0.0.5',
     });
-    expect(mockConn.setOverrideHost).toHaveBeenCalledWith('34.0.0.5');
+    expect(mockSsh.setOverrideHost).toHaveBeenCalledWith('34.0.0.5');
   });
 
-  it('should use sudo for docker status and stats commands', async () => {
-    mockConn.run.mockReturnValue({ status: 0, stdout: 'true', stderr: '' });
+  it('should use host exec for capsule status commands', async () => {
+    mockSsh.runHostCommand.mockResolvedValue({
+      status: 0,
+      stdout: 'true',
+      stderr: '',
+    });
 
     await provider.getCapsuleStatus('test-capsule');
-    expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('sudo docker inspect'),
-      expect.any(Object),
+    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.arrayContaining([
+          expect.stringContaining('sudo docker inspect'),
+        ]),
+      }),
+      expect.objectContaining({ quiet: true }),
     );
 
     await provider.getCapsuleStats('test-capsule');
-    expect(mockConn.run).toHaveBeenCalledWith(
-      expect.stringContaining('sudo docker stats'),
-      expect.any(Object),
+    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.arrayContaining([
+          expect.stringContaining('sudo docker stats'),
+        ]),
+      }),
+      expect.objectContaining({ quiet: true }),
     );
   });
 });

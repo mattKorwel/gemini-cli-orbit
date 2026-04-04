@@ -7,7 +7,7 @@
 /**
  * Universal Orbit Station (Remote)
  *
- * Stateful orchestrator for complex development loops.
+ * Multi-command orchestrator for remote development.
  */
 
 import { runReviewPlaybook } from '../playbooks/review.js';
@@ -20,23 +20,75 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-export async function runStation(args: string[]) {
-  const prNumberOrIssue = args[0];
-  const _branchName = args[1]; // Unused now as we assume CWD is the worktree
-  const policyPath = args[2];
-  const action = args[3] || 'review';
-
-  if (!prNumberOrIssue || !policyPath) {
-    console.error(
-      'Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]',
-    );
-    return 1;
+/**
+ * COMMAND: init
+ * Performs Git initialization, remote setup, and branch checkout.
+ */
+async function init(
+  targetDir: string,
+  upstreamUrl: string,
+  branch: string,
+  mirrorPath?: string,
+) {
+  if (fs.existsSync(path.join(targetDir, '.git'))) {
+    console.log(`✅ Git workspace already initialized at ${targetDir}`);
+    try {
+      const res = spawnSync('git', ['checkout', branch], { cwd: targetDir });
+      if (res.status !== 0) {
+        console.log(`   - Branch ${branch} not found locally, fetching...`);
+        spawnSync('git', ['fetch', 'origin', branch], { cwd: targetDir });
+        spawnSync('git', ['checkout', branch], { cwd: targetDir });
+      }
+    } catch {}
+    return 0;
   }
 
+  console.log(`📦 Initializing Git workspace at ${targetDir}...`);
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  const runGit = (args: string[]) => {
+    const res = spawnSync('git', args, {
+      cwd: targetDir,
+      stdio: 'inherit',
+    });
+    if (res.status !== 0) {
+      throw new Error(`Git command failed: git ${args.join(' ')}`);
+    }
+  };
+
+  runGit(['init']);
+  runGit(['remote', 'add', 'origin', upstreamUrl]);
+
+  if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
+    console.log(`   - Using reference mirror: ${mirrorPath}`);
+    const alternatesPath = path.join(targetDir, '.git/objects/info/alternates');
+    const mirrorObjects = path.join(mirrorPath, 'objects');
+    fs.mkdirSync(path.dirname(alternatesPath), { recursive: true });
+    fs.writeFileSync(alternatesPath, mirrorObjects);
+  }
+
+  const fetchArgs = ['fetch', '--depth=1', 'origin', branch];
+  runGit(fetchArgs);
+  runGit(['checkout', branch]);
+  console.log(`✅ Workspace ready on branch: ${branch}`);
+  return 0;
+}
+
+/**
+ * COMMAND: run
+ * Executes a mission playbook.
+ */
+async function run(
+  prNumberOrIssue: string,
+  branchName: string,
+  action: string,
+  policyPath: string,
+) {
   const targetDir = process.cwd();
 
-  // Resolve absolute path of gemini to ensure we use the same one in sub-tasks
-  // Prefer the nightly binary which is known to support policies
+  // Resolve absolute path of gemini
   let geminiBin = '/Users/mattkorwel/.gcli/nightly/node_modules/.bin/gemini';
   if (!fs.existsSync(geminiBin)) {
     try {
@@ -44,22 +96,21 @@ export async function runStation(args: string[]) {
       if (whichRes.status === 0 && whichRes.stdout.trim()) {
         geminiBin = whichRes.stdout.trim();
       } else {
-        geminiBin = 'gemini'; // Final fallback
+        geminiBin = 'gemini';
       }
     } catch {
       geminiBin = 'gemini';
     }
   }
 
-  // 1. Resolve Session and Temp Directory
   const config = getRepoConfig();
   const tempManager = new TempManager(config);
   const sessionId =
     SessionManager.getSessionIdFromEnv() ||
-    SessionManager.generateSessionId(prNumberOrIssue, action);
+    SessionManager.generateMissionId(prNumberOrIssue, action);
   const logDir = tempManager.getDir(sessionId);
 
-  // 2. Resolve Policy (CLI > Project Local > Fallback)
+  // Policy Resolution
   let resolvedPolicyPath = policyPath;
   const projectLocalPolicy = path.join(
     targetDir,
@@ -67,44 +118,12 @@ export async function runStation(args: string[]) {
   );
   if (fs.existsSync(projectLocalPolicy)) {
     resolvedPolicyPath = projectLocalPolicy;
-  } else if (!fs.existsSync(resolvedPolicyPath)) {
-    // Attempt fallback to a known location if the passed one doesn't exist
-    const fallbackPolicy = path.join(
-      targetDir,
-      '.gemini/policies/workspace-policy.toml',
-    );
-    if (fs.existsSync(fallbackPolicy)) {
-      resolvedPolicyPath = fallbackPolicy;
-    }
   }
 
-  // 3. Resolve Guidelines (Project Local > Standard)
-  const projectGuidelines = path.join(
-    targetDir,
-    `.gemini/orbit/${action}-guidelines.md`,
-  );
-  let guidelinesPath = '';
-  if (fs.existsSync(projectGuidelines)) {
-    guidelinesPath = projectGuidelines;
-  }
-
-  const missionHeader = `🚀 Orbit Mission | ID: ${prNumberOrIssue} | Session: ${sessionId}`;
+  const missionHeader = `🚀 Orbit Mission | ID: ${prNumberOrIssue} | Action: ${action}`;
   console.log(`\n${missionHeader}`);
   console.log(`📂 Log Directory: ${logDir}`);
   console.log(`🛡️  Using Policy: ${resolvedPolicyPath}`);
-  if (guidelinesPath) console.log(`📖 Using Guidelines: ${guidelinesPath}`);
-
-  // 4. Update Current Session Pointer
-  try {
-    fs.writeFileSync(
-      path.join(targetDir, '.gemini/current-session.json'),
-      JSON.stringify(
-        { sessionId, logDir, action, timestamp: new Date().toISOString() },
-        null,
-        2,
-      ),
-    );
-  } catch {}
 
   // Dispatch to Playbook
   switch (action) {
@@ -116,7 +135,6 @@ export async function runStation(args: string[]) {
         geminiBin,
         logDir,
         missionHeader,
-        guidelinesPath,
       );
 
     case 'fix':
@@ -149,9 +167,11 @@ export async function runStation(args: string[]) {
         geminiBin,
         logDir,
         missionHeader,
-        guidelinesPath,
       );
     }
+    case 'chat':
+      console.log('💬 Session setup complete. Re-attach to tmux to begin.');
+      return 0;
 
     default:
       console.error(`❌ Unknown action: ${action}`);
@@ -159,8 +179,46 @@ export async function runStation(args: string[]) {
   }
 }
 
+/**
+ * Main entry point for the worker.
+ */
+export async function main(args: string[]) {
+  const command = args[0];
+
+  if (command === 'init') {
+    // args: [init, identifier, branch, upstreamUrl, mirrorPath]
+    const identifier = args[1];
+    const branch = args[2];
+    const upstreamUrl = args[3];
+    const mirrorPath = args[4];
+
+    if (!identifier || !branch || !upstreamUrl) {
+      console.error('Usage: init <id> <branch> <url> [mirror]');
+      return 1;
+    }
+    return init(process.cwd(), upstreamUrl, branch, mirrorPath);
+  }
+
+  if (command === 'run') {
+    // args: [run, identifier, branch, action, policyPath]
+    const identifier = args[1];
+    const branch = args[2];
+    const action = args[3];
+    const policyPath = args[4];
+
+    if (!identifier || !policyPath) {
+      console.error('Usage: run <id> <branch> <action> <policy>');
+      return 1;
+    }
+    return run(identifier, branch || '', action || 'chat', policyPath);
+  }
+
+  console.error('Invalid worker command. Use "init" or "run".');
+  return 1;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runStation(process.argv.slice(2))
+  main(process.argv.slice(2))
     .then((code) => process.exit(code || 0))
     .catch((err) => {
       console.error(err);

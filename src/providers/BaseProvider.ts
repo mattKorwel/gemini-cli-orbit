@@ -54,6 +54,12 @@ export interface OrbitProvider {
     options?: SyncOptions,
   ): Promise<number>;
 
+  syncIfChanged(
+    localPath: string,
+    remotePath: string,
+    options?: SyncOptions,
+  ): Promise<number>;
+
   /**
    * Prepares the workspace for a mission (e.g., creates worktree or ensures container).
    */

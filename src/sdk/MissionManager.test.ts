@@ -52,6 +52,7 @@ describe('MissionManager', () => {
       listCapsules: vi.fn().mockResolvedValue([]),
       attach: vi.fn().mockResolvedValue(0),
       exec: vi.fn().mockResolvedValue(0),
+      sync: vi.fn().mockResolvedValue(0),
       ensureReady: vi.fn().mockResolvedValue(0),
     };
     (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
@@ -67,43 +68,7 @@ describe('MissionManager', () => {
     vi.unstubAllEnvs();
   });
 
-  it('should start a new mission and auto-attach if action is chat', async () => {
-    (resolveMissionContext as any).mockReturnValue({
-      branchName: 'feat',
-      containerName: 'orbit-feat-chat',
-      sessionName: 'orbit-feat',
-      workspaceName: 'mission-feat-chat',
-    });
-    mockProvider.getCapsuleStatus.mockResolvedValue({
-      exists: false,
-      running: false,
-    });
-    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
-
-    const result = await manager.start({ identifier: '123', action: 'chat' });
-
-    expect(mockProvider.prepareMissionWorkspace).toHaveBeenCalled();
-    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
-    expect(result.exitCode).toBe(0);
-  });
-
-  it('should auto-attach for CLI users (non-MCP)', async () => {
-    vi.stubEnv('GCLI_MCP', '0'); // Explicitly disable MCP
-    (resolveMissionContext as any).mockReturnValue({
-      branchName: 'feat',
-      containerName: 'orbit-feat-chat',
-      sessionName: 'orbit-feat',
-      workspaceName: 'mission-feat-chat',
-    });
-    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
-
-    const result = await manager.start({ identifier: '123', action: 'chat' });
-
-    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
-    expect(result.exitCode).toBe(0);
-  });
-
-  it('should execute the worker for autonomous actions (review)', async () => {
+  it('should perform chunky handshake (init then run) for a new mission', async () => {
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       containerName: 'orbit-feat-review',
@@ -114,49 +79,58 @@ describe('MissionManager', () => {
 
     const result = await manager.start({ identifier: '123', action: 'review' });
 
-    // Verify worker command execution
+    // 1. Verify init call
     expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('station.js 123 feat'),
-      expect.objectContaining({
-        wrapCapsule: 'orbit-feat-review',
-      }),
+      expect.stringContaining('station.js init 123 feat'),
+      expect.objectContaining({ wrapCapsule: 'orbit-feat-review' }),
     );
-    // Should also auto-attach after the worker finishes
-    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-review');
+
+    // 2. Verify run call
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('station.js run 123 feat review'),
+      expect.objectContaining({ wrapCapsule: 'orbit-feat-review' }),
+    );
+
     expect(result.exitCode).toBe(0);
   });
 
-  it('should skip setup and resume if capsule already exists for chat', async () => {
+  it('should auto-attach for CLI users (non-MCP)', async () => {
+    vi.stubEnv('GCLI_MCP', '0');
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       containerName: 'orbit-feat-chat',
       sessionName: 'orbit-feat',
       workspaceName: 'mission-feat-chat',
     });
-    mockProvider.getCapsuleStatus.mockResolvedValue({
-      exists: true,
-      running: true,
-    });
     mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
 
     const result = await manager.start({ identifier: '123', action: 'chat' });
 
-    expect(mockProvider.prepareMissionWorkspace).not.toHaveBeenCalled();
     expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
     expect(result.exitCode).toBe(0);
   });
 
-  it('should use exact matching for attach targeting', async () => {
-    mockProvider.listCapsules.mockResolvedValue([
-      'orbit-123-chat',
-      'orbit-123-debug-chat',
-    ]);
-
+  it('should skip run phase for chat action (it only needs init)', async () => {
     (resolveMissionContext as any).mockReturnValue({
-      containerName: 'orbit-123-debug-chat',
+      branchName: 'feat',
+      containerName: 'orbit-feat-chat',
+      sessionName: 'orbit-feat',
+      workspaceName: 'mission-feat-chat',
     });
+    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
 
-    await manager.attach({ identifier: '123:debug', action: 'chat' });
-    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-123-debug-chat');
+    await manager.start({ identifier: '123', action: 'chat' });
+
+    // Should call init
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('station.js init 123 feat'),
+      expect.any(Object),
+    );
+
+    // Should NOT call run
+    expect(mockProvider.exec).not.toHaveBeenCalledWith(
+      expect.stringContaining('station.js run 123 feat chat'),
+      expect.any(Object),
+    );
   });
 });

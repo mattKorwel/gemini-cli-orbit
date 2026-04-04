@@ -25,6 +25,7 @@ describe('runStation', () => {
     (spawnSync as any).mockReturnValue({
       status: 0,
       stdout: Buffer.from('{"name": "test-repo"}'),
+      stderr: Buffer.from(''),
     } as any);
     (fs.existsSync as any).mockReturnValue(true);
     (fs.mkdirSync as any).mockReturnValue(undefined as any);
@@ -34,10 +35,65 @@ describe('runStation', () => {
     });
   });
 
+  it('should prepare workspace if upstream URL provided', async () => {
+    // Simulate non-existent .git
+    (fs.existsSync as any).mockImplementation((path: string) => {
+      if (path.endsWith('.git')) return false;
+      return true;
+    });
+
+    await runStation([
+      '123',
+      'feat-test',
+      '/tmp/policy.toml',
+      'review',
+      'https://github.com/org/repo.git',
+      '/mnt/disks/data/main',
+    ]);
+
+    // Verify git init and setup
+    expect(spawnSync).toHaveBeenCalledWith('git', ['init'], expect.any(Object));
+    expect(spawnSync).toHaveBeenCalledWith(
+      'git',
+      ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
+      expect.any(Object),
+    );
+    expect(spawnSync).toHaveBeenCalledWith(
+      'git',
+      expect.arrayContaining(['fetch', '--reference', '/mnt/disks/data/main']),
+      expect.any(Object),
+    );
+  });
+
+  it('should skip setup if .git already exists', async () => {
+    // Simulate existing .git
+    (fs.existsSync as any).mockReturnValue(true);
+
+    await runStation([
+      '123',
+      'feat-test',
+      '/tmp/policy.toml',
+      'review',
+      'https://github.com/org/repo.git',
+    ]);
+
+    // Should NOT call git init
+    expect(spawnSync).not.toHaveBeenCalledWith(
+      'git',
+      ['init'],
+      expect.any(Object),
+    );
+    // Should still try to checkout
+    expect(spawnSync).toHaveBeenCalledWith(
+      'git',
+      ['checkout', 'feat-test'],
+      expect.any(Object),
+    );
+  });
+
   it('should dispatch to the correct playbook', async () => {
     vi.spyOn(fixPlaybook, 'runFixPlaybook').mockResolvedValue(0);
 
-    // Usage: tsx station.ts <ID> <BRANCH_NAME> <POLICY_PATH> [action]
     const res = await runStation([
       '23176',
       'feat-test',
