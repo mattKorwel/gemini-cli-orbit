@@ -33,12 +33,7 @@ export class GitExecutor {
   ): Command {
     return {
       bin: 'git',
-      args: [
-        'fetch',
-        '--depth=1',
-        remote,
-        `refs/heads/${branch}:refs/heads/${branch}`,
-      ],
+      args: ['fetch', '--depth=1', remote, branch],
       options: { ...options, cwd },
     };
   }

@@ -21,14 +21,9 @@ describe('GitExecutor', () => {
     expect(cmd.options?.cwd).toBe('/src');
   });
 
-  it('creates a fetch command with explicit refspec', () => {
+  it('creates a fetch command', () => {
     const cmd = GitExecutor.fetch('/test', 'origin', 'feat/test');
-    expect(cmd.args).toEqual([
-      'fetch',
-      '--depth=1',
-      'origin',
-      'refs/heads/feat/test:refs/heads/feat/test',
-    ]);
+    expect(cmd.args).toEqual(['fetch', '--depth=1', 'origin', 'feat/test']);
   });
 
   it('creates a checkout command', () => {

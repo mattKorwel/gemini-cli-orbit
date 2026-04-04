@@ -86,7 +86,10 @@ export class StationSupervisor {
       const res = ProcessManager.runSync(cmd.bin, cmd.args, cmd.options);
       if (res.status !== 0) {
         throw new Error(
-          `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n${res.stderr}`,
+          `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n` +
+            `Status: ${res.status}\n` +
+            `STDOUT: ${res.stdout}\n` +
+            `STDERR: ${res.stderr}`,
         );
       }
       return res;
@@ -129,7 +132,26 @@ export class StationSupervisor {
     }
 
     run(GitExecutor.fetch(targetDir, 'origin', branch));
-    run(GitExecutor.checkout(targetDir, branch));
+
+    // On some git versions, we need to explicitly checkout the remote branch
+    // or create a local tracking branch.
+    const checkoutCmd = GitExecutor.checkout(targetDir, branch);
+    const res = ProcessManager.runSync(
+      checkoutCmd.bin,
+      checkoutCmd.args,
+      checkoutCmd.options,
+    );
+    if (res.status !== 0) {
+      console.log(
+        `   - Direct checkout failed, trying from origin/${branch}...`,
+      );
+      const remoteCheckout = {
+        bin: 'git',
+        args: ['checkout', '-b', branch, `origin/${branch}`],
+        options: checkoutCmd.options,
+      };
+      run(remoteCheckout);
+    }
 
     console.log(`✅ Workspace ready on branch: ${branch}`);
     return 0;
