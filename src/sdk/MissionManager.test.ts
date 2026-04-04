@@ -85,19 +85,25 @@ describe('MissionManager', () => {
 
     // 1. Verify init call
     expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('station.js init 123 feat'),
+      expect.objectContaining({
+        args: expect.arrayContaining(['init', '123', 'feat']),
+      }),
       expect.any(Object),
     );
 
     // 2. Verify hooks call
     expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('station.js setup-hooks'),
+      expect.objectContaining({
+        args: expect.arrayContaining(['setup-hooks']),
+      }),
       expect.any(Object),
     );
 
     // 3. Verify run call
     expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('station.js run 123 feat review'),
+      expect.objectContaining({
+        args: expect.arrayContaining(['run', '123', 'feat', 'review']),
+      }),
       expect.any(Object),
     );
 
@@ -118,13 +124,17 @@ describe('MissionManager', () => {
 
     // Should call init
     expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('station.js init 123 feat'),
+      expect.objectContaining({
+        args: expect.arrayContaining(['init', '123', 'feat']),
+      }),
       expect.any(Object),
     );
 
     // Should ALSO call run now (to start entrypoint/doctor)
     expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('station.js run 123 feat chat'),
+      expect.objectContaining({
+        args: expect.arrayContaining(['run', '123', 'feat', 'chat']),
+      }),
       expect.any(Object),
     );
   });

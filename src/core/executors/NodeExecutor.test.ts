@@ -10,7 +10,7 @@ import { NodeExecutor } from './NodeExecutor.js';
 describe('NodeExecutor', () => {
   it('creates a valid node command', () => {
     const cmd = NodeExecutor.create('script.js', ['arg1'], { quiet: true });
-    expect(cmd.bin).toBe('node');
+    expect(cmd.bin).toBe(process.execPath);
     expect(cmd.args).toEqual(['script.js', 'arg1']);
     expect(cmd.options?.quiet).toBe(true);
   });

@@ -23,6 +23,7 @@ import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
 import { detectRemoteUrl } from '../core/ConfigManager.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { type Command } from '../core/executors/types.js';
 import {
   type OrbitObserver,
   type MissionOptions,
@@ -32,6 +33,7 @@ import {
   type AttachOptions,
   type GetLogsOptions,
   type ExecOptions,
+  type MissionExecOptions,
 } from '../core/types.js';
 
 export class MissionManager {

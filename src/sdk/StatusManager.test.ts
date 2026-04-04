@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StatusManager } from './StatusManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
+import { flattenCommand } from '../core/executors/types.js';
 
 vi.mock('../providers/ProviderFactory.js');
 
@@ -29,7 +30,8 @@ describe('StatusManager', () => {
       listCapsules: vi.fn().mockResolvedValue(['orbit-123-chat']),
       getCapsuleStats: vi.fn().mockResolvedValue({ cpu: '10%' }),
       getExecOutput: vi.fn().mockImplementation((cmd) => {
-        if (cmd.includes('status')) {
+        const fullCmd = flattenCommand(cmd);
+        if (fullCmd.includes('status')) {
           return {
             status: 0,
             stdout: JSON.stringify({
@@ -57,7 +59,9 @@ describe('StatusManager', () => {
     expect(pulse.capsules[0]!.state).toBe('WAITING_FOR_INPUT');
     expect(pulse.capsules[0]!.lastQuestion).toBe('How can I help?');
     expect(mockProvider.getExecOutput).toHaveBeenCalledWith(
-      expect.stringContaining('station.js status'),
+      expect.objectContaining({
+        args: expect.arrayContaining(['status']),
+      }),
       expect.any(Object),
     );
   });
@@ -68,8 +72,9 @@ describe('StatusManager', () => {
       listCapsules: vi.fn().mockResolvedValue(['orbit-123-chat']),
       getCapsuleStats: vi.fn().mockResolvedValue({}),
       getExecOutput: vi.fn().mockImplementation((cmd) => {
-        if (cmd.includes('status')) return { status: 1 }; // Aggregator fails
-        if (cmd.includes('tmux list-sessions'))
+        const fullCmd = flattenCommand(cmd);
+        if (fullCmd.includes('status')) return { status: 1 }; // Aggregator fails
+        if (fullCmd.includes('tmux list-sessions'))
           return { status: 0, stdout: 'default' };
         return { status: 1 };
       }),

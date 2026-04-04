@@ -32,7 +32,7 @@ describe('MissionUtils', () => {
   it('should resolve PR metadata using only the base ID', () => {
     (spawnSync as any).mockReturnValue({
       status: 0,
-      stdout: 'feature-branch\n',
+      stdout: JSON.stringify({ headRefName: 'feature-branch' }),
     });
 
     const ctx = resolveMissionContext('123:debug', 'chat');
@@ -45,7 +45,7 @@ describe('MissionUtils', () => {
     );
 
     expect(ctx.branchName).toBe('feature-branch');
-    expect(ctx.sessionName).toBe('orbit-feature-branch-debug');
+    expect(ctx.sessionName).toBe('orbit-123-debug-chat');
   });
 
   it('should handle complex suffixes with multiple colons', () => {

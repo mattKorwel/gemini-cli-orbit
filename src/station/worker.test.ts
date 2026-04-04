@@ -60,6 +60,7 @@ describe('worker main', () => {
       'feat-test',
       'chat',
       '/policy',
+      process.cwd(),
     );
   });
 

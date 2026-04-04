@@ -25,6 +25,7 @@ import {
   type SplashdownOptions,
   type SchematicInfo,
   type IOrbitSDK,
+  type MissionExecOptions,
 } from '../core/types.js';
 
 import { MissionManager } from './MissionManager.js';
