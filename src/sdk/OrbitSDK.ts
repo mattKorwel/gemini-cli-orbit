@@ -20,8 +20,10 @@ import {
   type ProvisionOptions,
   type ListStationsOptions,
   type DeleteStationOptions,
+  type HibernateOptions,
   type MonitorCIOptions,
   type SplashdownOptions,
+  type SchematicInfo,
   type IOrbitSDK,
 } from '../core/types.js';
 
@@ -188,7 +190,7 @@ export class OrbitSDK implements IOrbitSDK {
   /**
    * Safe stop of Orbit Station hardware without destroying it.
    */
-  async hibernate(options: { name: string }): Promise<void> {
+  async hibernate(options: HibernateOptions): Promise<void> {
     return this.fleet.hibernate(options);
   }
 

@@ -72,24 +72,32 @@ export async function runFixPlaybook(
     );
   }
 
+  const hooksConfigPath = path.join(
+    targetDir,
+    '.gemini/orbit/hooks-config.json',
+  );
+  const hooksArg = fs.existsSync(hooksConfigPath)
+    ? `--hooks-config ${hooksConfigPath}`
+    : '';
+
   // 2. PHASE 1: Sequential Remediation
   runner.register([
     {
       id: 'sync',
       name: 'Sync & Conflict Resolution',
-      cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze conflict-status.json in ${logDir}. If there are conflicts with the base branch, resolve them now. If not, just say 'No conflicts'."`,
+      cmd: `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Analyze conflict-status.json in ${logDir}. If there are conflicts with the base branch, resolve them now. If not, just say 'No conflicts'."`,
       timeout: 600000,
     },
     {
       id: 'repair-ci',
       name: 'CI & Build Repair',
-      cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze the CI failures in ${path.join(logDir, 'ci.log')} and ${path.join(logDir, 'build.log')}. Fix the failing tests or lint errors found in the current codebase."`,
+      cmd: `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Analyze the CI failures in ${path.join(logDir, 'ci.log')} and ${path.join(logDir, 'build.log')}. Fix the failing tests or lint errors found in the current codebase."`,
       timeout: 900000,
     },
     {
       id: 'address-comments',
       name: 'Address PR Feedback',
-      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} -y -p "Address the outstanding technical feedback provided on stdin."`,
+      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Address the outstanding technical feedback provided on stdin."`,
       timeout: 600000,
     },
   ]);
@@ -110,7 +118,7 @@ export async function runFixPlaybook(
       id: 'proof',
       name: 'Behavioral Proof (Proof)',
       dep: 'verify-build',
-      cmd: `${geminiBin} --policy ${policyPath} -y -p "Using the fix results, physically exercise the updated code in the terminal. Provide logs proving the fixes work."`,
+      cmd: `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Using the fix results, physically exercise the updated code in the terminal. Provide logs proving the fixes work."`,
       timeout: 900000,
     },
   ]);
@@ -119,16 +127,29 @@ export async function runFixPlaybook(
 
   // 4. PHASE 3: Synthesis
   console.log('\n⏳ Synthesizing final fix assessment...');
-  const synthesisCmd = `${geminiBin} --policy ${policyPath} -y -p "Summarize the fix mission for PR #${prNumber}. List what was fixed (conflicts, CI, comments) and verify against the mission context in ${path.join(logDir, 'context.log')}. Use the logs in ${logDir} for evidence."`;
+  const synthesisCmd = `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Summarize the fix mission for PR #${prNumber}. List what was fixed (conflicts, CI, comments) and verify against the mission context in ${path.join(logDir, 'context.log')}. Use the logs in ${logDir} for evidence."`;
 
   const synthesisStatus = await runner.run(
     `${synthesisCmd} > ${path.join(logDir, 'final-fix-assessment.md')} 2>&1`,
   );
 
   if (synthesisStatus === 0) {
-    console.log(
-      `\n✅ Fix mission complete: ${path.join(logDir, 'final-fix-assessment.md')}`,
-    );
+    const finalPath = path.join(logDir, 'final-fix-assessment.md');
+    console.log(`\n✅ Fix mission complete: ${finalPath}`);
+
+    // Update mission state to COMPLETED
+    const stateFile = path.join(targetDir, '.gemini/orbit/state.json');
+    if (fs.existsSync(stateFile)) {
+      try {
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+        const assessment = fs.readFileSync(finalPath, 'utf8');
+        state.status = 'COMPLETED';
+        state.last_thought = assessment.slice(0, 300);
+        state.timestamp = new Date().toISOString();
+        fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+      } catch {}
+    }
+
     // Trigger notification
     spawnSync('sh', [
       '-c',

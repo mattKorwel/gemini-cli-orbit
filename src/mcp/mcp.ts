@@ -230,7 +230,13 @@ server.registerTool(
         ? `Capsules: None found.`
         : `Capsules:\n` +
           pulse.capsules
-            .map((c) => ` - ${c.name} [${c.state}] ${c.stats || ''}`)
+            .map((c) => {
+              let line = ` - ${c.name} [${c.state}] ${c.stats || ''}`;
+              if (c.lastThought) line += `\n   └─ Thought: ${c.lastThought}`;
+              if (c.lastQuestion) line += `\n   └─ Question: ${c.lastQuestion}`;
+              if (c.pendingTool) line += `\n   └─ Blocked on: ${c.pendingTool}`;
+              return line;
+            })
             .join('\n');
     return { content: [{ type: 'text', text }] };
   },

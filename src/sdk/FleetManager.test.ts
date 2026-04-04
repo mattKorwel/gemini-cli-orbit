@@ -7,12 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FleetManager } from './FleetManager.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
-import { StationManager } from './StationManager.js';
+import { StationRegistry } from './StationRegistry.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { loadSchematic, loadSettings } from '../core/ConfigManager.js';
 
 vi.mock('../infrastructure/InfrastructureFactory.js');
-vi.mock('./StationManager.js');
+vi.mock('./StationRegistry.js');
 vi.mock('../providers/ProviderFactory.js');
 vi.mock('../core/ConfigManager.js');
 vi.mock('./DependencyManager.js', () => ({
@@ -62,7 +62,7 @@ describe('FleetManager', () => {
       mockProvisioner,
     );
     (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
-    (StationManager.prototype.listStations as any).mockResolvedValue([]);
+    (StationRegistry.prototype.listStations as any).mockResolvedValue([]);
     (loadSchematic as any).mockReturnValue({});
     (loadSettings as any).mockReturnValue({ repos: {} });
 
@@ -86,7 +86,7 @@ describe('FleetManager', () => {
       projectId: 'p',
       zone: 'z',
     };
-    (StationManager.prototype.listStations as any).mockResolvedValue([
+    (StationRegistry.prototype.listStations as any).mockResolvedValue([
       mockReceipt,
     ]);
 

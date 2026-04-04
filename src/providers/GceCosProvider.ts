@@ -5,12 +5,12 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { type OrbitProvider } from './BaseProvider.js';
 import {
-  type OrbitProvider,
   type ExecOptions,
   type OrbitStatus,
   type CapsuleConfig,
-} from './BaseProvider.js';
+} from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
@@ -182,10 +182,11 @@ export class GceCosProvider implements OrbitProvider {
     const cmdObj: RemoteCommand = {
       bin: '/bin/bash',
       args: ['-c', this.sshQuote(command)],
-      cwd: options.cwd,
-      user: options.user,
-      env: options.env,
     };
+
+    if (options.cwd) cmdObj.cwd = options.cwd;
+    if (options.user) cmdObj.user = options.user;
+    if (options.env) cmdObj.env = options.env;
 
     if (options.wrapCapsule) {
       return this.ssh.runDockerExec(options.wrapCapsule, cmdObj, options);
@@ -303,18 +304,21 @@ export class GceCosProvider implements OrbitProvider {
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
     const mounts = config.mounts
-      .map((m) => `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`)
+      .map(
+        (m: { host: string; capsule: string; readonly?: boolean }) =>
+          `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`,
+      )
       .join(' ');
 
     const envFlags = [
       ...(config.env
         ? Object.entries(config.env).map(
-            ([k, v]) => `-e ${k}=${this.sshQuote(v)}`,
+            ([k, v]) => `-e ${k}=${this.sshQuote(v as string)}`,
           )
         : []),
       ...(config.sensitiveEnv
         ? Object.entries(config.sensitiveEnv).map(
-            ([k, v]) => `-e ${k}=${this.sshQuote(v)}`,
+            ([k, v]) => `-e ${k}=${this.sshQuote(v as string)}`,
           )
         : []),
     ].join(' ');

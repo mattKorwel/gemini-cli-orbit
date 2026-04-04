@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
 import {
   type InfrastructureSpec,
   type ProjectContext,
@@ -29,6 +30,7 @@ import {
   type ReapOptions,
   type AttachOptions,
   type GetLogsOptions,
+  type ExecOptions,
 } from '../core/types.js';
 
 export class MissionManager {
@@ -91,7 +93,7 @@ export class MissionManager {
     }
 
     // 4. Mission Preparation (Hardware/Container Layer)
-    await provider.prepareMissionWorkspace(identifier, action, this.infra);
+    await provider.prepareMissionWorkspace(identifier, branch, this.infra);
 
     // 5. Worker Handshake (Phase 1 & 2)
     this.observer.onProgress?.(
@@ -118,10 +120,12 @@ export class MissionManager {
 
     // Step A: INIT (Git layer)
     const initCmd = `node ${workerPath} init ${identifier} ${branch} ${upstreamUrl} ${mirrorPath}`;
-    const initExitCode = await provider.exec(initCmd, {
-      wrapCapsule: isLocalWorkspace ? undefined : containerName,
-      interactive: true,
-    });
+    const initExitCode = await provider.exec(
+      initCmd,
+      this.getExecOptions(isLocalWorkspace, containerName, {
+        interactive: true,
+      }),
+    );
 
     if (initExitCode !== 0) {
       this.observer.onLog?.(
@@ -132,43 +136,31 @@ export class MissionManager {
       return { missionId, exitCode: initExitCode };
     }
 
-    // Step B: RUN (Task layer)
-    if (action !== 'chat') {
-      this.observer.onProgress?.(
-        'PHASE 2',
-        `🏃 Executing ${action} playbook...`,
-      );
-      const runCmd = `node ${workerPath} run ${identifier} ${branch} ${action} ${policyPath}`;
-      const runExitCode = await provider.exec(runCmd, {
-        wrapCapsule: isLocalWorkspace ? undefined : containerName,
-        interactive: true,
-      });
+    // Step A.1: Setup Hooks
+    const setupHooksCmd = `node ${workerPath} setup-hooks`;
+    await provider.exec(
+      setupHooksCmd,
+      this.getExecOptions(isLocalWorkspace, containerName),
+    );
 
-      if (runExitCode !== 0) {
-        return { missionId, exitCode: runExitCode };
-      }
+    // Step B: RUN (Task layer)
+    const runCmd = `node ${workerPath} run ${identifier} ${branch} ${action} ${policyPath}`;
+    const runExitCode = await provider.exec(runCmd, {
+      interactive: true,
+    });
+
+    if (runExitCode !== 0) {
+      return { missionId, exitCode: runExitCode };
     }
 
-    // 6. Finalization & Auto-Attach
+    // 6. Finalization
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
       `✅ Mission '${missionId}' ready.`,
     );
 
-    if (!isLocalWorkspace) {
-      const remoteWorkspaceDir = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
-      const tmuxCmd = `tmux new-session -d -s default -c ${remoteWorkspaceDir} "exec /bin/bash"`;
-      await provider.exec(tmuxCmd, { wrapCapsule: containerName });
-    }
-
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'MISSION',
-      `🚀 Auto-attaching to ${identifier}...`,
-    );
-    const exitCode = await this.attach({ identifier, action });
-    return { missionId, exitCode };
+    return { missionId, exitCode: 0 };
   }
 
   /**
@@ -328,13 +320,31 @@ export class MissionManager {
       capsules.find((c) => c.includes(identifier));
 
     if (target) {
-      await provider.exec(`cat /tmp/mission.log`, {
-        wrapCapsule: target,
-        interactive: true,
-      });
+      await provider.exec(
+        `cat /tmp/mission.log`,
+        this.getExecOptions(
+          this.infra.providerType === 'local-worktree',
+          target,
+          {
+            interactive: true,
+          },
+        ),
+      );
       return 0;
     }
 
     return 1;
+  }
+
+  private getExecOptions(
+    isLocal: boolean,
+    capsuleName: string,
+    overrides: Partial<ExecOptions> = {},
+  ): ExecOptions {
+    const options: ExecOptions = { ...overrides };
+    if (!isLocal) {
+      options.wrapCapsule = capsuleName;
+    }
+    return options;
   }
 }

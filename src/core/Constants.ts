@@ -69,6 +69,7 @@ export interface InfrastructureSpec {
   reaperIdleLimit?: number | undefined;
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
+  verbose?: boolean | undefined;
 }
 
 /**
@@ -122,6 +123,8 @@ export const SCRIPTS_PATH = `${ORBIT_ROOT}/scripts`;
 export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 export const BUNDLE_PATH = `${ORBIT_ROOT}/bundle`;
+export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
+export const MISSION_PREFIX = 'orbit-';
 
 /**
  * Standardized paths on the LOCAL machine (The Extension itself)
@@ -202,6 +205,8 @@ export interface OrbitConfig extends InfrastructureSpec {
   tempDir?: string | undefined;
   autoClean?: boolean | undefined;
   verbose?: boolean | undefined;
+  dataDiskType?: string | undefined;
+  bootDiskType?: string | undefined;
 }
 
 /**

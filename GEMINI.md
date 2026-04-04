@@ -72,3 +72,5 @@ Missions follow a strict phased execution via the `TaskRunner`:
   functional core with peer entry points.
 - **[ADR 0016](/.gemini/adr/0016-idempotent-instance-first-provisioning.md)**:
   Instance-centric naming and idempotent liftoff.
+- **[ADR 0017](/.gemini/adr/0017-mission-control-situational-awareness.md)**:
+  Distributed mission control and situational awareness.

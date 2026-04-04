@@ -16,7 +16,7 @@ describe('ci.mjs utility', () => {
   });
 
   it('should detect the repository from git remote', async () => {
-    ( execSync as any).mockReturnValue(
+    (execSync as any).mockReturnValue(
       Buffer.from('https://github.com/owner/repo.git'),
     );
 

@@ -5,6 +5,12 @@
  */
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import type { InfrastructureSpec } from '../core/Constants.js';
+import type {
+  ExecOptions,
+  SyncOptions,
+  OrbitStatus,
+  CapsuleConfig,
+} from '../core/types.js';
 
 /**
  * OrbitProvider interface defines the contract for different remote
@@ -146,47 +152,4 @@ export interface OrbitProvider {
    * Drops into a raw interactive bash shell inside a mission capsule.
    */
   missionShell(capsuleName: string): Promise<number>;
-}
-
-export interface SetupOptions {
-  projectId: string;
-  zone: string;
-  dnsSuffix?: string;
-  userSuffix?: string;
-  backendType?: string;
-}
-
-export interface ExecOptions {
-  interactive?: boolean;
-  cwd?: string;
-  wrapCapsule?: string;
-  quiet?: boolean;
-  env?: Record<string, string>;
-  sensitiveEnv?: Record<string, string>;
-  user?: string;
-}
-
-export interface CapsuleConfig {
-  name: string;
-  image: string;
-  mounts: { host: string; capsule: string; readonly?: boolean }[];
-  env?: Record<string, string>;
-  sensitiveEnv?: Record<string, string>;
-  cpuLimit?: string;
-  memoryLimit?: string;
-  command?: string | undefined;
-  user?: string | undefined;
-}
-
-export interface SyncOptions {
-  delete?: boolean;
-  exclude?: string[];
-  sudo?: boolean;
-}
-
-export interface OrbitStatus {
-  name: string;
-  status: string;
-  internalIp?: string;
-  externalIp?: string;
 }

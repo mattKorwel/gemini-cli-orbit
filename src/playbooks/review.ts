@@ -79,6 +79,14 @@ export async function runReviewPlaybook(
     }
   }
 
+  const hooksConfigPath = path.join(
+    targetDir,
+    '.gemini/orbit/hooks-config.json',
+  );
+  const hooksArg = fs.existsSync(hooksConfigPath)
+    ? `--hooks-config ${hooksConfigPath}`
+    : '';
+
   runner.register([
     {
       id: 'ci',
@@ -89,20 +97,20 @@ export async function runReviewPlaybook(
     {
       id: 'static',
       name: 'Static Standards',
-      cmd: `${geminiBin} --policy ${policyPath} -y -p "Analyze the diff in ${path.join(logDir, 'diff.log')} against ${rulesReference} and the mission context in ${path.join(logDir, 'context.log')}. Provide a detailed review of code quality, TS types, and architecture."`,
+      cmd: `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Analyze the diff in ${path.join(logDir, 'diff.log')} against ${rulesReference} and the mission context in ${path.join(logDir, 'context.log')}. Provide a detailed review of code quality, TS types, and architecture."`,
       timeout: 600000,
     },
     {
       id: 'feedback',
       name: 'Feedback Analysis',
-      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} -y -p "Summarize the unresolved PR feedback provided on stdin. If no feedback is provided, simply reply with 'No unresolved feedback' and exit immediately."`,
+      cmd: `node ${effectiveBundle}/utils/fetch-pr-info.js ${prNumber} | ${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Summarize the unresolved PR feedback provided on stdin. If no feedback is provided, simply reply with 'No unresolved feedback' and exit immediately."`,
       timeout: 600000,
     },
     {
       id: 'proof',
       name: 'Behavioral Proof',
       dep: 'build',
-      cmd: `${geminiBin} --policy ${policyPath} -y -p "Using the build logs in ${path.join(logDir, 'build.log')} and the diff in ${path.join(logDir, 'diff.log')}, physically exercise the new code in the terminal. Provide logs proving it works."`,
+      cmd: `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Using the build logs in ${path.join(logDir, 'build.log')} and the diff in ${path.join(logDir, 'diff.log')}, physically exercise the new code in the terminal. Provide logs proving it works."`,
       timeout: 900000,
     },
   ]);
@@ -111,16 +119,29 @@ export async function runReviewPlaybook(
 
   // 3. PHASE 2: Synthesis
   console.log('\n⏳ Synthesizing final assessment...');
-  const synthesisCmd = `${geminiBin} --policy ${policyPath} -y -p "Merge the results from ${path.join(logDir, 'ci.log')}, ${path.join(logDir, 'static.log')}, ${path.join(logDir, 'feedback.log')}, and ${path.join(logDir, 'proof.log')} into a final assessment for PR #${prNumber}. Indicate if the PR meets its goals as defined in ${path.join(logDir, 'context.log')}."`;
+  const synthesisCmd = `${geminiBin} --policy ${policyPath} ${hooksArg} -y -p "Merge the results from ${path.join(logDir, 'ci.log')}, ${path.join(logDir, 'static.log')}, ${path.join(logDir, 'feedback.log')}, and ${path.join(logDir, 'proof.log')} into a final assessment for PR #${prNumber}. Indicate if the PR meets its goals as defined in ${path.join(logDir, 'context.log')}."`;
 
   const synthesisStatus = await runner.run(
     `${synthesisCmd} > ${path.join(logDir, 'final-assessment.md')} 2>&1`,
   );
 
   if (synthesisStatus === 0) {
-    console.log(
-      `\n✅ Final assessment complete: ${path.join(logDir, 'final-assessment.md')}`,
-    );
+    const finalPath = path.join(logDir, 'final-assessment.md');
+    console.log(`\n✅ Final assessment complete: ${finalPath}`);
+
+    // Update mission state to COMPLETED
+    const stateFile = path.join(targetDir, '.gemini/orbit/state.json');
+    if (fs.existsSync(stateFile)) {
+      try {
+        const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+        const assessment = fs.readFileSync(finalPath, 'utf8');
+        state.status = 'COMPLETED';
+        state.last_thought = assessment.slice(0, 300);
+        state.timestamp = new Date().toISOString();
+        fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+      } catch {}
+    }
+
     // Trigger notification
     spawnSync('sh', [
       '-c',

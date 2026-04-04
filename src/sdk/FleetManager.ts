@@ -19,7 +19,7 @@ import {
   loadSchematic,
   detectRemoteUrl,
 } from '../core/ConfigManager.js';
-import { StationManager } from './StationManager.js';
+import { StationRegistry } from './StationRegistry.js';
 import { SchematicManager } from './SchematicManager.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { DependencyManager } from './DependencyManager.js';
@@ -30,11 +30,12 @@ import {
   type ProvisionOptions,
   type ListStationsOptions,
   type DeleteStationOptions,
+  type HibernateOptions,
   type SplashdownOptions,
 } from '../core/types.js';
 
 export class FleetManager {
-  private readonly stationManager = new StationManager();
+  private readonly stationManager = new StationRegistry();
   private readonly schematicManager = new SchematicManager();
 
   constructor(
@@ -163,8 +164,9 @@ export class FleetManager {
       const rName = this.projectCtx.repoName;
 
       if (rName && rName !== 'gemini-cli') {
+        if (!settings.repos) settings.repos = {};
         if (!settings.repos[rName]) settings.repos[rName] = {} as any;
-        settings.repos[rName].activeStation = stationName;
+        settings.repos[rName]!.activeStation = stationName;
       } else {
         settings.activeStation = stationName;
       }
@@ -257,7 +259,7 @@ export class FleetManager {
   /**
    * Safe stop of Orbit Station hardware without destroying it.
    */
-  async hibernate(options: { name: string }): Promise<void> {
+  async hibernate(options: HibernateOptions): Promise<void> {
     const { name } = options;
     const stations = await this.stationManager.listStations();
     const receipt = stations.find((s) => s.name === name);
@@ -295,8 +297,9 @@ export class FleetManager {
 
     const rName = this.projectCtx.repoName;
     if (rName && rName !== 'gemini-cli') {
+      if (!settings.repos) settings.repos = {};
       if (!settings.repos[rName]) settings.repos[rName] = {} as any;
-      settings.repos[rName].activeStation = station.name;
+      settings.repos[rName]!.activeStation = station.name;
     } else {
       settings.activeStation = station.name;
     }

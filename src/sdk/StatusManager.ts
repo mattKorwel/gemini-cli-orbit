@@ -50,37 +50,74 @@ export class StatusManager {
     const capsules: CapsuleInfo[] = [];
 
     if (statusRes.status === 'RUNNING') {
+      const isLocalWorkspace = provider.type === 'local-worktree';
+      const bundlePath = isLocalWorkspace ? 'bundle' : '/mnt/disks/data/bundle';
+
+      const statusOutput = await provider.getExecOutput(
+        `node ${bundlePath}/station.js status`,
+        { quiet: true },
+      );
+
+      let aggregatedMissions: any[] = [];
+      if (statusOutput.status === 0) {
+        try {
+          const report = JSON.parse(statusOutput.stdout);
+          aggregatedMissions = report.missions || [];
+        } catch (e) {
+          // Fallback to legacy discovery if aggregator fails
+        }
+      }
+
       const containerNames = await provider.listCapsules();
 
       for (const containerName of containerNames) {
         const stats = await provider.getCapsuleStats(containerName);
-        const tmuxRes = await provider.getExecOutput(
-          'tmux list-sessions -F "#S" 2>/dev/null',
-          { wrapCapsule: containerName, quiet: true },
+        const missionState = aggregatedMissions.find(
+          (m) =>
+            m.mission === containerName || containerName.includes(m.mission),
         );
 
-        let state: CapsuleInfo['state'] = 'IDLE';
-        if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-          const paneOutput = await provider.capturePane(containerName);
-          const lines = paneOutput.trim().split('\n');
-          const lastLine = lines[lines.length - 1] || '';
-          const lastTwoLines = lines.slice(-2).join(' ');
+        if (missionState) {
+          capsules.push({
+            name: containerName,
+            state: missionState.status,
+            stats,
+            lastThought: missionState.last_thought,
+            blocker: missionState.blocker,
+            progress: missionState.progress,
+            pendingTool: missionState.pending_tool,
+            lastQuestion: missionState.last_question,
+          });
+        } else {
+          // Legacy/Fallback discovery
+          const tmuxRes = await provider.getExecOutput(
+            'tmux list-sessions -F "#S" 2>/dev/null',
+            { wrapCapsule: containerName, quiet: true },
+          );
 
-          const isWaiting =
-            lastLine.includes(' > ') ||
-            lastLine.trim().endsWith('>') ||
-            lastTwoLines.includes('(y/n)') ||
-            lastLine.trim().endsWith('?') ||
-            (lastLine.includes('node@') && lastLine.includes('$'));
+          let state: CapsuleInfo['state'] = 'IDLE';
+          if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+            const paneOutput = await provider.capturePane(containerName);
+            const lines = paneOutput.trim().split('\n');
+            const lastLine = lines[lines.length - 1] || '';
+            const lastTwoLines = lines.slice(-2).join(' ');
 
-          state = isWaiting ? 'WAITING' : 'THINKING';
+            const isWaiting =
+              lastLine.includes(' > ') ||
+              lastLine.trim().endsWith('>') ||
+              lastTwoLines.includes('(y/n)') ||
+              lastLine.trim().endsWith('?') ||
+              (lastLine.includes('node@') && lastLine.includes('$'));
+
+            state = isWaiting ? 'WAITING' : 'THINKING';
+          }
+
+          capsules.push({
+            name: containerName,
+            state,
+            stats,
+          });
         }
-
-        capsules.push({
-          name: containerName,
-          state,
-          stats,
-        });
       }
     }
 

@@ -238,13 +238,12 @@ export class SchematicManager {
     return files.map((f) => {
       const name = f.replace('.json', '');
       const config = loadSchematic(name);
-      return {
-        name,
-        projectId: config?.projectId,
-        zone: config?.zone,
-        backendType: config?.backendType,
-        machineType: config?.machineType,
-      };
+      const info: SchematicInfo = { name };
+      if (config?.projectId) info.projectId = config.projectId;
+      if (config?.zone) info.zone = config.zone;
+      if (config?.backendType) info.backendType = config.backendType;
+      if (config?.machineType) info.machineType = config.machineType;
+      return info;
     });
   }
 }

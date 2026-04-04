@@ -19,7 +19,14 @@ export interface Task {
 export interface TaskStatus {
   id: string;
   name: string;
-  state: 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'timeout' | 'error';
+  state:
+    | 'pending'
+    | 'running'
+    | 'success'
+    | 'failed'
+    | 'skipped'
+    | 'timeout'
+    | 'error';
   exitCode?: number;
   logPath: string;
   lastLogLines?: string[];

@@ -42,9 +42,11 @@ export async function dispatch(argv: string[]): Promise<number> {
     pulses: 'station pulse',
     provision: 'infra liftoff',
   };
-  if (processedArgv[0] && topAliases[processedArgv[0]]) {
+  if (processedArgv[0]) {
     const alias = topAliases[processedArgv[0]];
-    processedArgv.splice(0, 1, ...alias.split(' '));
+    if (alias) {
+      processedArgv.splice(0, 1, ...alias.split(' '));
+    }
   }
   const parser = yargs(processedArgv)
     .scriptName('orbit')
@@ -353,19 +355,45 @@ export async function dispatch(argv: string[]): Promise<number> {
                 console.log('     - No mission capsules found');
               } else {
                 pulse.capsules.forEach((c) => {
-                  const stateIcon =
-                    c.state === 'WAITING'
-                      ? '⏳'
-                      : c.state === 'THINKING'
-                        ? '🧠'
-                        : '💤';
+                  let stateIcon = '💤';
+                  let detail = '';
+
+                  switch (c.state) {
+                    case 'THINKING':
+                      stateIcon = '🧠';
+                      detail = c.lastThought ? `Thought: ${c.lastThought}` : '';
+                      break;
+                    case 'WAITING_FOR_INPUT':
+                      stateIcon = '⏳';
+                      detail = c.lastQuestion
+                        ? `Question: ${c.lastQuestion}`
+                        : 'Waiting for input';
+                      break;
+                    case 'WAITING_FOR_APPROVAL':
+                      stateIcon = '🛑';
+                      detail =
+                        c.blocker || `Approval needed for ${c.pendingTool}`;
+                      break;
+                    case 'COMPLETED':
+                      stateIcon = '✅';
+                      detail = 'Mission complete';
+                      break;
+                    case 'WAITING':
+                      stateIcon = '⏳';
+                      break;
+                  }
+
                   const statsStr =
                     typeof c.stats === 'string'
                       ? c.stats
                       : `CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`;
+
                   console.log(
                     `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] ${statsStr}`,
                   );
+                  if (detail) {
+                    console.log(`        └─ ${detail}`);
+                  }
                 });
               }
               console.log('-'.repeat(80));
