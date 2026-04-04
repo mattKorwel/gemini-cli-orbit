@@ -10,7 +10,6 @@ import type {
   SyncOptions,
   OrbitStatus,
   CapsuleConfig,
-  RemoteCommand,
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
 

@@ -152,7 +152,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   async prepareMissionWorkspace(
     identifier: string,
     branch: string,
-    action: string,
+    _action: string,
     _infra: InfrastructureSpec,
   ): Promise<void> {
     const actualBranch = branch;

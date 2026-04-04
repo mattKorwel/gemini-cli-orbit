@@ -29,7 +29,6 @@ import {
   type SchematicInfo,
   type ProvisionOptions,
   type ListStationsOptions,
-  type DeleteStationOptions,
   type HibernateOptions,
   type SplashdownOptions,
 } from '../core/types.js';

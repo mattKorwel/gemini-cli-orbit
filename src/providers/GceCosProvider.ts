@@ -15,7 +15,7 @@ import type { InfrastructureState } from '../infrastructure/InfrastructureState.
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
 import { type Command, flattenCommand } from '../core/executors/types.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
-import { logger, LogLevel } from '../core/Logger.js';
+import { logger } from '../core/Logger.js';
 import {
   type ProjectContext,
   type InfrastructureSpec,

@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
-import { GitExecutor } from '../../core/executors/GitExecutor.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
 import { NodeExecutor } from '../../core/executors/NodeExecutor.js';
 

@@ -145,11 +145,13 @@ export class StationSupervisor {
       console.log(
         `   - Direct checkout failed, trying from origin/${branch}...`,
       );
-      const remoteCheckout = {
+      const remoteCheckout: Command = {
         bin: 'git',
         args: ['checkout', '-b', branch, `origin/${branch}`],
-        options: checkoutCmd.options,
       };
+      if (checkoutCmd.options) {
+        remoteCheckout.options = checkoutCmd.options;
+      }
       run(remoteCheckout);
     }
 

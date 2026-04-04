@@ -28,7 +28,7 @@ export class StatusAggregator {
       const repoPath = path.join(workspacesRoot, repo);
       try {
         if (!fs.statSync(repoPath).isDirectory()) continue;
-      } catch (e) {
+      } catch (_e) {
         continue;
       }
 
@@ -37,7 +37,7 @@ export class StatusAggregator {
         const missionPath = path.join(repoPath, mission);
         try {
           if (!fs.statSync(missionPath).isDirectory()) continue;
-        } catch (e) {
+        } catch (_e) {
           continue;
         }
 
@@ -50,7 +50,7 @@ export class StatusAggregator {
               mission,
               ...state,
             });
-          } catch (e) {
+          } catch (_e) {
             // Skip corrupted state files
           }
         }

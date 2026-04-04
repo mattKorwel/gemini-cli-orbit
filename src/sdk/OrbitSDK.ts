@@ -19,7 +19,6 @@ import {
   type GetLogsOptions,
   type ProvisionOptions,
   type ListStationsOptions,
-  type DeleteStationOptions,
   type HibernateOptions,
   type MonitorCIOptions,
   type SplashdownOptions,

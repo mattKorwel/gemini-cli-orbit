@@ -11,7 +11,6 @@ import {
   type ProjectContext,
   SATELLITE_WORKSPACES_PATH,
   ORBIT_ROOT,
-  getPrimaryRepoRoot,
   getProjectOrbitDir,
   UPSTREAM_REPO_URL,
   BUNDLE_PATH,

@@ -66,7 +66,7 @@ export class StatusManager {
         try {
           const report = JSON.parse(statusOutput.stdout);
           aggregatedMissions = report.missions || [];
-        } catch (e) {
+        } catch (_e) {
           // Fallback to legacy discovery if aggregator fails
         }
       }
