@@ -13,6 +13,7 @@ import {
 } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
+import { type Command, flattenCommand } from '../core/executors/types.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
 import { logger, LogLevel } from '../core/Logger.js';
 import {
@@ -75,6 +76,7 @@ export class GceCosProvider implements OrbitProvider {
 
   async prepareMissionWorkspace(
     identifier: string,
+    branch: string,
     action: string,
     infra: InfrastructureSpec,
   ): Promise<void> {
@@ -170,27 +172,35 @@ export class GceCosProvider implements OrbitProvider {
     return 'NOT_IMPLEMENTED_USE_SSH_MANAGER';
   }
 
-  async exec(command: string, options: ExecOptions = {}): Promise<number> {
+  async exec(
+    command: string | Command,
+    options: ExecOptions = {},
+  ): Promise<number> {
     const res = await this.getExecOutput(command, options);
     return res.status;
   }
 
   async getExecOutput(
-    command: string,
+    command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
     const cmdObj: RemoteCommand = {
       bin: '/bin/bash',
-      args: ['-c', this.sshQuote(command)],
+      args: ['-c', this.sshQuote(flattenCommand(command))],
     };
 
     if (options.cwd) cmdObj.cwd = options.cwd;
     if (options.user) cmdObj.user = options.user;
-    if (options.env) cmdObj.env = options.env;
 
+    // Inject correct PATH for capsule execution
     if (options.wrapCapsule) {
+      const capsulePath =
+        '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+      cmdObj.env = { ...(options.env || {}), PATH: capsulePath };
       return this.ssh.runDockerExec(options.wrapCapsule, cmdObj, options);
     }
+
+    if (options.env) cmdObj.env = options.env;
     return this.ssh.runHostCommand(cmdObj, options);
   }
 
@@ -299,7 +309,7 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async attach(name: string): Promise<number> {
-    return this.ssh.attachToTmux(name);
+    return this.ssh.attachToTmux(name, name);
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {

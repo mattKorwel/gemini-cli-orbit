@@ -10,6 +10,7 @@ import {
 } from '../core/Constants.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { type PulseInfo, type CapsuleInfo } from '../core/types.js';
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 
 export class StatusManager {
   constructor(
@@ -53,10 +54,12 @@ export class StatusManager {
       const isLocalWorkspace = provider.type === 'local-worktree';
       const bundlePath = isLocalWorkspace ? 'bundle' : '/mnt/disks/data/bundle';
 
-      const statusOutput = await provider.getExecOutput(
-        `node ${bundlePath}/station.js status`,
-        { quiet: true },
-      );
+      const statusCmd = NodeExecutor.create(`${bundlePath}/station.js`, [
+        'status',
+      ]);
+      const statusOutput = await provider.getExecOutput(statusCmd, {
+        quiet: true,
+      });
 
       let aggregatedMissions: any[] = [];
       if (statusOutput.status === 0) {
@@ -90,10 +93,15 @@ export class StatusManager {
           });
         } else {
           // Legacy/Fallback discovery
-          const tmuxRes = await provider.getExecOutput(
-            'tmux list-sessions -F "#S" 2>/dev/null',
-            { wrapCapsule: containerName, quiet: true },
-          );
+          const tmuxCmd = {
+            bin: 'tmux',
+            args: ['list-sessions', '-F', '#S'],
+          };
+
+          const tmuxRes = await provider.getExecOutput(tmuxCmd, {
+            wrapCapsule: containerName,
+            quiet: true,
+          });
 
           let state: CapsuleInfo['state'] = 'IDLE';
           if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {

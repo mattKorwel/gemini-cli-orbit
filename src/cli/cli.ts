@@ -157,6 +157,21 @@ export async function dispatch(argv: string[]): Promise<number> {
             },
           )
           .command(
+            'exec <identifier> <cmd>',
+            'Execute a one-off command in the mission capsule.',
+            (y2) => {
+              y2.positional('identifier', { type: 'string' });
+              y2.positional('cmd', { type: 'string' });
+            },
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.missionExec({
+                identifier: args.identifier,
+                command: args.cmd,
+              });
+            },
+          )
+          .command(
             'attach <identifier>',
             'Resume an active mission.',
             (y2) =>
@@ -604,8 +619,13 @@ export async function dispatch(argv: string[]): Promise<number> {
       repoRoot = path.resolve(val);
       process.chdir(repoRoot);
     }
-    if (args['for-station'])
+    if (args['for-station']) {
       process.env.GCLI_ORBIT_INSTANCE_NAME = args['for-station'];
+      // AUTO-SWITCH: If a station is targeted and no provider is set, use GCE
+      if (!process.env.GCLI_ORBIT_PROVIDER) {
+        process.env.GCLI_ORBIT_PROVIDER = 'gce';
+      }
+    }
     if (args.schematic) process.env.GCLI_ORBIT_SCHEMATIC = args.schematic;
     if (args.verbose) process.env.GCLI_ORBIT_VERBOSE = '1';
     process.env.GCLI_ORBIT_SHIM = '1';

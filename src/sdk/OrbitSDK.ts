@@ -109,6 +109,13 @@ export class OrbitSDK implements IOrbitSDK {
   }
 
   /**
+   * Execute a one-off command in a mission capsule.
+   */
+  async missionExec(options: MissionExecOptions): Promise<number> {
+    return this.missions.exec(options);
+  }
+
+  /**
    * Decommission a specific mission and its workspace.
    */
   async jettisonMission(options: JettisonOptions): Promise<MissionResult> {

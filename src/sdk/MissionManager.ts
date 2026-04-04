@@ -22,6 +22,7 @@ import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
 import { detectRemoteUrl } from '../core/ConfigManager.js';
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import {
   type OrbitObserver,
   type MissionOptions,
@@ -93,7 +94,12 @@ export class MissionManager {
     }
 
     // 4. Mission Preparation (Hardware/Container Layer)
-    await provider.prepareMissionWorkspace(identifier, branch, this.infra);
+    await provider.prepareMissionWorkspace(
+      identifier,
+      branch,
+      action,
+      this.infra,
+    );
 
     // 5. Worker Handshake (Phase 1 & 2)
     this.observer.onProgress?.(
@@ -119,7 +125,13 @@ export class MissionManager {
     const mirrorPath = `${ORBIT_ROOT}/main`;
 
     // Step A: INIT (Git layer)
-    const initCmd = `node ${workerPath} init ${identifier} ${branch} ${upstreamUrl} ${mirrorPath}`;
+    const initCmd = NodeExecutor.create(workerPath, [
+      'init',
+      identifier,
+      branch,
+      upstreamUrl,
+      mirrorPath,
+    ]);
     const initExitCode = await provider.exec(
       initCmd,
       this.getExecOptions(isLocalWorkspace, containerName, {
@@ -137,14 +149,30 @@ export class MissionManager {
     }
 
     // Step A.1: Setup Hooks
-    const setupHooksCmd = `node ${workerPath} setup-hooks`;
+    const setupHooksCmd = NodeExecutor.create(workerPath, ['setup-hooks']);
     await provider.exec(
       setupHooksCmd,
       this.getExecOptions(isLocalWorkspace, containerName),
     );
 
     // Step B: RUN (Task layer)
-    const runCmd = `node ${workerPath} run ${identifier} ${branch} ${action} ${policyPath}`;
+    const absWorkspaceDir = isLocalWorkspace
+      ? path.join(
+          getProjectOrbitDir(this.projectCtx.repoRoot),
+          'workspaces',
+          this.projectCtx.repoName,
+          mCtx.workspaceName,
+        )
+      : `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
+
+    const runCmd = NodeExecutor.create(workerPath, [
+      'run',
+      identifier,
+      branch,
+      action,
+      policyPath,
+      absWorkspaceDir,
+    ]);
     const runExitCode = await provider.exec(runCmd, {
       interactive: true,
     });
@@ -232,7 +260,8 @@ export class MissionManager {
         // Local cleanup if needed
       } else {
         const workspacePath = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
-        await provider.exec(`rm -rf ${workspacePath}`);
+        const rmCmd = { bin: 'rm', args: ['-rf', workspacePath] };
+        await provider.exec(rmCmd);
       }
 
       return { missionId: identifier, exitCode: 0 };
@@ -263,6 +292,38 @@ export class MissionManager {
       }
     }
     return reapedCount;
+  }
+
+  /**
+   * Execute a one-off command inside a mission capsule.
+   */
+  async exec(options: MissionExecOptions): Promise<number> {
+    const { identifier, command, action = 'chat' } = options;
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+    const mCtx = resolveMissionContext(identifier, action);
+    const capsules = await provider.listCapsules();
+
+    const target =
+      capsules.find((c) => c === mCtx.containerName) ||
+      capsules.find((c) => c.includes(identifier));
+
+    if (!target) {
+      this.observer.onLog?.(
+        LogLevel.ERROR,
+        'EXEC',
+        `❌ No active mission found for ${identifier}`,
+      );
+      return 1;
+    }
+
+    const cmdObj: Command = { bin: '/bin/bash', args: ['-c', command] };
+    return provider.exec(cmdObj, {
+      wrapCapsule: target,
+      interactive: true,
+    });
   }
 
   /**
@@ -320,8 +381,9 @@ export class MissionManager {
       capsules.find((c) => c.includes(identifier));
 
     if (target) {
+      const catCmd = { bin: 'cat', args: ['/tmp/mission.log'] };
       await provider.exec(
-        `cat /tmp/mission.log`,
+        catCmd,
         this.getExecOptions(
           this.infra.providerType === 'local-worktree',
           target,

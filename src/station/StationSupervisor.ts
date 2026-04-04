@@ -231,8 +231,9 @@ export class StationSupervisor {
     branchName: string,
     action: string,
     policyPath: string,
+    workDir: string,
   ) {
-    const targetDir = process.cwd();
+    const targetDir = path.resolve(workDir);
     const mCtx = resolveMissionContext(identifier, action);
     const entrypointPath = path.join(this.dirname, 'entrypoint.js');
 

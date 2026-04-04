@@ -78,13 +78,14 @@ export async function main(argv: string[]) {
       },
     )
     .command(
-      'run <id> <branch> <action> <policy>',
+      'run <id> <branch> <action> <policy> [workDir]',
       'Spawns a mission in a persistent session',
       (y) => {
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });
         y.positional('action', { type: 'string' });
         y.positional('policy', { type: 'string' });
+        y.positional('workDir', { type: 'string', default: process.cwd() });
       },
       async (argv) => {
         await station.runMission(
@@ -92,6 +93,7 @@ export async function main(argv: string[]) {
           argv.branch as string,
           argv.action as string,
           argv.policy as string,
+          argv.workDir as string,
         );
       },
     )

@@ -174,12 +174,22 @@ export interface DeleteStationOptions {
 }
 
 /**
+ * Options for executing a command in a mission.
+ */
+export interface MissionExecOptions {
+  identifier: string;
+  command: string;
+  action?: string | undefined;
+}
+
+/**
  * The Orbit SDK - Central functional core (Facade).
  */
 export interface IOrbitSDK {
   readonly observer: OrbitObserver;
   getPulse(): Promise<PulseInfo>;
   startMission(options: MissionOptions): Promise<MissionResult>;
+  missionExec(options: MissionExecOptions): Promise<number>;
   jettisonMission(options: JettisonOptions): Promise<MissionResult>;
   reapMissions(options: ReapOptions): Promise<number>;
   monitorCI(options: MonitorCIOptions): Promise<CIStatus>;

@@ -16,6 +16,7 @@ import {
   type InfrastructureSpec,
   MISSION_PREFIX,
 } from '../core/Constants.js';
+import { type Command, flattenCommand } from '../core/executors/types.js';
 
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
@@ -103,13 +104,16 @@ export class LocalWorktreeProvider implements OrbitProvider {
     return `cd ${this.q(capsuleDir)} && ${envPrefix}${command}`;
   }
 
-  async exec(command: string, options: ExecOptions = {}): Promise<number> {
+  async exec(
+    command: string | Command,
+    options: ExecOptions = {},
+  ): Promise<number> {
     const res = await this.getExecOutput(command, options);
     return res.status;
   }
 
   async getExecOutput(
-    command: string,
+    command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
     let cwd = options.cwd || this.projectCtx.repoRoot;
@@ -123,7 +127,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
         );
     }
 
-    const res = spawnSync(command, {
+    const res = spawnSync(flattenCommand(command), {
       stdio: options.quiet ? 'pipe' : 'inherit',
       shell: true,
       cwd,
@@ -148,6 +152,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
   async prepareMissionWorkspace(
     identifier: string,
     branch: string,
+    action: string,
     _infra: InfrastructureSpec,
   ): Promise<void> {
     const actualBranch = branch;

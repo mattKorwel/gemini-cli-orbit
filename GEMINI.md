@@ -65,6 +65,11 @@ Missions follow a strict phased execution via the `TaskRunner`:
 2. **Read-Only Source**: Host repositories are mounted Read-Only into capsules.
 3. **Path Parity**: Maintain `/mnt/disks/data` parity to prevent Git metadata
    corruption.
+4. **No IAP**: **NEVER** use Gcloud IAP for SSH. It is unreliable in corporate
+   network environments.
+5. **Direct SSH Testing**: When testing SSH directly, use the internal hostname
+   and specific identity file:
+   `ssh -i ~/.ssh/google_compute_engine -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null mattkorwel_google_com@nic0.<STATION_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "echo success"`
 
 ## 📐 Key Decisions
 

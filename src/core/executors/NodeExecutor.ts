@@ -17,7 +17,7 @@ export class NodeExecutor {
     options: RunOptions = {},
   ): Command {
     return {
-      bin: 'node',
+      bin: process.execPath,
       args: [scriptPath, ...args],
       options,
     };

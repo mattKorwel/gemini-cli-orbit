@@ -10,7 +10,9 @@ import type {
   SyncOptions,
   OrbitStatus,
   CapsuleConfig,
+  RemoteCommand,
 } from '../core/types.js';
+import { type Command } from '../core/executors/types.js';
 
 /**
  * OrbitProvider interface defines the contract for different remote
@@ -41,13 +43,13 @@ export interface OrbitProvider {
   /**
    * Executes a command on the station.
    */
-  exec(command: string, options?: ExecOptions): Promise<number>;
+  exec(command: string | Command, options?: ExecOptions): Promise<number>;
 
   /**
    * Executes a command on the station and returns the output.
    */
   getExecOutput(
-    command: string,
+    command: string | Command,
     options?: ExecOptions,
   ): Promise<{ status: number; stdout: string; stderr: string }>;
 
@@ -72,6 +74,7 @@ export interface OrbitProvider {
   prepareMissionWorkspace(
     identifier: string,
     branch: string,
+    action: string,
     infra: InfrastructureSpec,
   ): Promise<void>;
 
