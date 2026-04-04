@@ -46,8 +46,6 @@ export class MissionManager {
    */
   async start(options: MissionOptions): Promise<MissionResult> {
     const { identifier, action } = options;
-    const stationName =
-      this.infra.stationName || this.projectCtx.repoName || 'default';
     const missionId = SessionManager.generateMissionId(identifier, action);
 
     this.observer.onLog?.(
@@ -57,13 +55,10 @@ export class MissionManager {
     );
 
     // 1. Provider Resolution
-    const instanceName =
-      this.infra.instanceName || `orbit-station-${this.projectCtx.repoName}`;
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-      stationName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     const isLocalWorkspace = provider.type === 'local-worktree';
 
@@ -129,7 +124,7 @@ export class MissionManager {
     }
 
     // 4. Mission Preparation
-    await provider.prepareMissionWorkspace(identifier, branch, this.infra);
+    await provider.prepareMissionWorkspace(identifier, action, this.infra);
 
     // 5. Build/Sync Phase (Phase 0)
     if (!isLocalWorkspace) {
@@ -137,6 +132,15 @@ export class MissionManager {
         'PHASE 0',
         '📦 Synchronizing source and preparing environment...',
       );
+
+      // Deploy Extension Bundle to Station (ensures remote worker has latest code)
+      this.observer.onLog?.(
+        LogLevel.DEBUG,
+        'SETUP',
+        '   - Syncing extension bundle...',
+      );
+      await provider.sync(LOCAL_BUNDLE_PATH, BUNDLE_PATH, { sudo: true });
+
       const buildOptions: ExecOptions = {
         cwd: remoteWorkspaceDir,
         interactive: true,
@@ -146,7 +150,7 @@ export class MissionManager {
       // Ensure Workspace exists
       const wtStatus = await provider.exec(
         `ls -d ${remoteWorkspaceDir}`,
-        buildOptions,
+        { ...buildOptions, cwd: undefined }, // Don't use non-existent CWD for the existence check!
       );
       if (wtStatus !== 0) {
         this.observer.onLog?.(
@@ -165,11 +169,7 @@ export class MissionManager {
           { cmd: `sudo mkdir -p ${repoWorkspacesDir}`, options: quietOptions },
           { cmd: `sudo chmod -R 777 ${ORBIT_ROOT}`, options: quietOptions },
           {
-            cmd: `git clone ${hasMirror ? `--reference ${mirrorPath} --dissociate` : ''} ${upstreamUrl} ${remoteWorkspaceDir}`,
-            options: quietOptions,
-          },
-          {
-            cmd: `cd ${remoteWorkspaceDir} && (git fetch origin ${branch} || git checkout -b ${branch}) && git checkout ${branch}`,
+            cmd: `mkdir -p ${remoteWorkspaceDir} && cd ${remoteWorkspaceDir} && git init && git remote add origin ${upstreamUrl} && git fetch --depth=1 ${hasMirror ? `--reference ${mirrorPath}` : ''} origin ${branch} && git checkout ${branch}`,
             options: quietOptions,
           },
           {
@@ -236,6 +236,18 @@ export class MissionManager {
     );
 
     // 8. Auto-Attach
+    if (!isLocalWorkspace) {
+      this.observer.onLog?.(
+        LogLevel.DEBUG,
+        'MISSION',
+        '   - Initializing persistent session...',
+      );
+      const tmuxCmd = `tmux new-session -d -s default -c ${remoteWorkspaceDir} "exec /bin/bash"`;
+      await provider.exec(tmuxCmd, {
+        wrapCapsule: containerName,
+      });
+    }
+
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
@@ -249,18 +261,16 @@ export class MissionManager {
    * Drops into a raw interactive shell on the hardware host.
    */
   async stationShell(): Promise<number> {
-    const instanceName =
-      this.infra.instanceName || `orbit-station-${this.projectCtx.repoName}`;
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     await provider.ensureReady();
     this.observer.onLog?.(
       LogLevel.INFO,
       'STATION',
-      `🛰️  Entering raw shell on station: ${instanceName}`,
+      `🛰️  Entering raw shell on station: ${this.infra.instanceName}`,
     );
     return provider.stationShell();
   }
@@ -270,11 +280,10 @@ export class MissionManager {
    */
   async missionShell(options: { identifier: string }): Promise<number> {
     const { identifier } = options;
-    const instanceName = this.infra.instanceName || 'local';
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(identifier));
@@ -302,11 +311,10 @@ export class MissionManager {
    */
   async jettison(options: JettisonOptions): Promise<MissionResult> {
     const { identifier, action = 'chat' } = options;
-    const instanceName = this.infra.instanceName || 'local';
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -372,11 +380,10 @@ export class MissionManager {
    */
   async reap(options: ReapOptions): Promise<number> {
     const threshold = options.threshold ?? 4;
-    const instanceName = this.infra.instanceName || 'local';
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -432,11 +439,10 @@ export class MissionManager {
    */
   async attach(options: AttachOptions): Promise<number> {
     const { identifier, action = 'chat' } = options;
-    const instanceName = this.infra.instanceName || 'local';
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     const mCtx = resolveMissionContext(identifier, action);
     const capsules = await provider.listCapsules();
@@ -472,11 +478,10 @@ export class MissionManager {
    */
   async getLogs(options: GetLogsOptions): Promise<number> {
     const { identifier, action = 'review' } = options;
-    const instanceName = this.infra.instanceName || 'local';
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      instanceName,
-    } as any);
+    const provider = ProviderFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
 
     const mId = SessionManager.generateMissionId(identifier, action);
     const logPath = path.join(

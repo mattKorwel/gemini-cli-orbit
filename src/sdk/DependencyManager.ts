@@ -11,7 +11,7 @@ import readline from 'node:readline';
 import { ORBIT_BIN_DIR } from '../core/Constants.js';
 import { logger } from '../core/Logger.js';
 
-const PULUMI_VERSION = '3.109.0';
+const PULUMI_VERSION = '3.229.0';
 
 /**
  * Manages external binary dependencies for Orbit.
@@ -56,9 +56,17 @@ export class DependencyManager {
    * Initializes Pulumi for local state management (ADR 16).
    */
   private static async initializePulumi(): Promise<void> {
-    const passphrasePath = path.join(ORBIT_BIN_DIR, '..', 'pulumi.passphrase');
-    let passphrase = '';
+    const orbitDir = path.join(ORBIT_BIN_DIR, '..');
+    const passphrasePath = path.join(orbitDir, 'pulumi.passphrase');
+    const stateDir = path.join(orbitDir, 'state');
+    const pulumiHome = path.join(orbitDir, 'pulumi-home');
 
+    // Create directories if they don't exist
+    if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+    if (!fs.existsSync(pulumiHome))
+      fs.mkdirSync(pulumiHome, { recursive: true });
+
+    let passphrase = '';
     if (fs.existsSync(passphrasePath)) {
       passphrase = fs.readFileSync(passphrasePath, 'utf8').trim();
     } else {
@@ -66,10 +74,13 @@ export class DependencyManager {
       fs.writeFileSync(passphrasePath, passphrase);
     }
 
+    // Set environment variables for isolation
     process.env.PULUMI_CONFIG_PASSPHRASE = passphrase;
+    process.env.PULUMI_HOME = pulumiHome;
 
     logger.info('SETUP', '   - Initializing local state backend...');
-    const res = spawnSync('pulumi', ['login', '--local'], {
+    // Log in to the local filesystem backend inside the Orbit directory
+    const res = spawnSync('pulumi', ['login', `file://${stateDir}`], {
       stdio: 'inherit',
       shell: true,
       env: process.env,

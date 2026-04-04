@@ -57,6 +57,8 @@ export class SchematicManager {
       'imageUri',
       'manageNetworking',
       'sshSourceRanges',
+      'bootDiskType',
+      'dataDiskType',
     ];
 
     const cleanFlags: any = {};

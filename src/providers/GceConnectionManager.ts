@@ -5,6 +5,7 @@
  */
 
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import os from 'node:os';
 import { DirectInternalStrategy } from './strategies/DirectInternalStrategy.js';
 import { ExternalStrategy } from './strategies/ExternalStrategy.js';
 import type { BaseStrategy } from './strategies/BaseStrategy.js';
@@ -155,7 +156,7 @@ export class GceConnectionManager {
    * Generates an rsync-compatible SSH string.
    */
   getRsyncSshArg(): string {
-    return 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null';
+    return `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${os.homedir()}/.ssh/google_compute_engine`;
   }
 
   /**

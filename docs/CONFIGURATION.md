@@ -65,6 +65,26 @@ active Station.
 Schematics allow you to switch between different infrastructure environments
 (e.g., `corp`, `sandbox`, `local-lab`).
 
+#### 🌐 Networking Modes
+
+Orbit supports two distinct networking strategies for cloud stations:
+
+1.  **Managed Networking (`manageNetworking: true`)**:
+    - **Recommended** for isolation.
+    - Orbit automatically creates a dedicated VPC, Subnet, Cloud Router, and NAT
+      Gateway for the station.
+    - VPC and Subnet names are dynamically generated based on the instance name
+      to prevent collisions.
+    - Do **not** provide `vpcName` or `subnetName` in the schematic when using
+      this mode.
+
+2.  **Pre-existing Networking (`manageNetworking: false`)**:
+    - Use this if you want to place your station in an existing corporate or
+      shared VPC.
+    - You **must** provide `vpcName` and `subnetName` in the schematic.
+    - Orbit will only provision the VM and ensure firewall rules are present in
+      the specified network.
+
 **Managing Schematics via CLI**:
 
 - **List available schematics**: `orbit schematic list`

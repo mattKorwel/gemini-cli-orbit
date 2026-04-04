@@ -253,8 +253,8 @@ export async function dispatch(argv: string[]): Promise<number> {
               y2.option('sync', {
                 alias: 's',
                 type: 'boolean',
-                default: true,
-                description: 'Sync with reality (use --no-sync to skip)',
+                default: false,
+                description: 'Sync with reality (status and missions)',
               }),
             async (args: any) => {
               const sdk = createSDK(args);
@@ -447,12 +447,10 @@ export async function dispatch(argv: string[]): Promise<number> {
             'splashdown [name]',
             'Emergency shutdown of Orbit infrastructure.',
             (y2) =>
-              y2
-                .positional('name', { type: 'string' })
-                .option('all', {
-                  type: 'boolean',
-                  description: 'All active remote capsules',
-                }),
+              y2.positional('name', { type: 'string' }).option('all', {
+                type: 'boolean',
+                description: 'All active remote capsules',
+              }),
             async (args: any) => {
               const sdk = createSDK(args);
               args.exitCode = await sdk.splashdown({

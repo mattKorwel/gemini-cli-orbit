@@ -138,14 +138,13 @@ orbit uplink 42        # Inspect telemetry without attaching
 Orbit doesn't just provide infrastructure — it executes high-fidelity missions
 autonomously.
 
-| Command                        | What it does                                                                                                                        |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `orbit mission <pr> review`    | Parallelized PR analysis: fetches context, runs the build, performs a mandatory **Behavioral Proof**, outputs `final-assessment.md` |
-| `orbit mission <pr> fix`       | Iterative CI repair — reads failures, patches code, re-runs until the mission is green                                              |
-| `orbit mission <pr> implement` | Implements features or changes from issue descriptions, test-first                                                                  |
-| `orbit mission <pr>`           | Interactive Gemini chat session inside the isolated Mission Capsule                                                                 |
-| `orbit mission <pr> eva`       | Extra-Vehicular Activity — a manual shell inside the capsule without interrupting an active agent                                   |
-| `orbit mission <pr> shell`     | Raw bash shell inside the capsule                                                                                                   |
+| Command                              | What it does                                                                                                                        |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `orbit mission start <pr> review`    | Parallelized PR analysis: fetches context, runs the build, performs a mandatory **Behavioral Proof**, outputs `final-assessment.md` |
+| `orbit mission start <pr> fix`       | Iterative CI repair — reads failures, patches code, re-runs until the mission is green                                              |
+| `orbit mission start <pr> implement` | Implements features or changes from issue descriptions, test-first                                                                  |
+| `orbit mission start <pr> chat`      | Interactive Gemini chat session inside the isolated Mission Capsule (default)                                                       |
+| `orbit mission shell <pr>`           | Raw bash shell inside the capsule (sidecar terminal)                                                                                |
 
 > See [Maneuvers](docs/MANEUVERS.md) for a phase-by-phase breakdown of each
 > mission type.

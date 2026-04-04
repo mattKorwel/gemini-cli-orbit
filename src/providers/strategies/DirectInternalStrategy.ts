@@ -17,19 +17,22 @@ export class DirectInternalStrategy extends BaseStrategy {
       return `${user}@${this.overrideHost}`;
     }
 
-    // nic0.<name>.<zone>.c.<project>.internal[.<custom-suffix>]
+    // Construction: nic0.<name>.<zone>.c.<project>.<suffix>
+    // Suffix defaults to 'internal' if not specified.
     const customSuffix = this.infra.dnsSuffix || '';
-    const baseSuffix = `.c.${this.projectId}.internal`;
+    const baseSuffix = `.c.${this.projectId}`;
     if (!this.projectId) {
       console.warn('⚠️ WARNING: DirectInternalStrategy: projectId is missing!');
     }
-    const fullSuffix =
-      baseSuffix +
-      (customSuffix.startsWith('.')
+
+    let fullSuffix = baseSuffix;
+    if (customSuffix) {
+      fullSuffix += customSuffix.startsWith('.')
         ? customSuffix
-        : customSuffix
-          ? '.' + customSuffix
-          : '');
+        : `.${customSuffix}`;
+    } else {
+      fullSuffix += '.internal';
+    }
 
     return `${user}@nic0.${this.instanceName}.${this.zone}${fullSuffix}`;
   }

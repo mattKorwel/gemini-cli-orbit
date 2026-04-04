@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.hoisted(() => {
-  process.env.GCLI_MCP = '1';
-  process.env.GCLI_ORBIT_PROVIDER = 'gce';
-});
+// Set environment variables BEFORE importing MissionManager
+vi.stubEnv('GCLI_MCP', '1');
+vi.stubEnv('GCLI_ORBIT_PROVIDER', 'gce');
 
 import { MissionManager } from './MissionManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
@@ -18,9 +17,21 @@ import { resolveMissionContext } from '../utils/MissionUtils.js';
 vi.mock('../providers/ProviderFactory.js');
 vi.mock('../utils/MissionUtils.js', () => ({
   resolveMissionContext: vi.fn(),
+  SessionManager: {
+    generateMissionId: vi.fn().mockReturnValue('mock-mission-id'),
+  },
+}));
+vi.mock('../utils/SessionManager.js', () => ({
+  SessionManager: {
+    generateMissionId: vi.fn().mockReturnValue('mock-mission-id'),
+    getSessionIdFromEnv: vi.fn().mockReturnValue(null),
+  },
 }));
 vi.mock('../utils/TempManager.js', () => ({
   TempManager: { getToken: () => 'mock-token' },
+}));
+vi.mock('../core/ConfigManager.js', () => ({
+  detectRemoteUrl: vi.fn().mockReturnValue('https://github.com/test/test.git'),
 }));
 
 describe('MissionManager', () => {
@@ -29,8 +40,8 @@ describe('MissionManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.GCLI_MCP = '1';
-    process.env.GCLI_ORBIT_PROVIDER = 'gce';
+    vi.stubEnv('GCLI_MCP', '1');
+    vi.stubEnv('GCLI_ORBIT_PROVIDER', 'gce');
 
     mockProvider = {
       type: 'gce',
@@ -52,6 +63,10 @@ describe('MissionManager', () => {
     );
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('should start a new mission and auto-attach if action is chat', async () => {
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
@@ -63,14 +78,51 @@ describe('MissionManager', () => {
       exists: false,
       running: false,
     });
-    // IMPORTANT: attach() needs to see the capsule in the list to trigger provider.attach
     mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
 
     const result = await manager.start({ identifier: '123', action: 'chat' });
 
-    expect(process.env.GCLI_MCP).toBe('1');
     expect(mockProvider.prepareMissionWorkspace).toHaveBeenCalled();
     expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('should auto-attach for CLI users (non-MCP)', async () => {
+    vi.stubEnv('GCLI_MCP', '0'); // Explicitly disable MCP
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      containerName: 'orbit-feat-chat',
+      sessionName: 'orbit-feat',
+      workspaceName: 'mission-feat-chat',
+    });
+    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-chat']);
+
+    const result = await manager.start({ identifier: '123', action: 'chat' });
+
+    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('should execute the worker for autonomous actions (review)', async () => {
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      containerName: 'orbit-feat-review',
+      sessionName: 'orbit-feat',
+      workspaceName: 'mission-feat-review',
+    });
+    mockProvider.listCapsules.mockResolvedValue(['orbit-feat-review']);
+
+    const result = await manager.start({ identifier: '123', action: 'review' });
+
+    // Verify worker command execution
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('station.js 123 feat'),
+      expect.objectContaining({
+        wrapCapsule: 'orbit-feat-review',
+      }),
+    );
+    // Should also auto-attach after the worker finishes
+    expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-review');
     expect(result.exitCode).toBe(0);
   });
 
@@ -89,9 +141,7 @@ describe('MissionManager', () => {
 
     const result = await manager.start({ identifier: '123', action: 'chat' });
 
-    // Should NOT prepare workspace again
     expect(mockProvider.prepareMissionWorkspace).not.toHaveBeenCalled();
-    // Should immediately attach
     expect(mockProvider.attach).toHaveBeenCalledWith('orbit-feat-chat');
     expect(result.exitCode).toBe(0);
   });
@@ -102,7 +152,6 @@ describe('MissionManager', () => {
       'orbit-123-debug-chat',
     ]);
 
-    // Target the debug one specifically
     (resolveMissionContext as any).mockReturnValue({
       containerName: 'orbit-123-debug-chat',
     });

@@ -121,7 +121,30 @@ export class GceCosProvider implements OrbitProvider {
       logger.info(
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
-      const check = await this.getCapsuleStatus(this.instanceName);
+
+      let check: { exists: boolean; running: boolean } | null = null;
+      let lastErr: any = null;
+
+      // SSH Retry Loop: Wait for SSH to actually be available
+      for (let i = 0; i < 10; i++) {
+        try {
+          check = await this.getCapsuleStatus(this.instanceName);
+          break;
+        } catch (err) {
+          if (err instanceof ConnectivityError) {
+            lastErr = err;
+            process.stdout.write('.');
+            await new Promise((r) => setTimeout(r, 3000));
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (!check) {
+        throw lastErr || new Error('Failed to establish SSH connection.');
+      }
+      if (lastErr) process.stdout.write('\n');
 
       if (!check.exists || !check.running) {
         logger.info(
@@ -431,9 +454,10 @@ export class GceCosProvider implements OrbitProvider {
     if (check === 0) return 0;
 
     const cmds = [
-      `sudo mkdir -p /mnt/disks/data`,
-      `sudo chmod 777 /mnt/disks/data`,
-      `git clone --mirror ${remoteUrl} ${mirrorPath}`,
+      `sudo mkdir -p /mnt/disks/data/tmp`,
+      `sudo chmod -R 777 /mnt/disks/data`,
+      `sudo TMPDIR=/mnt/disks/data/tmp git clone --mirror ${remoteUrl} ${mirrorPath}`,
+      `sudo chmod -R 777 ${mirrorPath}`,
     ];
 
     for (const cmd of cmds) {

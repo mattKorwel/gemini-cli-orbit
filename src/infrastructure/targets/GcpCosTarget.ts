@@ -10,6 +10,7 @@ import { LocalWorkspace } from '@pulumi/pulumi/automation/index.js';
 import type { InfrastructureProvisioner } from '../InfrastructureProvisioner.js';
 import type { InfrastructureState } from '../InfrastructureState.js';
 import { PULUMI_STATE_DIR, type OrbitConfig } from '../../core/Constants.js';
+import { logger } from '../../core/Logger.js';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -56,6 +57,24 @@ export class GcpCosTarget implements InfrastructureProvisioner {
   }
 
   /**
+   * Determine the best disk type for the selected machine series.
+   */
+  private getRecommendedDiskType(machineType: string): string {
+    const series = machineType.toLowerCase();
+    // N4, C3, C4, M3 series require Hyperdisk
+    if (
+      series.startsWith('n4-') ||
+      series.startsWith('c3-') ||
+      series.startsWith('c4-') ||
+      series.startsWith('m3-')
+    ) {
+      return 'hyperdisk-balanced';
+    }
+    // N1, N2, E2, T2D, etc. use PD
+    return 'pd-balanced';
+  }
+
+  /**
    * Pulumi Program defining the infrastructure.
    */
   private pulumiProgram = async () => {
@@ -64,6 +83,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     const zone = this.config.zone || 'us-central1-a';
     const project = this.config.projectId;
     const isExternal = this.config.backendType === 'external';
+    const machineType = this.config.machineType || 'n2-standard-4';
 
     const provider = new gcp.Provider('gcp-provider', {
       ...(project ? { project } : {}),
@@ -174,7 +194,8 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       {
         name: dataDiskName,
         size: 500,
-        type: 'pd-balanced',
+        type:
+          this.config.dataDiskType || this.getRecommendedDiskType(machineType),
         zone,
       },
       { provider },
@@ -185,12 +206,13 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       name,
       {
         name,
-        machineType: this.config.machineType || 'n2-standard-4',
+        machineType,
         zone,
         bootDisk: {
           initializeParams: {
             image: 'cos-cloud/cos-stable',
             size: 200,
+            type: this.config.bootDiskType, // Unspecified by default
           },
         },
         attachedDisks: [

@@ -44,17 +44,8 @@ orbit mission shell 123
 ```
 
 This drops you into a raw bash session inside the _same_ container as your chat.
-
-### 3. Autonomous Mission Maneuvers
-
-Execute specialized autonomous tasks on your mission:
-
-- `orbit mission start 123 review`: Parallel analysis, build, and behavioral
-  proof.
-- `orbit mission start 123 fix`: Iterative CI repair and conflict resolution.
-- `orbit mission start 123 implement`: Feature execution with test-first logic.
-
-[Learn more about Maneuvers](./MANEUVERS.md).
+It is an ephemeral side-terminal (EVA style) for manual intervention without
+interrupting an active agent session.
 
 ---
 

@@ -152,9 +152,6 @@ export async function runStation(args: string[]) {
         guidelinesPath,
       );
     }
-    case 'open':
-      console.log(`🚀 Dropping into manual session...`);
-      return 0;
 
     default:
       console.error(`❌ Unknown action: ${action}`);

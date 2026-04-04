@@ -66,11 +66,16 @@ export function getRepoConfig(
       config.zone = receipt.zone;
       config.providerType = receipt.type;
 
+      const actualInstanceName = receipt.instanceName || receipt.name;
+
       // Merge in the schematic used to build this station if it exists
       if (receipt.schematic) {
         const schematic = loadSchematic(receipt.schematic);
         config = { ...config, ...schematic };
       }
+
+      // Restore the actual instance name if the schematic tried to override it
+      config.instanceName = actualInstanceName;
     } else {
       // If station not in registry, assume name is literal
       config.stationName = targetStation;
