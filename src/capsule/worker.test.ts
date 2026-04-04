@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runStation } from './worker.js';
+import { main } from './worker.js';
 
 import * as fixPlaybook from '../playbooks/fix.js';
 import { spawnSync } from 'node:child_process';
@@ -19,7 +19,7 @@ vi.mock('../playbooks/ready.js');
 vi.mock('../playbooks/review.js');
 vi.mock('../core/ConfigManager.js');
 
-describe('runStation', () => {
+describe('worker main', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (spawnSync as any).mockReturnValue({
@@ -35,18 +35,17 @@ describe('runStation', () => {
     });
   });
 
-  it('should prepare workspace if upstream URL provided', async () => {
+  it('should perform git initialization on init command', async () => {
     // Simulate non-existent .git
     (fs.existsSync as any).mockImplementation((path: string) => {
       if (path.endsWith('.git')) return false;
       return true;
     });
 
-    await runStation([
+    await main([
+      'init',
       '123',
       'feat-test',
-      '/tmp/policy.toml',
-      'review',
       'https://github.com/org/repo.git',
       '/mnt/disks/data/main',
     ]);
@@ -58,24 +57,17 @@ describe('runStation', () => {
       ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
       expect.any(Object),
     );
-    expect(spawnSync).toHaveBeenCalledWith(
-      'git',
-      expect.arrayContaining(['fetch', '--reference', '/mnt/disks/data/main']),
-      expect.any(Object),
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('alternates'),
+      expect.stringContaining('/mnt/disks/data/main/objects'),
     );
   });
 
-  it('should skip setup if .git already exists', async () => {
+  it('should skip setup if .git already exists on init command', async () => {
     // Simulate existing .git
     (fs.existsSync as any).mockReturnValue(true);
 
-    await runStation([
-      '123',
-      'feat-test',
-      '/tmp/policy.toml',
-      'review',
-      'https://github.com/org/repo.git',
-    ]);
+    await main(['init', '123', 'feat-test', 'https://github.com/org/repo.git']);
 
     // Should NOT call git init
     expect(spawnSync).not.toHaveBeenCalledWith(
@@ -91,14 +83,15 @@ describe('runStation', () => {
     );
   });
 
-  it('should dispatch to the correct playbook', async () => {
+  it('should dispatch to the correct playbook on run command', async () => {
     vi.spyOn(fixPlaybook, 'runFixPlaybook').mockResolvedValue(0);
 
-    const res = await runStation([
+    const res = await main([
+      'run',
       '23176',
       'feat-test',
-      '/policies/orbit-policy.toml',
       'fix',
+      '/policies/orbit-policy.toml',
     ]);
     expect(res).toBe(0);
     expect(fixPlaybook.runFixPlaybook).toHaveBeenCalled();

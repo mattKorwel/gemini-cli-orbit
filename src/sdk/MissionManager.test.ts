@@ -53,6 +53,7 @@ describe('MissionManager', () => {
       attach: vi.fn().mockResolvedValue(0),
       exec: vi.fn().mockResolvedValue(0),
       sync: vi.fn().mockResolvedValue(0),
+      syncIfChanged: vi.fn().mockResolvedValue(0),
       ensureReady: vi.fn().mockResolvedValue(0),
     };
     (ProviderFactory.getProvider as any).mockReturnValue(mockProvider);
