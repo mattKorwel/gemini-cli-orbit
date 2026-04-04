@@ -11,18 +11,6 @@ import {
   type OrbitConfig,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
-import { ProviderFactory } from '../providers/ProviderFactory.js';
-import {
-  loadSettings,
-  saveSettings,
-  saveSchematic as saveSchematicToDisk,
-  loadSchematic,
-  detectRemoteUrl,
-} from '../core/ConfigManager.js';
-import { StationRegistry } from './StationRegistry.js';
-import { SchematicManager } from './SchematicManager.js';
-import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
-import { DependencyManager } from './DependencyManager.js';
 import {
   type OrbitObserver,
   type StationInfo,
@@ -32,15 +20,27 @@ import {
   type HibernateOptions,
   type SplashdownOptions,
 } from '../core/types.js';
+import {
+  type IStationRegistry,
+  type ISchematicManager,
+  type IProviderFactory,
+  type IInfrastructureFactory,
+  type IConfigManager,
+  type IDependencyManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
 export class FleetManager {
-  private readonly stationManager = new StationRegistry();
-  private readonly schematicManager = new SchematicManager();
-
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
+    private readonly stationManager: IStationRegistry,
+    private readonly schematicManager: ISchematicManager,
+    private readonly providerFactory: IProviderFactory,
+    private readonly infraFactory: IInfrastructureFactory,
+    private readonly configManager: IConfigManager,
+    private readonly dependencyManager: IDependencyManager,
   ) {}
 
   /**
@@ -58,7 +58,7 @@ export class FleetManager {
       `📡 Instance: ${instanceName} | Schematic: ${sName}`,
     );
 
-    const schematic = loadSchematic(sName);
+    const schematic = this.configManager.loadSchematic(sName);
     const config = { ...this.infra, ...schematic, instanceName };
 
     if (!config.projectId && config.providerType !== 'local-worktree') {
@@ -71,10 +71,10 @@ export class FleetManager {
     }
 
     if (config.providerType !== 'local-worktree') {
-      await DependencyManager.ensurePulumi();
+      await this.dependencyManager.ensurePulumi();
     }
 
-    const infraProvisioner = InfrastructureFactory.getProvisioner(
+    const infraProvisioner = this.infraFactory.getProvisioner(
       instanceName,
       config as any,
     );
@@ -104,7 +104,7 @@ export class FleetManager {
         'SETUP',
         `💤 Station ${instanceName} is hibernating. Waking up...`,
       );
-      const provider = ProviderFactory.getProvider(
+      const provider = this.providerFactory.getProvider(
         this.projectCtx,
         config as any,
       );
@@ -130,7 +130,7 @@ export class FleetManager {
       return 1;
     }
 
-    const provider = ProviderFactory.getProvider(
+    const provider = this.providerFactory.getProvider(
       this.projectCtx,
       config as any,
       state,
@@ -144,7 +144,9 @@ export class FleetManager {
       await provider.ensureReady();
 
       // Ensure Main Mirror exists on host for fast clones
-      const remoteUrl = detectRemoteUrl(this.projectCtx.repoRoot);
+      const remoteUrl = this.configManager.detectRemoteUrl(
+        this.projectCtx.repoRoot,
+      );
       if (remoteUrl) {
         this.observer.onLog?.(
           LogLevel.INFO,
@@ -158,7 +160,7 @@ export class FleetManager {
     const isLocal =
       config.projectId === 'local' || config.providerType === 'local-worktree';
     if (state.status !== 'destroyed' && !isLocal) {
-      const settings = loadSettings();
+      const settings = this.configManager.loadSettings();
       const stationName = instanceName;
       const rName = this.projectCtx.repoName;
 
@@ -170,7 +172,7 @@ export class FleetManager {
         settings.activeStation = stationName;
       }
 
-      saveSettings(settings);
+      this.configManager.saveSettings(settings);
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
@@ -204,11 +206,11 @@ export class FleetManager {
   async listStations(
     options: ListStationsOptions = {},
   ): Promise<StationInfo[]> {
-    const settings = loadSettings();
-    const receipts = await this.stationManager.listStations(options);
+    const settings = this.configManager.loadSettings();
+    const receipts = await this.stationManager.listStations(options as any);
 
     const stationInfos: StationInfo[] = await Promise.all(
-      receipts.map(async (r: any) => {
+      receipts.map(async (r: StationReceipt) => {
         let missions: string[] = [];
         let status = r.status || 'READY';
 
@@ -267,7 +269,7 @@ export class FleetManager {
       throw new Error(`Station "${name}" not found in registry.`);
     }
 
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
+    const provider = this.providerFactory.getProvider(this.projectCtx, {
       instanceName: receipt.instanceName || name,
       projectId: receipt.projectId,
       zone: receipt.zone,
@@ -287,7 +289,7 @@ export class FleetManager {
    * Set a station as the active target for future commands.
    */
   async activateStation(name: string): Promise<void> {
-    const settings = loadSettings();
+    const settings = this.configManager.loadSettings();
     const stations = await this.stationManager.listStations();
     const station = stations.find((s) => s.name === name);
     if (!station) {
@@ -303,7 +305,7 @@ export class FleetManager {
       settings.activeStation = station.name;
     }
 
-    saveSettings(settings);
+    this.configManager.saveSettings(settings);
     this.observer.onLog?.(
       LogLevel.INFO,
       'CONFIG',
@@ -316,7 +318,7 @@ export class FleetManager {
    */
   async splashdown(options: SplashdownOptions = {}): Promise<number> {
     const { name, all, force } = options;
-    const settings = loadSettings();
+    const settings = this.configManager.loadSettings();
 
     // 1. Resolve Target Station (Explicit Name > Active Station)
     const targetName = name || settings.activeStation;
@@ -338,7 +340,7 @@ export class FleetManager {
     }
 
     // 3. Instantiate Scoped Provider
-    const provider = ProviderFactory.getProvider(this.projectCtx, {
+    const provider = this.providerFactory.getProvider(this.projectCtx, {
       instanceName: receipt.instanceName || receipt.name,
       projectId: receipt.projectId,
       zone: receipt.zone,
@@ -378,7 +380,7 @@ export class FleetManager {
           'CLEANUP',
           `   🚜 Destroying Station Infrastructure: ${receipt.name}`,
         );
-        const infraProvisioner = InfrastructureFactory.getProvisioner(
+        const infraProvisioner = this.infraFactory.getProvisioner(
           receipt.instanceName || receipt.name,
           receipt as any,
         );
@@ -387,7 +389,7 @@ export class FleetManager {
 
         if (settings.activeStation === receipt.name) {
           delete settings.activeStation;
-          saveSettings(settings);
+          this.configManager.saveSettings(settings);
         }
         this.observer.onLog?.(
           LogLevel.INFO,
@@ -432,7 +434,7 @@ export class FleetManager {
    * Get a specific schematic.
    */
   getSchematic(name: string): OrbitConfig | null {
-    return loadSchematic(name);
+    return this.configManager.loadSchematic(name) as OrbitConfig;
   }
 
   /**
@@ -442,7 +444,7 @@ export class FleetManager {
     name: string,
     config: Partial<OrbitConfig>,
   ): Promise<void> {
-    saveSchematicToDisk(name, config);
+    this.configManager.saveSchematic(name, config);
     this.observer.onLog?.(
       LogLevel.INFO,
       'CONFIG',

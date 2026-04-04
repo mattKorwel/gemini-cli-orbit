@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync } from 'node:child_process';
 import {
   type InfrastructureSpec,
   type ProjectContext,
@@ -15,12 +14,14 @@ import {
   type CIStatus,
   type MonitorCIOptions,
 } from '../core/types.js';
+import { type IProcessManager } from '../core/interfaces.js';
 
 export class CIManager {
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
+    private readonly processManager: IProcessManager,
   ) {}
 
   /**
@@ -28,20 +29,28 @@ export class CIManager {
    */
   async monitor(options: MonitorCIOptions): Promise<CIStatus> {
     const { branch, runId } = options;
-    const targetBranch =
-      branch ||
-      execSync('git branch --show-current', { cwd: this.projectCtx.repoRoot })
-        .toString()
-        .trim();
+    const branchRes = this.processManager.runSync(
+      'git',
+      ['branch', '--show-current'],
+      {
+        cwd: this.projectCtx.repoRoot,
+        quiet: true,
+      },
+    );
+    const targetBranch = branch || branchRes.stdout.trim();
 
     // Resolve full repo name (org/repo)
     let fullRepo: string;
     try {
-      const remoteUrl = execSync('git remote get-url origin', {
-        cwd: this.projectCtx.repoRoot,
-      })
-        .toString()
-        .trim();
+      const remoteRes = this.processManager.runSync(
+        'git',
+        ['remote', 'get-url', 'origin'],
+        {
+          cwd: this.projectCtx.repoRoot,
+          quiet: true,
+        },
+      );
+      const remoteUrl = remoteRes.stdout.trim();
       fullRepo = remoteUrl
         .replace(/.*github\.com[\/:]/, '')
         .replace(/\.git$/, '')
@@ -128,10 +137,13 @@ export class CIManager {
 
   private runGh(args: string): string | null {
     try {
-      return execSync(`gh ${args}`, {
-        stdio: ['ignore', 'pipe', 'ignore'],
+      // Basic split that handles simple cases.
+      // For more complex gh commands we might need a proper shell-quote parser if we use it more extensively.
+      const res = this.processManager.runSync('gh', args.split(' '), {
         cwd: this.projectCtx.repoRoot,
-      }).toString();
+        quiet: true,
+      });
+      return res.status === 0 ? res.stdout : null;
     } catch (_e) {
       return null;
     }

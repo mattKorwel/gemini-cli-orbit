@@ -86,7 +86,7 @@ async function main() {
       cwd: absWorkDir,
       env,
       interactive: true,
-    });
+    } as any);
 
     ProcessManager.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
   } else {

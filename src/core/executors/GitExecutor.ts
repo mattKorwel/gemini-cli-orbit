@@ -5,10 +5,10 @@
  */
 
 import { type Command } from './types.js';
-import { type RunOptions } from '../ProcessManager.js';
+import { type IRunOptions } from '../interfaces.js';
 
 export class GitExecutor {
-  public static init(cwd: string, options: RunOptions = {}): Command {
+  public static init(cwd: string, options: IRunOptions = {}): Command {
     return { bin: 'git', args: ['init'], options: { ...options, cwd } };
   }
 
@@ -16,7 +16,7 @@ export class GitExecutor {
     cwd: string,
     name: string,
     url: string,
-    options: RunOptions = {},
+    options: IRunOptions = {},
   ): Command {
     return {
       bin: 'git',
@@ -29,7 +29,7 @@ export class GitExecutor {
     cwd: string,
     remote: string,
     branch: string,
-    options: RunOptions = {},
+    options: IRunOptions = {},
   ): Command {
     return {
       bin: 'git',
@@ -41,7 +41,7 @@ export class GitExecutor {
   public static checkout(
     cwd: string,
     branch: string,
-    options: RunOptions = {},
+    options: IRunOptions = {},
   ): Command {
     return {
       bin: 'git',
@@ -54,7 +54,7 @@ export class GitExecutor {
     cwd: string,
     path: string,
     branch: string,
-    options: RunOptions = {},
+    options: IRunOptions = {},
   ): Command {
     return {
       bin: 'git',

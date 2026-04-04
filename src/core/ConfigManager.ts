@@ -23,6 +23,29 @@ import {
   SATELLITE_WORKSPACES_PATH,
 } from './Constants.js';
 
+import { type IConfigManager } from './interfaces.js';
+
+export class ConfigManager implements IConfigManager {
+  loadSettings(): OrbitSettings {
+    return loadSettings();
+  }
+  saveSettings(settings: OrbitSettings): void {
+    saveSettings(settings);
+  }
+  loadSchematic(name: string): Partial<OrbitConfig> {
+    return loadSchematic(name);
+  }
+  saveSchematic(name: string, config: any): void {
+    saveSchematic(name, config);
+  }
+  loadJson(path: string): any {
+    return loadJson(path);
+  }
+  detectRemoteUrl(repoRoot: string): string | null {
+    return detectRemoteUrl(repoRoot);
+  }
+}
+
 /**
  * Resolves the final Orbit configuration for a repository.
  * Tiered Resolution: CLI Flags (--for-station) > Env Vars > Global activeStation > Project Defaults

@@ -5,7 +5,7 @@
  */
 
 import { type Command } from './types.js';
-import { type RunOptions } from '../ProcessManager.js';
+import { type IRunOptions } from '../interfaces.js';
 
 export class NodeExecutor {
   /**
@@ -14,7 +14,7 @@ export class NodeExecutor {
   public static create(
     scriptPath: string,
     args: string[] = [],
-    options: RunOptions = {},
+    options: IRunOptions = {},
   ): Command {
     return {
       bin: process.execPath,

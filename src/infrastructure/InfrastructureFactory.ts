@@ -8,15 +8,16 @@ import type { InfrastructureProvisioner } from './InfrastructureProvisioner.js';
 import { GcpCosTarget } from './targets/GcpCosTarget.js';
 import { LocalNoopTarget } from './targets/LocalNoopTarget.js';
 import type { OrbitConfig } from '../core/Constants.js';
+import { type IInfrastructureFactory } from '../core/interfaces.js';
 
 /**
  * Factory for creating InfrastructureProvisioner instances.
  */
-export class InfrastructureFactory {
+export class InfrastructureFactory implements IInfrastructureFactory {
   /**
    * Returns a provisioner based on the schematic configuration.
    */
-  static getProvisioner(
+  getProvisioner(
     schematicName: string,
     config: OrbitConfig,
   ): InfrastructureProvisioner {

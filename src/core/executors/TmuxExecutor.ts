@@ -5,7 +5,7 @@
  */
 
 import { type Command } from './types.js';
-import { type RunOptions } from '../ProcessManager.js';
+import { type IRunOptions } from '../interfaces.js';
 
 export class TmuxExecutor {
   /**
@@ -14,7 +14,7 @@ export class TmuxExecutor {
   public static wrap(
     sessionName: string,
     innerCommand: string,
-    options: RunOptions & { detached?: boolean } = {},
+    options: IRunOptions & { detached?: boolean } = {},
   ): Command {
     const { detached = true, cwd, env } = options;
 
@@ -37,7 +37,7 @@ export class TmuxExecutor {
 
     tmuxArgs.push(fullInner);
 
-    const runOptions: RunOptions = { ...options };
+    const runOptions: IRunOptions = { ...options };
     delete runOptions.env; // Env is handled inside the wrapper
 
     return {
