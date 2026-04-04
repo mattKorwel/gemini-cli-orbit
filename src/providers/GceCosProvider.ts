@@ -326,11 +326,6 @@ export class GceCosProvider implements OrbitProvider {
             ([k, v]) => `-e ${k}=${this.sshQuote(v as string)}`,
           )
         : []),
-      ...(config.sensitiveEnv
-        ? Object.entries(config.sensitiveEnv).map(
-            ([k, v]) => `-e ${k}=${this.sshQuote(v as string)}`,
-          )
-        : []),
     ].join(' ');
 
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
