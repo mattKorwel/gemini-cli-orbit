@@ -327,11 +327,12 @@ export class StationSupervisor {
 
     // Stealth UI Styles
     const styles = [
-      'set-option -g status-position top',
-      'set-option -g status-style bg=default,fg=colour240',
-      'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
-      'set-option -g status-right "#[fg=colour244]#H"',
-      'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
+      'set-option status on',
+      'set-option status-position top',
+      'set-option status-style bg=colour235,fg=colour244',
+      'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
+      'set-option status-right "#[fg=colour244] #H "',
+      'set-option window-status-current-format "#[fg=colour45,bold] #S "',
     ]
       .map((s) => `tmux ${s}`)
       .join('; ');
@@ -340,23 +341,29 @@ export class StationSupervisor {
     // Order: <id> <branch> <action> <policy> [sessionName]
     const nodeCmd = NodeExecutor.create(entrypointPath, [
       identifier,
-      branchName,
-      action,
+      targetDir,
       policyPath,
+      action,
       sName,
     ]);
 
     // Wrap it in Tmux for persistence
     // 1. Apply styles.
-    // 2. Print tip.
-    // 3. Run command.
-    // 4. If command succeeds (exit 0), tmux exits.
-    // 5. If command fails, drop into zsh.
-    const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
+    // 2. Print tip. (ANSI: \x1b[38;5;244m = Gray, \x1b[38;5;39m = Blue, \x1b[0m = Reset)
+    const tip =
+      'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
+    const launch = `${styles}; ${tip}; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
 
     const tmuxCmd = {
       bin: 'tmux',
-      args: ['new-session', '-d', '-A', '-s', sName, launch],
+      args: [
+        'new-session',
+        '-d',
+        '-A',
+        '-s',
+        sName,
+        `${tip}; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`,
+      ],
       options: { cwd: targetDir },
     };
 
@@ -366,6 +373,33 @@ export class StationSupervisor {
       tmuxCmd.args,
       tmuxCmd.options,
     );
+
+    // Apply Stealth UI Styles to the session explicitly
+    const styleCmds = [
+      ['set-option', '-t', sName, 'status', 'on'],
+      ['set-option', '-t', sName, 'status-position', 'top'],
+      ['set-option', '-t', sName, 'status-style', 'bg=colour235,fg=colour244'],
+      [
+        'set-option',
+        '-t',
+        sName,
+        'status-left',
+        '#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ ',
+      ],
+      ['set-option', '-t', sName, 'status-right', '#[fg=colour244] #H '],
+      [
+        'set-option',
+        '-t',
+        sName,
+        'window-status-current-format',
+        '#[fg=colour45,bold] #S ',
+      ],
+    ];
+
+    for (const args of styleCmds) {
+      ProcessManager.runSync('tmux', args, { quiet: true });
+    }
+
     return res.status;
   }
 }

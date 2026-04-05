@@ -91,24 +91,14 @@ export class LocalWorktreeProvider implements OrbitProvider {
     if (this.hasTmux()) {
       const sessionName = options.wrapCapsule || 'orbit-local';
 
-      // Stealth UI Styles
-      const styles = [
-        'set-option -g status-position top',
-        'set-option -g status-style bg=default,fg=colour240',
-        'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
-        'set-option -g status-right "#[fg=colour244]#H"',
-        'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
-      ]
-        .map((s) => `tmux ${s}`)
-        .join('; ');
-
       // Launch Command:
-      // 1. Apply styles.
-      // 2. Print tip.
-      // 3. Run command.
-      // 4. If command succeeds (exit 0), tmux exits.
-      // 5. If command fails, drop into zsh.
-      const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${envPrefix}${command} || exec zsh`;
+      // 1. Print tip.
+      // 2. Run command.
+      // 3. If command succeeds (exit 0), tmux exits.
+      // 4. If command fails, drop into zsh.
+      const tip =
+        'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
+      const launch = `${tip}; ${envPrefix}${command} || exec zsh`;
 
       return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${launch}"`;
     }
@@ -151,6 +141,39 @@ export class LocalWorktreeProvider implements OrbitProvider {
       cwd,
       env: { ...process.env, ...options.env, GEMINI_AUTO_UPDATE: '0' },
     });
+
+    if (options.wrapCapsule && this.hasTmux()) {
+      const sName = options.wrapCapsule;
+      const styleCmds = [
+        ['set-option', '-t', sName, 'status', 'on'],
+        ['set-option', '-t', sName, 'status-position', 'top'],
+        [
+          'set-option',
+          '-t',
+          sName,
+          'status-style',
+          'bg=colour235,fg=colour244',
+        ],
+        [
+          'set-option',
+          '-t',
+          sName,
+          'status-left',
+          '#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ ',
+        ],
+        ['set-option', '-t', sName, 'status-right', '#[fg=colour244] #H '],
+        [
+          'set-option',
+          '-t',
+          sName,
+          'window-status-current-format',
+          '#[fg=colour45,bold] #S ',
+        ],
+      ];
+      for (const args of styleCmds) {
+        spawnSync('tmux', args, { stdio: 'ignore' });
+      }
+    }
 
     return {
       status: res.status ?? (res.error ? 1 : 0),

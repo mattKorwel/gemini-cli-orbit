@@ -32,10 +32,11 @@ async function main() {
   const workDir = args[1] || '.';
   const policyPath = args[2] || '.';
   const action = args[3] || 'chat';
+  const sessionName = args[4] || identifier;
 
   if (!identifier) {
     console.error(
-      'Usage: entrypoint <identifier> [workDir] [policyPath] [action]',
+      'Usage: entrypoint <identifier> [workDir] [policyPath] [action] [sessionName]',
     );
     process.exit(1);
   }
@@ -104,6 +105,7 @@ async function main() {
         identifier, // branch
         action,
         policyPath,
+        sessionName as string,
       ],
       { cwd: absWorkDir, interactive: true },
     );
