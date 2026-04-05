@@ -17,6 +17,7 @@ import { LogLevel } from '../core/Logger.js';
 import {
   type IConfigManager,
   type IProviderFactory,
+  type IStationRegistry,
 } from '../core/interfaces.js';
 import {
   type MissionResult,
@@ -46,6 +47,7 @@ export class MissionManager {
     private readonly providerFactory: IProviderFactory,
     private readonly configManager: IConfigManager,
     private readonly executors: IExecutors,
+    private readonly stationRegistry: IStationRegistry,
   ) {}
 
   /**
@@ -90,7 +92,10 @@ export class MissionManager {
     // 1. Ensure Hardware/Station is Ready
     await provider.ensureReady();
 
-    // 2. Project Configuration Sync
+    // 2. Standardized Station Registration (Implicit Liftoff)
+    this.stationRegistry.saveReceipt(provider.getStationReceipt());
+
+    // 3. Project Configuration Sync
     if (!isLocalWorkspace) {
       this.observer.onProgress?.(
         'PHASE 0',

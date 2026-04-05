@@ -194,6 +194,7 @@ export const DEFAULT_IMAGE_URI =
 export interface OrbitConfig extends InfrastructureSpec {
   upstreamRepo?: string | undefined;
   repoName?: string | undefined;
+  repoRoot?: string | undefined;
   terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
   userFork?: string | undefined;
   remoteHost?: string | undefined;

@@ -181,17 +181,7 @@ export class FleetManager {
         `🎯 Active Station for ${rName || 'global'} set to: ${stationName}`,
       );
 
-      this.stationManager.saveReceipt({
-        name: stationName,
-        instanceName: stationName,
-        type: 'gce',
-        projectId: config.projectId!,
-        zone: config.zone || 'us-central1-a',
-        backendType: config.backendType as any,
-        repo: this.projectCtx.repoName,
-        schematic: sName,
-        lastSeen: new Date().toISOString(),
-      });
+      this.stationManager.saveReceipt(provider.getStationReceipt());
     }
 
     this.observer.onLog?.(

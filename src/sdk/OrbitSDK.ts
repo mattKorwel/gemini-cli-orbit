@@ -118,6 +118,7 @@ export class OrbitSDK implements IOrbitSDK {
       providerFactory,
       configManager,
       executors,
+      stationRegistry,
     );
     this.fleet = new FleetManager(
       this.projectCtx,

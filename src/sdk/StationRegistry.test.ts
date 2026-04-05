@@ -53,9 +53,10 @@ describe('StationRegistry', () => {
 
   it('should discover local stations from settings', async () => {
     (fs.readdirSync as any).mockReturnValue([]);
+    (fs.existsSync as any).mockReturnValue(true);
     configManager.loadSettings.mockReturnValue({
       repos: {
-        'some-repo': { projectId: 'local' },
+        'some-repo': { projectId: 'local', repoRoot: '/some/path' },
       },
     });
 

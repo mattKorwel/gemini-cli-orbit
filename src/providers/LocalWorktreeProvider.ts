@@ -12,7 +12,11 @@ import type { InfrastructureState } from '../infrastructure/InfrastructureState.
 import { type ProjectContext, MISSION_PREFIX } from '../core/Constants.js';
 import { type Command, flattenCommand } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
-import { type IExecutors, type IProcessManager } from '../core/interfaces.js';
+import {
+  type IExecutors,
+  type IProcessManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
 /**
  * LocalWorktreeProvider: Hierarchical local workspace management.
@@ -287,6 +291,19 @@ export class LocalWorktreeProvider extends BaseProvider {
     const wtPath = path.join(this.workspacesDir, name.replace(/-/g, '/'));
     return this.pm.runSync('zsh', [], { interactive: true, cwd: wtPath })
       .status;
+  }
+
+  getStationReceipt(): StationReceipt {
+    return {
+      name: this.stationName,
+      instanceName: this.stationName,
+      type: 'local-worktree',
+      projectId: 'local',
+      zone: 'localhost',
+      repo: this.projectCtx.repoName,
+      rootPath: this.projectCtx.repoRoot,
+      lastSeen: new Date().toISOString(),
+    };
   }
 
   async listCapsules(): Promise<string[]> {

@@ -20,7 +20,11 @@ import {
   type InfrastructureSpec,
 } from '../core/Constants.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
-import { type IExecutors, type IProcessManager } from '../core/interfaces.js';
+import {
+  type IExecutors,
+  type IProcessManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
 export class ConnectivityError extends Error {
   constructor(message: string) {
@@ -461,13 +465,24 @@ export class GceCosProvider extends BaseProvider {
   async stationShell(): Promise<number> {
     return this.exec('/bin/bash', { interactive: true });
   }
-
   async missionShell(capsuleName: string): Promise<number> {
     return this.exec('/bin/bash', {
       wrapCapsule: capsuleName,
       interactive: true,
       user: 'node',
     });
+  }
+
+  getStationReceipt(): StationReceipt {
+    return {
+      name: this.stationName,
+      instanceName: this.instanceName,
+      type: 'gce',
+      projectId: this.projectId,
+      zone: this.zone,
+      repo: this.projectCtx.repoName,
+      lastSeen: new Date().toISOString(),
+    };
   }
 
   private sshQuote(val: string): string {

@@ -32,6 +32,31 @@ export class StationRegistry implements IStationRegistry {
 
   saveReceipt(receipt: StationReceipt): void {
     const p = path.join(STATIONS_DIR, `${receipt.name}.json`);
+
+    if (fs.existsSync(p)) {
+      try {
+        const existing = JSON.parse(
+          fs.readFileSync(p, 'utf8'),
+        ) as StationReceipt;
+        const { lastSeen: _l, ...eRest } = existing;
+        const { lastSeen: _n, ...nRest } = receipt;
+
+        // Metadata matches?
+        if (JSON.stringify(eRest) === JSON.stringify(nRest)) {
+          const lastSeenTime = new Date(existing.lastSeen).getTime();
+          const now = new Date().getTime();
+          const oneHour = 3600 * 1000;
+
+          // Only skip if lastSeen is less than an hour old
+          if (now - lastSeenTime < oneHour) {
+            return;
+          }
+        }
+      } catch (_e) {
+        // Corrupt file? Just overwrite.
+      }
+    }
+
     fs.writeFileSync(p, JSON.stringify(receipt, null, 2));
   }
 
@@ -76,18 +101,22 @@ export class StationRegistry implements IStationRegistry {
 
     // 2. Discover Local Repos (from settings.json)
     // Every repo entry in settings is effectively a local-worktree station base
-    Object.keys(settings.repos).forEach((repoName) => {
+    Object.entries(settings.repos).forEach(([repoName, repoCfg]) => {
       const stationName = `local-${repoName}`;
       if (!seenNames.has(stationName)) {
-        receipts.push({
-          name: stationName,
-          instanceName: stationName,
-          type: 'local-worktree',
-          projectId: 'local',
-          zone: 'localhost',
-          repo: repoName,
-          lastSeen: new Date().toISOString(),
-        });
+        // Validate local repo actually exists before listing it
+        if (repoCfg.repoRoot && fs.existsSync(repoCfg.repoRoot)) {
+          receipts.push({
+            name: stationName,
+            instanceName: stationName,
+            type: 'local-worktree',
+            projectId: 'local',
+            zone: 'localhost',
+            repo: repoName,
+            rootPath: repoCfg.repoRoot,
+            lastSeen: new Date().toISOString(),
+          });
+        }
       }
     });
 

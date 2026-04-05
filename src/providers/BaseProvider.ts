@@ -15,7 +15,11 @@ import type {
 import { type Command } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
 
-import { type IExecutors, type IProcessManager } from '../core/interfaces.js';
+import {
+  type IExecutors,
+  type IProcessManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
 /**
  * BaseProvider: Shared logic for all Orbit backends.
@@ -107,6 +111,8 @@ export abstract class BaseProvider {
   abstract provisionMirror(remoteUrl: string): Promise<number>;
   abstract stationShell(): Promise<number>;
   abstract missionShell(capsuleName: string): Promise<number>;
+
+  abstract getStationReceipt(): StationReceipt;
 
   injectState?(state: InfrastructureState): void;
 

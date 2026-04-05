@@ -79,6 +79,7 @@ describe('MissionManager', () => {
         .fn()
         .mockImplementation((r, i, a) => `orbit-${r}-${i}-${a}`),
       resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
+      getStationReceipt: vi.fn().mockReturnValue({ name: 'mock-station' }),
     };
 
     providerFactory = {
@@ -102,6 +103,10 @@ describe('MissionManager', () => {
       },
     };
 
+    const mockStationRegistry: any = {
+      saveReceipt: vi.fn(),
+    };
+
     manager = new MissionManager(
       { repoName: 'test-repo', repoRoot: '/tmp' } as any,
       { projectId: 'p1', zone: 'z1' } as any,
@@ -109,6 +114,7 @@ describe('MissionManager', () => {
       providerFactory,
       configManager,
       mockExecutors,
+      mockStationRegistry,
     );
   });
 

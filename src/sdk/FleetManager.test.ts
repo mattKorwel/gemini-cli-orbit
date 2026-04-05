@@ -48,6 +48,7 @@ describe('FleetManager', () => {
       stopCapsule: vi.fn().mockResolvedValue(0),
       removeCapsule: vi.fn().mockResolvedValue(0),
       exec: vi.fn().mockResolvedValue(0),
+      getStationReceipt: vi.fn().mockReturnValue({ name: 'test-station' }),
     };
 
     stationRegistry = {
