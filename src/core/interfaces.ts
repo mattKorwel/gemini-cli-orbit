@@ -25,7 +25,8 @@ export interface StationReceipt {
   status?: string;
   backendType?: 'direct-internal' | 'external';
   schematic?: string;
-  rootPath?: string;
+  rootPath?: string | undefined;
+  workspacesDir?: string;
   lastSeen: string;
 }
 

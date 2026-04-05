@@ -9,9 +9,15 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import yargs, { type Argv } from 'yargs';
-import { OrbitSDK, type IOrbitSDK } from '../sdk/OrbitSDK.js';
+import {
+  OrbitSDK,
+  type IOrbitSDK,
+  type PulseInfo,
+  type CapsuleInfo,
+} from '../sdk/OrbitSDK.js';
 import { getRepoConfig, detectRepoName } from '../core/ConfigManager.js';
 import { ConsoleObserver } from '../core/Logger.js';
+import { type StationReceipt } from '../core/interfaces.js';
 
 function expandPath(p: string): string {
   if (p.startsWith('~/')) {
@@ -332,29 +338,57 @@ export async function dispatch(argv: string[]): Promise<number> {
             ['list', 'ls'],
             'List all provisioned stations.',
             (y2) =>
-              y2.option('sync', {
-                alias: 's',
-                type: 'boolean',
-                default: false,
-                description: 'Sync with reality (status and missions)',
-              }),
+              y2
+                .option('sync', {
+                  alias: 's',
+                  type: 'boolean',
+                  default: true,
+                  description: 'Sync with reality (status and missions)',
+                })
+                .option('missions', {
+                  alias: 'm',
+                  type: 'boolean',
+                  default: false,
+                  description: 'Show high-fidelity mission status',
+                }),
             async (args: any) => {
               const sdk = createSDK(args);
-              const { sync } = args;
+              const { sync, missions } = args;
+
               if (sync && !args.json) {
                 process.stderr.write(
                   '📡 Synchronizing constellation . . . . .\n',
                 );
               }
+
               const stations = await sdk.listStations({
                 syncWithReality: sync,
-                includeMissions: sync,
+                includeMissions: sync || missions,
               });
 
+              let pulses: PulseInfo[] = [];
+              if (missions && stations.length > 0) {
+                // Convert StationInfo back to Receipts for the engine
+                const receipts: StationReceipt[] = stations.map((s) => ({
+                  name: s.name,
+                  instanceName: s.name,
+                  type: s.type,
+                  projectId: s.projectId || 'local',
+                  zone: s.zone || 'local',
+                  repo: s.repo,
+                  rootPath: s.rootPath,
+                  lastSeen: s.lastSeen || new Date().toISOString(),
+                }));
+                pulses = await sdk.getFleetPulse(receipts);
+              }
+
               if (args.json) {
-                console.log(JSON.stringify(stations, null, 2));
+                console.log(
+                  JSON.stringify(missions ? pulses : stations, null, 2),
+                );
                 return;
               }
+
               console.log('\n🛰️  ORBIT CONSTELLATION');
               if (stations.length === 0) {
                 console.log('   ✅ No provisioned stations found.');
@@ -377,11 +411,18 @@ export async function dispatch(argv: string[]): Promise<number> {
                   const typeIcon = s.type === 'gce' ? '☁️' : '🏠';
                   const activeMarker = s.isActive ? '➡️' : '  ';
                   const status = s.status || 'READY';
-                  const missions = (s.missions || []).length;
+                  const missionCount = (s.missions || []).length;
                   const project = s.projectId || 'local';
                   console.log(
-                    `${activeMarker} ${typeIcon}  ${s.name.padEnd(20)} → ${status}, ${missions} missions, ${project}`,
+                    `${activeMarker} ${typeIcon}  ${s.name.padEnd(20)} → ${status}, ${missionCount} missions, ${project}`,
                   );
+
+                  if (missions) {
+                    const pulse = pulses.find((p) => p.stationName === s.name);
+                    if (pulse) {
+                      renderPulseMissions(pulse, '      ');
+                    }
+                  }
                 });
               });
             },
@@ -415,68 +456,34 @@ export async function dispatch(argv: string[]): Promise<number> {
               if (!args.json) {
                 process.stderr.write('📡 Requesting status . . . . .\n');
               }
-              const pulse = await sdk.getPulse();
+
+              let pulses: PulseInfo[] = [];
+
+              // GLOBAL LOCAL PULSE: If run with --local and outside a repo
+              if (args.local && !process.env.GCLI_ORBIT_REPO_NAME) {
+                pulses = await sdk.getGlobalLocalPulse();
+              } else {
+                pulses = [await sdk.getPulse()];
+              }
 
               if (args.json) {
-                console.log(JSON.stringify(pulse, null, 2));
+                console.log(JSON.stringify(pulses, null, 2));
                 return;
               }
-              console.log(`\n🛰️  ORBIT PULSE: ${pulse.stationName}`);
-              console.log(`   Repo Context: ${pulse.repoName}`);
-              console.log('-'.repeat(80));
-              console.log(`   - Station State:  ${pulse.status}`);
-              if (pulse.internalIp)
-                console.log(`   - Internal IP:    ${pulse.internalIp}`);
-              if (pulse.externalIp)
-                console.log(`   - External IP:    ${pulse.externalIp}`);
 
-              console.log('\n📦 ACTIVE MISSION CAPSULES:');
-              if (pulse.capsules.length === 0) {
-                console.log('     - No mission capsules found');
-              } else {
-                pulse.capsules.forEach((c) => {
-                  let stateIcon = '💤';
-                  let detail = '';
+              pulses.forEach((pulse) => {
+                console.log(`\n🛰️  ORBIT PULSE: ${pulse.stationName}`);
+                console.log(`   Repo Context: ${pulse.repoName}`);
+                console.log('-'.repeat(80));
+                console.log(`   - Station State:  ${pulse.status}`);
+                if (pulse.internalIp)
+                  console.log(`   - Internal IP:    ${pulse.internalIp}`);
+                if (pulse.externalIp)
+                  console.log(`   - External IP:    ${pulse.externalIp}`);
 
-                  switch (c.state) {
-                    case 'THINKING':
-                      stateIcon = '🧠';
-                      detail = c.lastThought ? `Thought: ${c.lastThought}` : '';
-                      break;
-                    case 'WAITING_FOR_INPUT':
-                      stateIcon = '⏳';
-                      detail = c.lastQuestion
-                        ? `Question: ${c.lastQuestion}`
-                        : 'Waiting for input';
-                      break;
-                    case 'WAITING_FOR_APPROVAL':
-                      stateIcon = '🛑';
-                      detail =
-                        c.blocker || `Approval needed for ${c.pendingTool}`;
-                      break;
-                    case 'COMPLETED':
-                      stateIcon = '✅';
-                      detail = 'Mission complete';
-                      break;
-                    case 'WAITING':
-                      stateIcon = '⏳';
-                      break;
-                  }
-
-                  const statsStr =
-                    typeof c.stats === 'string'
-                      ? c.stats
-                      : `CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`;
-
-                  console.log(
-                    `     ${stateIcon} ${c.name.padEnd(30)} [${c.state}] ${statsStr}`,
-                  );
-                  if (detail) {
-                    console.log(`        └─ ${detail}`);
-                  }
-                });
-              }
-              console.log('-'.repeat(80));
+                renderPulseMissions(pulse, '   ');
+                console.log('-'.repeat(80));
+              });
             },
           )
           .command(
@@ -689,6 +696,57 @@ async function main() {
 }
 
 const consoleObserver = new ConsoleObserver();
+
+/**
+ * Shared formatter for mission status in Pulse/List
+ */
+function renderPulseMissions(pulse: PulseInfo, indent = ''): void {
+  console.log(`\n${indent}📦 ACTIVE MISSION CAPSULES:`);
+  if (pulse.capsules.length === 0) {
+    console.log(`${indent}  - No mission capsules found`);
+  } else {
+    pulse.capsules.forEach((c: CapsuleInfo) => {
+      let stateIcon = '💤';
+      let detail = '';
+
+      switch (c.state) {
+        case 'THINKING':
+          stateIcon = '🧠';
+          detail = c.lastThought ? `Thought: ${c.lastThought}` : '';
+          break;
+        case 'WAITING_FOR_INPUT':
+          stateIcon = '⏳';
+          detail = c.lastQuestion
+            ? `Question: ${c.lastQuestion}`
+            : 'Waiting for input';
+          break;
+        case 'WAITING_FOR_APPROVAL':
+          stateIcon = '🛑';
+          detail = c.blocker || `Approval needed for ${c.pendingTool}`;
+          break;
+        case 'COMPLETED':
+          stateIcon = '✅';
+          detail = 'Mission complete';
+          break;
+        case 'WAITING':
+          stateIcon = '⏳';
+          break;
+      }
+
+      const statsStr =
+        typeof c.stats === 'string'
+          ? c.stats
+          : `CPU: ${c.stats?.cpu || '0%'} MEM: ${c.stats?.memory || '0MB'}`;
+
+      console.log(
+        `${indent}  ${stateIcon} ${c.name.padEnd(30)} [${c.state}] ${statsStr}`,
+      );
+      if (detail) {
+        console.log(`${indent}     └─ ${detail}`);
+      }
+    });
+  }
+}
 
 const isMain = () => {
   try {

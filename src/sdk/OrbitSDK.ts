@@ -137,6 +137,7 @@ export class OrbitSDK implements IOrbitSDK {
       bundles.infra,
       providerFactory,
       executors,
+      stationRegistry,
     );
     this.ci = new CIManager(
       this.projectCtx,
@@ -153,6 +154,22 @@ export class OrbitSDK implements IOrbitSDK {
    */
   async getPulse(): Promise<PulseInfo> {
     return this.status.getPulse();
+  }
+
+  /**
+   * Fetches pulses for multiple stations in parallel.
+   */
+  async getFleetPulse(
+    receipts: import('../core/interfaces.js').StationReceipt[],
+  ): Promise<PulseInfo[]> {
+    return this.status.getFleetPulse(receipts);
+  }
+
+  /**
+   * Fetches pulses for ALL local stations registered on this machine.
+   */
+  async getGlobalLocalPulse(): Promise<PulseInfo[]> {
+    return this.status.getGlobalLocalPulse();
   }
 
   /**

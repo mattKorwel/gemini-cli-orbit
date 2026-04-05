@@ -302,24 +302,45 @@ export class LocalWorktreeProvider extends BaseProvider {
       zone: 'localhost',
       repo: this.projectCtx.repoName,
       rootPath: this.projectCtx.repoRoot,
+      workspacesDir: this.workspacesDir,
       lastSeen: new Date().toISOString(),
     };
   }
 
   async listCapsules(): Promise<string[]> {
-    if (!fs.existsSync(this.workspacesDir)) return [];
-
+    const sourceDir = this.projectCtx.repoRoot;
     const capsules: string[] = [];
-    const repos = fs.readdirSync(this.workspacesDir);
-    for (const repo of repos) {
-      const repoPath = path.join(this.workspacesDir, repo);
-      if (fs.statSync(repoPath).isDirectory()) {
-        const ids = fs.readdirSync(repoPath);
-        for (const id of ids) {
-          capsules.push(`${repo}/${id}`);
+
+    // Use git worktree list for accuracy
+    const res = this.pm.runSync(
+      'git',
+      ['-C', sourceDir, 'worktree', 'list', '--porcelain'],
+      { quiet: true },
+    );
+
+    if (res.status === 0) {
+      const lines = res.stdout.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('worktree ')) {
+          const wtPath = line.replace('worktree ', '').trim();
+
+          // SKIP the main repo root itself
+          if (path.resolve(wtPath) === path.resolve(this.projectCtx.repoRoot)) {
+            continue;
+          }
+
+          // Only include if it's within our workspacesDir
+          if (wtPath.startsWith(this.workspacesDir)) {
+            const relPath = path.relative(this.workspacesDir, wtPath);
+            if (relPath && relPath !== '.') {
+              // Convert filesystem path back to mission ID slug (repo/id)
+              capsules.push(relPath);
+            }
+          }
         }
       }
     }
+
     return capsules;
   }
 

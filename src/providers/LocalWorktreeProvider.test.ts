@@ -93,20 +93,25 @@ describe('LocalWorktreeProvider', () => {
     expect(cmd).toContain('cd');
   });
 
-  it('should list hierarchical worktrees as capsules', async () => {
-    // 1. Mock readdirSync to return repo name
-    (fs.readdirSync as any).mockReturnValueOnce(['test-repo']);
-    // 2. Mock readdirSync to return mission ID inside repo
-    (fs.readdirSync as any).mockReturnValueOnce(['feat-1']);
+  it('should list hierarchical worktrees as capsules and skip repo root', async () => {
+    const workspacesDir = '/home/node/dev/repo/workspaces';
+    mockPm.runSync.mockReturnValue({
+      status: 0,
+      stdout: `worktree ${projectCtx.repoRoot}\nworktree ${workspacesDir}/repo/feat-1\nworktree ${workspacesDir}/repo/feat-2\n`,
+      stderr: '',
+    });
 
     const provider = new LocalWorktreeProvider(
       projectCtx,
       mockPm,
       mockExecutors,
       'test',
-      '/home/node/dev/repo/worktrees',
+      workspacesDir,
     );
     const capsules = await provider.listCapsules();
-    expect(capsules).toContain('test-repo/feat-1');
+    expect(capsules).toHaveLength(2);
+    expect(capsules).toContain('repo/feat-1');
+    expect(capsules).toContain('repo/feat-2');
+    expect(capsules).not.toContain('/home/node/dev/repo/main');
   });
 });

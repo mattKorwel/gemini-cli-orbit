@@ -204,6 +204,10 @@ export interface MissionExecOptions {
 export interface IOrbitSDK {
   readonly observer: OrbitObserver;
   getPulse(): Promise<PulseInfo>;
+  getFleetPulse(
+    receipts: import('../core/interfaces.js').StationReceipt[],
+  ): Promise<PulseInfo[]>;
+  getGlobalLocalPulse(): Promise<PulseInfo[]>;
   startMission(options: MissionOptions): Promise<MissionResult>;
   missionExec(options: MissionExecOptions): Promise<number>;
   jettisonMission(options: JettisonOptions): Promise<MissionResult>;

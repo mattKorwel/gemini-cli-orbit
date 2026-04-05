@@ -9,7 +9,12 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import { type PulseInfo, type CapsuleInfo } from '../core/types.js';
-import { type IProviderFactory, type IExecutors } from '../core/interfaces.js';
+import {
+  type IProviderFactory,
+  type IExecutors,
+  type StationReceipt,
+  type IStationRegistry,
+} from '../core/interfaces.js';
 
 export class StatusManager {
   constructor(
@@ -17,6 +22,7 @@ export class StatusManager {
     private readonly infra: InfrastructureSpec,
     private readonly providerFactory: IProviderFactory,
     private readonly executors: IExecutors,
+    private readonly stationRegistry: IStationRegistry,
   ) {}
 
   /**
@@ -133,6 +139,140 @@ export class StatusManager {
     return {
       stationName: instanceName,
       repoName: this.projectCtx.repoName,
+      status: statusRes.status,
+      internalIp: statusRes.internalIp || undefined,
+      externalIp: statusRes.externalIp || undefined,
+      capsules,
+    };
+  }
+
+  /**
+   * Fetches pulses for multiple stations in parallel.
+   */
+  async getFleetPulse(receipts: StationReceipt[]): Promise<PulseInfo[]> {
+    return Promise.all(
+      receipts.map(async (r) => {
+        const stationProjectCtx: ProjectContext = {
+          repoRoot: r.rootPath || this.projectCtx.repoRoot,
+          repoName: r.repo,
+        };
+
+        const provider = this.providerFactory.getProvider(stationProjectCtx, {
+          projectId: r.projectId,
+          zone: r.zone,
+          instanceName: r.instanceName,
+          providerType: r.type,
+          backendType: r.backendType,
+          workspacesDir: r.workspacesDir,
+        } as any);
+
+        return this.getPulseForProvider(provider, r.instanceName, r.repo);
+      }),
+    );
+  }
+
+  /**
+   * Special case: Fetches pulse for ALL local stations registered on this machine.
+   */
+  async getGlobalLocalPulse(): Promise<PulseInfo[]> {
+    const allReceipts = await this.stationRegistry.listStations();
+    const localReceipts = allReceipts.filter(
+      (r) => r.type === 'local-worktree',
+    );
+    return this.getFleetPulse(localReceipts);
+  }
+
+  /**
+   * Shared pulse logic for a specific provider instance.
+   */
+  private async getPulseForProvider(
+    provider: import('../providers/BaseProvider.js').OrbitProvider,
+    instanceName: string,
+    repoName: string,
+  ): Promise<PulseInfo> {
+    const statusRes = await provider.getStatus();
+    const capsules: CapsuleInfo[] = [];
+
+    if (statusRes.status === 'RUNNING') {
+      const isLocalWorkspace = provider.type === 'local-worktree';
+      const bundlePath = isLocalWorkspace ? 'bundle' : '/mnt/disks/data/bundle';
+
+      const statusCmd = this.executors.node.create(`${bundlePath}/station.js`, [
+        'status',
+      ]);
+      const statusOutput = await provider.getExecOutput(statusCmd, {
+        quiet: true,
+      });
+
+      let aggregatedMissions: any[] = [];
+      if (statusOutput.status === 0) {
+        try {
+          const report = JSON.parse(statusOutput.stdout);
+          aggregatedMissions = report.missions || [];
+        } catch (_e) {
+          // Fallback
+        }
+      }
+
+      const containerNames = await provider.listCapsules();
+
+      for (const containerName of containerNames) {
+        const stats = await provider.getCapsuleStats(containerName);
+        const missionState = aggregatedMissions.find(
+          (m) =>
+            m.mission === containerName || containerName.includes(m.mission),
+        );
+
+        if (missionState) {
+          capsules.push({
+            name: containerName,
+            state: missionState.status,
+            stats,
+            lastThought: missionState.last_thought,
+            blocker: missionState.blocker,
+            progress: missionState.progress,
+            pendingTool: missionState.pending_tool,
+            lastQuestion: missionState.last_question,
+          });
+        } else {
+          // Legacy/Fallback discovery
+          const tmuxCmd = {
+            bin: 'tmux',
+            args: ['list-sessions', '-F', '#S'],
+          };
+
+          const tmuxRes = await provider.getExecOutput(tmuxCmd, {
+            wrapCapsule: containerName,
+            quiet: true,
+          });
+
+          let state: CapsuleInfo['state'] = 'IDLE';
+          if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+            const paneOutput = await provider.capturePane(containerName);
+            const lines = paneOutput.trim().split('\n');
+            const lastLine = lines[lines.length - 1] || '';
+            const isWaiting =
+              lastLine.includes(' > ') ||
+              lastLine.trim().endsWith('>') ||
+              lastLine.includes('(y/n)') ||
+              lastLine.trim().endsWith('?') ||
+              (lastLine.includes('node@') && lastLine.includes('$'));
+
+            state = isWaiting ? 'WAITING' : 'THINKING';
+          }
+
+          capsules.push({
+            name: containerName,
+            state,
+            stats,
+          });
+        }
+      }
+    }
+
+    return {
+      stationName: instanceName,
+      repoName,
       status: statusRes.status,
       internalIp: statusRes.internalIp || undefined,
       externalIp: statusRes.externalIp || undefined,
