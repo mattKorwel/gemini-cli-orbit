@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
@@ -62,6 +63,12 @@ async function main() {
   if (action === 'chat') {
     logger.info('GENERAL', '✨ Orbit ready. Joining interactive session...');
 
+    // ADR: Smarter resumption logic.
+    // Only use --resume latest if a previous session actually exists in ~/.gemini/sessions
+    const sessionsDir = path.join(os.homedir(), '.gemini/sessions');
+    const hasSessions =
+      fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
+
     // Resolve absolute path of gemini
     const geminiBin = 'gemini';
     const env = {
@@ -71,14 +78,22 @@ async function main() {
       GCLI_ORBIT_ACTION: action,
     };
 
-    const geminiCmd = GeminiExecutor.create(geminiBin, {
+    const geminiOpts: any = {
       approvalMode: 'auto_edit',
       policy: policyPath,
-      promptInteractive: `I am continuing the ${action} mission for ${identifier}. Please review the logs in .gemini/orbit/ and provide your assessment.`,
       cwd: absWorkDir,
       env,
       interactive: true,
-    } as any);
+    };
+
+    if (hasSessions) {
+      geminiOpts.resume = 'latest';
+      geminiOpts.promptInteractive = `I am continuing the ${action} mission for ${identifier}. Please review the logs in .gemini/orbit/ and provide your assessment.`;
+    } else {
+      geminiOpts.promptInteractive = `I am starting the ${action} mission for ${identifier}. How can I help?`;
+    }
+
+    const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
 
     ProcessManager.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
   } else {

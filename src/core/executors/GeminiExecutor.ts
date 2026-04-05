@@ -13,6 +13,7 @@ export interface GeminiOptions extends IRunOptions {
   promptInteractive?: string;
   prompt?: string;
   yolo?: boolean;
+  resume?: string;
 }
 
 export class GeminiExecutor {
@@ -23,6 +24,7 @@ export class GeminiExecutor {
       promptInteractive,
       prompt,
       yolo,
+      resume,
       ...runOpts
     } = options;
     const args: string[] = [];
@@ -30,6 +32,7 @@ export class GeminiExecutor {
     if (approvalMode) args.push('--approval-mode', approvalMode);
     if (policy) args.push('--policy', policy);
     if (yolo) args.push('--yolo');
+    if (resume) args.push('--resume', resume);
     if (promptInteractive) args.push('--prompt-interactive', promptInteractive);
     if (prompt) args.push('--prompt', prompt);
 

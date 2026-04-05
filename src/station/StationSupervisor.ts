@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
@@ -264,8 +265,21 @@ export class StationSupervisor {
         const missionId = prNumberOrIssue;
         console.log(`\n💬 Entering Mission Chat: ${sessionName || missionId}`);
 
-        // Automatic Resumption logic: --resume latest
-        const cmd = `${geminiBin} --resume latest`;
+        // ADR: Smarter resumption logic.
+        // Only use --resume latest if a previous session actually exists in ~/.gemini/sessions
+        const sessionsDir = path.join(os.homedir(), '.gemini/sessions');
+        const hasSessions =
+          fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
+
+        let cmd: string;
+        if (hasSessions) {
+          cmd = `${geminiBin} --resume latest`;
+        } else {
+          // Fresh start with a helpful context prompt
+          const initialPrompt = `I am starting the ${action} mission for ${prNumberOrIssue}. How can I help?`;
+          cmd = `${geminiBin} "${initialPrompt}"`;
+        }
+
         const res = ProcessManager.runSync('sh', ['-c', cmd], {
           stdio: 'inherit',
           cwd: targetDir,
