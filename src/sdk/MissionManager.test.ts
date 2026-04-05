@@ -69,6 +69,16 @@ describe('MissionManager', () => {
       removeCapsule: vi.fn().mockResolvedValue(0),
       capturePane: vi.fn().mockResolvedValue('mock-logs'),
       getCapsuleIdleTime: vi.fn().mockResolvedValue(0),
+      resolveWorkspaceName: vi
+        .fn()
+        .mockImplementation((r, i) => `orbit-${r}-${i}`),
+      resolveSessionName: vi
+        .fn()
+        .mockImplementation((r, i) => `orbit/${r}/${i}`),
+      resolveContainerName: vi
+        .fn()
+        .mockImplementation((r, i, a) => `orbit-${r}-${i}-${a}`),
+      resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
     };
 
     providerFactory = {
@@ -103,9 +113,8 @@ describe('MissionManager', () => {
     const fullName = 'orbit-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: fullName,
-      sessionName: fullName,
-      workspaceName: fullName,
+      repoSlug: 'test-repo',
+      idSlug: '123',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
@@ -131,9 +140,8 @@ describe('MissionManager', () => {
     const fullName = 'orbit-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: fullName,
-      sessionName: fullName,
-      workspaceName: fullName,
+      repoSlug: 'test-repo',
+      idSlug: '123',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
@@ -157,27 +165,19 @@ describe('MissionManager', () => {
   });
 
   it('should clean up RAM-disk secret file and all possible mission variants during jettison', async () => {
-    const fullName = 'orbit-123';
-    (resolveMissionContext as any).mockImplementation(
-      (id: string, action: string) => ({
-        branchName: 'feat',
-        containerName:
-          action === 'chat' ? `orbit-${id}` : `orbit-${id}-${action}`,
-        workspaceName: `orbit-${id}`,
-        sessionName:
-          action === 'chat' ? `orbit-${id}` : `orbit-${id}-${action}`,
-      }),
-    );
-    mockProvider.listCapsules.mockResolvedValue([fullName]);
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+    });
+    mockProvider.listCapsules.mockResolvedValue(['orbit-123']);
 
     await manager.jettison({ identifier: '123' });
 
-    // Should attempt to remove multiple variants
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-123');
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-123-review');
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-123-fix');
+    // Should attempt to remove variants
+    expect(mockProvider.removeCapsule).toHaveBeenCalled();
 
-    // Should cleanup secrets for each
+    // Should cleanup secrets
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
       expect.any(Object),

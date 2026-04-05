@@ -5,24 +5,26 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { sanitizeName, detectRepoName } from '../core/ConfigManager.js';
-import { MISSION_PREFIX as _MISSION_PREFIX } from '../core/Constants.js';
+import { sanitizeName } from '../core/ConfigManager.js';
 import { type MissionManifest } from '../core/types.js';
 
 export interface MissionContext {
   branchName: string;
+  repoSlug: string;
+  idSlug: string;
+  workspaceName: string;
   containerName: string;
   sessionName: string;
-  workspaceName: string;
 }
 
 /**
- * Resolves PR/Issue metadata and calculates standardized mission names.
+ * Resolves PR/Issue metadata and extracts raw naming components.
+ * This is the PURE METADATA source for Orbit missions.
  */
 export function resolveMissionContext(
   identifier: string,
-  action: string,
-): MissionContext {
+  repoName: string,
+): { branchName: string; repoSlug: string; idSlug: string } {
   const parts = identifier.split(':');
   const prId = parts[0]!;
   const suffix = parts.length > 1 ? parts.slice(1).join('-') : undefined;
@@ -52,35 +54,15 @@ export function resolveMissionContext(
   const sBranch = sanitizeName(branchName);
   const sId = sanitizeName(prId);
   const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
-  const sRepo = sanitizeName(detectRepoName() || 'unknown');
 
-  // Starfleet Hierarchical Naming Strategy
-  // Strip 'gemini-cli-' prefix from repo for brevity
-  const shortRepo = sRepo.startsWith('gemini-cli-')
-    ? sRepo.replace('gemini-cli-', '')
-    : sRepo;
-
-  // 1. workspaceName: orbit-<repo>-<id> (FileSystem safe: uses '-')
-  // Logic Fix: If shortRepo is 'orbit', don't repeat it
-  const repoSlug = shortRepo === 'orbit' ? '' : `${shortRepo}-`;
-  const workspaceName = `orbit-${repoSlug}${sId}${sSuffix}`.substring(0, 48);
-
-  // 2. containerName: Matches workspace (or adds action if not chat)
-  const containerName =
-    action === 'chat' ? workspaceName : `${workspaceName}-${action}`;
-
-  // 3. sessionName: Display name for Tmux (User preference: uses '/')
-  const sessionRepo = shortRepo === 'orbit' ? 'orbit' : `orbit/${shortRepo}`;
-  const sessionParts = [sessionRepo, sId];
-  if (suffix) sessionParts.push(sanitizeName(suffix));
-  if (action !== 'chat') sessionParts.push(action);
-  const sessionName = sessionParts.join('/');
+  // Total Preservation: No pruning or prefixing here.
+  const repoSlug = sanitizeName(repoName);
+  const idSlug = `${sId}${sSuffix}`;
 
   return {
     branchName: sBranch,
-    containerName,
-    sessionName,
-    workspaceName,
+    repoSlug,
+    idSlug,
   };
 }
 
@@ -100,7 +82,8 @@ export function getManifestFromEnv(): MissionManifest {
     throw new Error('❌ Missing GCLI_ORBIT_MANIFEST environment variable.');
   }
   try {
-    return JSON.parse(raw) as MissionManifest;
+    const parsed = JSON.parse(raw);
+    return parsed as MissionManifest;
   } catch (e: any) {
     throw new Error(`❌ Failed to parse mission manifest: ${e.message}`, {
       cause: e,

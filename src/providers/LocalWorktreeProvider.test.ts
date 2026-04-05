@@ -27,27 +27,16 @@ describe('LocalWorktreeProvider', () => {
 
     // Mock fs.existsSync to true by default for test stability
     (fs.existsSync as any).mockReturnValue(true);
-    // Mock realpathSync to return input by default
-    (fs.realpathSync as any).mockImplementation((p: string) => p.toString());
+    // Mock fs.statSync to return isDirectory: true
+    (fs.statSync as any).mockReturnValue({ isDirectory: () => true });
+    // Mock readdirSync for listCapsules
+    (fs.readdirSync as any).mockReturnValue([]);
   });
 
-  it('should initialize with correct worktrees directory', () => {
-    const provider = new LocalWorktreeProvider(
-      projectCtx,
-      'test-station',
-      '/tmp/wt',
-    );
-    expect(provider.workspacesDir).toBe('/tmp/wt');
-  });
-
-  it('should fallback to sibling of main if default is /mnt/disks/data', () => {
-    const provider = new LocalWorktreeProvider(
-      projectCtx,
-      'test-station',
-      '/mnt/disks/data',
-    );
-    // /home/node/dev/repo/main -> sibling is /home/node/dev/repo/workspaces
-    expect(provider.workspacesDir).toBe('/home/node/dev/repo/workspaces');
+  it('should initialize with correct hierarchical workspaces directory', () => {
+    const provider = new LocalWorktreeProvider(projectCtx, 'test-station');
+    // /home/node/dev/repo/main -> sibling is /home/node/dev/repo/orbit-workspaces
+    expect(provider.workspacesDir).toBe('/home/node/dev/repo/orbit-workspaces');
   });
 
   it('should report RUNNING status', async () => {
@@ -71,16 +60,11 @@ describe('LocalWorktreeProvider', () => {
     expect(cmd).toContain('cd');
   });
 
-  it('should list worktrees as capsules', async () => {
-    (spawnSync as any).mockReturnValue({
-      status: 0,
-      stdout: Buffer.from(
-        'worktree /home/node/dev/repo/main\n' +
-          'branch refs/heads/main\n\n' +
-          'worktree /home/node/dev/repo/worktrees/orbit-feat-1\n' +
-          'branch refs/heads/feat-1\n',
-      ),
-    } as any);
+  it('should list hierarchical worktrees as capsules', async () => {
+    // 1. Mock readdirSync to return repo name
+    (fs.readdirSync as any).mockReturnValueOnce(['test-repo']);
+    // 2. Mock readdirSync to return mission ID inside repo
+    (fs.readdirSync as any).mockReturnValueOnce(['feat-1']);
 
     const provider = new LocalWorktreeProvider(
       projectCtx,
@@ -88,7 +72,6 @@ describe('LocalWorktreeProvider', () => {
       '/home/node/dev/repo/worktrees',
     );
     const capsules = await provider.listCapsules();
-    expect(capsules).toContain('orbit-feat-1');
-    expect(capsules).not.toContain('main');
+    expect(capsules).toContain('test-repo/feat-1');
   });
 });

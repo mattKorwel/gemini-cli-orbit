@@ -16,8 +16,8 @@ vi.mock('../utils/SessionManager.js');
 vi.mock('../utils/MissionUtils.js', () => ({
   resolveMissionContext: vi.fn().mockReturnValue({
     branchName: 'feat-test',
-    containerName: 'orbit-test-container',
-    workspaceName: 'test-wt',
+    repoSlug: 'test-repo',
+    idSlug: 'feat-test',
   }),
 }));
 vi.mock('../core/Logger.js');
@@ -42,9 +42,11 @@ describe('RemoteProvisioner', () => {
 
   const mockCtx = {
     branchName: 'feat-test',
-    containerName: 'orbit-test-container',
-    workspaceName: 'test-wt',
-    sessionName: 'orbit/test/123',
+    repoSlug: 'test-repo',
+    idSlug: 'feat-test',
+    containerName: 'orbit-test-repo-feat-test',
+    workspaceName: 'orbit-test-repo-feat-test',
+    sessionName: 'orbit/test-repo/feat-test',
   };
 
   beforeEach(() => {
@@ -68,7 +70,7 @@ describe('RemoteProvisioner', () => {
 
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'orbit-test-container',
+        name: 'orbit-test-repo-feat-test',
       }),
     );
   });

@@ -27,7 +27,10 @@ import {
   type ReapOptions,
 } from '../core/types.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
-import { resolveMissionContext } from '../utils/MissionUtils.js';
+import {
+  resolveMissionContext,
+  type MissionContext,
+} from '../utils/MissionUtils.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
 
@@ -60,13 +63,26 @@ export class MissionManager {
       `🚀 Initializing '${action}' mission for ${identifier}...`,
     );
 
-    const mCtx = resolveMissionContext(identifier, action);
-    const branch = mCtx.branchName;
-
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
+
+    // 1. Resolve Raw Metadata
+    const { branchName, repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+    );
+
+    // 2. Delegate naming authority to the provider
+    const mCtx: MissionContext = {
+      branchName,
+      repoSlug,
+      idSlug,
+      workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
+      containerName: provider.resolveContainerName(repoSlug, idSlug, action),
+      sessionName: provider.resolveSessionName(repoSlug, idSlug, action),
+    };
 
     const isLocalWorkspace = provider.isLocal;
 
@@ -115,20 +131,13 @@ export class MissionManager {
 
     const mirrorPath = `${ORBIT_ROOT}/main`;
 
-    // Calculate the actual filesystem path where the worker should operate
-    const targetDir = isLocalWorkspace
-      ? path.join(
-          getPrimaryRepoRoot(this.projectCtx.repoRoot),
-          '..',
-          'workspaces',
-          mCtx.workspaceName,
-        )
-      : ORBIT_ROOT; // On remote, ORBIT_ROOT is the workspace base
+    // ADR 0018: Provider hook for absolute target path
+    const targetDir = provider.resolveWorkDir(mCtx.workspaceName);
 
     const manifest: MissionManifest = {
       identifier,
       repoName: this.projectCtx.repoName,
-      branchName: branch,
+      branchName: mCtx.branchName,
       action,
       workDir: targetDir,
       policyPath,
@@ -138,7 +147,6 @@ export class MissionManager {
     };
 
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
-    // Note: We run this on the HOST (no wrapCapsule) because it is the setup orchestrator.
     const startCmd = NodeExecutor.create(workerPath, ['start']);
     const startExitCode = await provider.exec(startCmd, {
       interactive: true,
@@ -237,14 +245,18 @@ export class MissionManager {
       `👋 Resuming existing '${action}' for ${options.identifier}...`,
     );
 
-    // 1. Calculate canonical session name
-    const mCtx = resolveMissionContext(options.identifier, action);
+    // 1. Calculate canonical session name via Provider Hook
+    const { repoSlug, idSlug } = resolveMissionContext(
+      options.identifier,
+      this.projectCtx.repoName,
+    );
+    const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
-    // 2. Try direct attach to canonical name first (Robustness ADR 0018)
-    const directRes = await provider.attach(mCtx.sessionName);
+    // 2. Try direct attach to canonical name first
+    const directRes = await provider.attach(sessionName);
     if (directRes === 0) return 0;
 
-    // 3. Fallback: List Capsules to find the right one (Legacy/Substring support)
+    // 3. Fallback: List Capsules to find the right one (Legacy support)
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -302,13 +314,19 @@ export class MissionManager {
       ? [action]
       : ['chat', 'fix', 'review', 'implement', 'ready'];
 
+    const { repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+    );
+
     for (const act of actionsToCleanup) {
-      const mCtx = resolveMissionContext(identifier, act);
+      const containerName = provider.resolveContainerName(
+        repoSlug,
+        idSlug,
+        act,
+      );
+      await provider.removeCapsule(containerName);
 
-      // 1. Remove Hardware-level Workspace (Capsule / Worktree)
-      await provider.removeCapsule(mCtx.containerName);
-
-      // 2. Cleanup RAM-disk secret file (Remote Only)
       if (provider.type === 'gce') {
         const sessionId = SessionManager.generateMissionId(identifier, act);
         const secretPath = `/dev/shm/.orbit-env-${sessionId}`;

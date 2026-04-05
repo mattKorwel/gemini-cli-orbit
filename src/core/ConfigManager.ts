@@ -20,7 +20,6 @@ import {
   GLOBAL_ORBIT_DIR,
   DEFAULT_VPC_NAME,
   DEFAULT_SUBNET_NAME,
-  SATELLITE_WORKSPACES_PATH,
 } from './Constants.js';
 
 import { type IConfigManager } from './interfaces.js';
@@ -142,8 +141,12 @@ export function getRepoConfig(
     config.instanceName = `orbit-station-${user}-${rName}`;
   }
   if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
-  if (!config.workspacesDir)
-    config.workspacesDir = config.worktreesDir || SATELLITE_WORKSPACES_PATH;
+
+  // Logic Fix: NO more global workspacesDir default here.
+  // Let the concrete Provider handle its own environment-specific defaults.
+  if (!config.workspacesDir) {
+    config.workspacesDir = config.worktreesDir;
+  }
   if (!config.worktreesDir) config.worktreesDir = config.workspacesDir;
 
   if (config.manageNetworking === undefined) {

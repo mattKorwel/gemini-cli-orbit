@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { type OrbitProvider } from './BaseProvider.js';
+import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
   type OrbitStatus,
@@ -31,8 +31,9 @@ export class ConnectivityError extends Error {
 
 /**
  * GCE Container-Optimized OS (COS) Execution Provider.
+ * Overrides BaseProvider to maintain legacy flat naming structure.
  */
-export class GceCosProvider implements OrbitProvider {
+export class GceCosProvider extends BaseProvider {
   public readonly type = 'gce';
   public readonly isLocal = false;
 
@@ -57,6 +58,7 @@ export class GceCosProvider implements OrbitProvider {
       stationName?: string;
     } = {},
   ) {
+    super();
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;
@@ -68,8 +70,37 @@ export class GceCosProvider implements OrbitProvider {
     this.stationName = config.stationName || instanceName;
   }
 
+  /**
+   * Override: GCE uses a flat orbit-repo-id naming scheme (Legacy compatibility)
+   */
+  override resolveWorkspaceName(repoSlug: string, idSlug: string): string {
+    return `orbit-${repoSlug}-${idSlug}`;
+  }
+
+  override resolveSessionName(
+    repoSlug: string,
+    idSlug: string,
+    action: string,
+  ): string {
+    const parts = ['orbit', repoSlug, idSlug];
+    if (action !== 'chat') parts.push(action);
+    return parts.join('/');
+  }
+
+  override resolveContainerName(
+    repoSlug: string,
+    idSlug: string,
+    action: string,
+  ): string {
+    const base = this.resolveWorkspaceName(repoSlug, idSlug);
+    return action === 'chat' ? base : `${base}-${action}`;
+  }
+
+  resolveWorkDir(_workspaceName: string): string {
+    return '/mnt/disks/data';
+  }
+
   injectState(state: InfrastructureState): void {
-    // If we have a public IP (external backend), override the host in SSH manager
     if (state.publicIp) {
       this.ssh.setOverrideHost(state.publicIp);
     }
@@ -83,11 +114,7 @@ export class GceCosProvider implements OrbitProvider {
     await provisioner.prepareMissionWorkspace(mCtx, infra);
   }
 
-  /**
-   * Ensures the station is responsive and the supervisor capsule is running.
-   */
   async ensureReady(): Promise<number> {
-    // Verify main repo existence on host
     const repoCheck = await this.getExecOutput(`ls -d ${this.repoRoot}/.git`, {
       quiet: true,
     });
@@ -107,7 +134,6 @@ export class GceCosProvider implements OrbitProvider {
       let check: { exists: boolean; running: boolean } | null = null;
       let lastErr: any = null;
 
-      // SSH Retry Loop
       for (let i = 0; i < 10; i++) {
         try {
           check = await this.getCapsuleStatus(this.instanceName);
@@ -167,7 +193,7 @@ export class GceCosProvider implements OrbitProvider {
     return 1;
   }
 
-  getRunCommand(_command: string, _options: ExecOptions = {}): string {
+  getRunCommand(): string {
     return 'NOT_IMPLEMENTED_USE_SSH_MANAGER';
   }
 
@@ -196,7 +222,6 @@ export class GceCosProvider implements OrbitProvider {
     if (options.cwd) cmdObj.cwd = options.cwd;
     if (options.user) cmdObj.user = options.user;
 
-    // Inject correct PATH for capsule execution
     if (options.wrapCapsule) {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
