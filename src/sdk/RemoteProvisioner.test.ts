@@ -28,6 +28,7 @@ describe('RemoteProvisioner', () => {
     getStatus: vi.fn(),
     getCapsuleStatus: vi.fn(),
     runCapsule: vi.fn(),
+    exec: vi.fn(),
   };
 
   const projectCtx: ProjectContext = {
@@ -41,7 +42,8 @@ describe('RemoteProvisioner', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (SessionManager.generateSessionId as any).mockReturnValue('test-session');
+    (SessionManager.generateMissionId as any).mockReturnValue('test-session');
+    mockProvider.exec.mockResolvedValue(0);
   });
 
   it('should provision a new capsule if it does not exist', async () => {
@@ -51,10 +53,35 @@ describe('RemoteProvisioner', () => {
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
     await provisioner.prepareMissionWorkspace('123', 'chat', infra);
 
+    // Should touch the secret file even if no secrets
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('sudo touch /dev/shm/.orbit-env-'),
+    );
+
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'orbit-test-container',
       }),
+    );
+  });
+
+  it('should inject sensitive secrets if provided', async () => {
+    mockProvider.getCapsuleStatus.mockResolvedValue({ exists: false });
+    mockProvider.runCapsule.mockResolvedValue(0);
+
+    const infraWithSecrets: any = {
+      ...infra,
+      sensitiveEnv: { API_KEY: 'secret-123' },
+    };
+
+    const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
+    await provisioner.prepareMissionWorkspace('123', 'chat', infraWithSecrets);
+
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining("API_KEY='\\''secret-123'\\'''"),
+    );
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('chmod 600'),
     );
   });
 

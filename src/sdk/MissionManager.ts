@@ -268,6 +268,10 @@ export class MissionManager {
         const workspacePath = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
         const rmCmd = { bin: 'rm', args: ['-rf', workspacePath] };
         await provider.exec(rmCmd);
+
+        // ADR 14: Cleanup RAM-disk secret file
+        const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateMissionId(identifier, action)}`;
+        await provider.exec(`sudo rm -f ${secretPath}`);
       }
 
       return { missionId: identifier, exitCode: 0 };

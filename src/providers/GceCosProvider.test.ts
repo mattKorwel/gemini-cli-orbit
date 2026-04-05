@@ -217,4 +217,31 @@ describe('GceCosProvider', () => {
       expect.objectContaining({ quiet: true }),
     );
   });
+
+  it('should not include sensitiveEnv in docker run flags', async () => {
+    mockSsh.runHostCommand.mockResolvedValue({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    });
+
+    await provider.runCapsule({
+      name: 'test-capsule',
+      image: 'test-image',
+      mounts: [],
+      env: { PUBLIC_VAR: 'public' },
+      sensitiveEnv: { PRIVATE_VAR: 'secret' },
+    });
+
+    const lastCall = mockSsh.runHostCommand.mock.calls.find((call: any) =>
+      call[0].args.some((arg: string) => arg.includes('docker run')),
+    );
+
+    expect(lastCall).toBeDefined();
+    const dockerCmd = lastCall![0].args.find((arg: string) =>
+      arg.includes('docker run'),
+    );
+    expect(dockerCmd).toContain("-e PUBLIC_VAR='\\''public'\\''");
+    expect(dockerCmd).not.toContain("-e PRIVATE_VAR='\\''secret'\\''");
+  });
 });

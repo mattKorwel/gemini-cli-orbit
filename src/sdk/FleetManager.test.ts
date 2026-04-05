@@ -123,4 +123,23 @@ describe('FleetManager', () => {
       expect.objectContaining({ name: 'test-station' }),
     );
   });
+
+  it('should clean up RAM-disk mission secrets during splashdown', async () => {
+    const mockReceipt = {
+      name: 'test-station',
+      instanceName: 'test-instance',
+      type: 'gce',
+      projectId: 'p',
+      zone: 'z',
+    };
+    stationRegistry.listStations.mockResolvedValue([mockReceipt as any]);
+    mockProvider.listCapsules.mockResolvedValue(['orbit-mission-1']);
+
+    await fleet.splashdown({ name: 'test-station', force: true });
+
+    // Should cleanup secrets
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
+    );
+  });
 });

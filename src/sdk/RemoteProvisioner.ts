@@ -61,6 +61,25 @@ export class RemoteProvisioner {
     if (!capsuleStatus.exists) {
       logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
 
+      // ADR 14: Populate RAM-disk secret file before launching capsule
+      const sensitiveEnv = (infra as any).sensitiveEnv || {};
+      const secretEntries = Object.entries(sensitiveEnv);
+      if (secretEntries.length > 0) {
+        logger.info('   - Injecting mission credentials into RAM-disk...');
+        const envContent = secretEntries
+          .map(([k, v]) => `${k}='${(v as string).replace(/'/g, "'\\''")}'`)
+          .join('\n');
+
+        // Use printf to handle multi-line content and redirect to secretPath
+        const writeSecretCmd = `printf "%s\n" '${envContent.replace(/'/g, "'\\''")}' | sudo tee ${secretPath} > /dev/null && sudo chmod 600 ${secretPath}`;
+        await this.provider.exec(writeSecretCmd);
+      } else {
+        // Ensure secretPath exists even if empty to satisfy Docker mount
+        await this.provider.exec(
+          `sudo touch ${secretPath} && sudo chmod 600 ${secretPath}`,
+        );
+      }
+
       const runRes = await this.provider.runCapsule({
         name: containerName,
         image: infra.imageUri || imageUri,

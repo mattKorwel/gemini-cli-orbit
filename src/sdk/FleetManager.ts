@@ -365,6 +365,16 @@ export class FleetManager {
       await provider.removeCapsule(capsule);
     }
 
+    // ADR 14: Clear mission secrets from RAM-disk
+    if (capsules.length > 0 || all || name) {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'CLEANUP',
+        '   🧹 Clearing mission secrets from RAM-disk...',
+      );
+      await provider.exec('sudo rm -f /dev/shm/.orbit-env-*');
+    }
+
     // 5. Destructive Hardware Decommissioning (--all or named)
     // If a name was provided, we assume they want to decommission that station
     if (all || name) {

@@ -162,4 +162,28 @@ describe('MissionManager', () => {
       expect.any(Object),
     );
   });
+
+  it('should clean up RAM-disk secret file during jettison', async () => {
+    const fullName = 'orbit-123-chat';
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      containerName: fullName,
+      sessionName: fullName,
+      workspaceName: fullName,
+    });
+    mockProvider.listCapsules.mockResolvedValue([fullName]);
+    mockProvider.stopCapsule = vi.fn().mockResolvedValue(0);
+    mockProvider.removeCapsule = vi.fn().mockResolvedValue(0);
+
+    await manager.jettison({ identifier: '123', action: 'chat' });
+
+    // Should stop and remove capsule
+    expect(mockProvider.stopCapsule).toHaveBeenCalledWith(fullName);
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith(fullName);
+
+    // Should cleanup secrets
+    expect(mockProvider.exec).toHaveBeenCalledWith(
+      expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
+    );
+  });
 });
