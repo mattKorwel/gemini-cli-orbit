@@ -6,7 +6,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { sanitizeName, detectRepoName } from '../core/ConfigManager.js';
-import { MISSION_PREFIX } from '../core/Constants.js';
+import { MISSION_PREFIX as _MISSION_PREFIX } from '../core/Constants.js';
 
 export interface MissionContext {
   branchName: string;

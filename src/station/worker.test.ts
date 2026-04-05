@@ -44,23 +44,41 @@ describe('worker main', () => {
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main(['init', '123', 'feat-test', 'https://github.com/org/repo.git']);
-    expect(mockStation.initGit).toHaveBeenCalled();
+    await main([
+      'init',
+      '/test/dir',
+      '123',
+      'feat-test',
+      'https://github.com/org/repo.git',
+    ]);
+    expect(mockStation.initGit).toHaveBeenCalledWith(
+      '/test/dir',
+      'https://github.com/org/repo.git',
+      'feat-test',
+      undefined,
+    );
   });
 
   it('should dispatch to station supervisor on run command', async () => {
     const mockStation = {
-      runMission: vi.fn().mockResolvedValue(0),
+      runPlaybook: vi.fn().mockResolvedValue(0),
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main(['run', '123', 'feat-test', 'chat', '/policy']);
-    expect(mockStation.runMission).toHaveBeenCalledWith(
+    await main([
+      'run',
       '123',
       'feat-test',
       'chat',
       '/policy',
-      process.cwd(),
+      'orbit/repo/123',
+    ]);
+    expect(mockStation.runPlaybook).toHaveBeenCalledWith(
+      '123',
+      'feat-test',
+      'chat',
+      '/policy',
+      'orbit/repo/123',
     );
   });
 
@@ -76,6 +94,7 @@ describe('worker main', () => {
       'feat-test',
       'fix',
       '/policy',
+      undefined,
     );
   });
 });

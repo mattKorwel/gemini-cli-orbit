@@ -18,15 +18,17 @@ describe('MissionUtils', () => {
   });
 
   it('should resolve simple mission ID', () => {
-    const ctx = resolveMissionContext('test-branch', 'chat');
-    expect(ctx.containerName).toBe('orbit-test-branch-chat');
-    expect(ctx.workspaceName).toBe('orbit-test-branch-chat');
+    const ctx = resolveMissionContext('test-branch', 'chat', 'test-repo');
+    expect(ctx.containerName).toBe('orbit-test-repo-test-branch');
+    expect(ctx.workspaceName).toBe('orbit-test-repo-test-branch');
+    expect(ctx.sessionName).toBe('orbit/test-repo/test-branch');
   });
 
   it('should resolve named mission with suffix (id:name)', () => {
-    const ctx = resolveMissionContext('123:debug', 'chat');
-    expect(ctx.containerName).toBe('orbit-123-debug-chat');
-    expect(ctx.workspaceName).toBe('orbit-123-debug-chat');
+    const ctx = resolveMissionContext('123:debug', 'chat', 'test-repo');
+    expect(ctx.containerName).toBe('orbit-test-repo-123-debug');
+    expect(ctx.workspaceName).toBe('orbit-test-repo-123-debug');
+    expect(ctx.sessionName).toBe('orbit/test-repo/123-debug');
   });
 
   it('should resolve PR metadata using only the base ID', () => {
@@ -35,7 +37,7 @@ describe('MissionUtils', () => {
       stdout: JSON.stringify({ headRefName: 'feature-branch' }),
     });
 
-    const ctx = resolveMissionContext('123:debug', 'chat');
+    const ctx = resolveMissionContext('123:debug', 'chat', 'test-repo');
 
     // Verify gh pr view was called with base ID
     expect(spawnSync).toHaveBeenCalledWith(
@@ -45,12 +47,13 @@ describe('MissionUtils', () => {
     );
 
     expect(ctx.branchName).toBe('feature-branch');
-    expect(ctx.sessionName).toBe('orbit-123-debug-chat');
+    expect(ctx.sessionName).toBe('orbit/test-repo/123-debug');
   });
 
   it('should handle complex suffixes with multiple colons', () => {
-    const ctx = resolveMissionContext('123:deep:dive', 'review');
-    expect(ctx.containerName).toBe('orbit-123-deep-dive-review');
-    expect(ctx.workspaceName).toBe('orbit-123-deep-dive-review');
+    const ctx = resolveMissionContext('123:deep:dive', 'review', 'test-repo');
+    expect(ctx.containerName).toBe('orbit-test-repo-123-deep-dive-review');
+    expect(ctx.workspaceName).toBe('orbit-test-repo-123-deep-dive');
+    expect(ctx.sessionName).toBe('orbit/test-repo/123-deep-dive/review');
   });
 });

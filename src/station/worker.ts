@@ -79,28 +79,28 @@ export async function main(argv: string[]) {
       },
     )
     .command(
-      'run <id> <branch> <action> <policy> [workDir]',
-      'Spawns a mission in a persistent session',
+      'run <id> <branch> <action> <policy> [sessionName]',
+      'Executes a mission playbook',
       (y) => {
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });
         y.positional('action', { type: 'string' });
         y.positional('policy', { type: 'string' });
-        y.positional('workDir', { type: 'string', default: process.cwd() });
+        y.positional('sessionName', { type: 'string' });
       },
       async (argv) => {
-        await station.runMission(
+        await station.runPlaybook(
           argv.id as string,
           argv.branch as string,
           argv.action as string,
           argv.policy as string,
-          argv.workDir as string,
+          argv.sessionName as string,
         );
       },
     )
     .command(
-      'run <id> <branch> <action> <policy> [sessionName]',
-      'Executes a mission playbook',
+      'run-internal <id> <branch> <action> <policy> [sessionName]',
+      'Executes a mission playbook (internal)',
       (y) => {
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });

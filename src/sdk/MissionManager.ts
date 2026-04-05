@@ -175,12 +175,13 @@ export class MissionManager {
       'setup-hooks',
       targetDir,
     ]);
-    const hooksExitCode = await provider.exec(
+    const _hooksExitCode = await provider.exec(
       hooksCmd,
       this.getExecOptions(isLocalWorkspace, containerName, {
         interactive: true,
       }),
     );
+
     // Step C: RUN (Task layer)
     const runCmd = NodeExecutor.create(workerPath, [
       'run',
