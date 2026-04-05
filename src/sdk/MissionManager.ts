@@ -281,22 +281,29 @@ export class MissionManager {
    * Removes a mission from the fleet.
    */
   async jettison(options: JettisonOptions): Promise<MissionResult> {
-    const { identifier, action = 'chat' } = options;
-    const mCtx = resolveMissionContext(identifier, action!);
+    const { identifier, action } = options;
 
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
 
-    // 1. Remove Hardware-level Workspace (Capsule / Worktree)
-    await provider.removeCapsule(mCtx.containerName);
+    const actionsToCleanup = action
+      ? [action]
+      : ['chat', 'fix', 'review', 'implement', 'ready'];
 
-    // 2. Cleanup RAM-disk secret file (Remote Only)
-    if (provider.type === 'gce') {
-      const sessionId = SessionManager.generateMissionId(identifier, action!);
-      const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
-      await provider.exec(`rm -f ${secretPath}`, { quiet: true });
+    for (const act of actionsToCleanup) {
+      const mCtx = resolveMissionContext(identifier, act);
+
+      // 1. Remove Hardware-level Workspace (Capsule / Worktree)
+      await provider.removeCapsule(mCtx.containerName);
+
+      // 2. Cleanup RAM-disk secret file (Remote Only)
+      if (provider.type === 'gce') {
+        const sessionId = SessionManager.generateMissionId(identifier, act);
+        const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
+        await provider.exec(`rm -f ${secretPath}`, { quiet: true });
+      }
     }
 
     return { missionId: identifier, exitCode: 0 };

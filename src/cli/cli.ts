@@ -276,17 +276,23 @@ export async function dispatch(argv: string[]): Promise<number> {
               },
             )
             .command(
-              'jettison <identifier>',
+              'jettison <identifier> [action]',
               'Decommission a specific mission.',
               (y2) =>
-                y2.positional('identifier', {
-                  type: 'string',
-                  description: 'PR or Issue ID',
-                }),
+                y2
+                  .positional('identifier', {
+                    type: 'string',
+                    description: 'PR or Issue ID',
+                  })
+                  .positional('action', {
+                    type: 'string',
+                    description: 'Verb: chat, fix, review, implement',
+                  }),
               async (args: any) => {
                 const sdk = createSDK(args);
                 const res = await sdk.jettisonMission({
                   identifier: args.identifier,
+                  action: args.action,
                 });
                 args.exitCode = res.exitCode;
               },

@@ -156,22 +156,28 @@ describe('MissionManager', () => {
     expect(mockProvider.attach).toHaveBeenCalled();
   });
 
-  it('should clean up RAM-disk secret file during jettison', async () => {
+  it('should clean up RAM-disk secret file and all possible mission variants during jettison', async () => {
     const fullName = 'orbit-123';
-    (resolveMissionContext as any).mockReturnValue({
-      branchName: 'feat',
-      containerName: fullName,
-      sessionName: fullName,
-      workspaceName: fullName,
-    });
+    (resolveMissionContext as any).mockImplementation(
+      (id: string, action: string) => ({
+        branchName: 'feat',
+        containerName:
+          action === 'chat' ? `orbit-${id}` : `orbit-${id}-${action}`,
+        workspaceName: `orbit-${id}`,
+        sessionName:
+          action === 'chat' ? `orbit-${id}` : `orbit-${id}-${action}`,
+      }),
+    );
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
-    await manager.jettison({ identifier: '123', action: 'chat' });
+    await manager.jettison({ identifier: '123' });
 
-    // Should stop and remove capsule
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith(fullName);
+    // Should attempt to remove multiple variants
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-123');
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-123-review');
+    expect(mockProvider.removeCapsule).toHaveBeenCalledWith('orbit-123-fix');
 
-    // Should cleanup secrets
+    // Should cleanup secrets for each
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
       expect.any(Object),
