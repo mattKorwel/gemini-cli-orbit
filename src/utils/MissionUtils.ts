@@ -55,24 +55,24 @@ export function resolveMissionContext(
   const sRepo = sanitizeName(detectRepoName() || 'unknown');
 
   // Starfleet Hierarchical Naming Strategy
-  // Format: orbit-<repo>-<id>-<action>
-
-  // 1. Core Slug: orbit-<repo>-<id>
+  // 1. Slug is the core identifier
   // Strip 'gemini-cli-' prefix from repo for brevity if it exists
   const shortRepo = sRepo.startsWith('gemini-cli-')
     ? sRepo.replace('gemini-cli-', '')
     : sRepo;
-  const slugBase = `orbit-${shortRepo}-${sId}${sSuffix}`;
 
-  // 2. workspaceName is the base folder/worktree (without action suffix to allow shared worktrees)
-  const workspaceName = slugBase.substring(0, 48);
+  // 2. workspaceName is the base folder/worktree (FileSystem safe: uses '-')
+  const workspaceName = `orbit-${shortRepo}-${sId}${sSuffix}`.substring(0, 48);
 
-  // 3. containerName is the unique mission ID (including action)
+  // 3. containerName is the unique mission ID (Docker/Worktree safe: uses '-')
   const containerName =
     action === 'chat' ? workspaceName : `${workspaceName}-${action}`;
 
-  // 4. sessionName matches containerName for reliable attach
-  const sessionName = containerName;
+  // 4. sessionName is the display name for Tmux (User preference: uses '/')
+  const sessionParts = ['orbit', shortRepo, sId];
+  if (suffix) sessionParts.push(sanitizeName(suffix));
+  if (action !== 'chat') sessionParts.push(action);
+  const sessionName = sessionParts.join('/');
 
   return {
     branchName: sBranch,
