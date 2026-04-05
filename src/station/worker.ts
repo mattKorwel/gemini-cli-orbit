@@ -99,13 +99,14 @@ export async function main(argv: string[]) {
       },
     )
     .command(
-      'run-internal <id> <branch> <action> <policy>',
-      'Executes a mission playbook directly (internal use)',
+      'run <id> <branch> <action> <policy> [sessionName]',
+      'Executes a mission playbook',
       (y) => {
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });
         y.positional('action', { type: 'string' });
         y.positional('policy', { type: 'string' });
+        y.positional('sessionName', { type: 'string' });
       },
       async (argv) => {
         await station.runPlaybook(
@@ -113,6 +114,7 @@ export async function main(argv: string[]) {
           argv.branch as string,
           argv.action as string,
           argv.policy as string,
+          argv.sessionName as string,
         );
       },
     )

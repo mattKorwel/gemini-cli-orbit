@@ -138,15 +138,14 @@ export class StationSupervisor {
       currentBranchCmd.options,
     );
 
-    const currentBranch = currentBranchRes.stdout.trim();
-    if (currentBranchRes.status === 0 && currentBranch === branch) {
+    const currentBranch =
+      currentBranchRes.status === 0 ? currentBranchRes.stdout.trim() : '';
+    if (currentBranch === branch) {
       console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }
 
     // Try to fetch the branch from origin
-    console.log(`   - Current branch: ${currentBranch || 'unknown'}`);
-    console.log(`   - Target branch: ${branch}`);
     console.log(`   - Attempting to fetch branch '${branch}' from origin...`);
     const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
     const fetchRes = ProcessManager.runSync(
@@ -218,6 +217,7 @@ export class StationSupervisor {
     branchName: string,
     action: string,
     policyPath: string,
+    sessionName?: string,
   ) {
     const targetDir = process.cwd();
 
@@ -248,6 +248,20 @@ export class StationSupervisor {
 
     // Dispatch to Playbook
     switch (action) {
+      case 'chat': {
+        // Chat mode: drop into interactive Gemini
+        const missionId = prNumberOrIssue;
+        console.log(`\n💬 Entering Mission Chat: ${sessionName || missionId}`);
+
+        // Automatic Resumption logic: --resume latest
+        const cmd = `${geminiBin} --resume latest`;
+        const res = ProcessManager.runSync('sh', ['-c', cmd], {
+          stdio: 'inherit',
+          cwd: targetDir,
+        });
+        return res.status;
+      }
+
       case 'review':
         return runReviewPlaybook(
           prNumberOrIssue,
@@ -305,25 +319,46 @@ export class StationSupervisor {
     action: string,
     policyPath: string,
     workDir: string,
+    sessionName?: string,
   ) {
     const targetDir = path.resolve(workDir);
-    const mCtx = resolveMissionContext(identifier, action);
     const entrypointPath = path.join(this.dirname, 'entrypoint.js');
+    const sName = sessionName || identifier;
+
+    // Stealth UI Styles
+    const styles = [
+      'set-option -g status-position top',
+      'set-option -g status-style bg=default,fg=colour240',
+      'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
+      'set-option -g status-right "#[fg=colour244]#H"',
+      'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
+    ]
+      .map((s) => `tmux ${s}`)
+      .join('; ');
 
     // Build the inner node command
+    // Order: <id> <branch> <action> <policy> [sessionName]
     const nodeCmd = NodeExecutor.create(entrypointPath, [
       identifier,
-      targetDir,
-      policyPath,
+      branchName,
       action,
+      policyPath,
+      sName,
     ]);
 
     // Wrap it in Tmux for persistence
-    const tmuxCmd = TmuxExecutor.wrap(
-      mCtx.containerName,
-      `${nodeCmd.bin} ${nodeCmd.args.join(' ')}`,
-      { cwd: targetDir },
-    );
+    // 1. Apply styles.
+    // 2. Print tip.
+    // 3. Run command.
+    // 4. If command succeeds (exit 0), tmux exits.
+    // 5. If command fails, drop into zsh.
+    const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
+
+    const tmuxCmd = {
+      bin: 'tmux',
+      args: ['new-session', '-d', '-A', '-s', sName, launch],
+      options: { cwd: targetDir },
+    };
 
     // Launch!
     const res = ProcessManager.runSync(

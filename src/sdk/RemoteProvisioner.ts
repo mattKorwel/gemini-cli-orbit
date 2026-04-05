@@ -41,7 +41,11 @@ export class RemoteProvisioner {
       );
     }
 
-    const mCtx = resolveMissionContext(identifier, action);
+    const mCtx = resolveMissionContext(
+      identifier,
+      action,
+      this.projectCtx.repoName,
+    );
     const branch = mCtx.branchName;
     const containerName = mCtx.containerName;
     const remoteWorkspaceDir = `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${mCtx.workspaceName}`;

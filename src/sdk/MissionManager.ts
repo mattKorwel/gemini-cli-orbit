@@ -67,7 +67,11 @@ export class MissionManager {
     );
 
     const isLocalWorkspace = provider.type === 'local-worktree';
-    const mCtx = resolveMissionContext(identifier, action);
+    const mCtx = resolveMissionContext(
+      identifier,
+      action,
+      this.projectCtx.repoName,
+    );
     const branch = mCtx.branchName;
     const containerName = mCtx.containerName;
 
@@ -184,6 +188,7 @@ export class MissionManager {
       branch,
       action,
       policyPath,
+      mCtx.sessionName, // Pass the hierarchical display name for tmux
     ]);
     const runExitCode = await provider.exec(
       runCmd,
