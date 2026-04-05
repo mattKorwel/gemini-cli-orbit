@@ -23,6 +23,56 @@ function expandPath(p: string): string {
 export async function dispatch(argv: string[]): Promise<number> {
   const processedArgv = [...argv];
 
+  function applyGlobalFlags(args: any): string {
+    if (args.local) {
+      process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
+      process.env.GCLI_MCP = '0';
+    }
+    if (args.repo) process.env.GCLI_ORBIT_REPO_NAME = args.repo;
+    let repoRoot = process.cwd();
+    if (args['repo-dir']) {
+      const val = expandPath(args['repo-dir']);
+      if (!fs.existsSync(val))
+        throw new Error(`❌ Directory not found: ${val}`);
+      repoRoot = path.resolve(val);
+      process.chdir(repoRoot);
+    }
+    if (args['for-station']) {
+      process.env.GCLI_ORBIT_INSTANCE_NAME = args['for-station'];
+      // AUTO-SWITCH: If a station is targeted and no provider is set, use GCE
+      if (!process.env.GCLI_ORBIT_PROVIDER) {
+        process.env.GCLI_ORBIT_PROVIDER = 'gce';
+      }
+    }
+    if (args.schematic) process.env.GCLI_ORBIT_SCHEMATIC = args.schematic;
+    if (args.verbose) process.env.GCLI_ORBIT_VERBOSE = '1';
+    process.env.GCLI_ORBIT_SHIM = '1';
+    return repoRoot;
+  }
+
+  function createSDK(args: any): IOrbitSDK {
+    const root = applyGlobalFlags(args);
+    const name = args.repo || detectRepoName(root);
+    const config = getRepoConfig(name, args, root);
+    return new OrbitSDK(config, consoleObserver, root);
+  }
+
+  /**
+   * Shared helper for starting a mission from multiple CLI entry points.
+   */
+  async function runStartMission(args: any) {
+    const sdk = createSDK(args);
+    const action = args.action || args.verb || 'chat';
+    const extra = args.extra || [];
+
+    const result = await sdk.startMission({
+      identifier: args.identifier || args.id,
+      action,
+      args: extra,
+    });
+    args.exitCode = result.exitCode;
+  }
+
   // Shorthand for repo:cmd
   if (
     processedArgv[0] &&
@@ -113,13 +163,7 @@ export async function dispatch(argv: string[]): Promise<number> {
           parser.showHelp();
           return;
         }
-        const sdk = createSDK(args);
-        const result = await sdk.startMission({
-          identifier: args.id,
-          action: args.verb,
-          args: args.extra,
-        });
-        args.exitCode = result.exitCode;
+        await runStartMission(args);
       },
     )
 
@@ -148,14 +192,22 @@ export async function dispatch(argv: string[]): Promise<number> {
                     description: 'Verb: chat, fix, review, implement',
                   }),
               async (args: any) => {
-                const sdk = createSDK(args);
-                const { action, extra = [] } = args;
-                const result = await sdk.startMission({
-                  identifier: args.identifier,
-                  action,
-                  args: extra,
-                });
-                args.exitCode = result.exitCode;
+                // Safety: If identifier matches a subcommand, yargs should have picked it up.
+                // But $0 is greedy, so we check here.
+                const subcommands = [
+                  'start',
+                  'attach',
+                  'uplink',
+                  'ci',
+                  'jettison',
+                  'shell',
+                  'reap',
+                ];
+                if (subcommands.includes(args.identifier)) {
+                  // This shouldn't happen if yargs is configured correctly, but as a safeguard:
+                  return;
+                }
+                await runStartMission(args);
               },
             )
             .command(
@@ -172,16 +224,7 @@ export async function dispatch(argv: string[]): Promise<number> {
                     default: 'chat',
                     description: 'Verb: chat, fix, review, implement',
                   }),
-              async (args: any) => {
-                const sdk = createSDK(args);
-                const { action, extra = [] } = args;
-                const result = await sdk.startMission({
-                  identifier: args.identifier,
-                  action,
-                  args: extra,
-                });
-                args.exitCode = result.exitCode;
-              },
+              runStartMission,
             )
             .command(
               'exec <identifier> <cmd>',
@@ -282,7 +325,6 @@ export async function dispatch(argv: string[]): Promise<number> {
                 });
               },
             )
-            .demandCommand(1, 'Please specify a mission action.')
         );
       },
     )
@@ -634,40 +676,6 @@ export async function dispatch(argv: string[]): Promise<number> {
           .demandCommand(1, 'Please specify a config action.');
       },
     );
-
-  function applyGlobalFlags(args: any): string {
-    if (args.local) {
-      process.env.GCLI_ORBIT_PROVIDER = 'local-worktree';
-      process.env.GCLI_MCP = '0';
-    }
-    if (args.repo) process.env.GCLI_ORBIT_REPO_NAME = args.repo;
-    let repoRoot = process.cwd();
-    if (args['repo-dir']) {
-      const val = expandPath(args['repo-dir']);
-      if (!fs.existsSync(val))
-        throw new Error(`❌ Directory not found: ${val}`);
-      repoRoot = path.resolve(val);
-      process.chdir(repoRoot);
-    }
-    if (args['for-station']) {
-      process.env.GCLI_ORBIT_INSTANCE_NAME = args['for-station'];
-      // AUTO-SWITCH: If a station is targeted and no provider is set, use GCE
-      if (!process.env.GCLI_ORBIT_PROVIDER) {
-        process.env.GCLI_ORBIT_PROVIDER = 'gce';
-      }
-    }
-    if (args.schematic) process.env.GCLI_ORBIT_SCHEMATIC = args.schematic;
-    if (args.verbose) process.env.GCLI_ORBIT_VERBOSE = '1';
-    process.env.GCLI_ORBIT_SHIM = '1';
-    return repoRoot;
-  }
-
-  function createSDK(args: any): IOrbitSDK {
-    const root = applyGlobalFlags(args);
-    const name = args.repo || detectRepoName(root);
-    const config = getRepoConfig(name, args, root);
-    return new OrbitSDK(config, consoleObserver, root);
-  }
 
   try {
     const result = await parser

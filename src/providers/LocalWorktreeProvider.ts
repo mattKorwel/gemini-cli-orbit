@@ -89,10 +89,28 @@ export class LocalWorktreeProvider implements OrbitProvider {
       : this.projectCtx.repoRoot;
 
     if (this.hasTmux()) {
-      const sessionName = options.wrapCapsule
-        ? `orbit-${options.wrapCapsule}`
-        : 'orbit-local';
-      return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${envPrefix}${command}; exec zsh"`;
+      const sessionName = options.wrapCapsule || 'orbit-local';
+
+      // Stealth UI Styles
+      const styles = [
+        'set-option -g status-position top',
+        'set-option -g status-style bg=default,fg=colour240',
+        'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
+        'set-option -g status-right "#[fg=colour244]#H"',
+        'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
+      ]
+        .map((s) => `tmux ${s}`)
+        .join('; ');
+
+      // Launch Command:
+      // 1. Apply styles.
+      // 2. Print tip.
+      // 3. Run command.
+      // 4. If command succeeds (exit 0), tmux exits.
+      // 5. If command fails, drop into zsh.
+      const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${envPrefix}${command} || exec zsh`;
+
+      return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${launch}"`;
     }
 
     console.warn(
@@ -163,6 +181,9 @@ export class LocalWorktreeProvider implements OrbitProvider {
     );
 
     if (fs.existsSync(wtPath)) {
+      console.log(
+        `   ✨ Workspace already exists at ${wtPath}. Rolling with it.`,
+      );
       return;
     }
 
@@ -251,10 +272,33 @@ export class LocalWorktreeProvider implements OrbitProvider {
       console.warn('⚠️  Tmux not found. Cannot attach to persistent session.');
       return 1;
     }
-    const res = spawnSync('tmux', ['attach-session', '-t', name], {
+
+    // 1. Try exact match (Canonical name)
+    let res = spawnSync('tmux', ['attach-session', '-t', name], {
       stdio: 'inherit',
     });
-    return res.status ?? 0;
+    if (res.status === 0) return 0;
+
+    // 2. Try to find a session containing the name
+    const listRes = spawnSync('tmux', ['list-sessions', '-F', '#S'], {
+      stdio: 'pipe',
+    });
+    if (listRes.status === 0) {
+      const sessions = listRes.stdout.toString().split('\n');
+      const bestMatch = sessions.find((s) => s.includes(name));
+      if (bestMatch) {
+        res = spawnSync('tmux', ['attach-session', '-t', bestMatch], {
+          stdio: 'inherit',
+        });
+        if (res.status === 0) return 0;
+      }
+    }
+
+    // 3. Fallback: Drop into a new shell in the worktree
+    console.warn(
+      `⚠️  Could not find tmux session '${name}'. Dropping into a fresh shell...`,
+    );
+    return this.missionShell(name);
   }
 
   async runCapsule(): Promise<number> {

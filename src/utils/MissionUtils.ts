@@ -5,8 +5,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { sanitizeName } from '../core/ConfigManager.js';
-import { MISSION_PREFIX } from '../core/Constants.js';
+import { sanitizeName, detectRepoName } from '../core/ConfigManager.js';
+import { MISSION_PREFIX as _MISSION_PREFIX } from '../core/Constants.js';
 
 export interface MissionContext {
   branchName: string;
@@ -21,6 +21,7 @@ export interface MissionContext {
 export function resolveMissionContext(
   identifier: string,
   action: string,
+  repoName?: string,
 ): MissionContext {
   const parts = identifier.split(':');
   const prId = parts[0]!;
@@ -51,14 +52,23 @@ export function resolveMissionContext(
   const sBranch = sanitizeName(branchName);
   const sId = sanitizeName(prId);
   const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
+  const sRepo = sanitizeName(repoName || detectRepoName() || 'unknown');
 
-  // Unified Starfleet Naming: orbit-<identifier>-<action>
-  const fullName = `${MISSION_PREFIX}${sId}${sSuffix}-${action}`;
+  // Unified Starfleet Naming:
+  // Display: orbit/repo/id
+  // Slug:    orbit-repo-id
+  const displayName = `orbit/${sRepo}/${sId}${sSuffix}`;
+  const slugName = `orbit-${sRepo}-${sId}${sSuffix}`;
+
+  // For backward compatibility, the container name for playbooks still includes the action
+  const containerName = action === 'chat' ? slugName : `${slugName}-${action}`;
+  const sessionName =
+    action === 'chat' ? displayName : `${displayName}/${action}`;
 
   return {
     branchName: sBranch,
-    containerName: fullName,
-    sessionName: fullName,
-    workspaceName: fullName,
+    containerName,
+    sessionName,
+    workspaceName: slugName,
   };
 }

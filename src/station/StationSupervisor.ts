@@ -10,8 +10,8 @@ import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
-import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
-import { resolveMissionContext } from '../utils/MissionUtils.js';
+import { TmuxExecutor as _TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { resolveMissionContext as _resolveMissionContext } from '../utils/MissionUtils.js';
 import { runReviewPlaybook } from '../playbooks/review.js';
 import { runFixPlaybook } from '../playbooks/fix.js';
 import { runReadyPlaybook } from '../playbooks/ready.js';
@@ -95,64 +95,114 @@ export class StationSupervisor {
       return res;
     };
 
-    if (fs.existsSync(path.join(targetDir, '.git'))) {
-      console.log(`✅ Git workspace already initialized at ${targetDir}`);
-      const checkoutCmd = GitExecutor.checkout(targetDir, branch);
-      const res = ProcessManager.runSync(
-        checkoutCmd.bin,
-        checkoutCmd.args,
-        checkoutCmd.options,
-      );
-      if (res.status !== 0) {
-        console.log(`   - Branch ${branch} not found locally, fetching...`);
-        const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-        run(fetchCmd);
-        run(checkoutCmd);
+    // Strict local .git detection.
+    // In a worktree, .git is a FILE. In a primary repo, it is a FOLDER.
+    // If neither exists in the targetDir specifically, it is UNINITIALIZED.
+    const gitPath = path.join(targetDir, '.git');
+    const isInitialized = fs.existsSync(gitPath);
+
+    if (!isInitialized) {
+      console.log(`📦 Initializing Git workspace at ${targetDir}...`);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
       }
+
+      run(GitExecutor.init(targetDir));
+      run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
+
+      if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
+        console.log(`   - Using reference mirror: ${mirrorPath}`);
+        const alternatesPath = path.join(
+          targetDir,
+          '.git/objects/info/alternates',
+        );
+        const mirrorObjects = path.join(mirrorPath, 'objects');
+        fs.mkdirSync(path.dirname(alternatesPath), { recursive: true });
+        fs.writeFileSync(alternatesPath, mirrorObjects);
+      }
+    } else {
+      console.log(`✅ Git workspace already initialized at ${targetDir}`);
+    }
+
+    // --- Unified Branch Resolution ---
+
+    // 0. Check if we are already on the correct branch to avoid conflicts
+    const currentBranchCmd: Command = {
+      bin: 'git',
+      args: ['rev-parse', '--abbrev-ref', 'HEAD'],
+      options: { cwd: targetDir, quiet: true },
+    };
+    const currentBranchRes = ProcessManager.runSync(
+      currentBranchCmd.bin,
+      currentBranchCmd.args,
+      currentBranchCmd.options,
+    );
+
+    const currentBranch =
+      currentBranchRes.status === 0 ? currentBranchRes.stdout.trim() : '';
+    if (currentBranch === branch) {
+      console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }
 
-    console.log(`📦 Initializing Git workspace at ${targetDir}...`);
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-
-    run(GitExecutor.init(targetDir));
-    run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
-
-    if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
-      console.log(`   - Using reference mirror: ${mirrorPath}`);
-      const alternatesPath = path.join(
-        targetDir,
-        '.git/objects/info/alternates',
-      );
-      const mirrorObjects = path.join(mirrorPath, 'objects');
-      fs.mkdirSync(path.dirname(alternatesPath), { recursive: true });
-      fs.writeFileSync(alternatesPath, mirrorObjects);
-    }
-
-    run(GitExecutor.fetch(targetDir, 'origin', branch));
-
-    // On some git versions, we need to explicitly checkout the remote branch
-    // or create a local tracking branch.
-    const checkoutCmd = GitExecutor.checkout(targetDir, branch);
-    const res = ProcessManager.runSync(
-      checkoutCmd.bin,
-      checkoutCmd.args,
-      checkoutCmd.options,
+    // Try to fetch the branch from origin
+    console.log(`   - Attempting to fetch branch '${branch}' from origin...`);
+    const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
+    const fetchRes = ProcessManager.runSync(
+      fetchCmd.bin,
+      fetchCmd.args,
+      fetchCmd.options,
     );
-    if (res.status !== 0) {
-      console.log(
-        `   - Direct checkout failed, trying from origin/${branch}...`,
-      );
-      const remoteCheckout: Command = {
+
+    if (fetchRes.status !== 0) {
+      console.log(`   ⚠️  Branch '${branch}' not found on origin.`);
+    }
+
+    // 1. Check if branch already exists locally
+    const checkLocalCmd: Command = {
+      bin: 'git',
+      args: ['rev-parse', '--verify', branch],
+      options: { cwd: targetDir, quiet: true },
+    };
+    const localRes = ProcessManager.runSync(
+      checkLocalCmd.bin,
+      checkLocalCmd.args,
+      checkLocalCmd.options,
+    );
+
+    if (localRes.status === 0) {
+      console.log(`   - Branch '${branch}' exists locally. Checking out...`);
+      run(GitExecutor.checkout(targetDir, branch));
+    } else {
+      // 2. Try to checkout from origin/branch if we successfully fetched it
+      const remoteRef = `origin/${branch}`;
+      const checkRemoteCmd: Command = {
         bin: 'git',
-        args: ['checkout', '-b', branch, `origin/${branch}`],
+        args: ['rev-parse', '--verify', remoteRef],
+        options: { cwd: targetDir, quiet: true },
       };
-      if (checkoutCmd.options) {
-        remoteCheckout.options = checkoutCmd.options;
+      const remoteRes = ProcessManager.runSync(
+        checkRemoteCmd.bin,
+        checkRemoteCmd.args,
+        checkRemoteCmd.options,
+      );
+
+      if (remoteRes.status === 0) {
+        console.log(`   - Creating branch '${branch}' from ${remoteRef}...`);
+        run({
+          bin: 'git',
+          args: ['checkout', '-b', branch, remoteRef],
+          options: { cwd: targetDir },
+        });
+      } else {
+        // 3. Fallback: Create new branch from current HEAD
+        console.log(`   - Creating new branch '${branch}' from HEAD...`);
+        run({
+          bin: 'git',
+          args: ['checkout', '-b', branch],
+          options: { cwd: targetDir },
+        });
       }
-      run(remoteCheckout);
     }
 
     console.log(`✅ Workspace ready on branch: ${branch}`);
@@ -167,6 +217,7 @@ export class StationSupervisor {
     branchName: string,
     action: string,
     policyPath: string,
+    sessionName?: string,
   ) {
     const targetDir = process.cwd();
 
@@ -197,6 +248,20 @@ export class StationSupervisor {
 
     // Dispatch to Playbook
     switch (action) {
+      case 'chat': {
+        // Chat mode: drop into interactive Gemini
+        const missionId = prNumberOrIssue;
+        console.log(`\n💬 Entering Mission Chat: ${sessionName || missionId}`);
+
+        // Automatic Resumption logic: --resume latest
+        const cmd = `${geminiBin} --resume latest`;
+        const res = ProcessManager.runSync('sh', ['-c', cmd], {
+          stdio: 'inherit',
+          cwd: targetDir,
+        });
+        return res.status;
+      }
+
       case 'review':
         return runReviewPlaybook(
           prNumberOrIssue,
@@ -254,25 +319,46 @@ export class StationSupervisor {
     action: string,
     policyPath: string,
     workDir: string,
+    sessionName?: string,
   ) {
     const targetDir = path.resolve(workDir);
-    const mCtx = resolveMissionContext(identifier, action);
     const entrypointPath = path.join(this.dirname, 'entrypoint.js');
+    const sName = sessionName || identifier;
+
+    // Stealth UI Styles
+    const styles = [
+      'set-option -g status-position top',
+      'set-option -g status-style bg=default,fg=colour240',
+      'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
+      'set-option -g status-right "#[fg=colour244]#H"',
+      'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
+    ]
+      .map((s) => `tmux ${s}`)
+      .join('; ');
 
     // Build the inner node command
+    // Order: <id> <branch> <action> <policy> [sessionName]
     const nodeCmd = NodeExecutor.create(entrypointPath, [
       identifier,
-      targetDir,
-      policyPath,
+      branchName,
       action,
+      policyPath,
+      sName,
     ]);
 
     // Wrap it in Tmux for persistence
-    const tmuxCmd = TmuxExecutor.wrap(
-      mCtx.containerName,
-      `${nodeCmd.bin} ${nodeCmd.args.join(' ')}`,
-      { cwd: targetDir },
-    );
+    // 1. Apply styles.
+    // 2. Print tip.
+    // 3. Run command.
+    // 4. If command succeeds (exit 0), tmux exits.
+    // 5. If command fails, drop into zsh.
+    const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
+
+    const tmuxCmd = {
+      bin: 'tmux',
+      args: ['new-session', '-d', '-A', '-s', sName, launch],
+      options: { cwd: targetDir },
+    };
 
     // Launch!
     const res = ProcessManager.runSync(

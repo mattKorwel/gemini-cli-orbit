@@ -33,7 +33,8 @@ export class ProcessManager implements IProcessManager {
     const spawnOptions: SpawnSyncOptions = {
       cwd,
       env: { ...process.env, ...env },
-      stdio: interactive ? 'inherit' : quiet ? 'pipe' : 'inherit',
+      stdio:
+        options.stdio || (interactive ? 'inherit' : quiet ? 'pipe' : 'inherit'),
       shell: false,
     };
 

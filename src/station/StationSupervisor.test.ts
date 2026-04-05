@@ -35,10 +35,18 @@ describe('StationSupervisor', () => {
   });
 
   it('initGit performs git initialization', async () => {
-    (fs.existsSync as any).mockImplementation((path: string) => {
-      if (path.endsWith('.git')) return false;
+    (fs.existsSync as any).mockImplementation((p: string) => {
+      if (p.endsWith('.git')) return false;
       return true;
     });
+
+    (ProcessManager.runSync as any)
+      .mockReturnValueOnce({ status: 0 }) // init
+      .mockReturnValueOnce({ status: 0 }) // remote add
+      .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
+      .mockReturnValueOnce({ status: 0 }) // fetch
+      .mockReturnValueOnce({ status: 0 }) // check local
+      .mockReturnValueOnce({ status: 0 }); // checkout
 
     await manager.initGit(
       '/test/dir',
@@ -55,6 +63,42 @@ describe('StationSupervisor', () => {
     expect(ProcessManager.runSync).toHaveBeenCalledWith(
       'git',
       ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
+      expect.any(Object),
+    );
+  });
+
+  it('initGit falls back to new branch creation if origin branch missing', async () => {
+    (fs.existsSync as any).mockImplementation((p: string) => {
+      if (p.endsWith('.git')) return false;
+      return true;
+    });
+
+    // Mock sequence:
+    // 1. init (0)
+    // 2. remote add (0)
+    // 3. current branch check (0, 'HEAD')
+    // 4. fetch (1) - fail
+    // 5. check local (1) - missing
+    // 6. check remote (1) - missing
+    // 7. checkout -b (0) - fallback
+    (ProcessManager.runSync as any)
+      .mockReturnValueOnce({ status: 0 }) // init
+      .mockReturnValueOnce({ status: 0 }) // remote add
+      .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
+      .mockReturnValueOnce({ status: 1 }) // fetch
+      .mockReturnValueOnce({ status: 1 }) // check local
+      .mockReturnValueOnce({ status: 1 }) // check remote
+      .mockReturnValueOnce({ status: 0 }); // checkout -b
+
+    await manager.initGit(
+      '/test/dir',
+      'https://github.com/org/repo.git',
+      'new-branch',
+    );
+
+    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+      'git',
+      ['checkout', '-b', 'new-branch'],
       expect.any(Object),
     );
   });
