@@ -59,6 +59,40 @@ describe('StationSupervisor', () => {
     );
   });
 
+  it('initGit falls back to new branch creation if origin branch missing', async () => {
+    (fs.existsSync as any).mockImplementation((path: string) => {
+      if (path.endsWith('.git')) return false;
+      return true;
+    });
+
+    // Mock sequence:
+    // 1. init (0)
+    // 2. remote add (0)
+    // 3. fetch (1) - fail
+    // 4. check local (1) - missing
+    // 5. check remote (1) - missing
+    // 6. checkout -b (0) - fallback
+    (ProcessManager.runSync as any)
+      .mockReturnValueOnce({ status: 0 }) // init
+      .mockReturnValueOnce({ status: 0 }) // remote add
+      .mockReturnValueOnce({ status: 1 }) // fetch
+      .mockReturnValueOnce({ status: 1 }) // check local
+      .mockReturnValueOnce({ status: 1 }) // check remote
+      .mockReturnValueOnce({ status: 0 }); // checkout -b
+
+    await manager.initGit(
+      '/test/dir',
+      'https://github.com/org/repo.git',
+      'new-branch',
+    );
+
+    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+      'git',
+      ['checkout', '-b', 'new-branch'],
+      expect.any(Object),
+    );
+  });
+
   it('setupHooks configures the workspace', async () => {
     (fs.existsSync as any).mockReturnValue(false);
 

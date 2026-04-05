@@ -60,9 +60,10 @@ export async function main(argv: string[]) {
       },
     )
     .command(
-      'init <id> <branch> <url> [mirror]',
+      'init <targetDir> <id> <branch> <url> [mirror]',
       'Initialize Git workspace',
       (y) => {
+        y.positional('targetDir', { type: 'string' });
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });
         y.positional('url', { type: 'string' });
@@ -70,7 +71,7 @@ export async function main(argv: string[]) {
       },
       async (argv) => {
         await station.initGit(
-          process.cwd(),
+          argv.targetDir as string,
           argv.url as string,
           argv.branch as string,
           argv.mirror as string,

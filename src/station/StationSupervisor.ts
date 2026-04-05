@@ -95,64 +95,115 @@ export class StationSupervisor {
       return res;
     };
 
-    if (fs.existsSync(path.join(targetDir, '.git'))) {
-      console.log(`✅ Git workspace already initialized at ${targetDir}`);
-      const checkoutCmd = GitExecutor.checkout(targetDir, branch);
-      const res = ProcessManager.runSync(
-        checkoutCmd.bin,
-        checkoutCmd.args,
-        checkoutCmd.options,
-      );
-      if (res.status !== 0) {
-        console.log(`   - Branch ${branch} not found locally, fetching...`);
-        const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-        run(fetchCmd);
-        run(checkoutCmd);
+    // Strict local .git detection.
+    // In a worktree, .git is a FILE. In a primary repo, it is a FOLDER.
+    // If neither exists in the targetDir specifically, it is UNINITIALIZED.
+    const gitPath = path.join(targetDir, '.git');
+    const isInitialized = fs.existsSync(gitPath);
+
+    if (!isInitialized) {
+      console.log(`📦 Initializing Git workspace at ${targetDir}...`);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
       }
+
+      run(GitExecutor.init(targetDir));
+      run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
+
+      if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
+        console.log(`   - Using reference mirror: ${mirrorPath}`);
+        const alternatesPath = path.join(
+          targetDir,
+          '.git/objects/info/alternates',
+        );
+        const mirrorObjects = path.join(mirrorPath, 'objects');
+        fs.mkdirSync(path.dirname(alternatesPath), { recursive: true });
+        fs.writeFileSync(alternatesPath, mirrorObjects);
+      }
+    } else {
+      console.log(`✅ Git workspace already initialized at ${targetDir}`);
+    }
+
+    // --- Unified Branch Resolution ---
+
+    // 0. Check if we are already on the correct branch to avoid conflicts
+    const currentBranchCmd: Command = {
+      bin: 'git',
+      args: ['rev-parse', '--abbrev-ref', 'HEAD'],
+      options: { cwd: targetDir, quiet: true },
+    };
+    const currentBranchRes = ProcessManager.runSync(
+      currentBranchCmd.bin,
+      currentBranchCmd.args,
+      currentBranchCmd.options,
+    );
+
+    const currentBranch = currentBranchRes.stdout.trim();
+    if (currentBranchRes.status === 0 && currentBranch === branch) {
+      console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }
 
-    console.log(`📦 Initializing Git workspace at ${targetDir}...`);
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-
-    run(GitExecutor.init(targetDir));
-    run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
-
-    if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
-      console.log(`   - Using reference mirror: ${mirrorPath}`);
-      const alternatesPath = path.join(
-        targetDir,
-        '.git/objects/info/alternates',
-      );
-      const mirrorObjects = path.join(mirrorPath, 'objects');
-      fs.mkdirSync(path.dirname(alternatesPath), { recursive: true });
-      fs.writeFileSync(alternatesPath, mirrorObjects);
-    }
-
-    run(GitExecutor.fetch(targetDir, 'origin', branch));
-
-    // On some git versions, we need to explicitly checkout the remote branch
-    // or create a local tracking branch.
-    const checkoutCmd = GitExecutor.checkout(targetDir, branch);
-    const res = ProcessManager.runSync(
-      checkoutCmd.bin,
-      checkoutCmd.args,
-      checkoutCmd.options,
+    // Try to fetch the branch from origin
+    console.log(`   - Current branch: ${currentBranch || 'unknown'}`);
+    console.log(`   - Target branch: ${branch}`);
+    console.log(`   - Attempting to fetch branch '${branch}' from origin...`);
+    const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
+    const fetchRes = ProcessManager.runSync(
+      fetchCmd.bin,
+      fetchCmd.args,
+      fetchCmd.options,
     );
-    if (res.status !== 0) {
-      console.log(
-        `   - Direct checkout failed, trying from origin/${branch}...`,
-      );
-      const remoteCheckout: Command = {
+
+    if (fetchRes.status !== 0) {
+      console.log(`   ⚠️  Branch '${branch}' not found on origin.`);
+    }
+
+    // 1. Check if branch already exists locally
+    const checkLocalCmd: Command = {
+      bin: 'git',
+      args: ['rev-parse', '--verify', branch],
+      options: { cwd: targetDir, quiet: true },
+    };
+    const localRes = ProcessManager.runSync(
+      checkLocalCmd.bin,
+      checkLocalCmd.args,
+      checkLocalCmd.options,
+    );
+
+    if (localRes.status === 0) {
+      console.log(`   - Branch '${branch}' exists locally. Checking out...`);
+      run(GitExecutor.checkout(targetDir, branch));
+    } else {
+      // 2. Try to checkout from origin/branch if we successfully fetched it
+      const remoteRef = `origin/${branch}`;
+      const checkRemoteCmd: Command = {
         bin: 'git',
-        args: ['checkout', '-b', branch, `origin/${branch}`],
+        args: ['rev-parse', '--verify', remoteRef],
+        options: { cwd: targetDir, quiet: true },
       };
-      if (checkoutCmd.options) {
-        remoteCheckout.options = checkoutCmd.options;
+      const remoteRes = ProcessManager.runSync(
+        checkRemoteCmd.bin,
+        checkRemoteCmd.args,
+        checkRemoteCmd.options,
+      );
+
+      if (remoteRes.status === 0) {
+        console.log(`   - Creating branch '${branch}' from ${remoteRef}...`);
+        run({
+          bin: 'git',
+          args: ['checkout', '-b', branch, remoteRef],
+          options: { cwd: targetDir },
+        });
+      } else {
+        // 3. Fallback: Create new branch from current HEAD
+        console.log(`   - Creating new branch '${branch}' from HEAD...`);
+        run({
+          bin: 'git',
+          args: ['checkout', '-b', branch],
+          options: { cwd: targetDir },
+        });
       }
-      run(remoteCheckout);
     }
 
     console.log(`✅ Workspace ready on branch: ${branch}`);

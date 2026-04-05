@@ -12,6 +12,7 @@ import {
   SATELLITE_WORKSPACES_PATH,
   ORBIT_ROOT,
   getProjectOrbitDir,
+  getPrimaryRepoRoot,
   UPSTREAM_REPO_URL,
   BUNDLE_PATH,
   LOCAL_BUNDLE_PATH,
@@ -130,9 +131,20 @@ export class MissionManager {
 
     const mirrorPath = `${ORBIT_ROOT}/main`;
 
+    // Calculate the actual filesystem path where the worker should operate
+    const targetDir = isLocalWorkspace
+      ? path.join(
+          getPrimaryRepoRoot(this.projectCtx.repoRoot),
+          '..',
+          'workspaces',
+          mCtx.workspaceName,
+        )
+      : ORBIT_ROOT; // On remote, ORBIT_ROOT is the workspace base
+
     // Step A: INIT (Git layer)
     const initCmd = NodeExecutor.create(workerPath, [
       'init',
+      targetDir,
       identifier,
       branch,
       upstreamUrl,
@@ -149,39 +161,37 @@ export class MissionManager {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'MISSION',
-        `❌ Git initialization failed.`,
+        '❌ Git initialization failed.',
       );
       return { missionId, exitCode: initExitCode };
     }
 
-    // Step A.1: Setup Hooks
-    const setupHooksCmd = NodeExecutor.create(workerPath, ['setup-hooks']);
-    await provider.exec(
-      setupHooksCmd,
-      this.getExecOptions(isLocalWorkspace, containerName),
+    // Step B: SETUP HOOKS
+    const hooksCmd = NodeExecutor.create(workerPath, [
+      'setup-hooks',
+      targetDir,
+    ]);
+    const hooksExitCode = await provider.exec(
+      hooksCmd,
+      this.getExecOptions(isLocalWorkspace, containerName, {
+        interactive: true,
+      }),
     );
-
-    // Step B: RUN (Task layer)
-    const absWorkspaceDir = isLocalWorkspace
-      ? path.join(
-          getProjectOrbitDir(this.projectCtx.repoRoot),
-          'workspaces',
-          this.projectCtx.repoName,
-          mCtx.workspaceName,
-        )
-      : `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
-
+    // Step C: RUN (Task layer)
     const runCmd = NodeExecutor.create(workerPath, [
       'run',
       identifier,
       branch,
       action,
       policyPath,
-      absWorkspaceDir,
     ]);
-    const runExitCode = await provider.exec(runCmd, {
-      interactive: true,
-    });
+    const runExitCode = await provider.exec(
+      runCmd,
+      this.getExecOptions(isLocalWorkspace, containerName, {
+        interactive: true,
+        cwd: targetDir,
+      }),
+    );
 
     if (runExitCode !== 0) {
       return { missionId, exitCode: runExitCode };

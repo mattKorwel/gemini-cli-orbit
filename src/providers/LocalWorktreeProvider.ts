@@ -163,6 +163,9 @@ export class LocalWorktreeProvider implements OrbitProvider {
     );
 
     if (fs.existsSync(wtPath)) {
+      console.log(
+        `   ✨ Workspace already exists at ${wtPath}. Rolling with it.`,
+      );
       return;
     }
 
