@@ -88,9 +88,9 @@ async function main() {
 
     if (hasSessions) {
       geminiOpts.resume = 'latest';
-      geminiOpts.promptInteractive = `I am continuing the ${action} mission for ${identifier}. Please review the logs in .gemini/orbit/ and provide your assessment.`;
+      geminiOpts.promptInteractive = `Orbit Mission ${identifier} resumed. Standing by.`;
     } else {
-      geminiOpts.promptInteractive = `I am starting the ${action} mission for ${identifier}. How can I help?`;
+      geminiOpts.promptInteractive = `Orbit Mission ${identifier} (${action}) initialized. Standing by for instructions.`;
     }
 
     const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);

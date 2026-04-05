@@ -275,9 +275,9 @@ export class StationSupervisor {
         if (hasSessions) {
           cmd = `${geminiBin} --resume latest`;
         } else {
-          // Fresh start with a helpful context prompt
-          const initialPrompt = `I am starting the ${action} mission for ${prNumberOrIssue}. How can I help?`;
-          cmd = `${geminiBin} "${initialPrompt}"`;
+          // Fresh start in standby mode
+          const standbyPrompt = `Orbit Mission ${prNumberOrIssue} (${action}) initialized. Standing by for instructions.`;
+          cmd = `${geminiBin} "${standbyPrompt}"`;
         }
 
         const res = ProcessManager.runSync('sh', ['-c', cmd], {
