@@ -130,130 +130,160 @@ export async function dispatch(argv: string[]): Promise<number> {
       'mission',
       'The Workflow: Start, uplink, attach, ci, or jettison.',
       (y: Argv) => {
-        return y
-          .command(
-            'start <identifier> [action] [extra..]',
-            'Start a new PR or Issue mission.',
-            (y2) =>
-              y2
-                .positional('identifier', {
+        return (
+          y
+            // Default Mission command (Allows 'orbit mission <id> <verb>')
+            .command(
+              '$0 <identifier> [action] [extra..]',
+              false,
+              (y2) =>
+                y2
+                  .positional('identifier', {
+                    type: 'string',
+                    description: 'PR or Issue ID',
+                  })
+                  .positional('action', {
+                    type: 'string',
+                    default: 'chat',
+                    description: 'Verb: chat, fix, review, implement',
+                  }),
+              async (args: any) => {
+                const sdk = createSDK(args);
+                const { action, extra = [] } = args;
+                const result = await sdk.startMission({
+                  identifier: args.identifier,
+                  action,
+                  args: extra,
+                });
+                args.exitCode = result.exitCode;
+              },
+            )
+            .command(
+              'start <identifier> [action] [extra..]',
+              'Start a new PR or Issue mission.',
+              (y2) =>
+                y2
+                  .positional('identifier', {
+                    type: 'string',
+                    description: 'PR or Issue ID',
+                  })
+                  .positional('action', {
+                    type: 'string',
+                    default: 'chat',
+                    description: 'Verb: chat, fix, review, implement',
+                  }),
+              async (args: any) => {
+                const sdk = createSDK(args);
+                const { action, extra = [] } = args;
+                const result = await sdk.startMission({
+                  identifier: args.identifier,
+                  action,
+                  args: extra,
+                });
+                args.exitCode = result.exitCode;
+              },
+            )
+            .command(
+              'exec <identifier> <cmd>',
+              'Execute a one-off command in the mission capsule.',
+              (y2) => {
+                y2.positional('identifier', { type: 'string' });
+                y2.positional('cmd', { type: 'string' });
+              },
+              async (args: any) => {
+                const sdk = createSDK(args);
+                args.exitCode = await sdk.missionExec({
+                  identifier: args.identifier,
+                  command: args.cmd,
+                });
+              },
+            )
+            .command(
+              'attach <identifier>',
+              'Resume an active mission.',
+              (y2) =>
+                y2.positional('identifier', {
                   type: 'string',
                   description: 'PR or Issue ID',
-                })
-                .positional('action', {
-                  type: 'string',
-                  default: 'chat',
-                  description: 'Verb: chat, fix, review, implement',
                 }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              const { action, extra = [] } = args;
-              const result = await sdk.startMission({
-                identifier: args.identifier,
-                action,
-                args: extra,
-              });
-              args.exitCode = result.exitCode;
-            },
-          )
-          .command(
-            'exec <identifier> <cmd>',
-            'Execute a one-off command in the mission capsule.',
-            (y2) => {
-              y2.positional('identifier', { type: 'string' });
-              y2.positional('cmd', { type: 'string' });
-            },
-            async (args: any) => {
-              const sdk = createSDK(args);
-              args.exitCode = await sdk.missionExec({
-                identifier: args.identifier,
-                command: args.cmd,
-              });
-            },
-          )
-          .command(
-            'attach <identifier>',
-            'Resume an active mission.',
-            (y2) =>
-              y2.positional('identifier', {
-                type: 'string',
-                description: 'PR or Issue ID',
-              }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              args.exitCode = await sdk.attach({ identifier: args.identifier });
-            },
-          )
-          .command(
-            'uplink <identifier> [action]',
-            'Inspect mission telemetry.',
-            (y2) =>
-              y2
-                .positional('identifier', {
+              async (args: any) => {
+                const sdk = createSDK(args);
+                args.exitCode = await sdk.attach({
+                  identifier: args.identifier,
+                });
+              },
+            )
+            .command(
+              'uplink <identifier> [action]',
+              'Inspect mission telemetry.',
+              (y2) =>
+                y2
+                  .positional('identifier', {
+                    type: 'string',
+                    description: 'PR or Issue ID',
+                  })
+                  .positional('action', {
+                    type: 'string',
+                    description: 'Specific playbook action',
+                  }),
+              async (args: any) => {
+                const sdk = createSDK(args);
+                args.exitCode = await sdk.getLogs({
+                  identifier: args.identifier,
+                  action: args.action,
+                });
+              },
+            )
+            .command(
+              'ci <identifier>',
+              'Monitor CI status for a branch.',
+              (y2) =>
+                y2.positional('identifier', {
+                  type: 'string',
+                  description: 'Branch or PR ID',
+                }),
+              async (args: any) => {
+                const sdk = createSDK(args);
+                const status = await sdk.monitorCI({ branch: args.identifier });
+                console.log(
+                  `CI Status: ${status.status} (${status.runs.join(', ')})`,
+                );
+                args.exitCode = status.status === 'FAILED' ? 1 : 0;
+              },
+            )
+            .command(
+              'jettison <identifier>',
+              'Decommission a specific mission.',
+              (y2) =>
+                y2.positional('identifier', {
                   type: 'string',
                   description: 'PR or Issue ID',
-                })
-                .positional('action', {
-                  type: 'string',
-                  description: 'Specific playbook action',
                 }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              args.exitCode = await sdk.getLogs({
-                identifier: args.identifier,
-                action: args.action,
-              });
-            },
-          )
-          .command(
-            'ci <identifier>',
-            'Monitor CI status for a branch.',
-            (y2) =>
-              y2.positional('identifier', {
-                type: 'string',
-                description: 'Branch or PR ID',
-              }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              const status = await sdk.monitorCI({ branch: args.identifier });
-              console.log(
-                `CI Status: ${status.status} (${status.runs.join(', ')})`,
-              );
-              args.exitCode = status.status === 'FAILED' ? 1 : 0;
-            },
-          )
-          .command(
-            'jettison <identifier>',
-            'Decommission a specific mission.',
-            (y2) =>
-              y2.positional('identifier', {
-                type: 'string',
-                description: 'PR or Issue ID',
-              }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              const res = await sdk.jettisonMission({
-                identifier: args.identifier,
-              });
-              args.exitCode = res.exitCode;
-            },
-          )
-          .command(
-            'shell <identifier>',
-            'Drop into a raw shell inside a mission capsule.',
-            (y2) =>
-              y2.positional('identifier', {
-                type: 'string',
-                description: 'PR or Issue ID',
-              }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              args.exitCode = await sdk.missionShell({
-                identifier: args.identifier,
-              });
-            },
-          )
-          .demandCommand(1, 'Please specify a mission action.');
+              async (args: any) => {
+                const sdk = createSDK(args);
+                const res = await sdk.jettisonMission({
+                  identifier: args.identifier,
+                });
+                args.exitCode = res.exitCode;
+              },
+            )
+            .command(
+              'shell <identifier>',
+              'Drop into a raw shell inside a mission capsule.',
+              (y2) =>
+                y2.positional('identifier', {
+                  type: 'string',
+                  description: 'PR or Issue ID',
+                }),
+              async (args: any) => {
+                const sdk = createSDK(args);
+                args.exitCode = await sdk.missionShell({
+                  identifier: args.identifier,
+                });
+              },
+            )
+            .demandCommand(1, 'Please specify a mission action.')
+        );
       },
     )
 
