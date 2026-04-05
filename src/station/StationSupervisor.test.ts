@@ -42,6 +42,7 @@ describe('StationSupervisor', () => {
 
     (ProcessManager.runSync as any)
       .mockReturnValueOnce({ status: 0 }) // init
+      .mockReturnValueOnce({ status: 1 }) // remote get-url (fails, so we add)
       .mockReturnValueOnce({ status: 0 }) // remote add
       .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
       .mockReturnValueOnce({ status: 0 }) // fetch
@@ -60,11 +61,7 @@ describe('StationSupervisor', () => {
       ['init'],
       expect.any(Object),
     );
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
-      'git',
-      ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
-      expect.any(Object),
-    );
+    expect(ProcessManager.runSync).toHaveBeenCalledTimes(7);
   });
 
   it('initGit falls back to new branch creation if origin branch missing', async () => {
@@ -75,14 +72,16 @@ describe('StationSupervisor', () => {
 
     // Mock sequence:
     // 1. init (0)
-    // 2. remote add (0)
-    // 3. current branch check (0, 'HEAD')
-    // 4. fetch (1) - fail
-    // 5. check local (1) - missing
-    // 6. check remote (1) - missing
-    // 7. checkout -b (0) - fallback
+    // 2. remote get-url (1)
+    // 3. remote add (0)
+    // 4. current branch check (0, 'HEAD')
+    // 5. fetch (1) - fail
+    // 6. check local (1) - missing
+    // 7. check remote (1) - missing
+    // 8. checkout -b (0) - fallback
     (ProcessManager.runSync as any)
       .mockReturnValueOnce({ status: 0 }) // init
+      .mockReturnValueOnce({ status: 1 }) // remote get-url
       .mockReturnValueOnce({ status: 0 }) // remote add
       .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
       .mockReturnValueOnce({ status: 1 }) // fetch

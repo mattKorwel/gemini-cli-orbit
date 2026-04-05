@@ -61,7 +61,7 @@ describe('worker main', () => {
 
   it('should dispatch to station supervisor on run command', async () => {
     const mockStation = {
-      runPlaybook: vi.fn().mockResolvedValue(0),
+      runMission: vi.fn().mockResolvedValue(0),
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
@@ -70,13 +70,15 @@ describe('worker main', () => {
       '123',
       'feat-test',
       'chat',
+      '/work',
       '/policy',
       'orbit/repo/123',
     ]);
-    expect(mockStation.runPlaybook).toHaveBeenCalledWith(
+    expect(mockStation.runMission).toHaveBeenCalledWith(
       '123',
       'feat-test',
       'chat',
+      '/work',
       '/policy',
       'orbit/repo/123',
     );
@@ -88,13 +90,22 @@ describe('worker main', () => {
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main(['run-internal', '123', 'feat-test', 'fix', '/policy']);
+    await main([
+      'run-internal',
+      '123',
+      'feat-test',
+      'fix',
+      '/work',
+      '/policy',
+      'orbit/repo/123',
+    ]);
     expect(mockStation.runPlaybook).toHaveBeenCalledWith(
       '123',
       'feat-test',
       'fix',
+      '/work',
       '/policy',
-      undefined,
+      'orbit/repo/123',
     );
   });
 });

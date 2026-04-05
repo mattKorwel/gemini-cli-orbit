@@ -10,7 +10,7 @@ import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
-import { TmuxExecutor as _TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { resolveMissionContext as _resolveMissionContext } from '../utils/MissionUtils.js';
 import { runReviewPlaybook } from '../playbooks/review.js';
 import { runFixPlaybook } from '../playbooks/fix.js';
@@ -108,7 +108,22 @@ export class StationSupervisor {
       }
 
       run(GitExecutor.init(targetDir));
-      run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
+
+      // Only add remote if it doesn't already exist
+      const checkRemoteCmd: Command = {
+        bin: 'git',
+        args: ['remote', 'get-url', 'origin'],
+        options: { cwd: targetDir, quiet: true },
+      };
+      const remoteRes = ProcessManager.runSync(
+        checkRemoteCmd.bin,
+        checkRemoteCmd.args,
+        checkRemoteCmd.options,
+      );
+
+      if (remoteRes.status !== 0) {
+        run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
+      }
 
       if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
         console.log(`   - Using reference mirror: ${mirrorPath}`);
@@ -216,10 +231,11 @@ export class StationSupervisor {
     prNumberOrIssue: string,
     branchName: string,
     action: string,
+    workDir: string,
     policyPath: string,
     sessionName?: string,
   ) {
-    const targetDir = process.cwd();
+    const targetDir = path.resolve(workDir);
 
     // Resolve absolute path of gemini
     const geminiBin = 'gemini';
@@ -317,48 +333,30 @@ export class StationSupervisor {
     identifier: string,
     branchName: string,
     action: string,
-    policyPath: string,
     workDir: string,
+    policyPath: string,
     sessionName?: string,
   ) {
     const targetDir = path.resolve(workDir);
     const entrypointPath = path.join(this.dirname, 'entrypoint.js');
     const sName = sessionName || identifier;
 
-    // Stealth UI Styles
-    const styles = [
-      'set-option -g status-position top',
-      'set-option -g status-style bg=default,fg=colour240',
-      'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
-      'set-option -g status-right "#[fg=colour244]#H"',
-      'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
-    ]
-      .map((s) => `tmux ${s}`)
-      .join('; ');
-
     // Build the inner node command
-    // Order: <id> <branch> <action> <policy> [sessionName]
+    // Protocol: <id> <branch> <action> <workDir> <policy> [sessionName]
     const nodeCmd = NodeExecutor.create(entrypointPath, [
       identifier,
       branchName,
       action,
+      targetDir,
       policyPath,
       sName,
     ]);
 
-    // Wrap it in Tmux for persistence
-    // 1. Apply styles.
-    // 2. Print tip.
-    // 3. Run command.
-    // 4. If command succeeds (exit 0), tmux exits.
-    // 5. If command fails, drop into zsh.
-    const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
-
-    const tmuxCmd = {
-      bin: 'tmux',
-      args: ['new-session', '-d', '-A', '-s', sName, launch],
-      options: { cwd: targetDir },
-    };
+    const tmuxCmd = TmuxExecutor.wrapMission(
+      sName,
+      `${nodeCmd.bin} ${nodeCmd.args.join(' ')}`,
+      { cwd: targetDir },
+    );
 
     // Launch!
     const res = ProcessManager.runSync(

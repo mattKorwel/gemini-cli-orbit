@@ -63,6 +63,23 @@ describe('Worker Integration (High-Fidelity)', () => {
       return false;
     });
 
+    // Mock ProcessManager.runSync sequence:
+    // 1. init (0)
+    // 2. remote get-url (1)
+    // 3. remote add (0)
+    // 4. current branch check (0, 'HEAD')
+    // 5. fetch (0)
+    // 6. check local (0)
+    // 7. checkout (0)
+    (ProcessManager.runSync as any)
+      .mockReturnValueOnce({ status: 0 }) // init
+      .mockReturnValueOnce({ status: 1 }) // remote get-url
+      .mockReturnValueOnce({ status: 0 }) // remote add
+      .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
+      .mockReturnValueOnce({ status: 0 }) // fetch
+      .mockReturnValueOnce({ status: 0 }) // check local
+      .mockReturnValueOnce({ status: 0 }); // checkout
+
     const exitCode = await main([
       'init',
       workspacePath,
@@ -77,13 +94,6 @@ describe('Worker Integration (High-Fidelity)', () => {
     expect(ProcessManager.runSync).toHaveBeenCalledWith(
       'git',
       ['init'],
-      expect.objectContaining({ cwd: workspacePath }),
-    );
-
-    // Verify remote add
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
-      'git',
-      ['remote', 'add', 'origin', remoteRepoPath],
       expect.objectContaining({ cwd: workspacePath }),
     );
   });

@@ -133,16 +133,14 @@ export class MissionManager {
       : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
         UPSTREAM_REPO_URL;
 
-    const mirrorPath = `${ORBIT_ROOT}/main`;
+    const mirrorPath = isLocalWorkspace ? undefined : `${ORBIT_ROOT}/main`;
+
+    const primary = getPrimaryRepoRoot(this.projectCtx.repoRoot);
 
     // Calculate the actual filesystem path where the worker should operate
+    // We MUST use mCtx.workspaceName to ensure consistency with LocalWorktreeProvider
     const targetDir = isLocalWorkspace
-      ? path.join(
-          getPrimaryRepoRoot(this.projectCtx.repoRoot),
-          '..',
-          'workspaces',
-          mCtx.workspaceName,
-        )
+      ? path.join(primary, '..', 'workspaces', mCtx.workspaceName)
       : ORBIT_ROOT; // On remote, ORBIT_ROOT is the workspace base
 
     // Step A: INIT (Git layer)
@@ -152,12 +150,13 @@ export class MissionManager {
       identifier,
       branch,
       upstreamUrl,
-      mirrorPath,
+      mirrorPath || '',
     ]);
     const initExitCode = await provider.exec(
       initCmd,
       this.getExecOptions(isLocalWorkspace, containerName, {
         interactive: true,
+        cwd: targetDir,
       }),
     );
 
@@ -179,21 +178,24 @@ export class MissionManager {
       hooksCmd,
       this.getExecOptions(isLocalWorkspace, containerName, {
         interactive: true,
+        cwd: targetDir,
       }),
     );
 
     // Step C: RUN (Task layer)
+    // Protocol: <id> <branch> <action> <workDir> <policy> [sessionName]
     const runCmd = NodeExecutor.create(workerPath, [
       'run',
       identifier,
       branch,
       action,
+      targetDir,
       policyPath,
-      mCtx.sessionName, // Pass the hierarchical display name for tmux
+      mCtx.sessionName,
     ]);
     const runExitCode = await provider.exec(
       runCmd,
-      this.getExecOptions(isLocalWorkspace, containerName, {
+      this.getExecOptions(isLocalWorkspace, mCtx.sessionName, {
         interactive: true,
         cwd: targetDir,
       }),
@@ -203,7 +205,12 @@ export class MissionManager {
       return { missionId, exitCode: runExitCode };
     }
 
-    // 6. Finalization
+    // 6. Automatic Attachment (for interactive missions)
+    if (action === 'chat') {
+      return { missionId, exitCode: await this.attach({ identifier }) };
+    }
+
+    // 7. Finalization
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
@@ -329,10 +336,15 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-    const mCtx = resolveMissionContext(identifier, action);
+    const mCtx = resolveMissionContext(
+      identifier,
+      action,
+      this.projectCtx.repoName,
+    );
     const capsules = await provider.listCapsules();
 
     const target =
+      capsules.find((c) => c === mCtx.sessionName) ||
       capsules.find((c) => c === mCtx.containerName) ||
       capsules.find((c) => c.includes(identifier));
 
@@ -361,10 +373,15 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-    const mCtx = resolveMissionContext(identifier, action);
+    const mCtx = resolveMissionContext(
+      identifier,
+      action,
+      this.projectCtx.repoName,
+    );
     const capsules = await provider.listCapsules();
 
     const target =
+      capsules.find((c) => c === mCtx.sessionName) ||
       capsules.find((c) => c === mCtx.containerName) ||
       capsules.find((c) => c.includes(identifier));
 
@@ -400,9 +417,14 @@ export class MissionManager {
       return 0;
     }
 
-    const mCtx = resolveMissionContext(identifier, action);
+    const mCtx = resolveMissionContext(
+      identifier,
+      action,
+      this.projectCtx.repoName,
+    );
     const capsules = await provider.listCapsules();
     const target =
+      capsules.find((c) => c === mCtx.sessionName) ||
       capsules.find((c) => c === mCtx.containerName) ||
       capsules.find((c) => c.includes(identifier));
 
@@ -425,14 +447,12 @@ export class MissionManager {
   }
 
   private getExecOptions(
-    isLocal: boolean,
+    _isLocal: boolean,
     capsuleName: string,
     overrides: Partial<ExecOptions> = {},
   ): ExecOptions {
     const options: ExecOptions = { ...overrides };
-    if (!isLocal) {
-      options.wrapCapsule = capsuleName;
-    }
+    options.wrapCapsule = capsuleName;
     return options;
   }
 }

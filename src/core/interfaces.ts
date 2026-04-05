@@ -79,10 +79,10 @@ export interface IProcessResult {
 
 export interface IRunOptions {
   cwd?: string;
-  env?: Record<string, string>;
+  env?: Record<string, string> | undefined;
   interactive?: boolean;
   quiet?: boolean;
-  stdio?: 'inherit' | 'pipe' | 'ignore';
+  stdio?: 'inherit' | 'pipe' | 'ignore' | undefined;
 }
 
 /**

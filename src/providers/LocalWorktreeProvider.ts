@@ -16,6 +16,7 @@ import {
   type InfrastructureSpec,
   MISSION_PREFIX,
 } from '../core/Constants.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { type Command, flattenCommand } from '../core/executors/types.js';
 
 /**
@@ -90,27 +91,11 @@ export class LocalWorktreeProvider implements OrbitProvider {
 
     if (this.hasTmux()) {
       const sessionName = options.wrapCapsule || 'orbit-local';
-
-      // Stealth UI Styles
-      const styles = [
-        'set-option -g status-position top',
-        'set-option -g status-style bg=default,fg=colour240',
-        'set-option -g status-left "#[fg=colour39,bold]🛰️  ORBIT #[fg=colour244]| "',
-        'set-option -g status-right "#[fg=colour244]#H"',
-        'set-option -g window-status-current-format "#[fg=colour45,bold]#S"',
-      ]
-        .map((s) => `tmux ${s}`)
-        .join('; ');
-
-      // Launch Command:
-      // 1. Apply styles.
-      // 2. Print tip.
-      // 3. Run command.
-      // 4. If command succeeds (exit 0), tmux exits.
-      // 5. If command fails, drop into zsh.
-      const launch = `${styles}; printf "\\n   #[fg=colour244]💡 Tip: Press #[fg=colour39]Ctrl-b d#[fg=colour244] to detach and keep mission running.\\n\\n"; ${envPrefix}${command} || exec zsh`;
-
-      return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${launch}"`;
+      const cmd = TmuxExecutor.wrapMission(sessionName, command, {
+        cwd: capsuleDir,
+        env: options.env,
+      });
+      return `${cmd.bin} ${cmd.args.join(' ')}`;
     }
 
     console.warn(
@@ -134,23 +119,45 @@ export class LocalWorktreeProvider implements OrbitProvider {
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    let cwd = options.cwd || this.projectCtx.repoRoot;
-    if (options.wrapCapsule) {
-      const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
-      cwd =
-        this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
-        path.join(
-          this.workspacesDir,
-          `${MISSION_PREFIX}${options.wrapCapsule}`,
+    let cwd = options.cwd;
+
+    if (!cwd) {
+      cwd = this.projectCtx.repoRoot;
+
+      // Resolve the actual filesystem path for the mission
+      if (options.wrapCapsule) {
+        const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
+        const parts = options.wrapCapsule.split('/');
+        const id = parts[parts.length - 1]; // Use the ID part (e.g. f-u-2)
+
+        // Look for the worktree in the sibling workspaces directory
+        cwd = path.join(
+          primaryRoot,
+          '..',
+          'workspaces',
+          `${MISSION_PREFIX}${id}`,
         );
+      }
     }
 
-    const res = spawnSync(flattenCommand(command), {
+    const env = { ...process.env, ...options.env, GEMINI_AUTO_UPDATE: '0' };
+    const cmdStr = flattenCommand(command);
+
+    const res = spawnSync(cmdStr, {
       stdio: options.quiet ? 'pipe' : 'inherit',
       shell: true,
       cwd,
-      env: { ...process.env, ...options.env, GEMINI_AUTO_UPDATE: '0' },
+      env,
     });
+
+    if (res.status !== 0 && res.status !== null) {
+      console.error(
+        `[LOCAL EXEC] ❌ Failed with code ${res.status}, signal ${res.signal}`,
+      );
+      if (res.error) console.error(`[LOCAL EXEC] ERROR: ${res.error.message}`);
+      if (res.stderr)
+        console.error(`[LOCAL EXEC] STDERR: ${res.stderr.toString()}`);
+    }
 
     return {
       status: res.status ?? (res.error ? 1 : 0),
@@ -187,6 +194,7 @@ export class LocalWorktreeProvider implements OrbitProvider {
       return;
     }
 
+    console.log(`[LOCAL] 🏗️ Creating worktree at: ${wtPath}`);
     console.log(
       `   🌿 Orbit: Provisioning local workspace for '${actualBranch}'...`,
     );

@@ -79,32 +79,35 @@ export async function main(argv: string[]) {
       },
     )
     .command(
-      'run <id> <branch> <action> <policy> [sessionName]',
-      'Executes a mission playbook',
+      'run <id> <branch> <action> <workDir> <policy> [sessionName]',
+      'Spawns a mission in a persistent session',
       (y) => {
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });
         y.positional('action', { type: 'string' });
+        y.positional('workDir', { type: 'string' });
         y.positional('policy', { type: 'string' });
         y.positional('sessionName', { type: 'string' });
       },
       async (argv) => {
-        await station.runPlaybook(
+        await station.runMission(
           argv.id as string,
           argv.branch as string,
           argv.action as string,
+          argv.workDir as string,
           argv.policy as string,
           argv.sessionName as string,
         );
       },
     )
     .command(
-      'run-internal <id> <branch> <action> <policy> [sessionName]',
+      'run-internal <id> <branch> <action> <workDir> <policy> [sessionName]',
       'Executes a mission playbook (internal)',
       (y) => {
         y.positional('id', { type: 'string' });
         y.positional('branch', { type: 'string' });
         y.positional('action', { type: 'string' });
+        y.positional('workDir', { type: 'string' });
         y.positional('policy', { type: 'string' });
         y.positional('sessionName', { type: 'string' });
       },
@@ -113,6 +116,7 @@ export async function main(argv: string[]) {
           argv.id as string,
           argv.branch as string,
           argv.action as string,
+          argv.workDir as string,
           argv.policy as string,
           argv.sessionName as string,
         );

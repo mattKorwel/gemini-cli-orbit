@@ -29,13 +29,15 @@ const _dirname = getDirname();
 async function main() {
   const args = process.argv.slice(2);
   const identifier = args[0];
-  const workDir = args[1] || '.';
-  const policyPath = args[2] || '.';
-  const action = args[3] || 'chat';
+  const branch = args[1] || identifier;
+  const action = args[2] || 'chat';
+  const workDir = args[3] || '.';
+  const policyPath = args[4] || '.';
+  const sessionName = args[5] || identifier;
 
   if (!identifier) {
     console.error(
-      'Usage: entrypoint <identifier> [workDir] [policyPath] [action]',
+      'Usage: entrypoint <id> <branch> <action> <workDir> <policyPath> [sessionName]',
     );
     process.exit(1);
   }
@@ -95,15 +97,17 @@ async function main() {
     const stationScript = path.join(_dirname, 'station.js');
 
     // We call back into station.js 'run-internal' to actually execute the playbook
-    // This avoids duplicating the playbook loading logic.
+    // Protocol: <id> <branch> <action> <workDir> <policy> [sessionName]
     const playbookCmd = NodeExecutor.create(
       stationScript,
       [
         'run-internal',
         identifier,
-        identifier, // branch
+        branch as string,
         action,
+        absWorkDir,
         policyPath,
+        sessionName as string,
       ],
       { cwd: absWorkDir, interactive: true },
     );

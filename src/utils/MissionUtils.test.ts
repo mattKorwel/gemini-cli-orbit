@@ -20,14 +20,14 @@ describe('MissionUtils', () => {
   it('should resolve simple mission ID', () => {
     const ctx = resolveMissionContext('test-branch', 'chat', 'test-repo');
     expect(ctx.containerName).toBe('orbit-test-repo-test-branch');
-    expect(ctx.workspaceName).toBe('orbit-test-repo-test-branch');
+    expect(ctx.workspaceName).toBe('orbit-test-branch');
     expect(ctx.sessionName).toBe('orbit/test-repo/test-branch');
   });
 
   it('should resolve named mission with suffix (id:name)', () => {
     const ctx = resolveMissionContext('123:debug', 'chat', 'test-repo');
     expect(ctx.containerName).toBe('orbit-test-repo-123-debug');
-    expect(ctx.workspaceName).toBe('orbit-test-repo-123-debug');
+    expect(ctx.workspaceName).toBe('orbit-123-debug');
     expect(ctx.sessionName).toBe('orbit/test-repo/123-debug');
   });
 
@@ -53,7 +53,7 @@ describe('MissionUtils', () => {
   it('should handle complex suffixes with multiple colons', () => {
     const ctx = resolveMissionContext('123:deep:dive', 'review', 'test-repo');
     expect(ctx.containerName).toBe('orbit-test-repo-123-deep-dive-review');
-    expect(ctx.workspaceName).toBe('orbit-test-repo-123-deep-dive');
+    expect(ctx.workspaceName).toBe('orbit-123-deep-dive');
     expect(ctx.sessionName).toBe('orbit/test-repo/123-deep-dive/review');
   });
 });
