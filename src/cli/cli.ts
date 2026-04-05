@@ -223,17 +223,23 @@ export async function dispatch(argv: string[]): Promise<number> {
               },
             )
             .command(
-              'attach <identifier>',
+              'attach <identifier> [action]',
               'Resume an active mission.',
               (y2) =>
-                y2.positional('identifier', {
-                  type: 'string',
-                  description: 'PR or Issue ID',
-                }),
+                y2
+                  .positional('identifier', {
+                    type: 'string',
+                    description: 'PR or Issue ID',
+                  })
+                  .positional('action', {
+                    type: 'string',
+                    description: 'Verb: chat, fix, review, implement',
+                  }),
               async (args: any) => {
                 const sdk = createSDK(args);
                 args.exitCode = await sdk.attach({
                   identifier: args.identifier,
+                  action: args.action,
                 });
               },
             )

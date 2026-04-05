@@ -55,21 +55,23 @@ export function resolveMissionContext(
   const sRepo = sanitizeName(detectRepoName() || 'unknown');
 
   // Starfleet Hierarchical Naming Strategy
-  // 1. Slug is the core identifier
-  // Strip 'gemini-cli-' prefix from repo for brevity if it exists
+  // Strip 'gemini-cli-' prefix from repo for brevity
   const shortRepo = sRepo.startsWith('gemini-cli-')
     ? sRepo.replace('gemini-cli-', '')
     : sRepo;
 
-  // 2. workspaceName is the base folder/worktree (FileSystem safe: uses '-')
-  const workspaceName = `orbit-${shortRepo}-${sId}${sSuffix}`.substring(0, 48);
+  // 1. workspaceName: orbit-<repo>-<id> (FileSystem safe: uses '-')
+  // Logic Fix: If shortRepo is 'orbit', don't repeat it
+  const repoSlug = shortRepo === 'orbit' ? '' : `${shortRepo}-`;
+  const workspaceName = `orbit-${repoSlug}${sId}${sSuffix}`.substring(0, 48);
 
-  // 3. containerName is the unique mission ID (Docker/Worktree safe: uses '-')
+  // 2. containerName: Matches workspace (or adds action if not chat)
   const containerName =
     action === 'chat' ? workspaceName : `${workspaceName}-${action}`;
 
-  // 4. sessionName is the display name for Tmux (User preference: uses '/')
-  const sessionParts = ['orbit', shortRepo, sId];
+  // 3. sessionName: Display name for Tmux (User preference: uses '/')
+  const sessionRepo = shortRepo === 'orbit' ? 'orbit' : `orbit/${shortRepo}`;
+  const sessionParts = [sessionRepo, sId];
   if (suffix) sessionParts.push(sanitizeName(suffix));
   if (action !== 'chat') sessionParts.push(action);
   const sessionName = sessionParts.join('/');

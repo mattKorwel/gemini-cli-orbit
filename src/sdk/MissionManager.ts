@@ -158,7 +158,7 @@ export class MissionManager {
     if (action === 'chat') {
       // Give tmux a moment to spawn the session
       await new Promise((resolve) => setTimeout(resolve, 800));
-      const exitCode = await this.attach({ identifier });
+      const exitCode = await this.attach({ identifier, action });
       return { missionId, exitCode };
     }
 
@@ -220,21 +220,31 @@ export class MissionManager {
   /**
    * Drops into a raw interactive tmux session inside a mission capsule.
    */
-  async attach(options: { identifier: string }): Promise<number> {
+  async attach(options: {
+    identifier: string;
+    action?: string | undefined;
+  }): Promise<number> {
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
 
+    const action = options.action || 'chat';
+
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
-      `👋 Resuming existing '${
-        (options as any).action || 'mission'
-      }' for ${options.identifier}...`,
+      `👋 Resuming existing '${action}' for ${options.identifier}...`,
     );
 
-    // 1. List Capsules to find the right one
+    // 1. Calculate canonical session name
+    const mCtx = resolveMissionContext(options.identifier, action);
+
+    // 2. Try direct attach to canonical name first (Robustness ADR 0018)
+    const directRes = await provider.attach(mCtx.sessionName);
+    if (directRes === 0) return 0;
+
+    // 3. Fallback: List Capsules to find the right one (Legacy/Substring support)
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -247,7 +257,7 @@ export class MissionManager {
       return 1;
     }
 
-    // 2. Attach via Provider
+    // 4. Attach via Provider
     return provider.attach(target);
   }
 
