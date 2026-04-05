@@ -3,11 +3,51 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { type Command } from './types.js';
-import { type IRunOptions } from '../interfaces.js';
+import {
+  type IRunOptions,
+  type ITmuxExecutor,
+  type IProcessManager,
+  type IProcessResult,
+} from '../interfaces.js';
 
-export class TmuxExecutor {
+export class TmuxExecutor implements ITmuxExecutor {
+  constructor(private readonly pm: IProcessManager) {}
+
+  /**
+   * Wraps an Orbit mission command in a professional, styled tmux session.
+   * This is metadata-only (Returns a command for execution elsewhere).
+   */
+  public wrapMission(
+    sessionName: string,
+    innerCommand: string,
+    options: IRunOptions = {},
+  ): Command {
+    return TmuxExecutor.wrapMission(sessionName, innerCommand, options);
+  }
+
+  /**
+   * Wraps a command in a new tmux session.
+   * This is metadata-only (Returns a command for execution elsewhere).
+   */
+  public wrap(
+    sessionName: string,
+    innerCommand: string,
+    options: IRunOptions & { detached?: boolean } = {},
+  ): Command {
+    return TmuxExecutor.wrap(sessionName, innerCommand, options);
+  }
+
+  /**
+   * Directly attaches to an existing session.
+   */
+  public attach(sessionName: string): IProcessResult {
+    const cmd = TmuxExecutor.attach(sessionName);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  // --- Static Metadata Helpers ---
+
   /**
    * Wraps an Orbit mission command in a professional, styled tmux session.
    * This is the single source of truth for the Orbit terminal environment.

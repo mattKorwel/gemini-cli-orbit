@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { InfrastructureSpec } from '../core/Constants.js';
+import { type IProcessManager } from '../core/interfaces.js';
 
 /**
  * Represents a structured command to be executed remotely.
@@ -76,6 +76,7 @@ export class GceSSHManager implements SSHManager {
     private readonly zone: string,
     private readonly instanceName: string,
     private readonly infra: InfrastructureSpec,
+    private readonly pm: IProcessManager,
   ) {}
 
   public getMagicRemote(): string {
@@ -190,8 +191,8 @@ export class GceSSHManager implements SSHManager {
     rsyncArgs.push('-e', sshArg);
     rsyncArgs.push(localPath, `${remote}:${remotePath}`);
 
-    const res = spawnSync('rsync', rsyncArgs, { stdio: 'inherit' });
-    return res.status ?? (res.error ? 1 : 0);
+    const res = this.pm.runSync('rsync', rsyncArgs, { stdio: 'inherit' });
+    return res.status;
   }
 
   /**
@@ -251,8 +252,8 @@ export class GceSSHManager implements SSHManager {
       attachCmd,
     ];
 
-    const res = spawnSync('ssh', sshArgs, { stdio: 'inherit' });
-    return res.status ?? (res.error ? 1 : 0);
+    const res = this.pm.runSync('ssh', sshArgs, { stdio: 'inherit' });
+    return res.status;
   }
 
   private execute(
@@ -260,13 +261,12 @@ export class GceSSHManager implements SSHManager {
     args: string[],
     options: SSHOptions,
   ): ExecResult {
-    const res = spawnSync(bin, args, {
+    const res = this.pm.runSync(bin, args, {
       stdio: [
         options.interactive ? 'inherit' : 'ignore',
         options.quiet ? 'pipe' : 'inherit',
         'pipe',
-      ],
-      shell: false,
+      ] as any,
       env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
     });
 
@@ -299,7 +299,7 @@ export class GceSSHManager implements SSHManager {
     }
 
     return {
-      status: res.status ?? (res.error ? 1 : 0),
+      status: res.status,
       stdout,
       stderr,
     };

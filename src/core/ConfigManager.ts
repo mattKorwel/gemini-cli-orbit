@@ -6,7 +6,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   type OrbitConfig,
   type OrbitSettings,
@@ -22,7 +21,8 @@ import {
   DEFAULT_SUBNET_NAME,
 } from './Constants.js';
 
-import { type IConfigManager } from './interfaces.js';
+import { type IConfigManager, type IProcessManager } from './interfaces.js';
+import { ProcessManager } from './ProcessManager.js';
 
 export class ConfigManager implements IConfigManager {
   loadSettings(): OrbitSettings {
@@ -209,15 +209,16 @@ export function resolveContextBundles(
 
 export function detectRepoName(
   repoRoot: string = process.cwd(),
-  options: { silent?: boolean } = {},
+  options: { silent?: boolean; pm?: IProcessManager } = {},
 ): string {
   if (process.env.GCLI_ORBIT_REPO_NAME) return process.env.GCLI_ORBIT_REPO_NAME;
 
+  const pm = options.pm || new ProcessManager();
+
   try {
     // 1. Try to get the repo name from the remote URL (most accurate)
-    const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
-      stdio: 'pipe',
-      encoding: 'utf8',
+    const remoteRes = pm.runSync('git', ['remote', 'get-url', 'origin'], {
+      quiet: true,
       cwd: repoRoot,
     });
     if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
@@ -227,9 +228,8 @@ export function detectRepoName(
     }
 
     // 2. Fallback to the basename of the git root
-    const rootRes = spawnSync('git', ['rev-parse', '--show-toplevel'], {
-      stdio: options.silent ? 'pipe' : 'inherit',
-      encoding: 'utf8',
+    const rootRes = pm.runSync('git', ['rev-parse', '--show-toplevel'], {
+      quiet: true,
       cwd: repoRoot,
     });
     if (rootRes.status === 0 && rootRes.stdout.trim()) {
@@ -240,11 +240,13 @@ export function detectRepoName(
   return DEFAULT_REPO_NAME;
 }
 
-export function detectRemoteUrl(repoRoot: string = process.cwd()): string {
+export function detectRemoteUrl(
+  repoRoot: string = process.cwd(),
+  pm: IProcessManager = new ProcessManager(),
+): string {
   try {
-    const remoteRes = spawnSync('git', ['remote', 'get-url', 'origin'], {
-      stdio: 'pipe',
-      encoding: 'utf8',
+    const remoteRes = pm.runSync('git', ['remote', 'get-url', 'origin'], {
+      quiet: true,
       cwd: repoRoot,
     });
     if (remoteRes.status === 0 && remoteRes.stdout.trim()) {

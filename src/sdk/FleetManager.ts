@@ -28,6 +28,7 @@ import {
   type IConfigManager,
   type IDependencyManager,
   type StationReceipt,
+  type IExecutors,
 } from '../core/interfaces.js';
 
 export class FleetManager {
@@ -41,6 +42,7 @@ export class FleetManager {
     private readonly infraFactory: IInfrastructureFactory,
     private readonly configManager: IConfigManager,
     private readonly dependencyManager: IDependencyManager,
+    private readonly executors: IExecutors,
   ) {}
 
   /**

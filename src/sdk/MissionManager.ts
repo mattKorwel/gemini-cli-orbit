@@ -26,13 +26,13 @@ import {
   type JettisonOptions,
   type ReapOptions,
 } from '../core/types.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { getPrimaryRepoRoot } from '../core/Constants.js';
+import { type IExecutors } from '../core/interfaces.js';
 
 /**
  * FleetCommander: SDK-level mission orchestrator.
@@ -45,6 +45,7 @@ export class MissionManager {
     private readonly observer: OrbitObserver,
     private readonly providerFactory: IProviderFactory,
     private readonly configManager: IConfigManager,
+    private readonly executors: IExecutors,
   ) {}
 
   /**
@@ -147,7 +148,7 @@ export class MissionManager {
     };
 
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
-    const startCmd = NodeExecutor.create(workerPath, ['start']);
+    const startCmd = this.executors.node.create(workerPath, ['start']);
     const startExitCode = await provider.exec(startCmd, {
       interactive: true,
       manifest,

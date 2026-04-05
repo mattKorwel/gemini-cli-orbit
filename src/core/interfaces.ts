@@ -90,6 +90,81 @@ export interface IRunOptions {
  */
 export interface IProcessManager {
   runSync(bin: string, args: string[], options?: IRunOptions): IProcessResult;
+  runAsync(
+    bin: string,
+    args: string[],
+    options?: IRunOptions,
+  ): import('node:child_process').ChildProcess;
+  spawn(
+    bin: string,
+    args: string[],
+    options?: IRunOptions,
+  ): import('node:child_process').ChildProcess;
+}
+
+export interface IGitExecutor {
+  init(cwd: string, options?: IRunOptions): IProcessResult;
+  remoteAdd(
+    cwd: string,
+    name: string,
+    url: string,
+    options?: IRunOptions,
+  ): IProcessResult;
+  fetch(
+    cwd: string,
+    remote: string,
+    branch: string,
+    options?: IRunOptions,
+  ): IProcessResult;
+  checkout(cwd: string, branch: string, options?: IRunOptions): IProcessResult;
+  worktreeAdd(
+    cwd: string,
+    path: string,
+    branch: string,
+    options?: IRunOptions,
+  ): IProcessResult;
+}
+
+export interface IDockerExecutor {
+  exec(
+    container: string,
+    command: string[],
+    options?: IRunOptions,
+  ): IProcessResult;
+}
+
+export interface ITmuxExecutor {
+  wrapMission(
+    sessionName: string,
+    innerCommand: string,
+    options?: IRunOptions,
+  ): import('./executors/types.js').Command;
+  wrap(
+    sessionName: string,
+    innerCommand: string,
+    options?: IRunOptions & { detached?: boolean },
+  ): import('./executors/types.js').Command;
+  attach(sessionName: string): IProcessResult;
+}
+
+export interface INodeExecutor {
+  create(
+    scriptPath: string,
+    args?: string[],
+    options?: IRunOptions,
+  ): import('./executors/types.js').Command;
+}
+
+export interface IGeminiExecutor {
+  create(bin: string, options?: any): import('./executors/types.js').Command;
+}
+
+export interface IExecutors {
+  git: IGitExecutor;
+  docker: IDockerExecutor;
+  tmux: ITmuxExecutor;
+  node: INodeExecutor;
+  gemini: IGeminiExecutor;
 }
 
 /**

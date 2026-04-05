@@ -84,6 +84,8 @@ describe('FleetManager', () => {
       ensurePulumi: vi.fn().mockResolvedValue('path/to/pulumi'),
     } as any;
 
+    const mockExecutors: any = {};
+
     fleet = new FleetManager(
       projectCtx as any,
       infraSpec as any,
@@ -94,6 +96,7 @@ describe('FleetManager', () => {
       infraFactory,
       configManager,
       dependencyManager,
+      mockExecutors,
     );
   });
 

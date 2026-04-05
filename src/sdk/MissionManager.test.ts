@@ -96,12 +96,19 @@ describe('MissionManager', () => {
         .mockReturnValue('https://github.com/test/test.git'),
     } as any;
 
+    const mockExecutors: any = {
+      node: {
+        create: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
+      },
+    };
+
     manager = new MissionManager(
       { repoName: 'test-repo', repoRoot: '/tmp' } as any,
       { projectId: 'p1', zone: 'z1' } as any,
       { onLog: vi.fn(), onProgress: vi.fn() } as any,
       providerFactory,
       configManager,
+      mockExecutors,
     );
   });
 

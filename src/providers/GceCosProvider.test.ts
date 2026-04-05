@@ -6,11 +6,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GceCosProvider } from './GceCosProvider.js';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { type ProjectContext } from '../core/Constants.js';
 
-vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('../core/Logger.js', () => ({
   logger: {
@@ -34,6 +32,7 @@ const mockSsh = {
   getBackendType: vi.fn().mockReturnValue('direct-internal'),
   setOverrideHost: vi.fn(),
   attachToTmux: vi.fn().mockResolvedValue(0),
+  syncPathIfChanged: vi.fn().mockResolvedValue(0),
 };
 
 describe('GceCosProvider', () => {
@@ -46,6 +45,20 @@ describe('GceCosProvider', () => {
     repoName: 'repo',
   };
   let provider: GceCosProvider;
+
+  const mockPm: any = {
+    runSync: vi.fn(),
+    runAsync: vi.fn(),
+    spawn: vi.fn(),
+  };
+
+  const mockExecutors: any = {
+    git: {},
+    docker: {},
+    tmux: {},
+    node: {},
+    gemini: {},
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,6 +77,7 @@ describe('GceCosProvider', () => {
       stderr: '',
     });
     mockSsh.syncPath.mockResolvedValue(0);
+    mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
 
     provider = new GceCosProvider(
       projectCtx,
@@ -71,7 +85,9 @@ describe('GceCosProvider', () => {
       zone,
       instanceName,
       repoRoot,
-      mockSsh as any, // Inject the mock
+      mockSsh as any,
+      mockPm,
+      mockExecutors,
     );
   });
 
@@ -90,10 +106,11 @@ describe('GceCosProvider', () => {
         },
       ],
     };
-    (spawnSync as any).mockReturnValue({
+    mockPm.runSync.mockReturnValue({
       status: 0,
-      stdout: Buffer.from(JSON.stringify(mockData)),
-    } as any);
+      stdout: JSON.stringify(mockData),
+      stderr: '',
+    });
 
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
@@ -108,10 +125,10 @@ describe('GceCosProvider', () => {
   });
 
   it('should list stations for the user', async () => {
-    (spawnSync as any).mockReturnValue({ status: 0 } as any);
+    mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
     const res = await provider.listStations();
     expect(res).toBe(0);
-    expect(spawnSync).toHaveBeenCalledWith(
+    expect(mockPm.runSync).toHaveBeenCalledWith(
       'gcloud',
       [
         '--verbosity=error',

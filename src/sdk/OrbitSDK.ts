@@ -38,8 +38,14 @@ import { SchematicManager } from './SchematicManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { ProcessManager } from '../core/ProcessManager.js';
+import { GitExecutor } from '../core/executors/GitExecutor.js';
+import { DockerExecutor } from '../core/executors/DockerExecutor.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { ShellIntegration } from '../utils/ShellIntegration.js';
 import { DependencyManager } from './DependencyManager.js';
+import { type IExecutors } from '../core/interfaces.js';
 
 export * from '../core/types.js';
 
@@ -86,11 +92,20 @@ export class OrbitSDK implements IOrbitSDK {
     // Ensure logger uses the correct repo root for its stream
     logger.setRepoRoot(this.projectCtx.repoRoot);
 
+    // Foundation
+    const processManager = new ProcessManager();
+    const executors: IExecutors = {
+      git: new GitExecutor(processManager),
+      docker: new DockerExecutor(processManager),
+      tmux: new TmuxExecutor(processManager),
+      node: new NodeExecutor(processManager),
+      gemini: new GeminiExecutor(processManager),
+    };
+
     // Dependencies
     const configManager = new ConfigManager();
-    const providerFactory = new ProviderFactory();
+    const providerFactory = new ProviderFactory(processManager, executors);
     const infraFactory = new InfrastructureFactory();
-    const processManager = new ProcessManager();
     const shellIntegration = new ShellIntegration();
     const dependencyManager = new DependencyManager(processManager);
     const stationRegistry = new StationRegistry(providerFactory, configManager);
@@ -102,6 +117,7 @@ export class OrbitSDK implements IOrbitSDK {
       this.observer,
       providerFactory,
       configManager,
+      executors,
     );
     this.fleet = new FleetManager(
       this.projectCtx,
@@ -113,17 +129,20 @@ export class OrbitSDK implements IOrbitSDK {
       infraFactory,
       configManager,
       dependencyManager,
+      executors,
     );
     this.status = new StatusManager(
       this.projectCtx,
       bundles.infra,
       providerFactory,
+      executors,
     );
     this.ci = new CIManager(
       this.projectCtx,
       bundles.infra,
       this.observer,
       processManager,
+      executors,
     );
     this.integrations = new IntegrationManager(this.observer, shellIntegration);
   }

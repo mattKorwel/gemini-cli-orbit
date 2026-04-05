@@ -5,9 +5,28 @@
  */
 
 import { type Command } from './types.js';
-import { type IRunOptions } from '../interfaces.js';
+import {
+  type IRunOptions,
+  type INodeExecutor,
+  type IProcessManager,
+} from '../interfaces.js';
 
-export class NodeExecutor {
+export class NodeExecutor implements INodeExecutor {
+  constructor(private readonly _pm: IProcessManager) {}
+
+  /**
+   * Creates a command to run a Node.js script.
+   */
+  public create(
+    scriptPath: string,
+    args: string[] = [],
+    options: IRunOptions = {},
+  ): Command {
+    return NodeExecutor.create(scriptPath, args, options);
+  }
+
+  // --- Static Metadata Helpers ---
+
   /**
    * Creates a command to run a Node.js script.
    */

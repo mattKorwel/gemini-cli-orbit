@@ -15,6 +15,8 @@ import type {
 import { type Command } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
 
+import { type IExecutors, type IProcessManager } from '../core/interfaces.js';
+
 /**
  * BaseProvider: Shared logic for all Orbit backends.
  * Centralizes naming policy with overridable defaults.
@@ -25,6 +27,11 @@ export abstract class BaseProvider {
   abstract projectId: string;
   abstract zone: string;
   abstract stationName: string;
+
+  constructor(
+    protected readonly pm: IProcessManager,
+    protected readonly executors: IExecutors,
+  ) {}
 
   /**
    * Naming Policy Hooks (Standard Hierarchical Defaults)

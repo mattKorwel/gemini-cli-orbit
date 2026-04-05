@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
 import { sanitizeName } from '../core/ConfigManager.js';
 import { type MissionManifest } from '../core/types.js';
+import { type IProcessManager } from '../core/interfaces.js';
+import { ProcessManager } from '../core/ProcessManager.js';
 
 export interface MissionContext {
   branchName: string;
@@ -24,6 +25,7 @@ export interface MissionContext {
 export function resolveMissionContext(
   identifier: string,
   repoName: string,
+  pm: IProcessManager = new ProcessManager(),
 ): { branchName: string; repoSlug: string; idSlug: string } {
   const parts = identifier.split(':');
   const prId = parts[0]!;
@@ -34,12 +36,11 @@ export function resolveMissionContext(
   // Try to resolve PR branch name via GH CLI if identifier is numeric
   if (/^\d+$/.test(prId)) {
     try {
-      const res = spawnSync(
+      const res = pm.runSync(
         'gh',
         ['pr', 'view', prId, '--json', 'headRefName'],
         {
-          encoding: 'utf8',
-          stdio: 'pipe',
+          quiet: true,
         },
       );
       if (res.status === 0 && res.stdout.trim()) {

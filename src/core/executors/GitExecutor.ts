@@ -5,9 +5,62 @@
  */
 
 import { type Command } from './types.js';
-import { type IRunOptions } from '../interfaces.js';
+import {
+  type IRunOptions,
+  type IGitExecutor,
+  type IProcessManager,
+  type IProcessResult,
+} from '../interfaces.js';
 
-export class GitExecutor {
+export class GitExecutor implements IGitExecutor {
+  constructor(private readonly pm: IProcessManager) {}
+
+  public init(cwd: string, options: IRunOptions = {}): IProcessResult {
+    const cmd = GitExecutor.init(cwd, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public remoteAdd(
+    cwd: string,
+    name: string,
+    url: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.remoteAdd(cwd, name, url, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public fetch(
+    cwd: string,
+    remote: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.fetch(cwd, remote, branch, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public checkout(
+    cwd: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.checkout(cwd, branch, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public worktreeAdd(
+    cwd: string,
+    path: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.worktreeAdd(cwd, path, branch, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  // --- Static Metadata Helpers ---
+
   public static init(cwd: string, options: IRunOptions = {}): Command {
     return { bin: 'git', args: ['init'], options: { ...options, cwd } };
   }

@@ -9,14 +9,14 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import { type PulseInfo, type CapsuleInfo } from '../core/types.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
-import { type IProviderFactory } from '../core/interfaces.js';
+import { type IProviderFactory, type IExecutors } from '../core/interfaces.js';
 
 export class StatusManager {
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
     private readonly providerFactory: IProviderFactory,
+    private readonly executors: IExecutors,
   ) {}
 
   /**
@@ -55,7 +55,7 @@ export class StatusManager {
       const isLocalWorkspace = provider.type === 'local-worktree';
       const bundlePath = isLocalWorkspace ? 'bundle' : '/mnt/disks/data/bundle';
 
-      const statusCmd = NodeExecutor.create(`${bundlePath}/station.js`, [
+      const statusCmd = this.executors.node.create(`${bundlePath}/station.js`, [
         'status',
       ]);
       const statusOutput = await provider.getExecOutput(statusCmd, {

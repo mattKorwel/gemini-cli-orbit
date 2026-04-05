@@ -53,10 +53,22 @@ describe('StatusManager', () => {
       getProvider: vi.fn().mockReturnValue(mockProvider),
     } as any;
 
+    const mockExecutors: any = {
+      node: {
+        create: vi
+          .fn()
+          .mockImplementation((path, args) => ({
+            bin: 'node',
+            args: [path, ...args],
+          })),
+      },
+    };
+
     const manager = new StatusManager(
       mockProjectCtx as any,
       mockInfra as any,
       providerFactory,
+      mockExecutors,
     );
     const pulse = await manager.getPulse();
 
@@ -91,10 +103,22 @@ describe('StatusManager', () => {
       getProvider: vi.fn().mockReturnValue(mockProvider),
     } as any;
 
+    const mockExecutors: any = {
+      node: {
+        create: vi
+          .fn()
+          .mockImplementation((path, args) => ({
+            bin: 'node',
+            args: [path, ...args],
+          })),
+      },
+    };
+
     const manager = new StatusManager(
       mockProjectCtx as any,
       mockInfra as any,
       providerFactory,
+      mockExecutors,
     );
     const pulse = await manager.getPulse();
 

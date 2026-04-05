@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { BaseProvider } from './BaseProvider.js';
@@ -13,6 +12,7 @@ import type { InfrastructureState } from '../infrastructure/InfrastructureState.
 import { type ProjectContext, MISSION_PREFIX } from '../core/Constants.js';
 import { type Command, flattenCommand } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
+import { type IExecutors, type IProcessManager } from '../core/interfaces.js';
 
 /**
  * LocalWorktreeProvider: Hierarchical local workspace management.
@@ -28,10 +28,12 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   constructor(
     private readonly projectCtx: ProjectContext,
+    pm: IProcessManager,
+    executors: IExecutors,
     stationName = 'local',
     workspacesDir?: string,
   ) {
-    super();
+    super(pm, executors);
     this.stationName = stationName;
     // Default to sibling folder named 'orbit-workspaces'
     this.workspacesDir =
@@ -44,7 +46,7 @@ export class LocalWorktreeProvider extends BaseProvider {
   }
 
   private hasTmux(): boolean {
-    const res = spawnSync('which', ['tmux'], { stdio: 'pipe' });
+    const res = this.pm.runSync('which', ['tmux'], { quiet: true });
     return res.status === 0;
   }
 
@@ -119,18 +121,17 @@ export class LocalWorktreeProvider extends BaseProvider {
       env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
     }
 
-    const res = spawnSync(flattenCommand(command), {
-      stdio: options.quiet ? 'pipe' : 'inherit',
-      shell: true,
-      cwd,
-      env,
-    });
+    const res = this.pm.runSync(
+      typeof command === 'string' ? 'sh' : command.bin,
+      typeof command === 'string' ? ['-c', command] : command.args,
+      {
+        stdio: options.quiet ? 'pipe' : 'inherit',
+        cwd,
+        env,
+      },
+    );
 
-    return {
-      status: res.status ?? (res.error ? 1 : 0),
-      stdout: res.stdout?.toString() || '',
-      stderr: res.stderr?.toString() || '',
-    };
+    return res;
   }
 
   async sync(): Promise<number> {
@@ -154,23 +155,28 @@ export class LocalWorktreeProvider extends BaseProvider {
     // Ensure the parent directory exists (e.g. orbit-workspaces/repo/)
     fs.mkdirSync(path.dirname(wtPath), { recursive: true });
 
-    spawnSync('git', ['-C', sourceDir, 'fetch', 'origin'], { stdio: 'ignore' });
+    this.pm.runSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
+      quiet: true,
+    });
 
-    const args: string[] = ['worktree', 'add'];
-    const localCheck = spawnSync('git', [
-      '-C',
-      sourceDir,
-      'show-ref',
-      '--verify',
-      `refs/heads/${branchName}`,
-    ]);
-    const remoteCheck = spawnSync('git', [
-      '-C',
-      sourceDir,
-      'show-ref',
-      '--verify',
-      `refs/remotes/origin/${branchName}`,
-    ]);
+    const localCheck = this.pm.runSync(
+      'git',
+      ['-C', sourceDir, 'show-ref', '--verify', `refs/heads/${branchName}`],
+      { quiet: true },
+    );
+    const remoteCheck = this.pm.runSync(
+      'git',
+      [
+        '-C',
+        sourceDir,
+        'show-ref',
+        '--verify',
+        `refs/remotes/origin/${branchName}`,
+      ],
+      { quiet: true },
+    );
+
+    const args: string[] = ['-C', sourceDir, 'worktree', 'add'];
 
     if (localCheck.status === 0) {
       args.push(wtPath, branchName);
@@ -183,9 +189,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       args.push('-b', branchName, wtPath);
     }
 
-    const res = spawnSync('git', ['-C', sourceDir, ...args], {
-      stdio: 'inherit',
-    });
+    const res = this.pm.runSync('git', args);
     if (res.status !== 0)
       throw new Error(`Failed to create workspace: exit code ${res.status}`);
   }
@@ -219,23 +223,17 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async attach(name: string): Promise<number> {
     if (!this.hasTmux()) return 1;
-    const res = spawnSync('tmux', ['attach-session', '-t', name], {
-      stdio: 'inherit',
-    });
+    const res = this.executors.tmux.attach(name);
     if (res.status === 0) return 0;
 
-    const listRes = spawnSync('tmux', ['list-sessions', '-F', '#S'], {
-      stdio: 'pipe',
+    const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
+      quiet: true,
     });
     if (listRes.status === 0) {
       const sessions = listRes.stdout.toString().split('\n');
       const bestMatch = sessions.find((s) => s.includes(name));
       if (bestMatch) {
-        return (
-          spawnSync('tmux', ['attach-session', '-t', bestMatch], {
-            stdio: 'inherit',
-          }).status ?? 1
-        );
+        return this.executors.tmux.attach(bestMatch).status;
       }
     }
     return this.missionShell(name);
@@ -245,7 +243,7 @@ export class LocalWorktreeProvider extends BaseProvider {
     throw new Error('Not supported');
   }
   async stopCapsule(name: string): Promise<number> {
-    if (this.hasTmux()) spawnSync('tmux', ['kill-session', '-t', name]);
+    if (this.hasTmux()) this.pm.runSync('tmux', ['kill-session', '-t', name]);
     return 0;
   }
 
@@ -257,12 +255,15 @@ export class LocalWorktreeProvider extends BaseProvider {
     if (path.resolve(wtPath) === path.resolve(sourceDir)) return 1;
 
     console.log(`   🔥 Orbit: Removing local workspace: ${name}`);
-    spawnSync(
-      'git',
-      ['-C', sourceDir, 'worktree', 'remove', wtPath, '--force'],
-      { stdio: 'inherit' },
-    );
-    if (this.hasTmux()) spawnSync('tmux', ['kill-session', '-t', name]);
+    this.pm.runSync('git', [
+      '-C',
+      sourceDir,
+      'worktree',
+      'remove',
+      wtPath,
+      '--force',
+    ]);
+    if (this.hasTmux()) this.pm.runSync('tmux', ['kill-session', '-t', name]);
     return 0;
   }
 
@@ -279,15 +280,13 @@ export class LocalWorktreeProvider extends BaseProvider {
     return 0;
   }
   async stationShell(): Promise<number> {
-    return spawnSync('zsh', { stdio: 'inherit', shell: true }).status ?? 0;
+    return this.pm.runSync('zsh', [], { interactive: true }).status;
   }
 
   async missionShell(name: string): Promise<number> {
     const wtPath = path.join(this.workspacesDir, name.replace(/-/g, '/'));
-    return (
-      spawnSync('zsh', { stdio: 'inherit', shell: true, cwd: wtPath }).status ??
-      0
-    );
+    return this.pm.runSync('zsh', [], { interactive: true, cwd: wtPath })
+      .status;
   }
 
   async listCapsules(): Promise<string[]> {

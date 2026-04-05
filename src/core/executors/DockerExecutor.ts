@@ -5,9 +5,27 @@
  */
 
 import { type Command } from './types.js';
-import { type IRunOptions } from '../interfaces.js';
+import {
+  type IRunOptions,
+  type IDockerExecutor,
+  type IProcessManager,
+  type IProcessResult,
+} from '../interfaces.js';
 
-export class DockerExecutor {
+export class DockerExecutor implements IDockerExecutor {
+  constructor(private readonly pm: IProcessManager) {}
+
+  public exec(
+    container: string,
+    innerCommand: string[],
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = DockerExecutor.exec(container, innerCommand, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  // --- Static Metadata Helpers ---
+
   public static exec(
     container: string,
     innerCommand: string[],

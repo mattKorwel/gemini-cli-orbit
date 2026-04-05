@@ -15,9 +15,18 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import path from 'node:path';
-import { type IProviderFactory } from '../core/interfaces.js';
+import {
+  type IProviderFactory,
+  type IProcessManager,
+  type IExecutors,
+} from '../core/interfaces.js';
 
 export class ProviderFactory implements IProviderFactory {
+  constructor(
+    private readonly pm: IProcessManager,
+    private readonly executors: IExecutors,
+  ) {}
+
   getProvider(
     projectCtx: ProjectContext,
     infra: InfrastructureSpec,
@@ -41,6 +50,8 @@ export class ProviderFactory implements IProviderFactory {
         path.resolve(primaryRoot, '..', 'workspaces');
       return new LocalWorktreeProvider(
         projectCtx,
+        this.pm,
+        this.executors,
         stationName,
         localWorkspacesDir,
       );
@@ -52,6 +63,7 @@ export class ProviderFactory implements IProviderFactory {
       infra.zone!,
       infra.instanceName!,
       infra,
+      this.pm,
     );
 
     const gceConfig: { imageUri?: string; stationName?: string } = {};
@@ -65,6 +77,8 @@ export class ProviderFactory implements IProviderFactory {
       infra.instanceName!,
       getPrimaryRepoRoot(projectCtx.repoRoot),
       ssh,
+      this.pm,
+      this.executors,
       gceConfig,
     );
 

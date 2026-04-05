@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
 import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
@@ -21,6 +20,7 @@ import {
   type InfrastructureSpec,
 } from '../core/Constants.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
+import { type IExecutors, type IProcessManager } from '../core/interfaces.js';
 
 export class ConnectivityError extends Error {
   constructor(message: string) {
@@ -53,12 +53,14 @@ export class GceCosProvider extends BaseProvider {
     instanceName: string,
     repoRoot: string,
     ssh: SSHManager,
+    pm: IProcessManager,
+    executors: IExecutors,
     config: {
       imageUri?: string;
       stationName?: string;
     } = {},
   ) {
-    super();
+    super(pm, executors);
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;
@@ -249,7 +251,7 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async getStatus(): Promise<OrbitStatus> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -266,7 +268,7 @@ export class GceCosProvider extends BaseProvider {
         'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)',
       ],
       {
-        stdio: 'pipe',
+        quiet: true,
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
@@ -288,7 +290,7 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async stop(): Promise<number> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -307,7 +309,7 @@ export class GceCosProvider extends BaseProvider {
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
-    return res.status ?? 1;
+    return res.status;
   }
 
   async getCapsuleStatus(
@@ -381,7 +383,7 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async listStations(): Promise<number> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -398,11 +400,11 @@ export class GceCosProvider extends BaseProvider {
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
-    return res.status ?? 0;
+    return res.status;
   }
 
   async destroy(): Promise<number> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -421,7 +423,7 @@ export class GceCosProvider extends BaseProvider {
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
-    return res.status ?? 0;
+    return res.status;
   }
 
   async listCapsules(): Promise<string[]> {

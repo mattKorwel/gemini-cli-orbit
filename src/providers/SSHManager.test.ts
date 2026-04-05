@@ -14,10 +14,8 @@ vi.mock('node:os', () => ({
 }));
 
 import { GceSSHManager } from './SSHManager.js';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-vi.mock('node:child_process');
 vi.mock('node:fs');
 
 describe('GceSSHManager', () => {
@@ -25,18 +23,31 @@ describe('GceSSHManager', () => {
   const zone = 'us-central1-a';
   const instanceName = 'test-instance';
 
+  const mockPm: any = {
+    runSync: vi.fn(),
+    runAsync: vi.fn(),
+    spawn: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (fs.existsSync as any).mockReturnValue(true);
     (fs.statSync as any).mockReturnValue({ isDirectory: () => true });
     (fs.readdirSync as any).mockReturnValue([]);
+    mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
   });
 
   describe('syncPathIfChanged', () => {
     it('should skip sync if remote hash matches local', async () => {
-      const manager = new GceSSHManager(projectId, zone, instanceName, {
-        backendType: 'direct-internal',
-      });
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+        } as any,
+        mockPm,
+      );
 
       // 1. Mock directory content to produce a stable hash
       (fs.readdirSync as any).mockReturnValue(['file1.txt']);
@@ -50,16 +61,16 @@ describe('GceSSHManager', () => {
       const localHash = (manager as any).generateDirectoryHash('/local/path');
 
       // 2. Mock remote 'cat' command to return the same hash
-      (spawnSync as any).mockImplementation((bin: string, args: string[]) => {
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
         const lastArg = args[args.length - 1];
         if (bin === 'ssh' && lastArg && lastArg.includes('cat')) {
           return {
             status: 0,
-            stdout: Buffer.from(localHash),
-            stderr: Buffer.from(''),
+            stdout: localHash,
+            stderr: '',
           };
         }
-        return { status: 0, stdout: Buffer.from(''), stderr: Buffer.from('') };
+        return { status: 0, stdout: '', stderr: '' };
       });
 
       const status = await manager.syncPathIfChanged(
@@ -70,28 +81,34 @@ describe('GceSSHManager', () => {
       expect(status).toBe(0);
 
       // Verify rsync was NOT called
-      const rsyncCall = (spawnSync as any).mock.calls.find(
+      const rsyncCall = mockPm.runSync.mock.calls.find(
         (call: any) => call[0] === 'rsync',
       );
       expect(rsyncCall).toBeUndefined();
     });
 
     it('should perform sync if remote hash differs', async () => {
-      const manager = new GceSSHManager(projectId, zone, instanceName, {
-        backendType: 'direct-internal',
-      });
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+        } as any,
+        mockPm,
+      );
 
       // 1. Mock remote 'cat' to return different hash (error 1)
-      (spawnSync as any).mockImplementation((bin: string, args: string[]) => {
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
         const lastArg = args[args.length - 1];
         if (bin === 'ssh' && lastArg && lastArg.includes('cat')) {
           return {
             status: 1,
-            stdout: Buffer.from(''),
-            stderr: Buffer.from('No such file'),
+            stdout: '',
+            stderr: 'No such file',
           };
         }
-        return { status: 0, stdout: Buffer.from(''), stderr: Buffer.from('') };
+        return { status: 0, stdout: '', stderr: '' };
       });
 
       const status = await manager.syncPathIfChanged(
@@ -102,14 +119,14 @@ describe('GceSSHManager', () => {
       expect(status).toBe(0);
 
       // 2. Verify rsync WAS called
-      expect(spawnSync).toHaveBeenCalledWith(
+      expect(mockPm.runSync).toHaveBeenCalledWith(
         'rsync',
         expect.anything(),
         expect.anything(),
       );
 
       // 3. Verify remote hash was updated
-      expect(spawnSync).toHaveBeenCalledWith(
+      expect(mockPm.runSync).toHaveBeenCalledWith(
         'ssh',
         expect.arrayContaining([
           expect.stringContaining('echo'),
