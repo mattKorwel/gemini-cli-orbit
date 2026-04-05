@@ -16,6 +16,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { getManifestFromEnv } from '../utils/MissionUtils.js';
 
 const getDirname = () => {
   try {
@@ -50,74 +51,49 @@ export async function main(argv: string[]) {
       },
     )
     .command(
-      'setup-hooks [targetDir]',
-      'Configure mission-control hooks',
-      (y) => {
-        y.positional('targetDir', { type: 'string', default: process.cwd() });
-      },
-      async (argv) => {
-        await station.setupHooks(argv.targetDir as string);
-      },
-    )
-    .command(
-      'init <targetDir> <id> <branch> <url> [mirror]',
-      'Initialize Git workspace',
-      (y) => {
-        y.positional('targetDir', { type: 'string' });
-        y.positional('id', { type: 'string' });
-        y.positional('branch', { type: 'string' });
-        y.positional('url', { type: 'string' });
-        y.positional('mirror', { type: 'string' });
-      },
-      async (argv) => {
-        await station.initGit(
-          argv.targetDir as string,
-          argv.url as string,
-          argv.branch as string,
-          argv.mirror as string,
-        );
+      'start',
+      'Unified mission start (init + hooks + run)',
+      () => {},
+      async () => {
+        const manifest = getManifestFromEnv();
+        const exitCode = await station.start(manifest);
+        process.exit(exitCode);
       },
     )
     .command(
-      'run <id> <branch> <action> <policy> [workDir] [sessionName]',
-      'Spawns a mission in a persistent session',
-      (y) => {
-        y.positional('id', { type: 'string' });
-        y.positional('branch', { type: 'string' });
-        y.positional('action', { type: 'string' });
-        y.positional('policy', { type: 'string' });
-        y.positional('workDir', { type: 'string', default: process.cwd() });
-        y.positional('sessionName', { type: 'string' });
-      },
-      async (argv) => {
-        await station.runMission(
-          argv.id as string,
-          argv.branch as string,
-          argv.action as string,
-          argv.policy as string,
-          argv.workDir as string,
-          argv.sessionName as string,
-        );
+      'setup-hooks',
+      'Configure mission-control hooks (standalone)',
+      () => {},
+      async () => {
+        const manifest = getManifestFromEnv();
+        await station.setupHooks(manifest);
       },
     )
     .command(
-      'run-internal <id> <branch> <action> <policy> [sessionName]',
+      'init',
+      'Initialize Git workspace (standalone)',
+      () => {},
+      async () => {
+        const manifest = getManifestFromEnv();
+        await station.initGit(manifest);
+      },
+    )
+    .command(
+      'run',
+      'Spawns a mission session (standalone)',
+      () => {},
+      async () => {
+        const manifest = getManifestFromEnv();
+        await station.runMission(manifest);
+      },
+    )
+    .command(
+      'run-internal',
       'Executes a mission playbook (internal)',
-      (y) => {
-        y.positional('id', { type: 'string' });
-        y.positional('branch', { type: 'string' });
-        y.positional('action', { type: 'string' });
-        y.positional('policy', { type: 'string' });
-        y.positional('sessionName', { type: 'string' });
-      },
-      async (argv) => {
-        await station.runPlaybook(
-          argv.id as string,
-          argv.branch as string,
-          argv.action as string,
-          argv.policy as string,
-          argv.sessionName as string,
-        );
+      () => {},
+      async () => {
+        const manifest = getManifestFromEnv();
+        await station.runPlaybook(manifest);
       },
     )
     .demandCommand(1, 'Please specify a command')

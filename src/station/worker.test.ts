@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { main } from './worker.js';
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
@@ -12,9 +12,25 @@ import { StatusAggregator } from './StatusAggregator.js';
 vi.mock('./StationSupervisor.js');
 vi.mock('./StatusAggregator.js');
 
+const mockManifest = {
+  identifier: '123',
+  repoName: 'test-repo',
+  branchName: 'feat-test',
+  action: 'review',
+  workDir: '/test/dir',
+  policyPath: '/test/policy',
+  sessionName: 'orbit/test/id',
+  upstreamUrl: 'https://github.com/org/repo.git',
+};
+
 describe('worker main', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.stubEnv('GCLI_ORBIT_MANIFEST', JSON.stringify(mockManifest));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('should dispatch to aggregator on status command', async () => {
@@ -34,8 +50,10 @@ describe('worker main', () => {
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main(['setup-hooks', '/test/dir']);
-    expect(mockStation.setupHooks).toHaveBeenCalledWith('/test/dir');
+    await main(['setup-hooks']);
+    expect(mockStation.setupHooks).toHaveBeenCalledWith(
+      expect.objectContaining({ identifier: '123' }),
+    );
   });
 
   it('should dispatch to station manager on init command', async () => {
@@ -44,18 +62,9 @@ describe('worker main', () => {
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main([
-      'init',
-      '/test/dir',
-      '123',
-      'feat-test',
-      'https://github.com/org/repo.git',
-    ]);
+    await main(['init']);
     expect(mockStation.initGit).toHaveBeenCalledWith(
-      '/test/dir',
-      'https://github.com/org/repo.git',
-      'feat-test',
-      undefined,
+      expect.objectContaining({ identifier: '123' }),
     );
   });
 
@@ -65,22 +74,9 @@ describe('worker main', () => {
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main([
-      'run',
-      '123',
-      'feat-test',
-      'chat',
-      '/policy',
-      '/work',
-      'orbit/repo/123',
-    ]);
+    await main(['run']);
     expect(mockStation.runMission).toHaveBeenCalledWith(
-      '123',
-      'feat-test',
-      'chat',
-      '/policy',
-      '/work',
-      'orbit/repo/123',
+      expect.objectContaining({ identifier: '123' }),
     );
   });
 
@@ -90,13 +86,9 @@ describe('worker main', () => {
     };
     (StationSupervisor as any).mockImplementation(() => mockStation);
 
-    await main(['run-internal', '123', 'feat-test', 'fix', '/policy']);
+    await main(['run-internal']);
     expect(mockStation.runPlaybook).toHaveBeenCalledWith(
-      '123',
-      'feat-test',
-      'fix',
-      '/policy',
-      undefined,
+      expect.objectContaining({ identifier: '123' }),
     );
   });
 });

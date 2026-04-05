@@ -8,18 +8,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import { ProcessManager } from '../core/ProcessManager.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
-import { TmuxExecutor as _TmuxExecutor } from '../core/executors/TmuxExecutor.js';
-import { resolveMissionContext as _resolveMissionContext } from '../utils/MissionUtils.js';
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { getRepoConfig } from '../core/ConfigManager.js';
 import { runReviewPlaybook } from '../playbooks/review.js';
 import { runFixPlaybook } from '../playbooks/fix.js';
 import { runReadyPlaybook } from '../playbooks/ready.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { TempManager } from '../utils/TempManager.js';
-import { getRepoConfig } from '../core/ConfigManager.js';
 
 import { type Command } from '../core/executors/types.js';
+import { type MissionManifest } from '../core/types.js';
 
 /**
  * StationSupervisor: Remote host management layer.
@@ -29,9 +28,21 @@ export class StationSupervisor {
   constructor(private readonly dirname: string) {}
 
   /**
+   * Universal Entrypoint: Orchestrates init, hooks, and mission launch.
+   * This is the single RPC call from the SDK to start a mission.
+   */
+  async start(manifest: MissionManifest) {
+    await this.initGit(manifest);
+    await this.setupHooks(manifest);
+
+    return this.runMission(manifest);
+  }
+
+  /**
    * Ensures the workspace is configured with the mission-control hooks.
    */
-  async setupHooks(targetDir: string) {
+  async setupHooks(manifest: MissionManifest) {
+    const targetDir = manifest.workDir;
     const orbitDir = path.join(targetDir, '.gemini/orbit');
     if (!fs.existsSync(orbitDir)) {
       fs.mkdirSync(orbitDir, { recursive: true });
@@ -50,6 +61,7 @@ export class StationSupervisor {
     // Inject hooks into settings.json for Gemini CLI
     const settingsFile = path.join(targetDir, '.gemini/settings.json');
     const hooksScript = path.join(this.dirname, 'hooks.js');
+
     const orbitHooks = {
       BeforeAgent: [{ type: 'command', command: `node ${hooksScript}` }],
       AfterAgent: [{ type: 'command', command: `node ${hooksScript}` }],
@@ -76,12 +88,13 @@ export class StationSupervisor {
   /**
    * Performs Git initialization using GitExecutor.
    */
-  async initGit(
-    targetDir: string,
-    upstreamUrl: string,
-    branch: string,
-    mirrorPath?: string,
-  ) {
+  async initGit(manifest: MissionManifest) {
+    const {
+      workDir: targetDir,
+      upstreamUrl,
+      branchName: branch,
+      mirrorPath,
+    } = manifest;
     const run = (cmd: Command) => {
       const res = ProcessManager.runSync(cmd.bin, cmd.args, cmd.options);
       if (res.status !== 0) {
@@ -96,8 +109,6 @@ export class StationSupervisor {
     };
 
     // Strict local .git detection.
-    // In a worktree, .git is a FILE. In a primary repo, it is a FOLDER.
-    // If neither exists in the targetDir specifically, it is UNINITIALIZED.
     const gitPath = path.join(targetDir, '.git');
     const isInitialized = fs.existsSync(gitPath);
 
@@ -111,7 +122,6 @@ export class StationSupervisor {
       run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
 
       if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
-        console.log(`   - Using reference mirror: ${mirrorPath}`);
         const alternatesPath = path.join(
           targetDir,
           '.git/objects/info/alternates',
@@ -212,14 +222,15 @@ export class StationSupervisor {
   /**
    * Executes a mission playbook directly (called by entrypoint).
    */
-  async runPlaybook(
-    prNumberOrIssue: string,
-    branchName: string,
-    action: string,
-    policyPath: string,
-    sessionName?: string,
-  ) {
-    const targetDir = process.cwd();
+  async runPlaybook(manifest: MissionManifest) {
+    const {
+      identifier: prNumberOrIssue,
+      action,
+      workDir,
+      policyPath,
+      sessionName,
+    } = manifest;
+    const targetDir = path.resolve(workDir);
 
     // Resolve absolute path of gemini
     const geminiBin = 'gemini';
@@ -241,7 +252,7 @@ export class StationSupervisor {
       resolvedPolicyPath = projectLocalPolicy;
     }
 
-    const missionHeader = `🚀 Orbit Mission | ID: ${prNumberOrIssue} | Action: ${action}`;
+    const missionHeader = `🚀 Mission: ${prNumberOrIssue} | Action: ${action}`;
     console.log(`\n${missionHeader}`);
     console.log(`📂 Log Directory: ${logDir}`);
     console.log(`🛡️  Using Policy: ${resolvedPolicyPath}`);
@@ -313,46 +324,21 @@ export class StationSupervisor {
   /**
    * Spawns a mission using the unified Tmux wrapper.
    */
-  async runMission(
-    identifier: string,
-    branchName: string,
-    action: string,
-    policyPath: string,
-    workDir: string,
-    sessionName?: string,
-  ) {
+  async runMission(manifest: MissionManifest) {
+    const { workDir, sessionName: sName } = manifest;
     const targetDir = path.resolve(workDir);
     const entrypointPath = path.join(this.dirname, 'entrypoint.js');
-    const sName = sessionName || identifier;
-
-    // Stealth UI Styles
-    const styles = [
-      'set-option status on',
-      'set-option status-position top',
-      'set-option status-style bg=colour235,fg=colour244',
-      'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
-      'set-option status-right "#[fg=colour244] #H "',
-      'set-option window-status-current-format "#[fg=colour45,bold] #S "',
-    ]
-      .map((s) => `tmux ${s}`)
-      .join('; ');
 
     // Build the inner node command
-    // Order: <id> <branch> <action> <policy> [sessionName]
-    const nodeCmd = NodeExecutor.create(entrypointPath, [
-      identifier,
-      targetDir,
-      policyPath,
-      action,
-      sName,
-    ]);
+    const nodeCmd = NodeExecutor.create(entrypointPath, []);
+
+    // ADR 0018: Inject manifest into the tmux session environment string
+    const manifestJson = JSON.stringify(manifest);
+    const envPrefix = `GCLI_ORBIT_MANIFEST='${manifestJson.replace(/'/g, "'\\''")}' `;
 
     // Wrap it in Tmux for persistence
-    // 1. Apply styles.
-    // 2. Print tip. (ANSI: \x1b[38;5;244m = Gray, \x1b[38;5;39m = Blue, \x1b[0m = Reset)
     const tip =
       'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
-    const launch = `${styles}; ${tip}; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
 
     const tmuxCmd = {
       bin: 'tmux',
@@ -362,7 +348,7 @@ export class StationSupervisor {
         '-A',
         '-s',
         sName,
-        `${tip}; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`,
+        `${tip}; ${envPrefix}${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`,
       ],
       options: { cwd: targetDir },
     };

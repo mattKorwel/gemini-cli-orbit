@@ -20,6 +20,7 @@ import {
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
 
 export class ConnectivityError extends Error {
   constructor(message: string) {
@@ -75,13 +76,11 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async prepareMissionWorkspace(
-    identifier: string,
-    branch: string,
-    action: string,
+    mCtx: MissionContext,
     infra: InfrastructureSpec,
   ): Promise<void> {
     const provisioner = new RemoteProvisioner(this.projectCtx, this);
-    await provisioner.prepareMissionWorkspace(identifier, action, infra);
+    await provisioner.prepareMissionWorkspace(mCtx, infra);
   }
 
   /**
@@ -187,7 +186,12 @@ export class GceCosProvider implements OrbitProvider {
     const cmdObj: RemoteCommand = {
       bin: '/bin/bash',
       args: ['-c', this.sshQuote(flattenCommand(command))],
+      env: { ...(options.env || {}) },
     };
+
+    if (options.manifest) {
+      cmdObj.env!.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
+    }
 
     if (options.cwd) cmdObj.cwd = options.cwd;
     if (options.user) cmdObj.user = options.user;
@@ -196,11 +200,10 @@ export class GceCosProvider implements OrbitProvider {
     if (options.wrapCapsule) {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
-      cmdObj.env = { ...(options.env || {}), PATH: capsulePath };
+      cmdObj.env!.PATH = capsulePath;
       return this.ssh.runDockerExec(options.wrapCapsule, cmdObj, options);
     }
 
-    if (options.env) cmdObj.env = options.env;
     return this.ssh.runHostCommand(cmdObj, options);
   }
 

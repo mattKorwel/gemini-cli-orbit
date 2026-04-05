@@ -17,6 +17,7 @@ import {
   MISSION_PREFIX,
 } from '../core/Constants.js';
 import { type Command, flattenCommand } from '../core/executors/types.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
 
 /**
  * LocalWorktreeProvider: High-performance local workspace management.
@@ -76,16 +77,26 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
-    const envPrefix = options.env
-      ? Object.entries(options.env)
-          .map(([k, v]) => `${k}=${this.q(v as string)}`)
-          .join(' ') + ' '
-      : '';
+    const envObj = { ...options.env };
+    if (options.manifest) {
+      envObj.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
+    }
+
+    const envPrefix =
+      Object.keys(envObj).length > 0
+        ? Object.entries(envObj)
+            .map(([k, v]) => `${k}=${this.q(v as string)}`)
+            .join(' ') + ' '
+        : '';
+
+    const subPath = options.wrapCapsule?.startsWith(MISSION_PREFIX)
+      ? options.wrapCapsule
+      : `${MISSION_PREFIX}${options.wrapCapsule}`;
 
     const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const capsuleDir = options.wrapCapsule
       ? this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
-        path.join(this.workspacesDir, `${MISSION_PREFIX}${options.wrapCapsule}`)
+        path.join(this.workspacesDir, subPath)
       : this.projectCtx.repoRoot;
 
     if (this.hasTmux()) {
@@ -103,12 +114,6 @@ export class LocalWorktreeProvider implements OrbitProvider {
       return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${launch}"`;
     }
 
-    console.warn(
-      '\n⚠️  [LocalWorktree] tmux not found. Persistence is disabled, so closing this terminal will kill the mission.',
-    );
-    console.warn(
-      '👉 Run "brew install tmux" to enable persistent background missions.\n',
-    );
     return `cd ${this.q(capsuleDir)} && ${envPrefix}${command}`;
   }
 
@@ -126,54 +131,31 @@ export class LocalWorktreeProvider implements OrbitProvider {
   ): Promise<{ status: number; stdout: string; stderr: string }> {
     let cwd = options.cwd || this.projectCtx.repoRoot;
     if (options.wrapCapsule) {
+      const subPath = options.wrapCapsule.startsWith(MISSION_PREFIX)
+        ? options.wrapCapsule
+        : `${MISSION_PREFIX}${options.wrapCapsule}`;
+
       const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
       cwd =
         this.findExistingWorktree(options.wrapCapsule, primaryRoot) ||
-        path.join(
-          this.workspacesDir,
-          `${MISSION_PREFIX}${options.wrapCapsule}`,
-        );
+        path.join(this.workspacesDir, subPath);
+    }
+
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      ...options.env,
+      GEMINI_AUTO_UPDATE: '0',
+    };
+    if (options.manifest) {
+      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
     }
 
     const res = spawnSync(flattenCommand(command), {
       stdio: options.quiet ? 'pipe' : 'inherit',
       shell: true,
       cwd,
-      env: { ...process.env, ...options.env, GEMINI_AUTO_UPDATE: '0' },
+      env,
     });
-
-    if (options.wrapCapsule && this.hasTmux()) {
-      const sName = options.wrapCapsule;
-      const styleCmds = [
-        ['set-option', '-t', sName, 'status', 'on'],
-        ['set-option', '-t', sName, 'status-position', 'top'],
-        [
-          'set-option',
-          '-t',
-          sName,
-          'status-style',
-          'bg=colour235,fg=colour244',
-        ],
-        [
-          'set-option',
-          '-t',
-          sName,
-          'status-left',
-          '#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ ',
-        ],
-        ['set-option', '-t', sName, 'status-right', '#[fg=colour244] #H '],
-        [
-          'set-option',
-          '-t',
-          sName,
-          'window-status-current-format',
-          '#[fg=colour45,bold] #S ',
-        ],
-      ];
-      for (const args of styleCmds) {
-        spawnSync('tmux', args, { stdio: 'ignore' });
-      }
-    }
 
     return {
       status: res.status ?? (res.error ? 1 : 0),
@@ -191,22 +173,14 @@ export class LocalWorktreeProvider implements OrbitProvider {
   }
 
   async prepareMissionWorkspace(
-    identifier: string,
-    branch: string,
-    _action: string,
+    mCtx: MissionContext,
     _infra: InfrastructureSpec,
   ): Promise<void> {
-    const actualBranch = branch;
+    const { branchName: actualBranch, workspaceName } = mCtx;
     const sourceDir = getPrimaryRepoRoot(this.projectCtx.repoRoot);
-    const wtPath = path.join(
-      this.workspacesDir,
-      `${MISSION_PREFIX}${identifier}`,
-    );
+    const wtPath = path.join(this.workspacesDir, workspaceName);
 
     if (fs.existsSync(wtPath)) {
-      console.log(
-        `   ✨ Workspace already exists at ${wtPath}. Rolling with it.`,
-      );
       return;
     }
 
@@ -244,9 +218,6 @@ export class LocalWorktreeProvider implements OrbitProvider {
       args.push('-b', actualBranch, wtPath, `origin/${actualBranch}`);
     } else {
       // Fallback: Create from HEAD
-      console.warn(
-        `   ⚠️  Branch '${actualBranch}' not found on origin. Creating from HEAD.`,
-      );
       args.push('-b', actualBranch, wtPath);
     }
 
@@ -395,7 +366,12 @@ export class LocalWorktreeProvider implements OrbitProvider {
     const primaryRoot = getPrimaryRepoRoot(this.projectCtx.repoRoot);
     const wtPath =
       this.findExistingWorktree(capsuleName, primaryRoot) ||
-      path.join(this.workspacesDir, `${MISSION_PREFIX}${capsuleName}`);
+      path.join(
+        this.workspacesDir,
+        capsuleName.startsWith(MISSION_PREFIX)
+          ? capsuleName
+          : `${MISSION_PREFIX}${capsuleName}`,
+      );
 
     const res = spawnSync('zsh', {
       stdio: 'inherit',

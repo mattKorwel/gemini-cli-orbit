@@ -12,6 +12,7 @@ import type {
   CapsuleConfig,
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
 
 /**
  * OrbitProvider interface defines the contract for different remote
@@ -71,9 +72,7 @@ export interface OrbitProvider {
    * Prepares the workspace for a mission (e.g., creates worktree or ensures container).
    */
   prepareMissionWorkspace(
-    identifier: string,
-    branch: string,
-    action: string,
+    mCtx: MissionContext,
     infra: InfrastructureSpec,
   ): Promise<void>;
 

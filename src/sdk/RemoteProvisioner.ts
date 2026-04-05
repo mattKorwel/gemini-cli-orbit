@@ -6,7 +6,7 @@
 
 import { type OrbitProvider } from '../providers/BaseProvider.js';
 import { SessionManager } from '../utils/SessionManager.js';
-import { resolveMissionContext } from '../utils/MissionUtils.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
 import {
   ORBIT_ROOT,
   type InfrastructureSpec,
@@ -31,8 +31,7 @@ export class RemoteProvisioner {
    * 3. Worktree isolation and remote mount configuration.
    */
   public async prepareMissionWorkspace(
-    identifier: string,
-    action: string,
+    mCtx: MissionContext,
     infra: InfrastructureSpec,
   ): Promise<void> {
     if (this.provider.type !== 'gce') {
@@ -41,20 +40,15 @@ export class RemoteProvisioner {
       );
     }
 
-    const mCtx = resolveMissionContext(
-      identifier,
-      action,
-      this.projectCtx.repoName,
-    );
-    const branch = mCtx.branchName;
-    const containerName = mCtx.containerName;
-    const remoteWorkspaceDir = `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
+    const { branchName: branch, containerName, workspaceName } = mCtx;
+
+    const remoteWorkspaceDir = `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${workspaceName}`;
 
     // RAM-disk secret mount (ADR 14)
-    const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateMissionId(
-      identifier,
-      action,
-    )}`;
+    // For generating the ID, we still use PR ID but we'll stick to mCtx
+    const missionId = SessionManager.getSessionIdFromEnv() || containerName;
+
+    const secretPath = `/dev/shm/.orbit-env-${missionId}`;
     const imageUri =
       infra.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';

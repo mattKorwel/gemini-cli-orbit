@@ -86,6 +86,22 @@ export interface CIStatus {
 }
 
 /**
+ * Immutable unit of truth for a mission's state and configuration.
+ * Passed via the GCLI_ORBIT_MANIFEST environment variable.
+ */
+export interface MissionManifest {
+  identifier: string; // The user's ID (PR # or branch name)
+  repoName: string; // The sanitized repository name
+  branchName: string; // The resolved git branch
+  action: string; // The playbook action (chat, fix, review, etc.)
+  workDir: string; // The absolute path to the workspace
+  policyPath: string; // The absolute path to the active policy
+  sessionName: string; // The user-friendly hierarchical session name
+  upstreamUrl: string; // The git remote origin URL
+  mirrorPath?: string; // Optional path to local git mirror
+}
+
+/**
  * Options for starting a mission.
  */
 export interface MissionOptions {
@@ -248,6 +264,7 @@ export interface ExecOptions {
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
   user?: string;
+  manifest?: MissionManifest;
 }
 
 export interface RemoteCommand {

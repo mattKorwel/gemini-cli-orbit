@@ -30,6 +30,7 @@ vi.mock('../utils/MissionUtils.js', () => ({
   SessionManager: {
     generateMissionId: vi.fn().mockReturnValue('mock-mission-id'),
   },
+  getPrimaryRepoRoot: vi.fn().mockReturnValue('/tmp/repo'),
   MISSION_PREFIX: 'orbit-',
 }));
 vi.mock('../utils/SessionManager.js', () => ({
@@ -65,6 +66,9 @@ describe('MissionManager', () => {
       sync: vi.fn().mockResolvedValue(0),
       syncIfChanged: vi.fn().mockResolvedValue(0),
       ensureReady: vi.fn().mockResolvedValue(0),
+      removeCapsule: vi.fn().mockResolvedValue(0),
+      capturePane: vi.fn().mockResolvedValue('mock-logs'),
+      getCapsuleIdleTime: vi.fn().mockResolvedValue(0),
     };
 
     providerFactory = {
@@ -95,8 +99,8 @@ describe('MissionManager', () => {
     vi.unstubAllEnvs();
   });
 
-  it('should perform chunky handshake (init, hooks, then run) for a new mission', async () => {
-    const fullName = 'orbit-123-review';
+  it('should perform a single start handshake for a new mission', async () => {
+    const fullName = 'orbit-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       containerName: fullName,
@@ -107,35 +111,24 @@ describe('MissionManager', () => {
 
     const result = await manager.start({ identifier: '123', action: 'review' });
 
-    // 1. Verify init call
+    // Verify a single 'start' call was made
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: expect.arrayContaining(['init', '123', 'feat']),
+        args: expect.arrayContaining(['start']),
       }),
-      expect.any(Object),
-    );
-
-    // 2. Verify hooks call
-    expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: expect.arrayContaining(['setup-hooks']),
+        manifest: expect.objectContaining({
+          identifier: '123',
+          action: 'review',
+        }),
       }),
-      expect.any(Object),
-    );
-
-    // 3. Verify run call
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.arrayContaining(['run', '123', 'feat', 'review']),
-      }),
-      expect.any(Object),
     );
 
     expect(result.exitCode).toBe(0);
   });
 
-  it('should run both init and run phases for chat action in the new architecture', async () => {
-    const fullName = 'orbit-123-chat';
+  it('should call start and attach for chat missions', async () => {
+    const fullName = 'orbit-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       containerName: fullName,
@@ -146,25 +139,25 @@ describe('MissionManager', () => {
 
     await manager.start({ identifier: '123', action: 'chat' });
 
-    // Should call init
+    // Verify 'start' call
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: expect.arrayContaining(['init', '123', 'feat']),
+        args: expect.arrayContaining(['start']),
       }),
-      expect.any(Object),
+      expect.objectContaining({
+        manifest: expect.objectContaining({
+          identifier: '123',
+          action: 'chat',
+        }),
+      }),
     );
 
-    // Should ALSO call run now (to start entrypoint/doctor)
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.arrayContaining(['run', '123', 'feat', 'chat']),
-      }),
-      expect.any(Object),
-    );
+    // Verify 'attach' call
+    expect(mockProvider.attach).toHaveBeenCalled();
   });
 
   it('should clean up RAM-disk secret file during jettison', async () => {
-    const fullName = 'orbit-123-chat';
+    const fullName = 'orbit-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       containerName: fullName,
@@ -172,18 +165,16 @@ describe('MissionManager', () => {
       workspaceName: fullName,
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
-    mockProvider.stopCapsule = vi.fn().mockResolvedValue(0);
-    mockProvider.removeCapsule = vi.fn().mockResolvedValue(0);
 
     await manager.jettison({ identifier: '123', action: 'chat' });
 
     // Should stop and remove capsule
-    expect(mockProvider.stopCapsule).toHaveBeenCalledWith(fullName);
     expect(mockProvider.removeCapsule).toHaveBeenCalledWith(fullName);
 
     // Should cleanup secrets
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
+      expect.any(Object),
     );
   });
 });

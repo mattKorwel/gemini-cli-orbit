@@ -5,8 +5,9 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { sanitizeName, detectRepoName } from '../core/ConfigManager.js';
+import { sanitizeName } from '../core/ConfigManager.js';
 import { MISSION_PREFIX as _MISSION_PREFIX } from '../core/Constants.js';
+import { type MissionManifest } from '../core/types.js';
 
 export interface MissionContext {
   branchName: string;
@@ -21,7 +22,6 @@ export interface MissionContext {
 export function resolveMissionContext(
   identifier: string,
   action: string,
-  repoName?: string,
 ): MissionContext {
   const parts = identifier.split(':');
   const prId = parts[0]!;
@@ -52,23 +52,47 @@ export function resolveMissionContext(
   const sBranch = sanitizeName(branchName);
   const sId = sanitizeName(prId);
   const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
-  const sRepo = sanitizeName(repoName || detectRepoName() || 'unknown');
 
-  // Unified Starfleet Naming:
-  // Display: orbit/repo/id
-  // Slug:    orbit-repo-id
-  const displayName = `orbit/${sRepo}/${sId}${sSuffix}`;
-  const slugName = `orbit-${sRepo}-${sId}${sSuffix}`;
+  // Starfleet Simplified Naming Strategy
+  // 1. Slug is JUST the sanitized ID + suffix (No redundant orbit- prefix unless needed for isolation)
+  // 2. We add the orbit- prefix back for the "Container Name" (Docker/Worktree folder) for isolation.
 
-  // For backward compatibility, the container name for playbooks still includes the action
-  const containerName = action === 'chat' ? slugName : `${slugName}-${action}`;
-  const sessionName =
-    action === 'chat' ? displayName : `${displayName}/${action}`;
+  const slug = `${sId}${sSuffix}`;
+  const workspaceName = `orbit-${slug}`;
+
+  // containerName is the unique mission ID used for attaching.
+  const containerName =
+    action === 'chat' ? workspaceName : `${workspaceName}-${action}`;
+  const sessionName = containerName;
 
   return {
     branchName: sBranch,
     containerName,
     sessionName,
-    workspaceName: slugName,
+    workspaceName,
   };
+}
+
+/**
+ * Serializes a manifest for environment injection.
+ */
+export function serializeManifest(manifest: MissionManifest): string {
+  return JSON.stringify(manifest);
+}
+
+/**
+ * Retrieves and parses the mission manifest from the environment.
+ */
+export function getManifestFromEnv(): MissionManifest {
+  const raw = process.env.GCLI_ORBIT_MANIFEST;
+  if (!raw) {
+    throw new Error('❌ Missing GCLI_ORBIT_MANIFEST environment variable.');
+  }
+  try {
+    return JSON.parse(raw) as MissionManifest;
+  } catch (e: any) {
+    throw new Error(`❌ Failed to parse mission manifest: ${e.message}`, {
+      cause: e,
+    });
+  }
 }

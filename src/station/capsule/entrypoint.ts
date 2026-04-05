@@ -11,6 +11,7 @@ import { logger } from '../../core/Logger.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
 import { NodeExecutor } from '../../core/executors/NodeExecutor.js';
+import { getManifestFromEnv } from '../../utils/MissionUtils.js';
 
 const getDirname = () => {
   try {
@@ -27,19 +28,9 @@ const _dirname = getDirname();
  * Orchestrates doctor checks and dispatches to either a playbook or chat.
  */
 async function main() {
-  const args = process.argv.slice(2);
-  const identifier = args[0];
-  const workDir = args[1] || '.';
-  const policyPath = args[2] || '.';
-  const action = args[3] || 'chat';
-  const sessionName = args[4] || identifier;
-
-  if (!identifier) {
-    console.error(
-      'Usage: entrypoint <identifier> [workDir] [policyPath] [action] [sessionName]',
-    );
-    process.exit(1);
-  }
+  // ADR 0018: Hydrate context from environment manifest
+  const manifest = getManifestFromEnv();
+  const { identifier, action, workDir, policyPath } = manifest;
 
   const absWorkDir = path.resolve(workDir);
   logger.divider('ORBIT DOCTOR');
@@ -97,18 +88,11 @@ async function main() {
 
     // We call back into station.js 'run-internal' to actually execute the playbook
     // This avoids duplicating the playbook loading logic.
-    const playbookCmd = NodeExecutor.create(
-      stationScript,
-      [
-        'run-internal',
-        identifier,
-        identifier, // branch
-        action,
-        policyPath,
-        sessionName as string,
-      ],
-      { cwd: absWorkDir, interactive: true },
-    );
+    // ADR 0018: No positional arguments passed
+    const playbookCmd = NodeExecutor.create(stationScript, ['run-internal'], {
+      cwd: absWorkDir,
+      interactive: true,
+    });
 
     ProcessManager.runSync(
       playbookCmd.bin,

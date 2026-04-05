@@ -17,7 +17,7 @@ vi.mock('../utils/MissionUtils.js', () => ({
   resolveMissionContext: vi.fn().mockReturnValue({
     branchName: 'feat-test',
     containerName: 'orbit-test-container',
-    worktreeName: 'test-wt',
+    workspaceName: 'test-wt',
   }),
 }));
 vi.mock('../core/Logger.js');
@@ -40,9 +40,17 @@ describe('RemoteProvisioner', () => {
     remoteWorkDir: '/mnt/disks/data/main',
   };
 
+  const mockCtx = {
+    branchName: 'feat-test',
+    containerName: 'orbit-test-container',
+    workspaceName: 'test-wt',
+    sessionName: 'orbit/test/123',
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (SessionManager.generateMissionId as any).mockReturnValue('test-session');
+    (SessionManager.getSessionIdFromEnv as any).mockReturnValue(null);
     mockProvider.exec.mockResolvedValue(0);
   });
 
@@ -51,7 +59,7 @@ describe('RemoteProvisioner', () => {
     mockProvider.runCapsule.mockResolvedValue(0);
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', infra);
+    await provisioner.prepareMissionWorkspace(mockCtx, infra);
 
     // Should touch the secret file even if no secrets
     expect(mockProvider.exec).toHaveBeenCalledWith(
@@ -75,7 +83,7 @@ describe('RemoteProvisioner', () => {
     };
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', infraWithSecrets);
+    await provisioner.prepareMissionWorkspace(mockCtx, infraWithSecrets);
 
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining("API_KEY='\\''secret-123'\\'''"),
@@ -89,7 +97,7 @@ describe('RemoteProvisioner', () => {
     mockProvider.getCapsuleStatus.mockResolvedValue({ exists: true });
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', infra);
+    await provisioner.prepareMissionWorkspace(mockCtx, infra);
 
     expect(mockProvider.runCapsule).not.toHaveBeenCalled();
   });
