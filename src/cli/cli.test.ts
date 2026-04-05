@@ -124,14 +124,14 @@ describe('orbit-cli dispatch()', () => {
     dispatch = mod.dispatch;
   });
 
-  it('returns 0 for empty argv (shows help via default)', async () => {
+  it('returns 1 for empty argv (shows error)', async () => {
     const code = await dispatch([]);
-    expect(code).toBe(0);
+    expect(code).toBe(1);
   });
 
-  it('returns 0 for unknown command (attempts start via default)', async () => {
+  it('returns 1 for unknown command (shows error)', async () => {
     const code = await dispatch(['notacommand', 'something']);
-    expect(code).toBe(0);
+    expect(code).toBe(1);
   });
 
   it('routes "mission start <id>" to OrbitSDK.startMission', async () => {
@@ -220,8 +220,8 @@ describe('orbit-cli dispatch()', () => {
   });
 
   it('repo:cmd shorthand sets GCLI_ORBIT_REPO_NAME and routes correctly', async () => {
-    // Shorthand still works via top-level default command
-    await dispatch(['dotfiles:42']);
+    // Shorthand with explicit command
+    await dispatch(['dotfiles:mission', 'start', '42']);
     expect(process.env.GCLI_ORBIT_REPO_NAME).toBe('dotfiles');
     expect(mockStartMission).toHaveBeenCalledWith({
       identifier: '42',

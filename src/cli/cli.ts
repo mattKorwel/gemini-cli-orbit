@@ -149,26 +149,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       description: 'Output raw JSON results',
     })
 
-    // --- DEFAULT COMMAND (High Velocity) ---
-    .command(
-      '$0 [id] [verb] [extra..]',
-      false,
-      (y: Argv) => {
-        return y
-          .positional('id', { type: 'string' })
-          .positional('verb', { type: 'string', default: 'chat' });
-      },
-      async (args: any) => {
-        if (!args.id) {
-          parser.showHelp();
-          return;
-        }
-        await runStartMission(args);
-      },
-    )
-
     // --- COMMANDS ---
-
     // 1. MISSION
     .command(
       'mission',
