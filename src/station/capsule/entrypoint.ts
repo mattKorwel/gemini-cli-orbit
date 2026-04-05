@@ -79,7 +79,7 @@ async function main() {
     };
 
     const geminiOpts: any = {
-      approvalMode: 'auto_edit',
+      approvalMode: 'plan', // Default to plan mode for safety in chat missions
       policy: policyPath,
       cwd: absWorkDir,
       env,

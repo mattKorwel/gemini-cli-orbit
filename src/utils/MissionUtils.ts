@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { sanitizeName } from '../core/ConfigManager.js';
+import { sanitizeName, detectRepoName } from '../core/ConfigManager.js';
 import { MISSION_PREFIX as _MISSION_PREFIX } from '../core/Constants.js';
 import { type MissionManifest } from '../core/types.js';
 
@@ -52,17 +52,26 @@ export function resolveMissionContext(
   const sBranch = sanitizeName(branchName);
   const sId = sanitizeName(prId);
   const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
+  const sRepo = sanitizeName(detectRepoName() || 'unknown');
 
-  // Starfleet Simplified Naming Strategy
-  // 1. Slug is JUST the sanitized ID + suffix (No redundant orbit- prefix unless needed for isolation)
-  // 2. We add the orbit- prefix back for the "Container Name" (Docker/Worktree folder) for isolation.
+  // Starfleet Hierarchical Naming Strategy
+  // Format: orbit-<repo>-<id>-<action>
 
-  const slug = `${sId}${sSuffix}`;
-  const workspaceName = `orbit-${slug}`;
+  // 1. Core Slug: orbit-<repo>-<id>
+  // Strip 'gemini-cli-' prefix from repo for brevity if it exists
+  const shortRepo = sRepo.startsWith('gemini-cli-')
+    ? sRepo.replace('gemini-cli-', '')
+    : sRepo;
+  const slugBase = `orbit-${shortRepo}-${sId}${sSuffix}`;
 
-  // containerName is the unique mission ID used for attaching.
+  // 2. workspaceName is the base folder/worktree (without action suffix to allow shared worktrees)
+  const workspaceName = slugBase.substring(0, 48);
+
+  // 3. containerName is the unique mission ID (including action)
   const containerName =
     action === 'chat' ? workspaceName : `${workspaceName}-${action}`;
+
+  // 4. sessionName matches containerName for reliable attach
   const sessionName = containerName;
 
   return {
