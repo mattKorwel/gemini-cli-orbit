@@ -50,8 +50,8 @@ export class FleetManager {
    * Build or wake Orbital Station infrastructure. (Idempotent Liftoff)
    */
   async provision(options: ProvisionOptions): Promise<number> {
-    const { schematicName, destroy } = options;
-    const instanceName = this.infra.instanceName || 'default';
+    const { schematicName, stationName, destroy } = options;
+    const instanceName = stationName || this.infra.instanceName || 'default';
     const sName = schematicName || (this.infra as any).schematic || 'default';
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');

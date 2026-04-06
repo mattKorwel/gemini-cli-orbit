@@ -133,6 +133,7 @@ export interface GetLogsOptions {
  * Options for provisioning a station.
  */
 export interface ProvisionOptions {
+  stationName?: string | undefined;
   schematicName?: string | undefined;
   destroy?: boolean | undefined;
 }

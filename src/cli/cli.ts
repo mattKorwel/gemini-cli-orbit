@@ -657,6 +657,7 @@ QUICK START:
               },
               async (args: any) => {
                 args.exitCode = await sdk.provisionStation({
+                  stationName: args.name,
                   schematicName: args.schematic,
                   destroy: args.destroy,
                 });

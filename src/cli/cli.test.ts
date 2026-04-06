@@ -235,6 +235,7 @@ describe('orbit-cli dispatch()', () => {
   it('routes "infra liftoff <name>" correctly', async () => {
     await dispatch(['infra', 'liftoff', 'my-station', '--schematic', 'custom']);
     expect(mockProvisionStation).toHaveBeenCalledWith({
+      stationName: 'my-station',
       schematicName: 'custom',
       destroy: undefined,
     });
