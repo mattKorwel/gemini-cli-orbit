@@ -39,6 +39,12 @@ vi.mock('node:fs', async (importOriginal) => {
     createdDirs.add(p);
   });
   const mockWriteFileSync = vi.fn();
+  const mockCreateWriteStream = vi.fn().mockReturnValue({
+    write: vi.fn(),
+    end: vi.fn(),
+    on: vi.fn(),
+    emit: vi.fn(),
+  });
   const mockReaddirSync = vi.fn().mockReturnValue([]);
   const mockStatSync = vi.fn().mockReturnValue({
     isDirectory: () => true,
@@ -52,6 +58,7 @@ vi.mock('node:fs', async (importOriginal) => {
     existsSync: mockExistsSync,
     mkdirSync: mockMkdirSync,
     writeFileSync: mockWriteFileSync,
+    createWriteStream: mockCreateWriteStream,
     readdirSync: mockReaddirSync,
     statSync: mockStatSync,
     default: {
@@ -60,6 +67,7 @@ vi.mock('node:fs', async (importOriginal) => {
       existsSync: mockExistsSync,
       mkdirSync: mockMkdirSync,
       writeFileSync: mockWriteFileSync,
+      createWriteStream: mockCreateWriteStream,
       readdirSync: mockReaddirSync,
       statSync: mockStatSync,
     },
