@@ -69,7 +69,10 @@ export class GceCosProvider extends BaseProvider {
     } = {},
   ) {
     super(pm, executors);
-    console.log('DEBUG: GceCosProvider infra:', JSON.stringify(infra, null, 2));
+    logger.debug(
+      'FLEET',
+      `GceCosProvider infra: ${JSON.stringify(infra, null, 2)}`,
+    );
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;

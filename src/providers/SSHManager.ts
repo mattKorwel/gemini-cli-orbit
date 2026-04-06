@@ -264,7 +264,7 @@ export class GceSSHManager implements SSHManager {
     const res = this.pm.runSync(bin, args, {
       stdio: [
         options.interactive ? 'inherit' : 'ignore',
-        options.quiet ? 'pipe' : 'inherit',
+        options.quiet ? 'pipe' : this.infra.verbose ? 'inherit' : 'pipe',
         'pipe',
       ] as any,
       env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
