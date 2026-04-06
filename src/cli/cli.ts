@@ -795,7 +795,7 @@ function renderFleet(
           ? `[${s.receipt.projectId}]`
           : `(${s.receipt.rootPath})`;
       console.log(`\n🛰️  ORBIT PULSE: ${s.receipt.name} ${contextInfo}`);
-      console.log(`   Repo Context: ${s.receipt.repo}`);
+      console.log(`    Repo Context: ${s.receipt.repo}`);
       console.log('-'.repeat(80));
       if (s.reality) {
         console.log(`   - Station State:  ${s.reality.status}`);

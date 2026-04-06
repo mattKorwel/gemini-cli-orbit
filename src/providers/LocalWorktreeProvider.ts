@@ -142,6 +142,7 @@ export class LocalWorktreeProvider extends BaseProvider {
         stdio: 'pipe',
         cwd,
         env,
+        quiet: options.quiet,
       },
     );
 
