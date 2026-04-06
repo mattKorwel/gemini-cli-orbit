@@ -194,15 +194,15 @@ export async function dispatch(argv: string[]): Promise<number> {
     .usage(
       `Usage: $0 <command> [args]
 
-🚀 Escaping the Gravity of local constraints by orchestrating persistent, autonomous agent satellites.
+Orbit allows you to escape local machine constraints by orchestrating persistent, autonomous agent satellites.
 
-QUICK START:
-  1. Liftoff:   orbit infra liftoff        (Provision or wake your hardware)
-  2. Mission:   orbit mission 123 review   (Launch an autonomous maneuver)
-  3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
-  4. Attach:    orbit mission attach 123   (Work alongside the agent)
-  5. Clean:     orbit mission jettison 123 (Surgically remove resources)
-`,
+🏠 LOCAL WORKFLOW:
+   If you want to manage workflows locally, just drop into a project and run 'orbit mission'.
+   It will automatically use your local machine as the station.
+
+☁️  REMOTE WORKFLOW:
+   For heavy-lifting, define your hardware in a 'schematic', use 'infra liftoff' to wake 
+   your station, and launch your mission with '--for-station <name>'.`,
     )
     .demandCommand(1, 'Please specify a command.')
     .strict()
@@ -211,6 +211,14 @@ QUICK START:
     .wrap(null)
     .help()
     .alias('h', 'help')
+    .epilogue(
+      `QUICK START:
+  1. Liftoff:   orbit infra liftoff        (Provision or wake your hardware)
+  2. Mission:   orbit mission 123 review   (Launch an autonomous maneuver)
+  3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
+  4. Attach:    orbit mission attach 123   (Work alongside the agent)
+  5. Clean:     orbit mission jettison 123 (Surgically remove resources)`,
+    )
 
     .command(
       ['constellation', 'ls'],
