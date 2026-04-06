@@ -9,222 +9,43 @@ import { MissionManager } from './MissionManager.js';
 import { LocalWorktreeProvider } from '../providers/LocalWorktreeProvider.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { type MissionManifest } from '../core/types.js';
-import { main as workerMain } from '../station/worker.js';
+import { main as stationMain } from '../station/station.js';
+import { main as missionMain } from '../station/capsule/mission.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
 describe('Mission Bridge Integration', () => {
-  let missionManager: MissionManager;
-  let mockPm: any;
   let tempDir: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orbit-test-'));
-
-    mockPm = {
-      runSync: vi.fn().mockReturnValue({ status: 0, stdout: '', stderr: '' }),
-      runAsync: vi.fn(),
-      spawn: vi.fn(),
-    };
-
-    const mockExecutors: any = {
-      node: new NodeExecutor(mockPm),
-      git: {},
-      docker: {},
-      tmux: {
-        attach: vi.fn().mockReturnValue({ status: 0 }),
-      },
-    };
-
-    const projectCtx = {
-      repoName: 'test-repo',
-      repoRoot: tempDir,
-    };
-
-    const infra = {
-      projectId: 'local',
-      providerType: 'local-worktree',
-    };
-
-    const provider = new LocalWorktreeProvider(
-      projectCtx as any,
-      mockPm,
-      mockExecutors,
-      'test-station',
-      path.join(tempDir, 'workspaces'),
-    );
-
-    const providerFactory: any = {
-      getProvider: () => provider,
-    };
-
-    const configManager: any = {
-      loadSettings: () => ({ repos: {} }),
-      detectRemoteUrl: () => 'https://github.com/org/repo.git',
-      loadSchematic: () => ({}),
-    };
-
-    const stationRegistry: any = {
-      saveReceipt: vi.fn(),
-    };
-
-    missionManager = new MissionManager(
-      projectCtx as any,
-      infra as any,
-      { onLog: vi.fn(), onProgress: vi.fn() } as any,
-      providerFactory,
-      configManager,
-      mockExecutors,
-      stationRegistry,
-    );
   });
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('should pass GCLI_ORBIT_MANIFEST to the worker in LocalWorktreeProvider', async () => {
-    // 1. Trigger mission start
-    await missionManager.start({ identifier: '123', action: 'chat' });
+  it('should execute end-to-end from SDK to final Gemini command via double-bridge simulation', async () => {
+    // This test ensures that the SDK -> Provider -> Station -> Mission -> Gemini flow
+    // is consistent and that the manifest is correctly preserved through the entire pipeline.
 
-    // 2. Capture the call to pm.runSync that starts the worker
-    // We expect multiple calls (git, etc.), so find the one for 'station.js'
-    const workerCall = mockPm.runSync.mock.calls.find(
-      (call: any) =>
-        call[0].includes('node') &&
-        call[1].some((arg: string) => arg.includes('station.js')),
-    );
+    const recordedCommands: { bin: string; args: string[]; env: any }[] = [];
+    const executionPromises: Promise<any>[] = [];
 
-    expect(workerCall).toBeDefined();
-    const options = workerCall[2];
-    expect(options.env).toBeDefined();
-    expect(options.env.GCLI_ORBIT_MANIFEST).toBeDefined();
-
-    const manifest: MissionManifest = JSON.parse(
-      options.env.GCLI_ORBIT_MANIFEST,
-    );
-    expect(manifest.identifier).toBe('123');
-    expect(manifest.action).toBe('chat');
-  });
-
-  it('should preserve manifest when merging with empty command options', async () => {
-    const projectCtx = { repoRoot: tempDir, repoName: 'test' };
-    const mockExecutors: any = {
-      node: new NodeExecutor(mockPm),
-      git: {},
-      docker: {},
-      tmux: { attach: vi.fn().mockReturnValue({ status: 0 }) },
-    };
-    const provider = new LocalWorktreeProvider(
-      projectCtx as any,
-      mockPm,
-      mockExecutors,
-      'test',
-      path.join(tempDir, 'ws'),
-    );
-
-    const manifest = { identifier: '456' } as any;
-    const startCmd = provider.createNodeCommand('script.js', ['start']);
-
-    // Manual call to getExecOutput to simulate MissionManager flow
-    await provider.getMissionExecOutput(
-      startCmd,
-      { workspaceName: 'ws1' } as any,
-      { manifest },
-    );
-
-    const workerCall = mockPm.runSync.mock.calls.find((call: any) =>
-      call[1].some((arg: string) => arg.includes('script.js')),
-    );
-    expect(workerCall).toBeDefined();
-    expect(workerCall[2].env.GCLI_ORBIT_MANIFEST).toBeDefined();
-    expect(JSON.parse(workerCall[2].env.GCLI_ORBIT_MANIFEST).identifier).toBe(
-      '456',
-    );
-  });
-
-  it('should execute the full orchestration flow correctly', async () => {
-    // This test ensures that the SDK -> Manager -> Provider -> Executor flow preserves the manifest
-    const projectCtx = { repoName: 'full-flow-repo', repoRoot: tempDir };
-    const infra = { projectId: 'local', providerType: 'local-worktree' };
-
-    // 1. Create dependencies
-    const executors: any = {
-      node: new NodeExecutor(mockPm),
-      git: {},
-      docker: {},
-      tmux: { attach: vi.fn().mockReturnValue({ status: 0 }) },
-    };
-
-    const provider = new LocalWorktreeProvider(
-      projectCtx as any,
-      mockPm,
-      executors,
-      'full-station',
-      path.join(tempDir, 'full-workspaces'),
-    );
-
-    const providerFactory: any = {
-      getProvider: () => provider,
-    };
-
-    const configManager: any = {
-      loadSettings: () => ({ repos: {} }),
-      detectRemoteUrl: () => 'https://github.com/full/repo.git',
-      loadSchematic: () => ({}),
-      saveSettings: vi.fn(),
-    };
-
-    const stationRegistry: any = {
-      saveReceipt: vi.fn(),
-    };
-
-    const manager = new MissionManager(
-      projectCtx as any,
-      infra as any,
-      { onLog: vi.fn(), onProgress: vi.fn() } as any,
-      providerFactory,
-      configManager,
-      executors,
-      stationRegistry,
-    );
-
-    // 2. Start mission
-    await manager.start({ identifier: 'PR-999', action: 'chat' });
-
-    // 3. Verify final process execution
-    const startCall = mockPm.runSync.mock.calls.find(
-      (call: any) =>
-        call[1].some((arg: string) => arg.includes('station.js')) &&
-        call[1].includes('start'),
-    );
-
-    expect(startCall).toBeDefined();
-    const env = startCall[2].env;
-    expect(env.GCLI_ORBIT_MANIFEST).toBeDefined();
-
-    const manifest: MissionManifest = JSON.parse(env.GCLI_ORBIT_MANIFEST);
-    expect(manifest.identifier).toBe('PR-999');
-    expect(manifest.repoName).toBe('full-flow-repo');
-    expect(manifest.action).toBe('chat');
-    expect(manifest.workDir).toContain('full-workspaces');
-    expect(manifest.workDir).toContain('pr-999');
-  });
-
-  it('should execute end-to-end from SDK to final station commands via automatic pass-through bridge', async () => {
-    // This test uses a single "system" PM that automatically bridges SDK calls to Worker logic.
-    const systemCommands: string[] = [];
-    const workerPromises: Promise<any>[] = [];
-
+    // The "System" PM represents the hardware.
     const systemPm: any = {
       runSync: vi.fn().mockImplementation((bin, args, options) => {
-        const fullCmd = `${bin} ${args.join(' ')}`;
-        systemCommands.push(fullCmd);
+        // Record all "external" commands
+        recordedCommands.push({ bin, args, env: options?.env || {} });
 
-        // AUTOMATIC BRIDGE:
-        // If the SDK (or anyone) tries to start the worker, we intercept and run the logic in-process.
+        // DOCTOR CHECK MOCK: If mission.js checks git health, return success
+        if (args.includes('--is-inside-work-tree')) {
+          return { status: 0, stdout: 'true', stderr: '' };
+        }
+
+        // BRIDGE 1: SDK -> Station (Host Setup)
         if (
           bin.includes('node') &&
           args.some((a: string) => a.includes('station.js')) &&
@@ -232,48 +53,72 @@ describe('Mission Bridge Integration', () => {
         ) {
           const manifestJson = options?.env?.GCLI_ORBIT_MANIFEST;
 
-          // Bridge: Run the actual worker entrypoint with a dedicated mock PM.
-          // This verifies the "handoff" is clean.
-          workerPromises.push(
+          executionPromises.push(
             (async () => {
-              // Re-simulate process environment locally for the workerMain call
               const originalEnv = process.env.GCLI_ORBIT_MANIFEST;
-              if (manifestJson) process.env.GCLI_ORBIT_MANIFEST = manifestJson;
-              else delete process.env.GCLI_ORBIT_MANIFEST;
-
+              process.env.GCLI_ORBIT_MANIFEST = manifestJson;
               try {
-                return await workerMain(['start'], systemPm);
+                // Call the REAL station main with our systemPm
+                return await stationMain(['start'], systemPm);
               } finally {
-                // Restore
                 if (originalEnv) process.env.GCLI_ORBIT_MANIFEST = originalEnv;
                 else delete process.env.GCLI_ORBIT_MANIFEST;
               }
             })(),
           );
 
-          return { status: 0, stdout: 'Worker triggered', stderr: '' };
+          return { status: 0, stdout: 'Station Triggered', stderr: '' };
+        }
+
+        // BRIDGE 2: Station -> Mission (Session Bootstrap)
+        if (bin === 'tmux' && args.includes('new-session')) {
+          // Tmux command contains the manifest in its environment (via ITmuxExecutor)
+          // In our integration test, we extract it from the environment we stubbed in Bridge 1
+          const manifestJson = process.env.GCLI_ORBIT_MANIFEST;
+
+          executionPromises.push(
+            (async () => {
+              const originalEnv = process.env.GCLI_ORBIT_MANIFEST;
+              process.env.GCLI_ORBIT_MANIFEST = manifestJson;
+              try {
+                // Call the REAL mission main (agent satellite)
+                return await missionMain(systemPm);
+              } finally {
+                if (originalEnv) process.env.GCLI_ORBIT_MANIFEST = originalEnv;
+                else delete process.env.GCLI_ORBIT_MANIFEST;
+              }
+            })(),
+          );
+
+          return { status: 0, stdout: 'Tmux Triggered', stderr: '' };
         }
 
         return { status: 0, stdout: '', stderr: '' };
       }),
       runAsync: vi.fn(),
-      spawn: vi.fn(),
+      spawn: vi.fn().mockImplementation(() => ({
+        stdout: { pipe: vi.fn() },
+        stderr: { pipe: vi.fn() },
+        on: vi.fn(),
+      })),
     };
 
-    const projectCtx = { repoName: 'auto-repo', repoRoot: tempDir };
+    const projectCtx = { repoName: 'real-repo', repoRoot: tempDir };
     const executors: any = {
       node: new NodeExecutor(systemPm),
       git: {},
       docker: {},
-      tmux: { attach: vi.fn().mockReturnValue({ status: 0 }) },
+      tmux: new (
+        await import('../core/executors/TmuxExecutor.js')
+      ).TmuxExecutor(systemPm),
     };
 
     const provider = new LocalWorktreeProvider(
       projectCtx as any,
       systemPm,
       executors,
-      'auto-station',
-      path.join(tempDir, 'auto-workspaces'),
+      'real-station',
+      path.join(tempDir, 'real-workspaces'),
     );
 
     const manager = new MissionManager(
@@ -283,7 +128,7 @@ describe('Mission Bridge Integration', () => {
       { getProvider: () => provider } as any,
       {
         loadSettings: () => ({ repos: {} }),
-        detectRemoteUrl: () => 'http://git.local',
+        detectRemoteUrl: () => 'http://git.real',
         loadSchematic: () => ({}),
         saveSettings: vi.fn(),
       } as any,
@@ -291,32 +136,42 @@ describe('Mission Bridge Integration', () => {
       { saveReceipt: vi.fn() } as any,
     );
 
-    // STEP 1: SDK triggers the mission.
-    // The systemPm.runSync will catch the worker spawn and trigger workerMain automatically.
-    await manager.start({ identifier: 'PR-123', action: 'chat' });
+    // STEP 1: Launch mission from the SDK
+    await manager.start({ identifier: 'PR-888', action: 'chat' });
 
-    // STEP 2: Wait for any triggered worker logic to complete.
-    await Promise.all(workerPromises);
+    // STEP 2: Wait for all handovers to finish
+    await Promise.all(executionPromises);
+
+    // Give a tiny bit of time for all commands to be recorded from the promises
+    await new Promise((r) => setTimeout(r, 100));
 
     // STEP 3: VERIFY the entire cascading chain of commands.
 
-    // A. SDK provisioning commands
-    const worktreeAdd = systemCommands.find((c) => c.includes('worktree add'));
-    expect(worktreeAdd).toBeDefined();
-    expect(worktreeAdd).toContain('pr-123');
+    // A. SDK provisioning commands (using sanitized ID)
+    const provisioning = recordedCommands.find(
+      (c) => c.args.includes('worktree') && c.args.includes('add'),
+    );
+    expect(provisioning).toBeDefined();
+    expect(provisioning?.args).toContain('pr-888');
 
-    // B. Worker initialization commands (triggered via the automatic bridge)
-    expect(systemCommands).toContain('git init');
-    expect(systemCommands).toContain('git rev-parse --verify pr-123');
+    // B. Station Manager commands (Git Setup)
+    const gitInit = recordedCommands.find((c) => c.args.includes('init'));
+    expect(gitInit).toBeDefined();
 
-    // C. Final Tmux launch
-    const tmuxCall = systemCommands.find((c) => c.includes('tmux new-session'));
-    expect(tmuxCall).toBeDefined();
-    expect(tmuxCall).toContain('GCLI_ORBIT_MANIFEST=');
-    expect(tmuxCall).toContain('pr-123');
+    // C. Mission Agent commands (Doctor Checks)
+    const gitDoctor = recordedCommands.find((c) =>
+      c.args.includes('--is-inside-work-tree'),
+    );
+    expect(gitDoctor).toBeDefined();
+
+    // D. FINAL EXECUTION: Did Gemini actually get called with the right settings?
+    const geminiCall = recordedCommands.find((c) => c.bin === 'gemini');
+    expect(geminiCall).toBeDefined();
+    expect(geminiCall?.env.GCLI_ORBIT_MISSION_ID).toBe('PR-888');
+    expect(geminiCall?.env.GCLI_ORBIT_ACTION).toBe('chat');
   });
 
-  it('should fail if the worker is started without a manifest', async () => {
+  it('should fail if the station is started without a manifest', async () => {
     const mockPm: any = {
       runSync: vi.fn().mockReturnValue({ status: 0, stdout: '', stderr: '' }),
     };
@@ -326,10 +181,9 @@ describe('Mission Bridge Integration', () => {
     delete process.env.GCLI_ORBIT_MANIFEST;
 
     try {
-      // This should throw because getManifestFromEnv() fails
-      await expect(workerMain(['start'], mockPm)).rejects.toThrow(
-        'Missing GCLI_ORBIT_MANIFEST',
-      );
+      // This should return 1 because getManifestFromEnv() fails and is caught
+      const code = await stationMain(['start'], mockPm);
+      expect(code).toBe(1);
     } finally {
       if (originalEnv) process.env.GCLI_ORBIT_MANIFEST = originalEnv;
     }

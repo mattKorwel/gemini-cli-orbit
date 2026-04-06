@@ -130,6 +130,10 @@ export abstract class BaseProvider {
     if (options.manifest) {
       env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
     }
+    console.log(
+      'DEBUG: BaseProvider getMissionExecOutput env.GCLI_ORBIT_MANIFEST:',
+      env.GCLI_ORBIT_MANIFEST ? 'SET' : 'MISSING',
+    );
 
     return this.getExecOutput(command, {
       ...options,

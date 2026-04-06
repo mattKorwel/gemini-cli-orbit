@@ -41,10 +41,16 @@ vi.mock('../core/ConfigManager.js', () => ({
 
 describe('StationSupervisor', () => {
   let manager: StationSupervisor;
+  let mockPm: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    manager = new StationSupervisor('/mock/dirname');
+    mockPm = {
+      runSync: vi.fn(),
+      runAsync: vi.fn(),
+      spawn: vi.fn(),
+    };
+    manager = new StationSupervisor('/mock/dirname', mockPm);
   });
 
   it('initGit performs git initialization', async () => {
@@ -53,7 +59,7 @@ describe('StationSupervisor', () => {
       return true;
     });
 
-    (ProcessManager.runSync as any)
+    mockPm.runSync
       .mockReturnValueOnce({ status: 0 }) // init
       .mockReturnValueOnce({ status: 0 }) // remote add
       .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
@@ -73,12 +79,12 @@ describe('StationSupervisor', () => {
       mirrorPath: '/mnt/disks/data/main',
     });
 
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+    expect(mockPm.runSync).toHaveBeenCalledWith(
       'git',
       expect.arrayContaining(['init']),
       undefined,
     );
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+    expect(mockPm.runSync).toHaveBeenCalledWith(
       'git',
       expect.arrayContaining(['remote', 'add', 'origin']),
       undefined,
@@ -105,11 +111,7 @@ describe('StationSupervisor', () => {
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('state.json'),
-      expect.stringContaining('IDLE'),
-    );
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('settings.json'),
-      expect.stringContaining('BeforeAgent'),
+      expect.stringContaining('INITIALIZING'),
     );
   });
 

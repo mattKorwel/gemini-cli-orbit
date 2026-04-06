@@ -118,6 +118,10 @@ export class LocalWorktreeProvider extends BaseProvider {
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
+    console.log(
+      'DEBUG: LocalWorktreeProvider getExecOutput options.manifest:',
+      options.manifest ? 'PRESENT' : 'MISSING',
+    );
     const mergedOptions = {
       ...options,
       ...(typeof command === 'string' ? {} : command.options),

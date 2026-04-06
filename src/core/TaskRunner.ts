@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { type IProcessManager } from './interfaces.js';
+import { ProcessManager } from './ProcessManager.js';
 
 export interface Task {
   id: string;
@@ -32,7 +33,11 @@ export interface TaskStatus {
   lastLogLines?: string[];
 }
 
-export function createTaskRunner(logDir: string, header: string) {
+export function createTaskRunner(
+  logDir: string,
+  header: string,
+  pm: IProcessManager = new ProcessManager(),
+) {
   const tasks: Task[] = [];
   const status: Record<string, TaskStatus> = {};
   const logHistory: { taskId: string; line: string }[] = [];
@@ -60,7 +65,7 @@ export function createTaskRunner(logDir: string, header: string) {
 
     async run(cmd: string): Promise<number> {
       console.log(`\n🏃 Running: ${cmd}`);
-      const res = spawnSync('sh', ['-c', cmd], { stdio: 'inherit' });
+      const res = pm.runSync('sh', ['-c', cmd], { stdio: 'inherit' });
       return res.status ?? 0;
     },
 
@@ -73,7 +78,7 @@ export function createTaskRunner(logDir: string, header: string) {
 
       for (const task of tasks) {
         console.log(`\n▶️  Task: ${task.name}`);
-        const res = spawnSync('sh', ['-c', task.cmd], { stdio: 'inherit' });
+        const res = pm.runSync('sh', ['-c', task.cmd], { stdio: 'inherit' });
         if (res.status !== 0) {
           console.error(`\n❌ Task Failed: ${task.name}`);
           return res.status ?? 1;
@@ -107,7 +112,7 @@ export function createTaskRunner(logDir: string, header: string) {
         taskStatus.state = 'running';
         const logStream = fs.createWriteStream(taskStatus.logPath);
 
-        const proc = spawn('sh', ['-c', task.cmd], {
+        const proc = pm.spawn('sh', ['-c', task.cmd], {
           stdio: ['ignore', 'pipe', 'pipe'],
           env: { ...process.env, FORCE_COLOR: '1' },
         });

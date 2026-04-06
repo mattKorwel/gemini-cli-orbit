@@ -8,6 +8,7 @@ import { createTaskRunner } from '../core/TaskRunner.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { type IProcessManager } from '../core/interfaces.js';
 import { LOCAL_BUNDLE_PATH, BUNDLE_PATH } from '../core/Constants.js';
 
 export async function runReviewPlaybook(
@@ -17,9 +18,10 @@ export async function runReviewPlaybook(
   geminiBin: string,
   logDir: string,
   missionHeader: string,
+  pm?: IProcessManager,
   guidelinesPath?: string,
 ) {
-  const runner = createTaskRunner(logDir, missionHeader);
+  const runner = createTaskRunner(logDir, missionHeader, pm);
 
   // Resolve the effective bundle directory based on environment
   const isRemote =

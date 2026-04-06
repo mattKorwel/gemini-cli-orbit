@@ -100,7 +100,7 @@ export interface IRunOptions {
   env?: Record<string, string>;
   interactive?: boolean;
   quiet?: boolean;
-  stdio?: 'inherit' | 'pipe' | 'ignore';
+  stdio?: 'inherit' | 'pipe' | 'ignore' | ('inherit' | 'pipe' | 'ignore')[];
 }
 
 /**

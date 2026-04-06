@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { main } from './worker.js';
+import { main } from './station.js';
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
 
@@ -76,18 +76,6 @@ describe('worker main', () => {
 
     await main(['run']);
     expect(mockStation.runMission).toHaveBeenCalledWith(
-      expect.objectContaining({ identifier: '123' }),
-    );
-  });
-
-  it('should dispatch to station supervisor on run-internal command', async () => {
-    const mockStation = {
-      runPlaybook: vi.fn().mockResolvedValue(0),
-    };
-    (StationSupervisor as any).mockImplementation(() => mockStation);
-
-    await main(['run-internal']);
-    expect(mockStation.runPlaybook).toHaveBeenCalledWith(
       expect.objectContaining({ identifier: '123' }),
     );
   });

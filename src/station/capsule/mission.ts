@@ -6,13 +6,21 @@
 
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
-import { ProcessManager } from '../../core/ProcessManager.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
 import { NodeExecutor } from '../../core/executors/NodeExecutor.js';
 import { getManifestFromEnv } from '../../utils/MissionUtils.js';
+import { type IProcessManager } from '../../core/interfaces.js';
+import { ProcessManager } from '../../core/ProcessManager.js';
+
+import { runReviewPlaybook } from '../../playbooks/review.js';
+import { runFixPlaybook } from '../../playbooks/fix.js';
+import { runReadyPlaybook } from '../../playbooks/ready.js';
+import { SessionManager } from '../../utils/SessionManager.js';
+import { TempManager } from '../../utils/TempManager.js';
+import { getRepoConfig } from '../../core/ConfigManager.js';
 
 const getDirname = () => {
   try {
@@ -28,7 +36,7 @@ const _dirname = getDirname();
  * Entrypoint for Orbit missions inside the capsule/worktree.
  * Orchestrates doctor checks and dispatches to either a playbook or chat.
  */
-async function main() {
+export async function main(pm: IProcessManager = new ProcessManager()) {
   // ADR 0018: Hydrate context from environment manifest
   const manifest = getManifestFromEnv();
   const { identifier, action, workDir, policyPath } = manifest;
@@ -40,7 +48,7 @@ async function main() {
   logger.info('GENERAL', '🩺 Running Orbit Doctor...');
   if (!fs.existsSync(absWorkDir)) {
     logger.error('GENERAL', `❌ Work directory missing: ${absWorkDir}`);
-    process.exit(1);
+    return 1;
   }
 
   const gitCheckCmd = {
@@ -48,28 +56,35 @@ async function main() {
     args: ['rev-parse', '--is-inside-work-tree'],
     options: { cwd: absWorkDir, quiet: true },
   };
-  const gitCheck = ProcessManager.runSync(
+  const gitCheck = pm.runSync(
     gitCheckCmd.bin,
     gitCheckCmd.args,
     gitCheckCmd.options,
   );
   if (gitCheck.status !== 0) {
     logger.error('GENERAL', '❌ Work directory is not a valid git worktree.');
-    process.exit(1);
+    return 1;
   }
   logger.info('GENERAL', '   ✅ Git worktree health verified.');
+
+  // Resolve log directory and other mission-specific paths
+  const config = getRepoConfig();
+  const tempManager = new TempManager(config);
+  const sessionId =
+    SessionManager.getSessionIdFromEnv() ||
+    SessionManager.generateMissionId(identifier, action);
+  const logDir = tempManager.getDir(sessionId);
+
+  const missionHeader = `🚀 Mission: ${identifier} | Action: ${action}`;
 
   // 2. Dispatching
   if (action === 'chat') {
     logger.info('GENERAL', '✨ Orbit ready. Joining interactive session...');
 
-    // ADR: Smarter resumption logic.
-    // Only use --resume latest if a previous session actually exists in ~/.gemini/sessions
     const sessionsDir = path.join(os.homedir(), '.gemini/sessions');
     const hasSessions =
       fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
 
-    // Resolve absolute path of gemini
     const geminiBin = 'gemini';
     const env = {
       ...process.env,
@@ -79,7 +94,7 @@ async function main() {
     };
 
     const geminiOpts: any = {
-      approvalMode: 'plan', // Default to plan mode for safety in chat missions
+      approvalMode: 'plan',
       policy: policyPath,
       cwd: absWorkDir,
       env,
@@ -94,30 +109,74 @@ async function main() {
     }
 
     const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
-
-    ProcessManager.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
+    const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
+    return res.status;
   } else {
     // Playbook Dispatch
     logger.info('GENERAL', `🏃 Launching ${action} playbook...`);
-    const stationScript = path.join(_dirname, 'station.js');
 
-    // We call back into station.js 'run-internal' to actually execute the playbook
-    // This avoids duplicating the playbook loading logic.
-    // ADR 0018: No positional arguments passed
-    const playbookCmd = NodeExecutor.create(stationScript, ['run-internal'], {
-      cwd: absWorkDir,
-      interactive: true,
-    });
-
-    ProcessManager.runSync(
-      playbookCmd.bin,
-      playbookCmd.args,
-      playbookCmd.options,
-    );
+    switch (action) {
+      case 'review':
+        return runReviewPlaybook(
+          identifier,
+          absWorkDir,
+          policyPath,
+          'gemini',
+          logDir,
+          missionHeader,
+          pm,
+        );
+      case 'fix':
+        return runFixPlaybook(
+          identifier,
+          absWorkDir,
+          policyPath,
+          'gemini',
+          logDir,
+          missionHeader,
+          pm,
+        );
+      case 'ready':
+        return runReadyPlaybook(
+          identifier,
+          absWorkDir,
+          policyPath,
+          'gemini',
+          logDir,
+          missionHeader,
+          pm,
+        );
+      case 'implement': {
+        const { runImplementPlaybook } =
+          await import('../../playbooks/implement.js');
+        return runImplementPlaybook(
+          identifier,
+          absWorkDir,
+          policyPath,
+          'gemini',
+          logDir,
+          missionHeader,
+          pm,
+        );
+      }
+      default:
+        logger.error('GENERAL', `❌ Unknown playbook action: ${action}`);
+        return 1;
+    }
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  (import.meta.url === pathToFileURL(process.argv[1]).href ||
+    import.meta.url === `file://${process.argv[1]}`)
+) {
+  main()
+    .then((code) => {
+      process.exit(code);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

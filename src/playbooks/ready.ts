@@ -1,4 +1,5 @@
 import { createTaskRunner } from '../core/TaskRunner.js';
+import { type IProcessManager } from '../core/interfaces.js';
 
 export async function runReadyPlaybook(
   prNumber: string,
@@ -7,8 +8,9 @@ export async function runReadyPlaybook(
   _geminiBin: string,
   logDir: string,
   missionHeader: string,
+  pm?: IProcessManager,
 ) {
-  const runner = createTaskRunner(logDir, missionHeader);
+  const runner = createTaskRunner(logDir, missionHeader, pm);
 
   runner.register([
     { id: 'clean', name: 'Clean Orbit', cmd: `npm run clean && npm ci` },

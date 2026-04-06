@@ -18,7 +18,7 @@ vi.mock('../core/Constants.js', async (importOriginal) => {
   };
 });
 
-import { main } from './worker.js';
+import { main } from './station.js';
 import {
   SATELLITE_WORKSPACES_PATH,
   ORBIT_STATE_PATH,
