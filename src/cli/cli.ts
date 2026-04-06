@@ -302,7 +302,7 @@ QUICK START:
               applyFriendlyUsage(
                 y2,
                 'mission start <id>',
-                'Missions are the core of Orbit. They provide the isolation and behavioral proof needed for autonomous work. Launching a mission creates a dedicated workspace and agent container.',
+                'Missions are isolated, persistent developer environments. They escape local machine constraints by running inside agent satellites (Docker containers) with their own dedicated workspace. Every mission is persistent—you can launch it, walk away, and resume later from any machine.',
                 [
                   [
                     'mission 123 review',
@@ -313,9 +313,12 @@ QUICK START:
                     'Drop into a persistent terminal session with Gemini.',
                   ],
                   [
-                    'mission fix-tests fix',
-                    'Start an iterative fix-loop for a specific branch.',
+                    'mission 789:test fix',
+                    'Use a named mission for isolation.',
                   ],
+                  ['mission logs 123', "Inspect the agent's work-in-progress."],
+                  ['mission resume 123', 'Jump back into an active session.'],
+                  ['mission delete 123', 'Surgically cleanup the environment.'],
                 ],
               );
               y2.positional('identifier', {
