@@ -252,9 +252,15 @@ describe('orbit-cli dispatch()', () => {
     ]);
 
     const spy = vi.spyOn(console, 'log');
-    await dispatch(['constellation']);
+    await dispatch(['constellation', '--pulse']);
 
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('LOCAL STATION: local-box'),
+    );
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('(/dev/orbit)'));
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('REMOTE STATION: remote-box'),
+    );
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('[p1]'));
   });
 

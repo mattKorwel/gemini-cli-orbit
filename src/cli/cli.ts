@@ -790,12 +790,15 @@ function renderFleet(
 ) {
   if (depth === 'pulse') {
     states.forEach((s) => {
+      const typeLabel =
+        s.receipt.type === 'gce' ? 'REMOTE STATION' : 'LOCAL STATION';
       const contextInfo =
         s.receipt.type === 'gce'
           ? `[${s.receipt.projectId}]`
           : `(${s.receipt.rootPath})`;
-      console.log(`\n🛰️  ORBIT PULSE: ${s.receipt.name} ${contextInfo}`);
-      console.log(`    Repo Context: ${s.receipt.repo}`);
+
+      console.log(`\n🛰️  ${typeLabel}: ${s.receipt.name} ${contextInfo}`);
+      console.log(`    Repo Context:  ${s.receipt.repo}`);
       console.log('-'.repeat(80));
       if (s.reality) {
         console.log(`   - Station State:  ${s.reality.status}`);
