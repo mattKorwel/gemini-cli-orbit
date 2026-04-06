@@ -175,6 +175,10 @@ export async function dispatch(argv: string[]): Promise<number> {
   }
 
   const topAliases: Record<string, string> = {
+    c: 'constellation',
+    m: 'mission',
+    s: 'station',
+    i: 'infra',
     stations: 'constellation',
     ls: 'constellation',
     missions: 'mission start',
@@ -194,15 +198,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     .usage(
       `Usage: $0 <command> [args]
 
-Orbit allows you to escape local machine constraints by orchestrating persistent, autonomous agent satellites.
-
-🏠 LOCAL WORKFLOW:
-   If you want to manage workflows locally, just drop into a project and run 'orbit mission'.
-   It will automatically use your local machine as the station.
-
-☁️  REMOTE WORKFLOW:
-   For heavy-lifting, define your hardware in a 'schematic', use 'infra liftoff' to wake 
-   your station, and launch your mission with '--for-station <name>'.`,
+🚀 Escaping the Gravity of local machine constraints by orchestrating persistent, autonomous agent satellites.`,
     )
     .demandCommand(1, 'Please specify a command.')
     .strict()
@@ -212,7 +208,15 @@ Orbit allows you to escape local machine constraints by orchestrating persistent
     .help()
     .alias('h', 'help')
     .epilogue(
-      `QUICK START:
+      `🏠 LOCAL WORKFLOW:
+   If you want to manage workflows locally, just drop into a project and run 'orbit mission'.
+   It will automatically use your local machine as the station.
+
+☁️  REMOTE WORKFLOW:
+   For heavy-lifting, define your hardware in a 'schematic', use 'infra liftoff' to wake 
+   your station, and launch your mission with '--for-station <name>'.
+
+QUICK START:
   1. Liftoff:   orbit infra liftoff        (Provision or wake your hardware)
   2. Mission:   orbit mission 123 review   (Launch an autonomous maneuver)
   3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
@@ -221,7 +225,7 @@ Orbit allows you to escape local machine constraints by orchestrating persistent
     )
 
     .command(
-      ['constellation', 'ls'],
+      ['constellation', 'ls', 'c'],
       'The Fleet View: Unified status and monitoring.',
       (y2) => {
         applyFriendlyUsage(
@@ -280,7 +284,7 @@ Orbit allows you to escape local machine constraints by orchestrating persistent
     )
 
     .command(
-      'mission',
+      ['mission', 'm'],
       'The Workflow: Launch or resume isolated developer presence.',
       (y: Argv) => {
         return y
@@ -438,7 +442,7 @@ Orbit allows you to escape local machine constraints by orchestrating persistent
     )
 
     .command(
-      'station',
+      ['station', 's'],
       'The Hardware: Lifecycle and Management.',
       (y: Argv) => {
         return y
@@ -578,7 +582,7 @@ Orbit allows you to escape local machine constraints by orchestrating persistent
     )
 
     .command(
-      'infra',
+      ['infra', 'i'],
       'The Foundation: Liftoff, splashdown, or schematic.',
       (y: Argv) => {
         return y
