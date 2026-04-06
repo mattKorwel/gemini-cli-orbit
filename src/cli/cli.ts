@@ -182,7 +182,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     i: 'infra',
     stations: 'constellation',
     ls: 'constellation',
-    missions: 'mission start',
+    missions: 'mission launch',
     schematics: 'infra schematic list',
     pulse: 'constellation --pulse',
     logs: 'mission logs',
@@ -220,7 +220,7 @@ export async function dispatch(argv: string[]): Promise<number> {
 
 QUICK START:
   1. Liftoff:   orbit infra liftoff        (Provision or wake your hardware)
-  2. Mission:   orbit mission 123 review   (Launch an autonomous maneuver)
+  2. Mission:   orbit mission launch 123   (Start an autonomous maneuver)
   3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
   4. Attach:    orbit mission attach 123   (Work alongside the agent)
   5. Logs:      orbit mission uplink 123   (Inspect mission telemetry)
@@ -294,26 +294,26 @@ QUICK START:
           .command(
             [
               '$0 <identifier> [action] [extra..]',
-              'start <identifier> [action] [extra..]',
               'launch <identifier> [action] [extra..]',
+              'start <identifier> [action] [extra..]',
             ],
             'Start or resume a mission.',
             (y2) => {
               applyFriendlyUsage(
                 y2,
-                'mission start <id>',
+                'mission launch <id>',
                 'Missions are isolated, persistent developer environments. They escape local machine constraints by running inside agent satellites (Docker containers) with their own dedicated workspace. Every mission is persistent—you can launch it, walk away, and resume later from any machine.',
                 [
                   [
-                    'mission 123 review',
+                    'mission launch 123 review',
                     'Start an autonomous PR review for PR #123.',
                   ],
                   [
-                    'mission 456 chat',
+                    'mission launch 456 chat',
                     'Drop into a persistent terminal session with Gemini.',
                   ],
                   [
-                    'mission 789:test fix',
+                    'mission launch 789:test fix',
                     'Use a named mission for isolation.',
                   ],
                   ['mission logs 123', "Inspect the agent's work-in-progress."],
