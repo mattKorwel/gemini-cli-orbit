@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
-import { NodeExecutor } from '../../core/executors/NodeExecutor.js';
+import { GitExecutor } from '../../core/executors/GitExecutor.js';
 import { getManifestFromEnv } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
@@ -20,7 +20,6 @@ import { runFixPlaybook } from '../../playbooks/fix.js';
 import { runReadyPlaybook } from '../../playbooks/ready.js';
 import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
-import { getRepoConfig } from '../../core/ConfigManager.js';
 
 const getDirname = () => {
   try {
@@ -52,15 +51,10 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     return 1;
   }
 
-  const gitCheckCmd = {
-    bin: 'git',
-    args: ['rev-parse', '--is-inside-work-tree'],
-    options: { cwd: absWorkDir, quiet: true },
-  };
   const gitCheck = pm.runSync(
-    gitCheckCmd.bin,
-    gitCheckCmd.args,
-    gitCheckCmd.options,
+    'git',
+    GitExecutor.revParse(absWorkDir, ['--is-inside-work-tree']).args,
+    { cwd: absWorkDir, quiet: true },
   );
   if (gitCheck.status !== 0) {
     logger.error('GENERAL', '❌ Work directory is not a valid git worktree.');
@@ -69,8 +63,7 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
   logger.info('GENERAL', '   ✅ Git worktree health verified.');
 
   // Resolve log directory and other mission-specific paths
-  const config = getRepoConfig();
-  const tempManager = new TempManager(config);
+  const tempManager = new TempManager({ tempDir: manifest.tempDir });
   const sessionId =
     SessionManager.getSessionIdFromEnv() ||
     SessionManager.generateMissionId(identifier, action);
@@ -104,9 +97,6 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
 
     if (hasSessions) {
       geminiOpts.resume = 'latest';
-      geminiOpts.promptInteractive = `Orbit Mission ${identifier} resumed. Standing by.`;
-    } else {
-      geminiOpts.promptInteractive = `Orbit Mission ${identifier} (${action}) initialized. Standing by for instructions.`;
     }
 
     const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);

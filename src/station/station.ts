@@ -10,10 +10,10 @@
  * Multi-command orchestrator for remote development.
  */
 
-import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
+
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
 import { logger } from '../core/Logger.js';
@@ -38,26 +38,31 @@ export async function main(
   argv: string[],
   pm: IProcessManager = new ProcessManager(),
 ) {
-  const station = new StationSupervisor(_dirname, pm);
-  const aggregator = new StatusAggregator();
-
-  // ADR 0018: Manifest-First execution
-  // If we have a manifest in the environment, we use it to determine the action.
-  // This allows the SDK to trigger complex flows with a single RPC call.
   try {
+    const station = new StationSupervisor(_dirname, pm);
+
+    const action = argv[0] || 'start';
+
+    // Special Case: status aggregation can run without a manifest
+    if (action === 'status') {
+      const root = argv[1];
+      const aggregator = new StatusAggregator(root);
+      const result = await aggregator.getStatus();
+      console.log(JSON.stringify(result, null, 2));
+      return 0;
+    }
+
+    // ADR 0018: Manifest-First execution
+    // If we have a manifest in the environment, we use it to determine the action.
+    // This allows the SDK to trigger complex flows with a single RPC call.
     const manifest = getManifestFromEnv();
     logger.setVerbose(manifest.verbose === true);
 
     // If the manifest exists, we follow its 'action'
     // but we still allow positional overrides for standalone worker testing
-    const action = argv[0] || 'start';
+    const currentAction = argv[0] || manifest.action || 'start';
 
-    switch (action) {
-      case 'status': {
-        const result = await aggregator.getStatus();
-        console.log(JSON.stringify(result, null, 2));
-        return 0;
-      }
+    switch (currentAction) {
       case 'start': {
         return await station.start(manifest);
       }
@@ -78,20 +83,13 @@ export async function main(
         return 0;
       }
       default: {
-        console.error(`❌ Unknown worker action: ${action}`);
+        console.error(`❌ Unknown worker action: ${currentAction}`);
         return 1;
       }
     }
   } catch (e: any) {
-    // If no manifest, we can't do much except report status
-    if (argv[0] === 'status') {
-      const result = await aggregator.getStatus();
-      console.log(JSON.stringify(result, null, 2));
-      return 0;
-    }
-
-    console.error(e.message);
-    printHelp();
+    console.error(`❌ Station Failure: ${e.message}`);
+    if (e.stack) console.error(e.stack);
     return 1;
   }
 }

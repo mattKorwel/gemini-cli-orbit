@@ -7,7 +7,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { BaseProvider } from './BaseProvider.js';
-import { type ExecOptions, type OrbitStatus } from '../core/types.js';
+import {
+  type ExecOptions,
+  type OrbitStatus,
+  type CapsuleInfo,
+} from '../core/types.js';
 import { type ProjectContext, LOCAL_BUNDLE_PATH } from '../core/Constants.js';
 import { type Command } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
@@ -34,14 +38,11 @@ export class LocalWorktreeProvider extends BaseProvider {
     pm: IProcessManager,
     executors: IExecutors,
     stationName = 'local',
-    workspacesDir?: string,
+    workspacesDir: string,
   ) {
     super(pm, executors);
     this.stationName = stationName;
-    // Default to sibling folder named 'orbit-workspaces'
-    this.workspacesDir =
-      workspacesDir ||
-      path.resolve(this.projectCtx.repoRoot, '..', 'orbit-workspaces');
+    this.workspacesDir = workspacesDir;
 
     if (!fs.existsSync(this.workspacesDir)) {
       fs.mkdirSync(this.workspacesDir, { recursive: true });
@@ -58,6 +59,10 @@ export class LocalWorktreeProvider extends BaseProvider {
    */
   override resolveWorkDir(workspaceName: string): string {
     return path.join(this.workspacesDir, workspaceName);
+  }
+
+  override resolveWorkspacesRoot(): string {
+    return path.join(this.workspacesDir, this.projectCtx.repoName);
   }
 
   override resolveWorkerPath(): string {
@@ -97,12 +102,10 @@ export class LocalWorktreeProvider extends BaseProvider {
             .join(' ') + ' '
         : '';
 
-    const capsuleDir = options.wrapCapsule
-      ? path.join(this.workspacesDir, options.wrapCapsule.replace(/-/g, '/'))
-      : this.projectCtx.repoRoot;
+    const capsuleDir = options.cwd || this.projectCtx.repoRoot;
 
     if (this.hasTmux()) {
-      const sessionName = options.wrapCapsule || 'orbit-local';
+      const sessionName = options.isolationId || 'orbit-local';
       const tip =
         'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
       return `tmux new-session -d -A -s ${this.shellQuote(sessionName)} "cd ${this.shellQuote(capsuleDir)} && ${tip}; ${envPrefix}${command} || exec zsh"`;
@@ -110,31 +113,20 @@ export class LocalWorktreeProvider extends BaseProvider {
     return `cd ${this.shellQuote(capsuleDir)} && ${envPrefix}${command}`;
   }
 
-  override resolveExecutionCapsule(mCtx: MissionContext): string {
-    return mCtx.workspaceName;
+  override resolveIsolationId(mCtx: MissionContext): string {
+    return mCtx.sessionName;
   }
 
   async getExecOutput(
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    console.log(
-      'DEBUG: LocalWorktreeProvider getExecOutput options.manifest:',
-      options.manifest ? 'PRESENT' : 'MISSING',
-    );
     const mergedOptions = {
       ...options,
       ...(typeof command === 'string' ? {} : command.options),
     };
 
-    let cwd = mergedOptions.cwd || this.projectCtx.repoRoot;
-    if (mergedOptions.wrapCapsule) {
-      // Local worktrees are nested: repo/id/action
-      cwd = path.join(
-        this.workspacesDir,
-        mergedOptions.wrapCapsule.replace(/-/g, '/'),
-      );
-    }
+    const cwd = options.cwd || this.projectCtx.repoRoot;
 
     const env: any = {
       ...process.env,
@@ -142,11 +134,15 @@ export class LocalWorktreeProvider extends BaseProvider {
       GEMINI_AUTO_UPDATE: '0',
     };
 
+    if (options.manifest) {
+      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
+    }
+
     const res = this.pm.runSync(
       typeof command === 'string' ? 'sh' : command.bin,
       typeof command === 'string' ? ['-c', command] : command.args,
       {
-        stdio: mergedOptions.quiet ? 'pipe' : 'inherit',
+        stdio: 'pipe',
         cwd,
         env,
       },
@@ -366,4 +362,25 @@ export class LocalWorktreeProvider extends BaseProvider {
   }
 
   injectState(): void {}
+
+  protected override async resolveLegacyCapsuleState(
+    name: string,
+  ): Promise<CapsuleInfo['state']> {
+    if (!this.hasTmux()) return 'IDLE';
+
+    const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
+      quiet: true,
+    });
+    if (listRes.status !== 0) return 'IDLE';
+
+    const sessions = listRes.stdout.toString().split('\n');
+    const bestMatch = sessions.find((s) => s.includes(name));
+
+    if (bestMatch) {
+      // For local, we just assume it's THINKING if the session exists
+      return 'THINKING';
+    }
+
+    return 'IDLE';
+  }
 }

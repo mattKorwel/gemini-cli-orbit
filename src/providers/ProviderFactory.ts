@@ -13,7 +13,6 @@ import {
   getPrimaryRepoRoot,
   type InfrastructureSpec,
   type ProjectContext,
-  STATIONS_DIR,
 } from '../core/Constants.js';
 import path from 'node:path';
 import {
@@ -44,17 +43,17 @@ export class ProviderFactory implements IProviderFactory {
       infra.stationName || `orbit-station-${projectCtx.repoName}`;
 
     if (effectiveProvider === 'local-worktree') {
-      const primaryRoot = getPrimaryRepoRoot(projectCtx.repoRoot);
-      const localWorkspacesDir =
-        infra.workspacesDir ||
-        infra.worktreesDir ||
-        path.resolve(primaryRoot, '..', 'workspaces');
       return new LocalWorktreeProvider(
         projectCtx,
         this.pm,
         this.executors,
         stationName,
-        localWorkspacesDir,
+        infra.workspacesDir ||
+          path.resolve(
+            getPrimaryRepoRoot(projectCtx.repoRoot),
+            '..',
+            'workspaces',
+          ),
       );
     }
 

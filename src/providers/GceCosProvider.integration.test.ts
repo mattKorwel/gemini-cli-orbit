@@ -11,7 +11,6 @@ import {
   LOCAL_BUNDLE_PATH,
   BUNDLE_PATH,
 } from '../core/Constants.js';
-import { logger } from '../core/Logger.js';
 
 vi.mock('../core/Logger.js', () => ({
   logger: {

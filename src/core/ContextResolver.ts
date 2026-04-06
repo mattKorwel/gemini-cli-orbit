@@ -13,9 +13,8 @@ import {
   STATIONS_DIR,
   DEFAULT_VPC_NAME,
   DEFAULT_SUBNET_NAME,
-  UPSTREAM_REPO_URL,
+  getPrimaryRepoRoot,
 } from './Constants.js';
-import { type MissionManifest, type MissionOptions } from './types.js';
 import {
   loadSettings,
   loadProjectConfig,
@@ -157,6 +156,7 @@ export class ContextResolver {
       schematic: flags.schematic,
       verbose: flags.verbose,
     };
+    if (flags.forStation) flagSpec.stationName = flags.forStation;
     infra = this.mergeDefined(infra, flagSpec);
 
     // STEP 5: Dynamic Defaults & Final Resolution
@@ -173,7 +173,15 @@ export class ContextResolver {
       }
     }
 
-    if (!infra.stationName) infra.stationName = rName;
+    // Standardized Station Naming (Hub-side)
+    if (!infra.stationName) {
+      if (infra.projectId === 'local') {
+        infra.stationName = `local-${rName}`;
+      } else {
+        infra.stationName = rName;
+      }
+    }
+
     if (!infra.instanceName && infra.projectId !== 'local') {
       const user = (env.USER || env.USERNAME || 'user')
         .toLowerCase()
@@ -183,6 +191,11 @@ export class ContextResolver {
 
     if (infra.projectId === 'local' && !infra.zone) {
       infra.zone = 'localhost';
+    }
+
+    if (!infra.workspacesDir) {
+      const primaryRoot = getPrimaryRepoRoot(project.repoRoot);
+      infra.workspacesDir = path.resolve(primaryRoot, '..', 'workspaces');
     }
 
     if (!infra.remoteWorkDir) infra.remoteWorkDir = '/mnt/disks/data/main';

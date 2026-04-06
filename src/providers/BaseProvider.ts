@@ -11,6 +11,7 @@ import type {
   SyncOptions,
   OrbitStatus,
   CapsuleConfig,
+  CapsuleInfo,
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
@@ -74,6 +75,11 @@ export abstract class BaseProvider {
   abstract resolveWorkDir(workspaceName: string): string;
 
   /**
+   * Returns the absolute path to the directory containing all mission workspaces.
+   */
+  abstract resolveWorkspacesRoot(): string;
+
+  /**
    * Returns the absolute path to the Orbit worker (station.js) in this environment.
    */
   abstract resolveWorkerPath(): string;
@@ -101,9 +107,9 @@ export abstract class BaseProvider {
   abstract ensureReady(): Promise<number>;
 
   /**
-   * Returns the canonical capsule identifier used for command wrapping in this environment.
+   * Returns the canonical isolation identifier (session/container name) for this environment.
    */
-  abstract resolveExecutionCapsule(mCtx: MissionContext): string;
+  abstract resolveIsolationId(mCtx: MissionContext): string;
 
   /**
    * Executes a command within the context of a specific mission.
@@ -130,15 +136,15 @@ export abstract class BaseProvider {
     if (options.manifest) {
       env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
     }
-    console.log(
-      'DEBUG: BaseProvider getMissionExecOutput env.GCLI_ORBIT_MANIFEST:',
-      env.GCLI_ORBIT_MANIFEST ? 'SET' : 'MISSING',
-    );
 
     return this.getExecOutput(command, {
       ...options,
       env,
-      wrapCapsule: this.resolveExecutionCapsule(mCtx),
+      cwd:
+        options.cwd ||
+        options.manifest?.workDir ||
+        this.resolveWorkDir(mCtx.workspaceName),
+      isolationId: this.resolveIsolationId(mCtx),
     });
   }
 
@@ -206,6 +212,78 @@ export abstract class BaseProvider {
     mCtx: MissionContext,
     infra: InfrastructureSpec,
   ): Promise<void>;
+
+  /**
+   * Fetches deep mission status from inside the station.
+   * Centralized logic that uses environment-specific hooks.
+   */
+  async getMissionTelemetry(): Promise<CapsuleInfo[]> {
+    const capsules: CapsuleInfo[] = [];
+
+    // 1. Request aggregated status from the worker
+    const bundlePath = this.resolveWorkerPath();
+    const workspacesRoot = this.resolveWorkspacesRoot();
+
+    const statusCmd = this.createNodeCommand(bundlePath, [
+      'status',
+      workspacesRoot,
+    ]);
+
+    const statusOutput = await this.getExecOutput(statusCmd, {
+      quiet: true,
+    });
+
+    let aggregatedMissions: any[] = [];
+    if (statusOutput.status === 0) {
+      try {
+        const report = JSON.parse(statusOutput.stdout);
+        aggregatedMissions = report.missions || [];
+      } catch (_e) {
+        // Fallback
+      }
+    }
+
+    // 2. Discover active capsules/containers
+    const containerNames = await this.listCapsules();
+
+    for (const containerName of containerNames) {
+      const stats = await this.getCapsuleStats(containerName);
+      const missionState = aggregatedMissions.find(
+        (m) => m.mission === containerName || containerName.includes(m.mission),
+      );
+
+      if (missionState) {
+        capsules.push({
+          name: containerName,
+          state: missionState.status,
+          stats,
+          lastThought: missionState.last_thought,
+          blocker: missionState.blocker,
+          progress: missionState.progress,
+          pendingTool: missionState.pending_tool,
+          lastQuestion: missionState.last_question,
+        });
+      } else {
+        // 3. Provider-specific fallback (e.g. Tmux parsing)
+        const state = await this.resolveLegacyCapsuleState(containerName);
+        capsules.push({
+          name: containerName,
+          state,
+          stats,
+        });
+      }
+    }
+
+    return capsules;
+  }
+
+  /**
+   * Environment-specific fallback for determining capsule state when
+   * no manifest is found.
+   */
+  protected abstract resolveLegacyCapsuleState(
+    name: string,
+  ): Promise<CapsuleInfo['state']>;
 }
 
 /**

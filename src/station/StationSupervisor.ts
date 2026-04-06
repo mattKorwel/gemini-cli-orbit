@@ -6,7 +6,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import {
   type IProcessManager,
@@ -17,14 +16,7 @@ import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { type Command } from '../core/executors/types.js';
-import { getRepoConfig } from '../core/ConfigManager.js';
-import { runReviewPlaybook } from '../playbooks/review.js';
-import { runFixPlaybook } from '../playbooks/fix.js';
-import { runReadyPlaybook } from '../playbooks/ready.js';
 import { type MissionManifest } from '../core/types.js';
-import { SessionManager } from '../utils/SessionManager.js';
-import { TempManager } from '../utils/TempManager.js';
-
 /**
  * StationSupervisor: Remote host management layer.
  * Responsible for workspace setup and mission spawning.

@@ -55,9 +55,9 @@ describe('LocalWorktreeProvider', () => {
       mockPm,
       mockExecutors,
       'test-station',
+      '/home/node/dev/repo/workspaces',
     );
-    // /home/node/dev/repo/main -> sibling is /home/node/dev/repo/orbit-workspaces
-    expect(provider.workspacesDir).toBe('/home/node/dev/repo/orbit-workspaces');
+    expect(provider.workspacesDir).toBe('/home/node/dev/repo/workspaces');
   });
 
   it('should report RUNNING status', async () => {
@@ -65,6 +65,8 @@ describe('LocalWorktreeProvider', () => {
       projectCtx,
       mockPm,
       mockExecutors,
+      'local',
+      '/tmp/workspaces',
     );
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
@@ -76,6 +78,8 @@ describe('LocalWorktreeProvider', () => {
       projectCtx,
       mockPm,
       mockExecutors,
+      'local',
+      '/tmp/workspaces',
     );
     const cmd = provider.getRunCommand('ls');
     expect(cmd).toContain('tmux new-session');
@@ -87,6 +91,8 @@ describe('LocalWorktreeProvider', () => {
       projectCtx,
       mockPm,
       mockExecutors,
+      'local',
+      '/tmp/workspaces',
     );
     const cmd = provider.getRunCommand('ls');
     expect(cmd).not.toContain('tmux');
@@ -105,7 +111,7 @@ describe('LocalWorktreeProvider', () => {
       projectCtx,
       mockPm,
       mockExecutors,
-      'test',
+      'test-station',
       workspacesDir,
     );
     const capsules = await provider.listCapsules();
@@ -113,5 +119,73 @@ describe('LocalWorktreeProvider', () => {
     expect(capsules).toContain('repo/feat-1');
     expect(capsules).toContain('repo/feat-2');
     expect(capsules).not.toContain('/home/node/dev/repo/main');
+  });
+
+  it('should fetch mission telemetry from local worker', async () => {
+    const provider = new LocalWorktreeProvider(
+      projectCtx,
+      mockPm,
+      mockExecutors,
+      'local',
+      '/tmp/workspaces',
+    );
+
+    mockExecutors.node = {
+      create: vi
+        .fn()
+        .mockReturnValue({ bin: 'node', args: ['station.js', 'status'] }),
+    };
+
+    // 1. Mock listCapsules output
+    vi.spyOn(provider, 'listCapsules').mockResolvedValue(['repo/id1']);
+
+    // 2. Mock worker status output
+    vi.spyOn(provider, 'getExecOutput').mockResolvedValue({
+      status: 0,
+      stdout: JSON.stringify({
+        missions: [
+          { mission: 'repo/id1', status: 'THINKING', last_thought: 'Working' },
+        ],
+      }),
+      stderr: '',
+    });
+
+    const telemetry = await provider.getMissionTelemetry();
+    expect(telemetry).toHaveLength(1);
+    expect(telemetry[0]!.name).toBe('repo/id1');
+    expect(telemetry[0]!.state).toBe('THINKING');
+    expect(telemetry[0]!.lastThought).toBe('Working');
+  });
+
+  it('should correctly resolve paths and naming', () => {
+    const provider = new LocalWorktreeProvider(
+      projectCtx,
+      mockPm,
+      mockExecutors,
+      'test-station',
+      '/workspaces',
+    );
+
+    expect(provider.resolveWorkDir('repo/id')).toBe('/workspaces/repo/id');
+    expect(provider.resolveWorkspacesRoot()).toBe('/workspaces/repo');
+    expect(provider.resolveWorkerPath()).toContain('station.js');
+    expect(provider.resolveProjectConfigDir()).toBe(
+      '/home/node/dev/repo/main/.gemini',
+    );
+    expect(provider.resolvePolicyPath('/abs/path')).toBe(
+      '/abs/path/.gemini/policies/workspace-policy.toml',
+    );
+    expect(provider.resolveMirrorPath()).toBe('/home/node/dev/repo/main');
+
+    mockExecutors.node = {
+      create: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
+    };
+    provider.createNodeCommand('script.js', ['arg1']);
+    expect(mockExecutors.node.create).toHaveBeenCalledWith('script.js', [
+      'arg1',
+    ]);
+
+    const mCtx = { sessionName: 'ws1' } as any;
+    expect(provider.resolveIsolationId(mCtx)).toBe('ws1');
   });
 });

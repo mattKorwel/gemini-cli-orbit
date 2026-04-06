@@ -45,6 +45,9 @@ export class ProcessManager implements IProcessManager {
         'EXEC',
         `🏃 Running: ${effectiveBin} ${effectiveArgs.join(' ')}`,
       );
+      if (process.env.GCLI_ORBIT_VERBOSE === '1') {
+        logger.debug('EXEC', `   Environment: ${JSON.stringify(env)}`);
+      }
     }
 
     const spawnOptions: SpawnSyncOptions = {

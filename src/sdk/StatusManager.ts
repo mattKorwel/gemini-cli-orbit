@@ -7,9 +7,8 @@
 import {
   type InfrastructureSpec,
   type ProjectContext,
-  STATION_BUNDLE_PATH,
 } from '../core/Constants.js';
-import { type StationState, type CapsuleInfo } from '../core/types.js';
+import { type StationState } from '../core/types.js';
 import {
   type IProviderFactory,
   type IExecutors,
@@ -78,9 +77,12 @@ export class StatusManager implements IStatusManager {
             reality.status === 'RUNNING' &&
             state.reality
           ) {
-            state.reality.missions = await this.fetchMissionTelemetry(
-              s.provider,
-            );
+            const missions = await s.provider.getMissionTelemetry();
+            // Standardize repo attribution for scoped aggregation
+            missions.forEach((m) => {
+              if (m.repo === 'unknown' || !m.repo) m.repo = s.receipt.repo;
+            });
+            state.reality.missions = missions;
           }
         } catch (_e: any) {
           state.reality = { status: 'UNREACHABLE', missions: [] };
@@ -89,90 +91,6 @@ export class StatusManager implements IStatusManager {
         return state;
       }),
     );
-  }
-
-  /**
-   * Fetches deep mission status from inside the station.
-   */
-  private async fetchMissionTelemetry(
-    provider: import('../providers/BaseProvider.js').OrbitProvider,
-  ): Promise<CapsuleInfo[]> {
-    const capsules: CapsuleInfo[] = [];
-
-    const bundlePath = provider.resolveWorkerPath();
-    const statusCmd = provider.createNodeCommand(bundlePath, ['status']);
-
-    const statusOutput = await provider.getExecOutput(statusCmd, {
-      quiet: true,
-    });
-
-    let aggregatedMissions: any[] = [];
-    if (statusOutput.status === 0) {
-      try {
-        const report = JSON.parse(statusOutput.stdout);
-        aggregatedMissions = report.missions || [];
-      } catch (_e) {
-        // Fallback
-      }
-    }
-
-    const containerNames = await provider.listCapsules();
-
-    for (const containerName of containerNames) {
-      const stats = await provider.getCapsuleStats(containerName);
-      const missionState = aggregatedMissions.find(
-        (m) => m.mission === containerName || containerName.includes(m.mission),
-      );
-
-      if (missionState) {
-        capsules.push({
-          name: containerName,
-          state: missionState.status,
-          stats,
-          lastThought: missionState.last_thought,
-          blocker: missionState.blocker,
-          progress: missionState.progress,
-          pendingTool: missionState.pending_tool,
-          lastQuestion: missionState.last_question,
-        });
-      } else {
-        // Legacy/Fallback discovery
-        const tmuxCmd = {
-          bin: 'tmux',
-          args: ['list-sessions', '-F', '#S'],
-        };
-
-        const tmuxRes = await provider.getExecOutput(tmuxCmd, {
-          wrapCapsule: containerName,
-          quiet: true,
-        });
-
-        let state: CapsuleInfo['state'] = 'IDLE';
-        if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-          const paneOutput = await provider.capturePane(containerName);
-          const lines = paneOutput.trim().split('\n');
-          const lastLine = lines[lines.length - 1] || '';
-          const lastTwoLines = lines.slice(-2).join(' ');
-
-          const isWaiting =
-            lastLine.includes(' > ') ||
-            lastLine.trim().endsWith('>') ||
-            lastTwoLines.includes('(y/n)') ||
-            lastLine.trim().endsWith('?') ||
-            (lastLine.includes('node@') && lastLine.includes('$'));
-
-          state = isWaiting ? 'WAITING' : 'THINKING';
-        }
-
-        capsules.push({
-          name: containerName,
-          state,
-          stats,
-        });
-      }
-    }
-
-    return capsules;
   }
 
   /**

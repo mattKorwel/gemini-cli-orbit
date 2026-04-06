@@ -9,9 +9,8 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import yargs, { type Argv } from 'yargs';
-import { OrbitSDK, type IOrbitSDK } from '../sdk/OrbitSDK.js';
+import { OrbitSDK } from '../sdk/OrbitSDK.js';
 import { type StationState, type CapsuleInfo } from '../core/types.js';
-import { type OrbitConfig } from '../core/Constants.js';
 import { ContextResolver } from '../core/ContextResolver.js';
 import { ConsoleObserver } from '../core/Logger.js';
 
@@ -191,7 +190,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       processedArgv[0].includes(':') &&
       !processedArgv[0].startsWith('-')
     ) {
-      const [repo, actualCmd] = processedArgv[0].split(':');
+      const [_repo, actualCmd] = processedArgv[0].split(':');
       // Note: We already resolved context above, but if repo:cmd is used,
       // we would ideally re-resolve. For now, we trust the pre-parser
       // or ENV handled it.
@@ -741,7 +740,7 @@ QUICK START:
               'install',
               'Install Orbit shell aliases.',
               (y2) => applyGlobalOptions(y2),
-              async (args: any) => {
+              async (_args: any) => {
                 await sdk.installShell();
               },
             )

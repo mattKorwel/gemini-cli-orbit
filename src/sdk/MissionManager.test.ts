@@ -89,6 +89,9 @@ describe('MissionManager', () => {
       createNodeCommand: vi
         .fn()
         .mockImplementation((s, a) => ({ bin: 'node', args: [s, ...a] })),
+      getMissionExecOutput: vi
+        .fn()
+        .mockResolvedValue({ status: 0, stdout: '', stderr: '' }),
       execMission: vi.fn().mockResolvedValue(0),
       getStationReceipt: vi.fn().mockReturnValue({ name: 'mock-station' }),
     };
@@ -155,7 +158,7 @@ describe('MissionManager', () => {
     const result = await manager.start(manifest);
 
     // Verify a single 'start' call was made
-    expect(mockProvider.execMission).toHaveBeenCalledWith(
+    expect(mockProvider.getMissionExecOutput).toHaveBeenCalledWith(
       expect.objectContaining({
         args: expect.arrayContaining(['start']),
       }),
@@ -187,7 +190,7 @@ describe('MissionManager', () => {
     await manager.start(manifest);
 
     // Verify 'start' call
-    expect(mockProvider.execMission).toHaveBeenCalledWith(
+    expect(mockProvider.getMissionExecOutput).toHaveBeenCalledWith(
       expect.objectContaining({
         args: expect.arrayContaining(['start']),
       }),

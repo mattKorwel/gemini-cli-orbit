@@ -7,7 +7,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StationSupervisor } from './StationSupervisor.js';
 import fs from 'node:fs';
-import { ProcessManager } from '../core/ProcessManager.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 
 vi.mock('node:fs');

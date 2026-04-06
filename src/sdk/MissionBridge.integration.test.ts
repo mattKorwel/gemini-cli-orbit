@@ -13,8 +13,6 @@ import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
-import { type MissionManifest } from '../core/types.js';
-import { STATIONS_DIR, SCHEMATICS_DIR } from '../core/Constants.js';
 import { ContextResolver } from '../core/ContextResolver.js';
 import { main as stationMain } from '../station/station.js';
 import { main as missionMain } from '../station/capsule/mission.js';
@@ -271,7 +269,6 @@ describe('Mission Bridge Integration', () => {
     const projectId = 'corp-project-99';
     const zone = 'us-west1-a';
     const expectedHostname = `nic0.${stationName}.${zone}.c.${projectId}.internal.gcpnode.com`;
-    const simulatedManifest: any = null;
 
     // --- SETUP: VIRTUAL FILESYSTEM ---
     const norm = (p: string) => p.replace(/\\/g, '/');

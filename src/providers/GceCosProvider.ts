@@ -9,6 +9,7 @@ import {
   type ExecOptions,
   type OrbitStatus,
   type CapsuleConfig,
+  type CapsuleInfo,
 } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
@@ -114,6 +115,10 @@ export class GceCosProvider extends BaseProvider {
 
   override resolveWorkDir(workspaceName: string): string {
     return `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${workspaceName}`;
+  }
+
+  override resolveWorkspacesRoot(): string {
+    return `${ORBIT_ROOT}/workspaces`;
   }
 
   override resolveWorkerPath(): string {
@@ -258,7 +263,7 @@ export class GceCosProvider extends BaseProvider {
     return res.status;
   }
 
-  override resolveExecutionCapsule(mCtx: MissionContext): string {
+  override resolveIsolationId(mCtx: MissionContext): string {
     return mCtx.containerName;
   }
 
@@ -280,12 +285,12 @@ export class GceCosProvider extends BaseProvider {
     if (mergedOptions.cwd) cmdObj.cwd = mergedOptions.cwd;
     if (mergedOptions.user) cmdObj.user = mergedOptions.user;
 
-    if (mergedOptions.wrapCapsule) {
+    if (mergedOptions.isolationId) {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
       cmdObj.env!.PATH = capsulePath;
       return this.ssh.runDockerExec(
-        mergedOptions.wrapCapsule,
+        mergedOptions.isolationId,
         cmdObj,
         mergedOptions,
       );
@@ -554,7 +559,7 @@ export class GceCosProvider extends BaseProvider {
   }
   async missionShell(capsuleName: string): Promise<number> {
     return this.exec('/bin/bash', {
-      wrapCapsule: capsuleName,
+      isolationId: capsuleName,
       interactive: true,
       user: 'node',
     });
@@ -574,5 +579,37 @@ export class GceCosProvider extends BaseProvider {
       userSuffix: this.infra.userSuffix,
       lastSeen: new Date().toISOString(),
     };
+  }
+
+  protected override async resolveLegacyCapsuleState(
+    name: string,
+  ): Promise<CapsuleInfo['state']> {
+    const tmuxCmd = {
+      bin: 'tmux',
+      args: ['list-sessions', '-F', '#S'],
+    };
+
+    const tmuxRes = await this.getExecOutput(tmuxCmd, {
+      isolationId: name,
+      quiet: true,
+    });
+
+    if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+      const paneOutput = await this.capturePane(name);
+      const lines = paneOutput.trim().split('\n');
+      const lastLine = lines[lines.length - 1] || '';
+      const lastTwoLines = lines.slice(-2).join(' ');
+
+      const isWaiting =
+        lastLine.includes(' > ') ||
+        lastLine.trim().endsWith('>') ||
+        lastTwoLines.includes('(y/n)') ||
+        lastLine.trim().endsWith('?') ||
+        (lastLine.includes('node@') && lastLine.includes('$'));
+
+      return isWaiting ? 'WAITING' : 'THINKING';
+    }
+
+    return 'IDLE';
   }
 }

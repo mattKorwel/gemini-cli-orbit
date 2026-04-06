@@ -32,6 +32,7 @@ export interface MissionResult {
  */
 export interface CapsuleInfo {
   name: string;
+  repo?: string;
   state:
     | 'IDLE'
     | 'WAITING'
@@ -88,6 +89,7 @@ export interface MissionManifest {
   upstreamUrl: string; // The git remote origin URL
   mirrorPath?: string; // Optional path to local git mirror
   verbose?: boolean | undefined; // Whether to enable detailed logging
+  tempDir?: string | undefined; // Root directory for temporary logs and artifacts
 }
 
 /**
@@ -249,16 +251,15 @@ export interface SetupOptions {
   userSuffix?: string;
   backendType?: string;
 }
-
 export interface ExecOptions {
   interactive?: boolean;
-  cwd?: string;
-  wrapCapsule?: string;
+  cwd?: string; // Absolute source of truth for the filesystem location
+  isolationId?: string; // Strictly for the isolation handle (Tmux session or Docker container name)
+  user?: string; // Unix user for remote execution
   quiet?: boolean;
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
-  user?: string;
-  manifest?: MissionManifest | undefined;
+  manifest?: MissionManifest;
 }
 
 export interface RemoteCommand {

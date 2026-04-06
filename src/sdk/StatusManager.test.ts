@@ -6,7 +6,6 @@
 
 import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { StatusManager } from './StatusManager.js';
-import { flattenCommand } from '../core/executors/types.js';
 import {
   type IProviderFactory,
   type IStationRegistry,
@@ -38,30 +37,14 @@ describe('StatusManager', () => {
       getStatus: vi
         .fn()
         .mockResolvedValue({ status: 'RUNNING', internalIp: '1.2.3.4' }),
-      listCapsules: vi.fn().mockResolvedValue(['orbit-123-chat']),
-      getCapsuleStats: vi.fn().mockResolvedValue('10% / 100MB'),
-      getExecOutput: vi.fn().mockImplementation((cmd) => {
-        const fullCmd = flattenCommand(cmd);
-        if (fullCmd.includes('status')) {
-          return {
-            status: 0,
-            stdout: JSON.stringify({
-              missions: [
-                {
-                  mission: 'orbit-123-chat',
-                  status: 'WAITING_FOR_INPUT',
-                  last_question: 'How can I help?',
-                },
-              ],
-            }),
-          };
-        }
-        return { status: 1 };
-      }),
-      resolveWorkerPath: vi.fn().mockReturnValue('bundle/station.js'),
-      createNodeCommand: vi
-        .fn()
-        .mockImplementation((p, a) => ({ bin: 'node', args: [p, ...a] })),
+      getMissionTelemetry: vi.fn().mockResolvedValue([
+        {
+          name: 'orbit-123-chat',
+          state: 'WAITING_FOR_INPUT',
+          lastQuestion: 'How can I help?',
+          stats: '10% / 100MB',
+        },
+      ]),
       type: 'local-worktree',
     };
 

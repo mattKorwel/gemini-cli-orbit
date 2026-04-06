@@ -94,6 +94,7 @@ export class MissionManager {
       upstreamUrl,
       mirrorPath: provider.resolveMirrorPath(),
       verbose: this.infra.verbose,
+      tempDir: this.infra.workspacesDir || this.infra.worktreesDir,
     };
   }
 
@@ -163,18 +164,20 @@ export class MissionManager {
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
     const startCmd = provider.createNodeCommand(workerPath, ['start']);
 
-    const startExitCode = await provider.execMission(startCmd, mCtx, {
+    const startRes = await provider.getMissionExecOutput(startCmd, mCtx, {
       interactive: true,
       manifest,
     });
 
-    if (startExitCode !== 0) {
+    if (startRes.status !== 0) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'MISSION',
-        '❌ Mission initialization failed.',
+        `❌ Mission initialization failed (Status ${startRes.status}).\n` +
+          `STDOUT: ${startRes.stdout}\n` +
+          `STDERR: ${startRes.stderr}`,
       );
-      return { missionId, exitCode: startExitCode };
+      return { missionId, exitCode: startRes.status };
     }
 
     // 7. Automatic Attachment (for interactive missions)

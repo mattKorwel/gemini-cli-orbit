@@ -7,7 +7,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ContextResolver } from './ContextResolver.js';
 import * as ConfigManager from './ConfigManager.js';
-import fs from 'node:fs';
 
 vi.mock('./ConfigManager.js');
 vi.mock('node:fs');

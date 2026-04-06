@@ -263,4 +263,74 @@ describe('GceCosProvider', () => {
     expect(dockerCmd).toContain("-e PUBLIC_VAR='\\''public'\\''");
     expect(dockerCmd).not.toContain("-e PRIVATE_VAR='\\''secret'\\''");
   });
+  it('should fetch mission telemetry via SSH/Docker', async () => {
+    mockExecutors.node = {
+      createRemote: vi
+        .fn()
+        .mockReturnValue({ bin: 'node', args: ['station.js', 'status'] }),
+    };
+
+    // Use mockImplementation to match by command content instead of strict call order
+    mockSsh.runHostCommand.mockImplementation(async (cmdObj: any) => {
+      const cmd = cmdObj.args.join(' ');
+
+      if (cmd.includes('docker ps')) {
+        return { status: 0, stdout: 'orbit-pr123\n', stderr: '' };
+      }
+      if (cmd.includes('station.js status')) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            missions: [
+              { repo: 'repo', mission: 'orbit-pr123', status: 'THINKING' },
+            ],
+          }),
+          stderr: '',
+        };
+      }
+      if (cmd.includes('docker stats')) {
+        return { status: 0, stdout: '10% / 100MB', stderr: '' };
+      }
+      return { status: 1, stdout: '', stderr: 'Unknown command' };
+    });
+
+    const telemetry = await provider.getMissionTelemetry();
+    expect(telemetry).toHaveLength(1);
+    expect(telemetry[0]!.name).toBe('orbit-pr123');
+    expect(telemetry[0]!.state).toBe('THINKING');
+    expect(telemetry[0]!.stats).toBe('10% / 100MB');
+  });
+  it('should correctly resolve naming for GCE (Legacy compatibility)', () => {
+    expect(provider.resolveWorkspaceName('repo', '123')).toBe('orbit-repo-123');
+    expect(provider.resolveSessionName('repo', '123', 'chat')).toBe(
+      'orbit/repo/123',
+    );
+    expect(provider.resolveSessionName('repo', '123', 'review')).toBe(
+      'orbit/repo/123/review',
+    );
+    expect(provider.resolveContainerName('repo', '123', 'chat')).toBe(
+      'orbit-repo-123',
+    );
+    expect(provider.resolveContainerName('repo', '123', 'fix')).toBe(
+      'orbit-repo-123-fix',
+    );
+  });
+
+  it('should correctly resolve paths for GCE', () => {
+    expect(provider.resolveWorkDir('ws1')).toBe(
+      '/mnt/disks/data/workspaces/repo/ws1',
+    );
+    expect(provider.resolveWorkspacesRoot()).toBe('/mnt/disks/data/workspaces');
+    expect(provider.resolveWorkerPath()).toContain('station.js');
+    expect(provider.resolveProjectConfigDir()).toBe(
+      '/mnt/disks/data/project-configs',
+    );
+    expect(provider.resolvePolicyPath('/any')).toBe(
+      '/mnt/disks/data/project-configs/policies/workspace-policy.toml',
+    );
+    expect(provider.resolveMirrorPath()).toBe('/mnt/disks/data/main');
+
+    const mCtx = { containerName: 'c1' } as any;
+    expect(provider.resolveIsolationId(mCtx)).toBe('c1');
+  });
 });

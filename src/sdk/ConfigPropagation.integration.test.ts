@@ -12,8 +12,6 @@ import { StationRegistry } from './StationRegistry.js';
 import { ContextResolver } from '../core/ContextResolver.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 
 vi.mock('node:fs');
 vi.mock('node:os', () => ({
@@ -27,7 +25,6 @@ vi.mock('node:os', () => ({
 
 describe('Config Propagation Integration', () => {
   const repoRoot = '/repo/main';
-  const projectCtx = { repoName: 'test-repo', repoRoot };
   const schematicName = 'corp-blueprint';
   const stationName = 'remote-station-v1';
 
@@ -148,7 +145,7 @@ describe('Config Propagation Integration', () => {
 
     try {
       await startPromise;
-    } catch (e) {}
+    } catch (_e) {}
 
     const sshCalls = mockPm.runSync.mock.calls.filter(
       (c: any) => c[0] === 'ssh',
