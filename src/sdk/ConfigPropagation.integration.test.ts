@@ -166,4 +166,65 @@ describe('Config Propagation Integration', () => {
     expect(matchedCall).toBeDefined();
     vi.useRealTimers();
   });
+
+  it('should upgrade a stale local-worktree receipt to GCE when explicitly using a remote schematic', async () => {
+    const staleStation = 'stale-local-1';
+    const remoteSchematic = 'remote-gold';
+
+    // 1. Setup mocks for this specific case
+    const norm = (p: string) => p.replace(/\\/g, '/');
+    (fs.existsSync as any).mockImplementation((p: string) => {
+      const n = norm(p);
+      if (n.includes(`${staleStation}.json`)) return true;
+      if (n.includes(`${remoteSchematic}.json`)) return true;
+      if (n.includes('settings.json')) return true;
+      return false;
+    });
+
+    const staleReceipt = {
+      name: staleStation,
+      type: 'local-worktree',
+      projectId: 'local',
+      instanceName: staleStation,
+    };
+
+    const goldSchematic = {
+      projectId: 'real-corp-99',
+      zone: 'us-west1-a',
+      providerType: 'gce',
+    };
+
+    (fs.readFileSync as any).mockImplementation((p: string) => {
+      const n = norm(p);
+      if (n.includes(`${staleStation}.json`))
+        return JSON.stringify(staleReceipt);
+      if (n.includes(`${remoteSchematic}.json`))
+        return JSON.stringify(goldSchematic);
+      return '{}';
+    });
+
+    // 2. Resolve context
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: {
+        forStation: staleStation,
+        schematic: remoteSchematic,
+      },
+      env: {},
+    });
+
+    // 3. Verify core context upgrade
+    expect(context.infra.providerType).toBe('gce');
+    expect(context.infra.projectId).toBe('real-corp-99');
+
+    // 4. Verify Provider Selection
+    const providerFactory = new ProviderFactory(mockPm, executors);
+    const provider = providerFactory.getProvider(
+      context.project,
+      context.infra,
+    );
+
+    expect(provider.type).toBe('gce');
+    expect((provider as any).projectId).toBe('real-corp-99');
+  });
 });

@@ -99,12 +99,17 @@ export class ContextResolver {
     const sName = flags.schematic || infra.schematic;
     if (sName) {
       const schematic = loadSchematic(sName);
-      // NOTE: We merge the schematic data INTO our current spec.
-      // We want the schematic to FILL GAPS but we have to decide
-      // if it overrides or is overridden.
-      // Rule: Schematic is a template. Specific receipt values win.
-      // So we merge CURRENT infra ON TOP of schematic.
-      infra = this.mergeDefined(schematic, infra);
+      // ADR 0016: Schematic is a blueprint.
+      // If we are explicitly using a schematic, its core provider settings
+      // should override stale receipt data (e.g. if we move from local to remote).
+      infra = { ...this.mergeDefined(schematic, infra) };
+
+      // Ensure schematic specific overrides for type-switching
+      if (schematic.projectId && schematic.projectId !== 'local') {
+        infra.projectId = schematic.projectId;
+        infra.providerType = schematic.providerType || 'gce';
+      }
+
       infra.schematic = sName;
     }
 
@@ -164,13 +169,13 @@ export class ContextResolver {
     // Fallback ID
     if (!infra.projectId) infra.projectId = 'local';
 
-    // Provider Type Resolution
-    if (!infra.providerType) {
-      if (infra.projectId === 'local') {
-        infra.providerType = 'local-worktree';
-      } else {
-        infra.providerType = 'gce';
-      }
+    // Provider Type Resolution (Re-evaluate after all merges)
+    if (infra.projectId === 'local') {
+      infra.providerType = infra.providerType || 'local-worktree';
+    } else if (infra.providerType === 'local-worktree' || !infra.providerType) {
+      // If we have a real project ID but provider is still local-worktree (stale receipt),
+      // we must upgrade to GCE.
+      infra.providerType = 'gce';
     }
 
     // Standardized Station Naming (Hub-side)
@@ -195,7 +200,11 @@ export class ContextResolver {
 
     if (!infra.workspacesDir) {
       const primaryRoot = getPrimaryRepoRoot(project.repoRoot);
-      infra.workspacesDir = path.resolve(primaryRoot, '..', 'workspaces');
+      infra.workspacesDir = path.resolve(
+        primaryRoot,
+        '..',
+        'orbit-git-worktrees',
+      );
     }
 
     if (!infra.remoteWorkDir) infra.remoteWorkDir = '/mnt/disks/data/main';

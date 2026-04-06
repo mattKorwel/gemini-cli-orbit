@@ -59,12 +59,22 @@ export interface SSHManager {
   syncPath(
     localPath: string,
     remotePath: string,
-    options?: { delete?: boolean; exclude?: string[]; sudo?: boolean },
+    options?: {
+      delete?: boolean;
+      exclude?: string[];
+      sudo?: boolean;
+      quiet?: boolean;
+    },
   ): Promise<number>;
   syncPathIfChanged(
     localPath: string,
     remotePath: string,
-    options?: { delete?: boolean; exclude?: string[]; sudo?: boolean },
+    options?: {
+      delete?: boolean;
+      exclude?: string[];
+      sudo?: boolean;
+      quiet?: boolean;
+    },
   ): Promise<number>;
   attachToTmux(container: string, sessionName?: string): Promise<number>;
 }
@@ -145,7 +155,12 @@ export class GceSSHManager implements SSHManager {
   public async syncPath(
     localPath: string,
     remotePath: string,
-    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+    options: {
+      delete?: boolean;
+      exclude?: string[];
+      sudo?: boolean;
+      quiet?: boolean;
+    } = {},
   ): Promise<number> {
     const remote = `${this.getMagicRemote()}:${remotePath}`;
     const res = this.ssh.rsync(localPath, remote, options);
@@ -158,7 +173,12 @@ export class GceSSHManager implements SSHManager {
   public async syncPathIfChanged(
     localPath: string,
     remotePath: string,
-    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+    options: {
+      delete?: boolean;
+      exclude?: string[];
+      sudo?: boolean;
+      quiet?: boolean;
+    } = {},
   ): Promise<number> {
     const localHash = this.generateDirectoryHash(localPath);
     const hashFile = `.orbit.${path.basename(localPath)}.hash`;

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import path from 'node:path';
 import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
@@ -88,33 +89,10 @@ export class GceCosProvider extends BaseProvider {
   }
 
   /**
-   * Override: GCE uses a flat orbit-repo-id naming scheme (Legacy compatibility)
+   * Path resolution (Backend specific root)
    */
-  override resolveWorkspaceName(repoSlug: string, idSlug: string): string {
-    return `orbit-${repoSlug}-${idSlug}`;
-  }
-
-  override resolveSessionName(
-    repoSlug: string,
-    idSlug: string,
-    action: string,
-  ): string {
-    const parts = ['orbit', repoSlug, idSlug];
-    if (action !== 'chat') parts.push(action);
-    return parts.join('/');
-  }
-
-  override resolveContainerName(
-    repoSlug: string,
-    idSlug: string,
-    action: string,
-  ): string {
-    const base = this.resolveWorkspaceName(repoSlug, idSlug);
-    return action === 'chat' ? base : `${base}-${action}`;
-  }
-
   override resolveWorkDir(workspaceName: string): string {
-    return `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${workspaceName}`;
+    return path.join(this.resolveWorkspacesRoot(), workspaceName);
   }
 
   override resolveWorkspacesRoot(): string {
@@ -172,7 +150,7 @@ export class GceCosProvider extends BaseProvider {
       // Note: Trailing slash on localPath ensures only the contents are synced
 
       // Ensure parent directory exists before rsync
-      await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`);
+      await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`, { quiet: true });
 
       const syncStatus = await this.syncIfChanged(
         `${LOCAL_BUNDLE_PATH}/`,
@@ -180,6 +158,7 @@ export class GceCosProvider extends BaseProvider {
         {
           delete: true,
           sudo: true,
+          quiet: true,
         },
       );
 
@@ -224,7 +203,7 @@ export class GceCosProvider extends BaseProvider {
               -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
               ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
           `;
-        await this.exec(refreshCmd);
+        await this.exec(refreshCmd, { quiet: true });
       }
 
       logger.info(`📡 Acquiring station signal (${this.stationName})...`);
@@ -275,32 +254,35 @@ export class GceCosProvider extends BaseProvider {
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
+    const cmdObj =
+      typeof command === 'string' ? { bin: command, args: [] } : command;
+
     const mergedOptions = {
       ...options,
-      ...(typeof command === 'string' ? {} : command.options),
+      ...(cmdObj.options || {}),
     };
 
-    const cmdObj: RemoteCommand = {
+    const remoteCmd: RemoteCommand = {
       bin: '/bin/bash',
       args: ['-c', this.shellQuote(flattenCommand(command))],
       env: { ...(mergedOptions.env || {}) },
     };
 
-    if (mergedOptions.cwd) cmdObj.cwd = mergedOptions.cwd;
-    if (mergedOptions.user) cmdObj.user = mergedOptions.user;
+    if (mergedOptions.cwd) remoteCmd.cwd = mergedOptions.cwd;
+    if (mergedOptions.user) remoteCmd.user = mergedOptions.user;
 
     if (mergedOptions.isolationId) {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
-      cmdObj.env!.PATH = capsulePath;
+      remoteCmd.env!.PATH = capsulePath;
       return this.ssh.runDockerExec(
         mergedOptions.isolationId,
-        cmdObj,
+        remoteCmd,
         mergedOptions,
       );
     }
 
-    return this.ssh.runHostCommand(cmdObj, mergedOptions);
+    return this.ssh.runHostCommand(remoteCmd, mergedOptions);
   }
 
   async sync(
@@ -435,35 +417,19 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
-    const mounts = config.mounts
-      .map(
-        (m: { host: string; capsule: string; readonly?: boolean }) =>
-          `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`,
-      )
-      .join(' ');
-
-    const envFlags = [
-      ...(config.env
-        ? Object.entries(config.env).map(
-            ([k, v]) => `-e ${k}=${this.shellQuote(v as string)}`,
-          )
-        : []),
-    ].join(' ');
-
-    const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
-
-    const cmd = config.command || 'while true; do sleep 1000; done';
-    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.shellQuote(cmd)}`;
-
-    return this.exec(dockerCmd);
+    const cmd = this.executors.docker.run(config.image, config.command, {
+      ...config,
+      label: 'orbit-mission=true',
+    });
+    return this.exec(cmd);
   }
 
   async stopCapsule(name: string): Promise<number> {
-    return this.exec(`sudo docker stop ${name}`);
+    return this.exec(this.executors.docker.stop(name));
   }
 
   async removeCapsule(name: string): Promise<number> {
-    return this.exec(`sudo docker rm -f ${name}`);
+    return this.exec(this.executors.docker.remove(name));
   }
 
   async capturePane(capsuleName: string): Promise<string> {
@@ -521,7 +487,7 @@ export class GceCosProvider extends BaseProvider {
   async listCapsules(): Promise<string[]> {
     try {
       const res = await this.getExecOutput(
-        "sudo docker ps --format '{{.Names}}' | grep '^orbit-'",
+        "sudo docker ps --format '{{.Names}}' --filter 'label=orbit-mission=true'",
         { quiet: true },
       );
       if (res.status !== 0) {
@@ -552,7 +518,7 @@ export class GceCosProvider extends BaseProvider {
     ];
 
     for (const cmd of cmds) {
-      const res = await this.exec(cmd);
+      const res = await this.exec(cmd, { quiet: true });
       if (res !== 0) return res;
     }
     return 0;

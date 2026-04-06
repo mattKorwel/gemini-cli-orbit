@@ -52,7 +52,7 @@ export class ProviderFactory implements IProviderFactory {
           path.resolve(
             getPrimaryRepoRoot(projectCtx.repoRoot),
             '..',
-            'workspaces',
+            'orbit-git-worktrees',
           ),
       );
     }

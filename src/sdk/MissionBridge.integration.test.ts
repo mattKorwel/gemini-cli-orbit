@@ -476,7 +476,7 @@ describe('Mission Bridge Integration', () => {
       (c) => c.host === 'remote' && c.bin === 'tmux',
     );
     expect(tmuxRun).toBeDefined();
-    expect(tmuxRun?.args.join(' ')).toContain('orbit/real-repo/bridge-test-1');
+    expect(tmuxRun?.args.join(' ')).toContain('real-repo/bridge-test-1');
 
     // 3. Final command reached Gemini inside the "Capsule"
     const geminiFinal = recordedCommands.find(

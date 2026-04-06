@@ -32,6 +32,7 @@ export class LocalWorktreeProvider extends BaseProvider {
   public zone = 'localhost';
   public stationName: string;
   public workspacesDir: string;
+  protected fs = fs;
 
   constructor(
     private readonly projectCtx: ProjectContext,
@@ -43,10 +44,6 @@ export class LocalWorktreeProvider extends BaseProvider {
     super(pm, executors);
     this.stationName = stationName;
     this.workspacesDir = workspacesDir;
-
-    if (!fs.existsSync(this.workspacesDir)) {
-      fs.mkdirSync(this.workspacesDir, { recursive: true });
-    }
   }
 
   private hasTmux(): boolean {
@@ -163,14 +160,14 @@ export class LocalWorktreeProvider extends BaseProvider {
     const sourceDir = this.projectCtx.repoRoot;
     const wtPath = path.join(this.workspacesDir, workspaceName);
 
-    if (fs.existsSync(wtPath)) return;
+    if (this.fs.existsSync(wtPath)) return;
 
     console.log(
       `   🌿 Orbit: Provisioning local workspace for '${branchName}'...`,
     );
 
     // Ensure the parent directory exists (e.g. orbit-workspaces/repo/)
-    fs.mkdirSync(path.dirname(wtPath), { recursive: true });
+    this.fs.mkdirSync(path.dirname(wtPath), { recursive: true });
 
     this.pm.runSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
       quiet: true,

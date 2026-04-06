@@ -26,6 +26,7 @@ export class InfrastructureFactory implements IInfrastructureFactory {
     switch (providerType) {
       case 'gce':
         return new GcpCosTarget(schematicName, config);
+      case 'local-worktree':
       case 'local-workspace':
         return new LocalNoopTarget(schematicName);
       default:

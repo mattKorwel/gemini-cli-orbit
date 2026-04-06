@@ -115,4 +115,35 @@ describe('ContextResolver', () => {
     expect(context.infra.projectId).toBe('flag-project');
     expect(context.infra.zone).toBe('us-east1-b');
   });
+
+  it('should override a stale local-worktree receipt when an explicit remote schematic is provided', async () => {
+    // 1. Receipt is stale and marked as local-worktree
+    vi.spyOn(ConfigManager, 'loadJson').mockReturnValue({
+      name: 'monday-test-1',
+      type: 'local-worktree',
+      projectId: 'local',
+      instanceName: 'monday-test-1',
+    });
+
+    // 2. Schematic is remote
+    vi.spyOn(ConfigManager, 'loadSchematic').mockReturnValue({
+      projectId: 'real-remote-project',
+      zone: 'us-central1-a',
+      providerType: 'gce',
+    });
+
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: {
+        forStation: 'monday-test-1',
+        schematic: 'remote-blueprint',
+      },
+      env: {},
+    });
+
+    // CRITICAL: Should be upgraded to GCE because the schematic is remote
+    expect(context.infra.projectId).toBe('real-remote-project');
+    expect(context.infra.providerType).toBe('gce');
+    expect(context.infra.zone).toBe('us-central1-a');
+  });
 });

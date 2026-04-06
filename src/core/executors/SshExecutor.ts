@@ -22,7 +22,12 @@ export interface ISshExecutor {
   rsync(
     local: string,
     remote: string,
-    options?: { delete?: boolean; sudo?: boolean; exclude?: string[] },
+    options?: {
+      delete?: boolean;
+      sudo?: boolean;
+      exclude?: string[];
+      quiet?: boolean;
+    },
   ): IProcessResult;
 }
 
@@ -65,7 +70,12 @@ export class SshExecutor implements ISshExecutor {
   public rsync(
     local: string,
     remote: string,
-    options: { delete?: boolean; sudo?: boolean; exclude?: string[] } = {},
+    options: {
+      delete?: boolean;
+      sudo?: boolean;
+      exclude?: string[];
+      quiet?: boolean;
+    } = {},
   ): IProcessResult {
     const sshCmd = `ssh ${this.getCommonArgs().join(' ')}`;
     const args = ['-avz'];
@@ -81,7 +91,10 @@ export class SshExecutor implements ISshExecutor {
     args.push('-e', sshCmd);
     args.push(local, remote);
 
-    return this.pm.runSync('rsync', args, { stdio: 'inherit' });
+    return this.pm.runSync('rsync', args, {
+      stdio: options.quiet ? 'pipe' : 'inherit',
+      quiet: options.quiet,
+    });
   }
 
   private getCommonArgs(): string[] {
