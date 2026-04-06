@@ -13,7 +13,7 @@ import {
   type OrbitObserver,
   type IOrbitSDK,
 } from '../sdk/OrbitSDK.js';
-import { getRepoConfig, detectRepoName } from '../core/ConfigManager.js';
+import { ContextResolver } from '../core/ContextResolver.js';
 import { LogLevel } from '../core/Logger.js';
 
 /**
@@ -53,21 +53,24 @@ class McpObserver implements OrbitObserver {
 
 const observer = new McpObserver();
 
-function getSDK(
+async function getSDK(
   repoOverride?: string,
   instanceOverride?: string,
   schematicOverride?: string,
-): IOrbitSDK {
+): Promise<IOrbitSDK> {
   const repoRoot = process.cwd();
-  const repoName = repoOverride || detectRepoName(repoRoot, { silent: true });
   const cliFlags: any = {};
+  if (repoOverride) cliFlags.repoName = repoOverride;
   if (instanceOverride) cliFlags.forStation = instanceOverride;
   if (schematicOverride) cliFlags.schematic = schematicOverride;
 
-  const config = getRepoConfig(repoName, cliFlags, repoRoot, {
-    ignoreGlobalState: true,
+  const context = await ContextResolver.resolve({
+    repoRoot,
+    flags: cliFlags,
+    env: process.env,
   });
-  return new OrbitSDK(config, observer, repoRoot);
+
+  return new OrbitSDK(context, observer);
 }
 
 const server = new McpServer({
@@ -94,12 +97,13 @@ server.registerTool(
     }).shape,
   },
   async ({ identifier, station, action, prompt }) => {
-    const sdk = getSDK(undefined, station);
-    const result = await sdk.startMission({
+    const sdk = await getSDK(undefined, station);
+    const manifest = await sdk.resolveMission({
       identifier,
       action,
       args: prompt ? [prompt] : [],
     });
+    const result = await sdk.startMission(manifest);
     const output = observer.getOutput();
     return {
       content: [
@@ -126,7 +130,7 @@ server.registerTool(
     }).shape,
   },
   async ({ identifier, station, action }) => {
-    const sdk = getSDK(undefined, station);
+    const sdk = await getSDK(undefined, station);
     const code = await sdk.getLogs({ identifier, action });
     const output = observer.getOutput();
     return {
@@ -147,7 +151,7 @@ server.registerTool(
     }).shape,
   },
   async ({ branch, runId }) => {
-    const sdk = getSDK();
+    const sdk = await getSDK();
     const status = await sdk.monitorCI({ branch, runId });
     let text = `Status: ${status.status}\nRuns: ${status.runs.join(', ')}\n`;
     if (status.failures) {
@@ -174,7 +178,7 @@ server.registerTool(
     }).shape,
   },
   async ({ identifier, station, action }) => {
-    const sdk = getSDK(undefined, station);
+    const sdk = await getSDK(undefined, station);
     const result = await sdk.jettisonMission({ identifier, action });
     const output = observer.getOutput();
     return {
@@ -227,7 +231,7 @@ server.registerTool(
     }).shape,
   },
   async ({ sync, pulse, all, repo, name }) => {
-    const sdk = getSDK();
+    const sdk = await getSDK();
     const states = await sdk.getFleetState({
       syncWithReality: sync,
       includeMissions: pulse,
@@ -282,7 +286,7 @@ server.registerTool(
     }).shape,
   },
   async ({ action, name }) => {
-    const sdk = getSDK();
+    const sdk = await getSDK();
     let text = '';
     if (action === 'activate') {
       await sdk.activateStation(name);
@@ -310,7 +314,7 @@ server.registerTool(
     }).shape,
   },
   async ({ threshold, force }) => {
-    const sdk = getSDK();
+    const sdk = await getSDK();
     const count = await sdk.reapMissions({ threshold, force });
     const output = observer.getOutput();
     return {
@@ -338,7 +342,7 @@ server.registerTool(
     }).shape,
   },
   async ({ name, schematic }) => {
-    const sdk = getSDK(undefined, name, schematic);
+    const sdk = await getSDK(undefined, name, schematic);
     const code = await sdk.provisionStation({
       schematicName: schematic,
     });
@@ -365,7 +369,7 @@ server.registerTool(
     }).shape,
   },
   async ({ name }) => {
-    const sdk = getSDK(undefined, name);
+    const sdk = await getSDK(undefined, name);
     // sdk.splashdown calls deleteStation/down internally.
     // For MCP, we force it to skip confirmation by passing force or equivalent.
     const code = await sdk.splashdown({ name });
@@ -392,7 +396,7 @@ server.registerTool(
     }).shape,
   },
   async ({ action, name, config }) => {
-    const sdk = getSDK();
+    const sdk = await getSDK();
     let text = '';
     if (action === 'list') {
       const list = sdk.listSchematics();
@@ -419,7 +423,7 @@ server.registerTool(
     inputSchema: z.object({}).shape,
   },
   async () => {
-    const sdk = getSDK();
+    const sdk = await getSDK();
     await sdk.installShell();
     const output = observer.getOutput();
     return {

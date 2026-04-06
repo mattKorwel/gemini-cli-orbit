@@ -116,12 +116,17 @@ describe('MissionManager', () => {
       saveReceipt: vi.fn(),
     };
 
+    const mockPm: any = {
+      runSync: vi.fn().mockReturnValue({ status: 0, stdout: '', stderr: '' }),
+    };
+
     manager = new MissionManager(
       { repoName: 'test-repo', repoRoot: '/tmp' } as any,
       { projectId: 'p1', zone: 'z1' } as any,
       { onLog: vi.fn(), onProgress: vi.fn() } as any,
       providerFactory,
       configManager,
+      mockPm,
       mockExecutors,
       mockStationRegistry,
     );
@@ -140,7 +145,11 @@ describe('MissionManager', () => {
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
-    const result = await manager.start({ identifier: '123', action: 'review' });
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'review',
+    });
+    const result = await manager.start(manifest);
 
     // Verify a single 'start' call was made
     expect(mockProvider.execMission).toHaveBeenCalledWith(
@@ -168,7 +177,11 @@ describe('MissionManager', () => {
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
-    await manager.start({ identifier: '123', action: 'chat' });
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'chat',
+    });
+    await manager.start(manifest);
 
     // Verify 'start' call
     expect(mockProvider.execMission).toHaveBeenCalledWith(

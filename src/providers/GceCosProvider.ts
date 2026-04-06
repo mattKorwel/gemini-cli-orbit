@@ -21,6 +21,8 @@ import {
   STATION_BUNDLE_PATH,
   ORBIT_ROOT,
   MAIN_REPO_PATH,
+  BUNDLE_PATH,
+  LOCAL_BUNDLE_PATH,
 } from '../core/Constants.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
 import {
@@ -160,6 +162,23 @@ export class GceCosProvider extends BaseProvider {
       logger.info(
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
+
+      // ADR 0018: Ensure the station code is up to date on the host before launching capsules
+      // Note: Trailing slash on localPath ensures only the contents are synced
+      const syncStatus = await this.syncIfChanged(
+        `${LOCAL_BUNDLE_PATH}/`,
+        BUNDLE_PATH,
+        {
+          delete: true,
+          sudo: true,
+        },
+      );
+
+      if (syncStatus !== 0) {
+        throw new Error(
+          `Failed to synchronize extension bundle to remote host (exit code ${syncStatus}).`,
+        );
+      }
 
       let check: { exists: boolean; running: boolean } | null = null;
       let lastErr: any = null;

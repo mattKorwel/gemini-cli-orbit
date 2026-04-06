@@ -136,4 +136,93 @@ describe('GceSSHManager', () => {
       );
     });
   });
+
+  describe('getMagicRemote', () => {
+    it('should use default internal suffix when no dnsSuffix provided', () => {
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+        } as any,
+        mockPm,
+      );
+
+      const remote = manager.getMagicRemote();
+      expect(remote).toContain(
+        `nic0.${instanceName}.${zone}.c.${projectId}.internal`,
+      );
+    });
+
+    it('should use custom dnsSuffix when provided', () => {
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+          dnsSuffix: 'internal.gcpnode.com',
+        } as any,
+        mockPm,
+      );
+
+      const remote = manager.getMagicRemote();
+      expect(remote).toContain(
+        `nic0.${instanceName}.${zone}.c.${projectId}.internal.gcpnode.com`,
+      );
+    });
+
+    it('should handle dnsSuffix with leading dot', () => {
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+          dnsSuffix: '.internal.gcpnode.com',
+        } as any,
+        mockPm,
+      );
+
+      const remote = manager.getMagicRemote();
+      expect(remote).toContain(
+        `nic0.${instanceName}.${zone}.c.${projectId}.internal.gcpnode.com`,
+      );
+    });
+
+    it('should include userSuffix if provided', () => {
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+          userSuffix: '_google_com',
+        } as any,
+        mockPm,
+      );
+
+      const remote = manager.getMagicRemote();
+      const currentUser = process.env.USER || 'node';
+      expect(remote).toMatch(new RegExp(`^${currentUser}_google_com@`));
+    });
+
+    it('should honor overrideHost if set', () => {
+      const manager = new GceSSHManager(
+        projectId,
+        zone,
+        instanceName,
+        {
+          backendType: 'direct-internal',
+        } as any,
+        mockPm,
+      );
+
+      manager.setOverrideHost('1.2.3.4');
+      const remote = manager.getMagicRemote();
+      const currentUser = process.env.USER || 'node';
+      expect(remote).toBe(`${currentUser}@1.2.3.4`);
+    });
+  });
 });

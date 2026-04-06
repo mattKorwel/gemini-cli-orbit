@@ -8,9 +8,6 @@ import path from 'node:path';
 import {
   type InfrastructureSpec,
   type ProjectContext,
-  ORBIT_ROOT,
-  LOCAL_BUNDLE_PATH,
-  BUNDLE_PATH,
   UPSTREAM_REPO_URL,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
@@ -18,10 +15,11 @@ import {
   type IConfigManager,
   type IProviderFactory,
   type IStationRegistry,
+  type IProcessManager,
 } from '../core/interfaces.js';
 import {
   type MissionResult,
-  type ExecOptions,
+  type MissionOptions,
   type MissionManifest,
   type OrbitObserver,
   type JettisonOptions,
@@ -46,18 +44,63 @@ export class MissionManager {
     private readonly observer: OrbitObserver,
     private readonly providerFactory: IProviderFactory,
     private readonly configManager: IConfigManager,
+    private readonly pm: IProcessManager,
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
   ) {}
 
   /**
-   * Starts a mission from an identifier (PR # or branch name).
+   * Stage 2 Hydration: Resolves user intent into a concrete MissionManifest.
    */
-  async start(options: {
-    identifier: string;
-    action: string;
-  }): Promise<MissionResult> {
+  async resolve(options: MissionOptions): Promise<MissionManifest> {
     const { identifier, action } = options;
+
+    const provider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+
+    // 1. Resolve Raw Metadata
+    const { branchName, repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    const workspaceName = provider.resolveWorkspaceName(repoSlug, idSlug);
+    const containerName = provider.resolveContainerName(
+      repoSlug,
+      idSlug,
+      action,
+    );
+    const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
+    const workDir = provider.resolveWorkDir(workspaceName);
+    const policyPath = provider.resolvePolicyPath(workDir);
+
+    const upstreamUrl = this.infra.upstreamRepo
+      ? `https://github.com/${this.infra.upstreamRepo}.git`
+      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
+        UPSTREAM_REPO_URL;
+
+    return {
+      identifier,
+      repoName: this.projectCtx.repoName,
+      branchName,
+      action,
+      workDir,
+      containerName,
+      sessionName,
+      policyPath,
+      upstreamUrl,
+      mirrorPath: provider.resolveMirrorPath(),
+    };
+  }
+
+  /**
+   * Starts a mission from a pre-hydrated manifest.
+   */
+  async start(manifest: MissionManifest): Promise<MissionResult> {
+    const { identifier, action } = manifest;
     const missionId = identifier;
 
     this.observer.onLog?.(
@@ -71,29 +114,28 @@ export class MissionManager {
       this.infra as any,
     );
 
-    // 1. Resolve Raw Metadata
-    const { branchName, repoSlug, idSlug } = resolveMissionContext(
+    // 1. Resolve naming authority components for the provider
+    const { repoSlug, idSlug } = resolveMissionContext(
       identifier,
       this.projectCtx.repoName,
+      this.pm,
     );
-
-    // 2. Delegate naming authority to the provider
     const mCtx: MissionContext = {
-      branchName,
+      branchName: manifest.branchName,
       repoSlug,
       idSlug,
       workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
-      containerName: provider.resolveContainerName(repoSlug, idSlug, action),
-      sessionName: provider.resolveSessionName(repoSlug, idSlug, action),
+      containerName: manifest.containerName,
+      sessionName: manifest.sessionName,
     };
 
-    // 1. Ensure Hardware/Station is Ready
+    // 2. Ensure Hardware/Station is Ready
     await provider.ensureReady();
 
-    // 2. Standardized Station Registration (Implicit Liftoff)
+    // 3. Standardized Station Registration (Implicit Liftoff)
     this.stationRegistry.saveReceipt(provider.getStationReceipt());
 
-    // 3. Project Configuration Sync
+    // 4. Project Configuration Sync
     this.observer.onProgress?.(
       'PHASE 0',
       '📂 Synchronizing project configurations...',
@@ -106,39 +148,16 @@ export class MissionManager {
       sudo: true,
     });
 
-    // 3. Mission Preparation (Hardware/Container Layer)
+    // 5. Mission Preparation (Hardware/Container Layer)
     await provider.prepareMissionWorkspace(mCtx, this.infra);
 
-    // 4. Worker Handshake (Phases: Init, Hooks, Launch)
+    // 6. Worker Handshake (Phases: Init, Hooks, Launch)
     this.observer.onProgress?.(
       'PHASE 1',
       '🧪 Initializing worker environment...',
     );
 
     const workerPath = provider.resolveWorkerPath();
-    const policyPath = provider.resolvePolicyPath(this.projectCtx.repoRoot);
-
-    const upstreamUrl = this.infra.upstreamRepo
-      ? `https://github.com/${this.infra.upstreamRepo}.git`
-      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
-        UPSTREAM_REPO_URL;
-
-    const mirrorPath = provider.resolveMirrorPath();
-
-    // ADR 0018: Provider hook for absolute target path
-    const targetDir = provider.resolveWorkDir(mCtx.workspaceName);
-
-    const manifest: MissionManifest = {
-      identifier,
-      repoName: this.projectCtx.repoName,
-      branchName: mCtx.branchName,
-      action,
-      workDir: targetDir,
-      policyPath,
-      sessionName: mCtx.sessionName,
-      upstreamUrl,
-      mirrorPath,
-    };
 
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
     const startCmd = provider.createNodeCommand(workerPath, ['start']);
@@ -157,7 +176,7 @@ export class MissionManager {
       return { missionId, exitCode: startExitCode };
     }
 
-    // 5. Automatic Attachment (for interactive missions)
+    // 7. Automatic Attachment (for interactive missions)
     if (action === 'chat') {
       // Give tmux a moment to spawn the session
       await new Promise((resolve) => setTimeout(resolve, 800));
@@ -165,7 +184,7 @@ export class MissionManager {
       return { missionId, exitCode };
     }
 
-    // 6. Finalization
+    // 8. Finalization
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
@@ -244,6 +263,7 @@ export class MissionManager {
     const { repoSlug, idSlug } = resolveMissionContext(
       options.identifier,
       this.projectCtx.repoName,
+      this.pm,
     );
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
@@ -282,6 +302,7 @@ export class MissionManager {
     const { branchName, repoSlug, idSlug } = resolveMissionContext(
       options.identifier,
       this.projectCtx.repoName,
+      this.pm,
     );
     const mCtx: MissionContext = {
       branchName,
@@ -313,6 +334,7 @@ export class MissionManager {
     const { repoSlug, idSlug } = resolveMissionContext(
       identifier,
       this.projectCtx.repoName,
+      this.pm,
     );
 
     for (const act of actionsToCleanup) {

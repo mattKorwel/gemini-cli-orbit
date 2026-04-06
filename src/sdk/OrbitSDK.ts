@@ -4,11 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type OrbitConfig, type ProjectContext } from '../core/Constants.js';
+import {
+  type OrbitConfig,
+  type ProjectContext,
+  type OrbitContext,
+} from '../core/Constants.js';
 import { logger, LogLevel } from '../core/Logger.js';
 import {
   type OrbitObserver,
   type MissionResult,
+  type MissionManifest,
   type StationState,
   type CIStatus,
   type MissionOptions,
@@ -31,7 +36,7 @@ import { FleetManager } from './FleetManager.js';
 import { StatusManager } from './StatusManager.js';
 import { CIManager } from './CIManager.js';
 import { IntegrationManager } from './IntegrationManager.js';
-import { resolveContextBundles, ConfigManager } from '../core/ConfigManager.js';
+import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { SchematicManager } from './SchematicManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
@@ -81,12 +86,10 @@ export class OrbitSDK implements IOrbitSDK {
   private readonly integrations: IntegrationManager;
 
   constructor(
-    private readonly config: OrbitConfig,
+    public readonly context: OrbitContext,
     public readonly observer: OrbitObserver = new DefaultObserver(),
-    repoRoot: string = process.cwd(),
   ) {
-    const bundles = resolveContextBundles(repoRoot, config);
-    this.projectCtx = bundles.project;
+    this.projectCtx = context.project;
 
     // Ensure logger uses the correct repo root for its stream
     logger.setRepoRoot(this.projectCtx.repoRoot);
@@ -112,23 +115,24 @@ export class OrbitSDK implements IOrbitSDK {
 
     this.missions = new MissionManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       this.observer,
       providerFactory,
       configManager,
+      processManager,
       executors,
       stationRegistry,
     );
     this.status = new StatusManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       providerFactory,
       executors,
       stationRegistry,
     );
     this.fleet = new FleetManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       this.observer,
       stationRegistry,
       schematicManager,
@@ -141,7 +145,7 @@ export class OrbitSDK implements IOrbitSDK {
     );
     this.ci = new CIManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       this.observer,
       processManager,
       executors,
@@ -197,8 +201,15 @@ export class OrbitSDK implements IOrbitSDK {
   /**
    * Launch or resume an isolated developer presence.
    */
-  async startMission(options: MissionOptions): Promise<MissionResult> {
-    return this.missions.start(options);
+  async startMission(manifest: MissionManifest): Promise<MissionResult> {
+    return this.missions.start(manifest);
+  }
+
+  /**
+   * Resolve user intent into a concrete MissionManifest.
+   */
+  async resolveMission(options: MissionOptions): Promise<MissionManifest> {
+    return this.missions.resolve(options);
   }
 
   /**

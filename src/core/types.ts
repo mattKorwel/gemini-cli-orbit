@@ -81,6 +81,7 @@ export interface MissionManifest {
   branchName: string; // The resolved git branch
   action: string; // The playbook action (chat, fix, review, etc.)
   workDir: string; // The absolute path to the workspace
+  containerName: string; // The name of the mission container
   policyPath: string; // The absolute path to the active policy
   sessionName: string; // The user-friendly hierarchical session name
   upstreamUrl: string; // The git remote origin URL
@@ -193,7 +194,8 @@ export interface IOrbitSDK {
   readonly observer: OrbitObserver;
   getPulse(): Promise<StationState>;
   getFleetState(options: ListStationsOptions): Promise<StationState[]>;
-  startMission(options: MissionOptions): Promise<MissionResult>;
+  startMission(manifest: MissionManifest): Promise<MissionResult>;
+  resolveMission(options: MissionOptions): Promise<MissionManifest>;
   missionExec(options: MissionExecOptions): Promise<number>;
   jettisonMission(options: JettisonOptions): Promise<MissionResult>;
   reapMissions(options: ReapOptions): Promise<number>;

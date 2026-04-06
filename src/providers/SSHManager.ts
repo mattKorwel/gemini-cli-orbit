@@ -86,21 +86,11 @@ export class GceSSHManager implements SSHManager {
       return `${user}@${this.overrideHost}`;
     }
 
-    if (this.infra.backendType === 'external') {
-      return `${user}@nic0.${this.instanceName}.${this.zone}.c.${this.projectId}.internal`;
-    }
-
-    const customSuffix = this.infra.dnsSuffix || '';
+    const customSuffix = this.infra.dnsSuffix || 'internal';
     const baseSuffix = `.c.${this.projectId}`;
-    let fullSuffix = baseSuffix;
-
-    if (customSuffix) {
-      fullSuffix += customSuffix.startsWith('.')
-        ? customSuffix
-        : `.${customSuffix}`;
-    } else {
-      fullSuffix += '.internal';
-    }
+    const fullSuffix = customSuffix.startsWith('.')
+      ? `${baseSuffix}${customSuffix}`
+      : `${baseSuffix}.${customSuffix}`;
 
     return `${user}@nic0.${this.instanceName}.${this.zone}${fullSuffix}`;
   }
@@ -381,7 +371,7 @@ export class GceSSHManager implements SSHManager {
   }
 
   private getStandardUser(): string {
-    const rawUser = process.env.USER || 'node';
+    const rawUser = this.infra.sshUser || process.env.USER || 'node';
     const userSuffix = this.infra.userSuffix ?? '';
     return `${rawUser}${userSuffix}`;
   }

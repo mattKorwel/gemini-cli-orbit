@@ -69,8 +69,17 @@ export interface InfrastructureSpec {
   reaperIdleLimit?: number | undefined;
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
+  sshUser?: string | undefined;
   schematic?: string | undefined;
   verbose?: boolean | undefined;
+}
+
+/**
+ * OrbitContext: The unified, hydrated world-view used by the entire SDK.
+ */
+export interface OrbitContext {
+  project: ProjectContext;
+  infra: InfrastructureSpec;
 }
 
 /**
