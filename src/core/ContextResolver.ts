@@ -191,7 +191,7 @@ export class ContextResolver {
       const user = (env.USER || env.USERNAME || 'user')
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '');
-      infra.instanceName = `orbit-station-${user}-${rName}`;
+      infra.instanceName = `station-${user}-${rName}`;
     }
 
     if (infra.projectId === 'local' && !infra.zone) {

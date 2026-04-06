@@ -39,8 +39,7 @@ export class ProviderFactory implements IProviderFactory {
     const effectiveProvider =
       infra.providerType || (isLocal ? 'local-worktree' : 'gce');
 
-    const stationName =
-      infra.stationName || `orbit-station-${projectCtx.repoName}`;
+    const stationName = infra.stationName || `station-${projectCtx.repoName}`;
 
     if (effectiveProvider === 'local-worktree') {
       return new LocalWorktreeProvider(

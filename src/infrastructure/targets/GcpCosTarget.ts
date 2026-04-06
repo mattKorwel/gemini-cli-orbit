@@ -78,8 +78,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
    * Pulumi Program defining the infrastructure.
    */
   private pulumiProgram = async () => {
-    const name =
-      this.config.instanceName || `orbit-station-${this.schematicName}`;
+    const name = this.config.instanceName || `station-${this.schematicName}`;
     const zone = this.config.zone || 'us-central1-a';
     const project = this.config.projectId;
     const isExternal = this.config.backendType === 'external';

@@ -134,7 +134,6 @@ export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 export const BUNDLE_PATH = `${ORBIT_ROOT}/bundle`;
 export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
-export const MISSION_PREFIX = 'orbit-';
 
 /**
  * Standardized paths INSIDE the Agent Capsule (Docker Container)

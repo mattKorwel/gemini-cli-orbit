@@ -35,7 +35,7 @@ describe('Worker Integration (High-Fidelity)', () => {
       action: 'review',
       workDir: workspacePath,
       policyPath: '/test/policy',
-      sessionName: 'orbit/test/id',
+      sessionName: 'test/id',
       upstreamUrl: remoteRepoPath,
     };
     vi.stubEnv('GCLI_ORBIT_MANIFEST', JSON.stringify(mockManifest));

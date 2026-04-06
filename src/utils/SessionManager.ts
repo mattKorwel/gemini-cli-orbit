@@ -15,18 +15,18 @@ export class SessionManager {
   static generateMissionId(identifier: string, action: string): string {
     const cleanId = identifier.replace(/[^a-zA-Z0-9]/g, '');
     const cleanAction = action.replace(/[^a-zA-Z0-9]/g, '');
-    return `orbit-${cleanId}-${cleanAction}`;
+    return `${cleanId}-${cleanAction}`;
   }
 
   /**
    * Generates a new session ID based on PR number and action.
-   * Format: orbit-<pr>-<action>-<timestamp>
+   * Format: <pr>-<action>-<timestamp>
    */
   static generateSessionId(pr: string, action: string): string {
     const timestamp = Date.now();
     const cleanPr = pr.replace(/[^a-zA-Z0-9]/g, '');
     const cleanAction = action.replace(/[^a-zA-Z0-9]/g, '');
-    return `orbit-${cleanPr}-${cleanAction}-${timestamp}`;
+    return `${cleanPr}-${cleanAction}-${timestamp}`;
   }
 
   /**

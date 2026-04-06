@@ -31,7 +31,8 @@ vi.mock('node:fs', async (importOriginal) => {
     .mockReturnValue(JSON.stringify({ repos: {} }));
   const mockExistsSync = vi.fn().mockImplementation((p) => {
     if (createdDirs.has(p)) return true;
-    if (p.includes('real-workspaces') || p.includes('orbit-')) return false;
+    if (p.includes('orbit-git-worktrees') || p.includes('real-repo'))
+      return false;
     return true;
   });
   const mockMkdirSync = vi.fn().mockImplementation((p) => {

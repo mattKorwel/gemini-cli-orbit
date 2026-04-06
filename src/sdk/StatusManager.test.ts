@@ -39,7 +39,7 @@ describe('StatusManager', () => {
         .mockResolvedValue({ status: 'RUNNING', internalIp: '1.2.3.4' }),
       getMissionTelemetry: vi.fn().mockResolvedValue([
         {
-          name: 'orbit-123-chat',
+          name: '123-chat',
           state: 'WAITING_FOR_INPUT',
           lastQuestion: 'How can I help?',
           stats: '10% / 100MB',

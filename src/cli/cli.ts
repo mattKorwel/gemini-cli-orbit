@@ -790,7 +790,11 @@ function renderFleet(
 ) {
   if (depth === 'pulse') {
     states.forEach((s) => {
-      console.log(`\n🛰️  ORBIT PULSE: ${s.receipt.name}`);
+      const contextInfo =
+        s.receipt.type === 'gce'
+          ? `[${s.receipt.projectId}]`
+          : `(${s.receipt.rootPath})`;
+      console.log(`\n🛰️  ORBIT PULSE: ${s.receipt.name} ${contextInfo}`);
       console.log(`   Repo Context: ${s.receipt.repo}`);
       console.log('-'.repeat(80));
       if (s.reality) {
@@ -832,8 +836,13 @@ function renderFleet(
         const missionCount =
           s.reality?.missions.length ?? (depth === 'inventory' ? '?' : 0);
 
+        const contextInfo =
+          s.receipt.type === 'gce'
+            ? `[${s.receipt.projectId}]`
+            : `(${s.receipt.rootPath})`;
+
         console.log(
-          `${activeMarker} ${typeIcon}  ${s.receipt.name.padEnd(20)} → ${status}, ${missionCount} missions, ${project}`,
+          `${activeMarker} ${typeIcon}  ${s.receipt.name.padEnd(20)} ${contextInfo} → ${status}, ${missionCount} missions`,
         );
       });
     });

@@ -31,7 +31,6 @@ vi.mock('../utils/MissionUtils.js', () => ({
     generateMissionId: vi.fn().mockReturnValue('mock-mission-id'),
   },
   getPrimaryRepoRoot: vi.fn().mockReturnValue('/tmp/repo'),
-  MISSION_PREFIX: 'orbit-',
 }));
 vi.mock('../utils/SessionManager.js', () => ({
   SessionManager: {
@@ -72,15 +71,11 @@ describe('MissionManager', () => {
       removeCapsule: vi.fn().mockResolvedValue(0),
       capturePane: vi.fn().mockResolvedValue('mock-logs'),
       getCapsuleIdleTime: vi.fn().mockResolvedValue(0),
-      resolveWorkspaceName: vi
-        .fn()
-        .mockImplementation((r, i) => `orbit-${r}-${i}`),
-      resolveSessionName: vi
-        .fn()
-        .mockImplementation((r, i) => `orbit/${r}/${i}`),
+      resolveWorkspaceName: vi.fn().mockImplementation((r, i) => `${r}-${i}`),
+      resolveSessionName: vi.fn().mockImplementation((r, i) => `${r}/${i}`),
       resolveContainerName: vi
         .fn()
-        .mockImplementation((r, i, a) => `orbit-${r}-${i}-${a}`),
+        .mockImplementation((r, i, a) => `${r}-${i}-${a}`),
       resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
       resolveProjectConfigDir: vi.fn().mockReturnValue('/tmp/project-configs'),
       resolveWorkerPath: vi.fn().mockReturnValue('/tmp/station.js'),
@@ -143,7 +138,7 @@ describe('MissionManager', () => {
   });
 
   it('should perform a single start handshake for a new mission', async () => {
-    const fullName = 'orbit-123';
+    const fullName = 'test-repo-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       repoSlug: 'test-repo',
@@ -175,7 +170,7 @@ describe('MissionManager', () => {
   });
 
   it('should call start and attach for chat missions', async () => {
-    const fullName = 'orbit-123';
+    const fullName = 'test-repo-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
       repoSlug: 'test-repo',
@@ -213,7 +208,7 @@ describe('MissionManager', () => {
       repoSlug: 'test-repo',
       idSlug: '123',
     });
-    mockProvider.listCapsules.mockResolvedValue(['orbit-123']);
+    mockProvider.listCapsules.mockResolvedValue(['test-repo-123']);
 
     await manager.jettison({ identifier: '123' });
 

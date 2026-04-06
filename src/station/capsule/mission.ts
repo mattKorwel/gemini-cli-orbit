@@ -20,6 +20,7 @@ import { runFixPlaybook } from '../../playbooks/fix.js';
 import { runReadyPlaybook } from '../../playbooks/ready.js';
 import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
+import { updateState } from './hooks.js';
 
 const getDirname = () => {
   try {
@@ -61,6 +62,9 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     return 1;
   }
   logger.info('GENERAL', '   ✅ Git worktree health verified.');
+
+  // Transition from INITIALIZING to IDLE
+  updateState(absWorkDir, { status: 'IDLE' });
 
   // Resolve log directory and other mission-specific paths
   const tempManager = new TempManager({ tempDir: manifest.tempDir });

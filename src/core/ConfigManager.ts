@@ -138,7 +138,7 @@ export function getRepoConfig(
     const user = (process.env.USER || process.env.USERNAME || 'user')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '');
-    config.instanceName = `orbit-station-${user}-${rName}`;
+    config.instanceName = `station-${user}-${rName}`;
   }
   if (!config.remoteWorkDir) config.remoteWorkDir = '/mnt/disks/data/main';
 

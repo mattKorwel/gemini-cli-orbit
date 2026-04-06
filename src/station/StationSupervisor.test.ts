@@ -92,9 +92,9 @@ describe('StationSupervisor', () => {
       branchName: 'feat-test',
       action: 'review',
       workDir: '/test/dir',
-      containerName: 'orbit-test-repo-test-id',
+      containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
-      sessionName: 'orbit/test/id',
+      sessionName: 'test-repo/test-id',
       upstreamUrl: 'https://github.com/org/repo.git',
       mirrorPath: '/mnt/disks/data/main',
     });
@@ -134,9 +134,9 @@ describe('StationSupervisor', () => {
       branchName: 'feat-test',
       action: 'review',
       workDir: '/test/dir',
-      containerName: 'orbit-test-repo-test-id',
+      containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
-      sessionName: 'orbit/test/id',
+      sessionName: 'test-repo/test-id',
       upstreamUrl: 'https://github.com/org/repo.git',
     });
 
@@ -157,9 +157,9 @@ describe('StationSupervisor', () => {
       branchName: 'feat-test',
       action: 'chat',
       workDir: '/test/dir',
-      containerName: 'orbit-test-repo-test-id',
+      containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
-      sessionName: 'orbit/test/id',
+      sessionName: 'test-repo/test-id',
       upstreamUrl: 'https://github.com/org/repo.git',
     };
 
@@ -183,9 +183,9 @@ describe('StationSupervisor', () => {
       branchName: 'feat-test',
       action: 'chat',
       workDir: '/test/dir',
-      containerName: 'orbit-test-repo-test-id',
+      containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
-      sessionName: 'orbit/test/id',
+      sessionName: 'test-repo/test-id',
       upstreamUrl: 'https://github.com/org/repo.git',
       verbose: true,
     };

@@ -21,7 +21,12 @@ const mockResolveMission = vi.fn().mockResolvedValue({
   upstreamUrl: 'http://git.mock',
 });
 const mockGetPulse = vi.fn().mockResolvedValue({
-  receipt: { name: 'test-station', repo: 'test-repo' },
+  receipt: {
+    name: 'test-station',
+    repo: 'test-repo',
+    type: 'local-worktree',
+    rootPath: '/mock/path',
+  },
   reality: { status: 'RUNNING', missions: [] },
 });
 const mockGetFleetState = vi.fn().mockResolvedValue([]);
@@ -220,6 +225,37 @@ describe('orbit-cli dispatch()', () => {
         repoFilter: undefined,
       }),
     );
+  });
+
+  it('renders constellation output with context info', async () => {
+    mockGetFleetState.mockResolvedValueOnce([
+      {
+        receipt: {
+          name: 'local-box',
+          repo: 'orbit',
+          type: 'local-worktree',
+          rootPath: '/dev/orbit',
+        },
+        reality: { status: 'RUNNING', missions: [] },
+        isActive: true,
+      },
+      {
+        receipt: {
+          name: 'remote-box',
+          repo: 'orbit',
+          type: 'gce',
+          projectId: 'p1',
+        },
+        reality: { status: 'RUNNING', missions: [] },
+        isActive: false,
+      },
+    ]);
+
+    const spy = vi.spyOn(console, 'log');
+    await dispatch(['constellation']);
+
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('(/dev/orbit)'));
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('[p1]'));
   });
 
   it('routes "ls" alias to constellation', async () => {

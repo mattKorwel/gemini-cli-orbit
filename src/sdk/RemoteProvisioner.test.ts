@@ -44,9 +44,9 @@ describe('RemoteProvisioner', () => {
     branchName: 'feat-test',
     repoSlug: 'test-repo',
     idSlug: 'feat-test',
-    containerName: 'orbit-test-repo-feat-test',
-    workspaceName: 'orbit-test-repo-feat-test',
-    sessionName: 'orbit/test-repo/feat-test',
+    containerName: 'test-repo-feat-test',
+    workspaceName: 'test-repo-feat-test',
+    sessionName: 'test-repo/feat-test',
   };
 
   beforeEach(() => {
@@ -70,7 +70,7 @@ describe('RemoteProvisioner', () => {
 
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'orbit-test-repo-feat-test',
+        name: 'test-repo-feat-test',
       }),
     );
   });

@@ -229,9 +229,7 @@ export abstract class BaseProvider {
       workspacesRoot,
     ]);
 
-    const statusOutput = await this.getExecOutput(statusCmd, {
-      quiet: true,
-    });
+    const statusOutput = await this.getExecOutput(statusCmd, { quiet: true });
 
     let aggregatedMissions: any[] = [];
     if (statusOutput.status === 0) {
