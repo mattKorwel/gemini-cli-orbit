@@ -32,6 +32,7 @@ describe('Mission Resolve Integration', () => {
       tmux: new TmuxExecutor(pm),
       node: new NodeExecutor(pm),
       gemini: { exec: () => ({ status: 0 }) } as any,
+      ssh: { exec: vi.fn(), rsync: vi.fn(), create: vi.fn() } as any,
     };
 
     // Mock system calls

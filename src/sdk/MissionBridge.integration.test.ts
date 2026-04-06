@@ -168,6 +168,7 @@ describe('Mission Bridge Integration', () => {
       git: new GitExecutor(systemPm),
       docker: new DockerExecutor(systemPm),
       tmux: new TmuxExecutor(systemPm),
+      ssh: { exec: vi.fn(), rsync: vi.fn() },
     };
 
     const provider = new LocalWorktreeProvider(
@@ -391,6 +392,18 @@ describe('Mission Bridge Integration', () => {
       git: new GitExecutor(systemPm),
       docker: new DockerExecutor(systemPm),
       tmux: new TmuxExecutor(systemPm),
+      ssh: {
+        exec: vi
+          .fn()
+          .mockImplementation((target, command, options) =>
+            systemPm.runSync('ssh', [target, command], options),
+          ),
+        rsync: vi
+          .fn()
+          .mockImplementation((local, remote, options) =>
+            systemPm.runSync('rsync', [local, remote], options),
+          ),
+      },
     };
 
     const providerFactory = {
@@ -401,7 +414,14 @@ describe('Mission Bridge Integration', () => {
           i.zone,
           i.instanceName,
           p.repoRoot,
-          new GceSSHManager(i.projectId, i.zone, i.instanceName, i, systemPm),
+          new GceSSHManager(
+            i.projectId,
+            i.zone,
+            i.instanceName,
+            i,
+            systemPm,
+            executors.ssh,
+          ),
           systemPm,
           executors,
           i,

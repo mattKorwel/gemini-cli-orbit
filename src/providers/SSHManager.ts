@@ -4,12 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { InfrastructureSpec } from '../core/Constants.js';
-import { type IProcessManager } from '../core/interfaces.js';
+import {
+  type IProcessManager,
+  type IProcessResult,
+} from '../core/interfaces.js';
+import type { ISshExecutor } from '../core/executors/SshExecutor.js';
 
 /**
  * Represents a structured command to be executed remotely.
@@ -78,6 +81,7 @@ export class GceSSHManager implements SSHManager {
     private readonly instanceName: string,
     private readonly infra: InfrastructureSpec,
     private readonly pm: IProcessManager,
+    private readonly ssh: ISshExecutor,
   ) {}
 
   public getMagicRemote(): string {
@@ -104,34 +108,14 @@ export class GceSSHManager implements SSHManager {
     options: SSHOptions = {},
   ): Promise<ExecResult> {
     const fullCmdStr = this.commandToString(cmd);
+    const target = this.getMagicRemote();
 
-    if (this.infra.backendType === 'external' && !this.overrideHost) {
-      const args = [
-        'compute',
-        'ssh',
-        this.instanceName,
-        '--project',
-        this.projectId,
-        '--zone',
-        this.zone,
-        '--quiet',
-        '--command',
-        fullCmdStr,
-        '--ssh-flag="-o LogLevel=ERROR"',
-      ];
-      if (options.interactive) args.push('--ssh-flag="-t"');
+    const res = this.ssh.exec(target, fullCmdStr, {
+      ...options,
+      env: { ...options.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+    });
 
-      return this.execute('gcloud', args, options);
-    }
-
-    const sshArgs = [
-      ...this.getCommonSshArgs(),
-      options.interactive ? '-t' : '',
-      this.getMagicRemote(),
-      fullCmdStr,
-    ].filter(Boolean);
-
-    return this.execute('ssh', sshArgs, options);
+    return this.processResult(res, options);
   }
 
   public async runDockerExec(
@@ -163,26 +147,8 @@ export class GceSSHManager implements SSHManager {
     remotePath: string,
     options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
   ): Promise<number> {
-    const remote = this.getMagicRemote();
-    const rsyncArgs = ['-avz'];
-    if (!this.infra.verbose) rsyncArgs.push('--quiet');
-
-    if (options.delete) rsyncArgs.push('--delete');
-    if (options.exclude) {
-      options.exclude.forEach((pattern) => {
-        rsyncArgs.push('--exclude', pattern);
-      });
-    }
-
-    if (options.sudo) {
-      rsyncArgs.push('--rsync-path', 'sudo rsync');
-    }
-
-    const sshArg = `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${os.homedir()}/.ssh/google_compute_engine`;
-    rsyncArgs.push('-e', sshArg);
-    rsyncArgs.push(localPath, `${remote}:${remotePath}`);
-
-    const res = this.pm.runSync('rsync', rsyncArgs, { stdio: 'inherit' });
+    const remote = `${this.getMagicRemote()}:${remotePath}`;
+    const res = this.ssh.rsync(localPath, remote, options);
     return res.status;
   }
 
@@ -235,32 +201,13 @@ export class GceSSHManager implements SSHManager {
     sessionName: string = 'default',
   ): Promise<number> {
     const attachCmd = `sudo docker exec -it ${container} tmux attach -t ${sessionName} || sudo docker exec -it ${container} /bin/bash`;
+    const target = this.getMagicRemote();
 
-    const sshArgs = [
-      ...this.getCommonSshArgs(),
-      '-t',
-      this.getMagicRemote(),
-      attachCmd,
-    ];
-
-    const res = this.pm.runSync('ssh', sshArgs, { stdio: 'inherit' });
+    const res = this.ssh.exec(target, attachCmd, { interactive: true });
     return res.status;
   }
 
-  private execute(
-    bin: string,
-    args: string[],
-    options: SSHOptions,
-  ): ExecResult {
-    const res = this.pm.runSync(bin, args, {
-      stdio: [
-        options.interactive ? 'inherit' : 'ignore',
-        options.quiet ? 'pipe' : this.infra.verbose ? 'inherit' : 'pipe',
-        'pipe',
-      ] as any,
-      env: { ...process.env, ...options.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
-    });
-
+  private processResult(res: IProcessResult, options: SSHOptions): ExecResult {
     let stdout = res.stdout?.toString() || '';
     let stderr = res.stderr?.toString() || '';
 
@@ -285,7 +232,7 @@ export class GceSSHManager implements SSHManager {
     stdout = filterNoise(stdout);
     stderr = filterNoise(stderr);
 
-    if (stderr && !options.quiet) {
+    if (stderr && !options.quiet && !options.interactive) {
       process.stderr.write(stderr + '\n');
     }
 
@@ -294,35 +241,6 @@ export class GceSSHManager implements SSHManager {
       stdout,
       stderr,
     };
-  }
-
-  private getCommonSshArgs(): string[] {
-    return [
-      '-o',
-      'StrictHostKeyChecking=no',
-      '-o',
-      'UserKnownHostsFile=/dev/null',
-      '-o',
-      'GlobalKnownHostsFile=/dev/null',
-      '-o',
-      'CheckHostIP=no',
-      '-o',
-      'LogLevel=ERROR',
-      '-o',
-      'ConnectTimeout=60',
-      '-o',
-      'ServerAliveInterval=30',
-      '-o',
-      'ServerAliveCountMax=3',
-      '-o',
-      'ControlMaster=auto',
-      '-o',
-      'ControlPath=~/.ssh/orbit-%C',
-      '-o',
-      'ControlPersist=10m',
-      '-i',
-      `${os.homedir()}/.ssh/google_compute_engine`,
-    ];
   }
 
   private generateDirectoryHash(dirPath: string): string {

@@ -188,6 +188,7 @@ export interface IExecutors {
   tmux: ITmuxExecutor;
   node: INodeExecutor;
   gemini: IGeminiExecutor;
+  ssh: import('./executors/SshExecutor.js').ISshExecutor;
 }
 
 /**

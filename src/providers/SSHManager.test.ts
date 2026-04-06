@@ -29,12 +29,19 @@ describe('GceSSHManager', () => {
     spawn: vi.fn(),
   };
 
+  const mockSsh: any = {
+    exec: vi.fn(),
+    rsync: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (fs.existsSync as any).mockReturnValue(true);
     (fs.statSync as any).mockReturnValue({ isDirectory: () => true });
     (fs.readdirSync as any).mockReturnValue([]);
     mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+    mockSsh.exec.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+    mockSsh.rsync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
   });
 
   describe('syncPathIfChanged', () => {
@@ -47,6 +54,7 @@ describe('GceSSHManager', () => {
           backendType: 'direct-internal',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       // 1. Mock directory content to produce a stable hash
@@ -61,9 +69,8 @@ describe('GceSSHManager', () => {
       const localHash = (manager as any).generateDirectoryHash('/local/path');
 
       // 2. Mock remote 'cat' command to return the same hash
-      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
-        const lastArg = args[args.length - 1];
-        if (bin === 'ssh' && lastArg && lastArg.includes('cat')) {
+      mockSsh.exec.mockImplementation((target: string, command: string) => {
+        if (command.includes('cat')) {
           return {
             status: 0,
             stdout: localHash,
@@ -81,10 +88,7 @@ describe('GceSSHManager', () => {
       expect(status).toBe(0);
 
       // Verify rsync was NOT called
-      const rsyncCall = mockPm.runSync.mock.calls.find(
-        (call: any) => call[0] === 'rsync',
-      );
-      expect(rsyncCall).toBeUndefined();
+      expect(mockSsh.rsync).not.toHaveBeenCalled();
     });
 
     it('should perform sync if remote hash differs', async () => {
@@ -96,12 +100,12 @@ describe('GceSSHManager', () => {
           backendType: 'direct-internal',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       // 1. Mock remote 'cat' to return different hash (error 1)
-      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
-        const lastArg = args[args.length - 1];
-        if (bin === 'ssh' && lastArg && lastArg.includes('cat')) {
+      mockSsh.exec.mockImplementation((target: string, command: string) => {
+        if (command.includes('cat')) {
           return {
             status: 1,
             stdout: '',
@@ -119,20 +123,13 @@ describe('GceSSHManager', () => {
       expect(status).toBe(0);
 
       // 2. Verify rsync WAS called
-      expect(mockPm.runSync).toHaveBeenCalledWith(
-        'rsync',
-        expect.anything(),
-        expect.anything(),
-      );
+      expect(mockSsh.rsync).toHaveBeenCalled();
 
       // 3. Verify remote hash was updated
-      expect(mockPm.runSync).toHaveBeenCalledWith(
-        'ssh',
-        expect.arrayContaining([
-          expect.stringContaining('echo'),
-          expect.stringContaining('> /tmp/.orbit.path.hash'),
-        ]),
-        expect.anything(),
+      expect(mockSsh.exec).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('echo'),
+        expect.any(Object),
       );
     });
   });
@@ -147,6 +144,7 @@ describe('GceSSHManager', () => {
           backendType: 'direct-internal',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       const remote = manager.getMagicRemote();
@@ -165,6 +163,7 @@ describe('GceSSHManager', () => {
           dnsSuffix: 'internal.gcpnode.com',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       const remote = manager.getMagicRemote();
@@ -183,6 +182,7 @@ describe('GceSSHManager', () => {
           dnsSuffix: '.internal.gcpnode.com',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       const remote = manager.getMagicRemote();
@@ -201,6 +201,7 @@ describe('GceSSHManager', () => {
           userSuffix: '_google_com',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       const remote = manager.getMagicRemote();
@@ -217,6 +218,7 @@ describe('GceSSHManager', () => {
           backendType: 'direct-internal',
         } as any,
         mockPm,
+        mockSsh,
       );
 
       manager.setOverrideHost('1.2.3.4');

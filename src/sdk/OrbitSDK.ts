@@ -50,6 +50,7 @@ import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { ShellIntegration } from '../utils/ShellIntegration.js';
 import { DependencyManager } from './DependencyManager.js';
 import { type IExecutors } from '../core/interfaces.js';
+import { SshExecutor } from '../core/executors/SshExecutor.js';
 
 export * from '../core/types.js';
 
@@ -102,6 +103,7 @@ export class OrbitSDK implements IOrbitSDK {
       tmux: new TmuxExecutor(processManager),
       node: new NodeExecutor(processManager),
       gemini: new GeminiExecutor(processManager),
+      ssh: new SshExecutor(processManager),
     };
 
     // Dependencies

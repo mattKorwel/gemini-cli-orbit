@@ -46,6 +46,18 @@ describe('Config Propagation Integration', () => {
 
     executors = {
       node: new NodeExecutor(mockPm),
+      ssh: {
+        exec: vi
+          .fn()
+          .mockImplementation((target, command, options) =>
+            mockPm.runSync('ssh', [target, command], options),
+          ),
+        rsync: vi
+          .fn()
+          .mockImplementation((local, remote, options) =>
+            mockPm.runSync('rsync', [local, remote], options),
+          ),
+      },
       git: {
         init: vi.fn().mockReturnValue({ status: 0 }),
         remoteAdd: vi.fn().mockReturnValue({ status: 0 }),

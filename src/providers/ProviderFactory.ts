@@ -65,6 +65,7 @@ export class ProviderFactory implements IProviderFactory {
       infra.instanceName!,
       infra,
       this.pm,
+      this.executors.ssh,
     );
 
     const gceConfig: { imageUri?: string; stationName?: string } = {};
