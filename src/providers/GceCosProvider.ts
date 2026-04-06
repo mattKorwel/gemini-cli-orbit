@@ -170,6 +170,10 @@ export class GceCosProvider extends BaseProvider {
 
       // ADR 0018: Ensure the station code is up to date on the host before launching capsules
       // Note: Trailing slash on localPath ensures only the contents are synced
+
+      // Ensure parent directory exists before rsync
+      await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`);
+
       const syncStatus = await this.syncIfChanged(
         `${LOCAL_BUNDLE_PATH}/`,
         BUNDLE_PATH,

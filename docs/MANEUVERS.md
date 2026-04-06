@@ -55,7 +55,7 @@ A supervisor merges all findings into a high-fidelity `final-assessment.md`.
 ### 🚀 Usage
 
 ```bash
-orbit mission <PR_NUMBER> review
+orbit mission launch <PR_NUMBER> review
 ```
 
 ---
@@ -102,7 +102,7 @@ conditions:
 ### 🚀 Usage
 
 ```bash
-orbit mission <PR_NUMBER> fix
+orbit mission launch <PR_NUMBER> fix
 ```
 
 ---
@@ -158,7 +158,7 @@ The agent implements the plan in small chunks (~10-15 minutes).
 ### 🚀 Usage
 
 ```bash
-orbit mission <ISSUE_NUMBER> implement
+orbit mission launch <ISSUE_NUMBER> implement
 ```
 
 ---
