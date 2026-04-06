@@ -177,6 +177,7 @@ export async function dispatch(argv: string[]): Promise<number> {
   const topAliases: Record<string, string> = {
     c: 'constellation',
     m: 'mission',
+    ml: 'mission --local',
     s: 'station',
     i: 'infra',
     stations: 'constellation',
