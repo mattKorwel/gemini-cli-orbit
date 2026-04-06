@@ -222,7 +222,8 @@ QUICK START:
   2. Mission:   orbit mission 123 review   (Launch an autonomous maneuver)
   3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
   4. Attach:    orbit mission attach 123   (Work alongside the agent)
-  5. Clean:     orbit mission jettison 123 (Surgically remove resources)`,
+  5. Logs:      orbit mission uplink 123   (Inspect mission telemetry)
+  6. Clean:     orbit mission jettison 123 (Surgically remove resources)`,
     )
 
     .command(
