@@ -5,39 +5,38 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
 import {
   type InfrastructureSpec,
   type ProjectContext,
-  SATELLITE_WORKSPACES_PATH,
-  ORBIT_ROOT,
-  getProjectOrbitDir,
-  getPrimaryRepoRoot,
   UPSTREAM_REPO_URL,
-  BUNDLE_PATH,
-  LOCAL_BUNDLE_PATH,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
-import { SessionManager } from '../utils/SessionManager.js';
-import { resolveMissionContext } from '../utils/MissionUtils.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
-import { type Command } from '../core/executors/types.js';
 import {
-  type OrbitObserver,
-  type MissionOptions,
+  type IConfigManager,
+  type IProviderFactory,
+  type IStationRegistry,
+  type IProcessManager,
+} from '../core/interfaces.js';
+import {
   type MissionResult,
+  type MissionOptions,
+  type MissionManifest,
+  type OrbitObserver,
   type JettisonOptions,
   type ReapOptions,
-  type AttachOptions,
   type GetLogsOptions,
-  type ExecOptions,
-  type MissionExecOptions,
 } from '../core/types.js';
 import {
-  type IProviderFactory,
-  type IConfigManager,
-} from '../core/interfaces.js';
+  resolveMissionContext,
+  type MissionContext,
+} from '../utils/MissionUtils.js';
+import { SessionManager } from '../utils/SessionManager.js';
+import { type IExecutors } from '../core/interfaces.js';
 
+/**
+ * FleetCommander: SDK-level mission orchestrator.
+ * High-level workflow state machine.
+ */
 export class MissionManager {
   constructor(
     private readonly projectCtx: ProjectContext,
@@ -45,14 +44,66 @@ export class MissionManager {
     private readonly observer: OrbitObserver,
     private readonly providerFactory: IProviderFactory,
     private readonly configManager: IConfigManager,
+    private readonly pm: IProcessManager,
+    private readonly executors: IExecutors,
+    private readonly stationRegistry: IStationRegistry,
   ) {}
 
   /**
-   * Launch or resume an isolated developer presence.
+   * Stage 2 Hydration: Resolves user intent into a concrete MissionManifest.
    */
-  async start(options: MissionOptions): Promise<MissionResult> {
+  async resolve(options: MissionOptions): Promise<MissionManifest> {
     const { identifier, action } = options;
-    const missionId = SessionManager.generateMissionId(identifier, action);
+
+    const provider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+
+    // 1. Resolve Raw Metadata
+    const { branchName, repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    const workspaceName = provider.resolveWorkspaceName(repoSlug, idSlug);
+    const containerName = provider.resolveContainerName(
+      repoSlug,
+      idSlug,
+      action,
+    );
+    const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
+    const workDir = provider.resolveWorkDir(workspaceName);
+    const policyPath = provider.resolvePolicyPath(workDir);
+
+    const upstreamUrl = this.infra.upstreamRepo
+      ? `https://github.com/${this.infra.upstreamRepo}.git`
+      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
+        UPSTREAM_REPO_URL;
+
+    return {
+      identifier,
+      repoName: this.projectCtx.repoName,
+      branchName,
+      action,
+      workDir,
+      containerName,
+      sessionName,
+      policyPath,
+      upstreamUrl,
+      mirrorPath: provider.resolveMirrorPath(),
+      verbose: this.infra.verbose,
+      tempDir: this.infra.workspacesDir || this.infra.worktreesDir,
+    };
+  }
+
+  /**
+   * Starts a mission from a pre-hydrated manifest.
+   */
+  async start(manifest: MissionManifest): Promise<MissionResult> {
+    const { identifier, action } = manifest;
+    const missionId = identifier;
 
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -60,150 +111,84 @@ export class MissionManager {
       `🚀 Initializing '${action}' mission for ${identifier}...`,
     );
 
-    // 1. Provider Resolution
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
 
-    const isLocalWorkspace = provider.type === 'local-worktree';
-    const mCtx = resolveMissionContext(
+    // 1. Resolve naming authority components for the provider
+    const { repoSlug, idSlug } = resolveMissionContext(
       identifier,
-      action,
       this.projectCtx.repoName,
+      this.pm,
     );
-    const branch = mCtx.branchName;
-    const containerName = mCtx.containerName;
+    const mCtx: MissionContext = {
+      branchName: manifest.branchName,
+      repoSlug,
+      idSlug,
+      workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
+      containerName: manifest.containerName,
+      sessionName: manifest.sessionName,
+    };
 
-    // 2. Smart Resumption Check
-    const capsuleStatus = await provider.getCapsuleStatus(containerName);
-    if (capsuleStatus.exists && action === 'chat') {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'MISSION',
-        `👋 Resuming existing '${action}' mission for ${identifier}...`,
-      );
-      return { missionId, exitCode: await this.attach({ identifier }) };
-    }
+    // 2. Ensure Hardware/Station is Ready
+    await provider.ensureReady();
 
-    // 3. Environment Sync (Phase 0) - Only for Remote
-    if (!isLocalWorkspace) {
-      this.observer.onProgress?.('PHASE 0', '📦 Synchronizing environment...');
+    // 3. Standardized Station Registration (Implicit Liftoff)
+    this.stationRegistry.saveReceipt(provider.getStationReceipt());
 
-      // Lazy Sync Bundle (Trailing slash means sync contents)
-      await provider.syncIfChanged(`${LOCAL_BUNDLE_PATH}/`, BUNDLE_PATH, {
-        sudo: true,
-      });
-
-      // Lazy Sync Project Configs (.gemini)
-      const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
-      const remoteConfigDir = `${ORBIT_ROOT}/project-configs`;
-      await provider.syncIfChanged(`${localConfigDir}/`, remoteConfigDir, {
-        sudo: true,
-      });
-    }
-
-    // 4. Mission Preparation (Hardware/Container Layer)
-    await provider.prepareMissionWorkspace(
-      identifier,
-      branch,
-      action,
-      this.infra,
+    // 4. Project Configuration Sync
+    this.observer.onProgress?.(
+      'PHASE 0',
+      '📂 Synchronizing project configurations...',
     );
 
-    // 5. Worker Handshake (Phase 1 & 2)
+    // Lazy Sync Project Configs (.gemini)
+    const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
+    const targetConfigDir = provider.resolveProjectConfigDir();
+    await provider.syncIfChanged(`${localConfigDir}/`, targetConfigDir, {
+      sudo: true,
+    });
+
+    // 5. Mission Preparation (Hardware/Container Layer)
+    await provider.prepareMissionWorkspace(mCtx, this.infra);
+
+    // 6. Worker Handshake (Phases: Init, Hooks, Launch)
     this.observer.onProgress?.(
       'PHASE 1',
-      '🧪 Running worker initialization...',
+      '🧪 Initializing worker environment...',
     );
 
-    const workerPath = isLocalWorkspace
-      ? `${LOCAL_BUNDLE_PATH}/station.js`
-      : `${BUNDLE_PATH}/station.js`;
+    const workerPath = provider.resolveWorkerPath();
 
-    const policyPath = isLocalWorkspace
-      ? path.join(
-          this.projectCtx.repoRoot,
-          '.gemini/policies/workspace-policy.toml',
-        )
-      : `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+    // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
+    const startCmd = provider.createNodeCommand(workerPath, ['start']);
 
-    const upstreamUrl = this.infra.upstreamRepo
-      ? `https://github.com/${this.infra.upstreamRepo}.git`
-      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
-        UPSTREAM_REPO_URL;
+    const startRes = await provider.getMissionExecOutput(startCmd, mCtx, {
+      interactive: true,
+      manifest,
+    });
 
-    const mirrorPath = `${ORBIT_ROOT}/main`;
-
-    // Calculate the actual filesystem path where the worker should operate
-    const targetDir = isLocalWorkspace
-      ? path.join(
-          getPrimaryRepoRoot(this.projectCtx.repoRoot),
-          '..',
-          'workspaces',
-          mCtx.workspaceName,
-        )
-      : ORBIT_ROOT; // On remote, ORBIT_ROOT is the workspace base
-
-    // Step A: INIT (Git layer)
-    const initCmd = NodeExecutor.create(workerPath, [
-      'init',
-      targetDir,
-      identifier,
-      branch,
-      upstreamUrl,
-      mirrorPath,
-    ]);
-    const initExitCode = await provider.exec(
-      initCmd,
-      this.getExecOptions(isLocalWorkspace, containerName, {
-        interactive: true,
-      }),
-    );
-
-    if (initExitCode !== 0) {
+    if (startRes.status !== 0) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'MISSION',
-        '❌ Git initialization failed.',
+        `❌ Mission initialization failed (Status ${startRes.status}).\n` +
+          `STDOUT: ${startRes.stdout}\n` +
+          `STDERR: ${startRes.stderr}`,
       );
-      return { missionId, exitCode: initExitCode };
+      return { missionId, exitCode: startRes.status };
     }
 
-    // Step B: SETUP HOOKS
-    const hooksCmd = NodeExecutor.create(workerPath, [
-      'setup-hooks',
-      targetDir,
-    ]);
-    const _hooksExitCode = await provider.exec(
-      hooksCmd,
-      this.getExecOptions(isLocalWorkspace, containerName, {
-        interactive: true,
-      }),
-    );
-
-    // Step C: RUN (Task layer)
-    const runCmd = NodeExecutor.create(workerPath, [
-      'run',
-      identifier,
-      branch,
-      action,
-      policyPath,
-      mCtx.sessionName, // Pass the hierarchical display name for tmux
-    ]);
-    const runExitCode = await provider.exec(
-      runCmd,
-      this.getExecOptions(isLocalWorkspace, containerName, {
-        interactive: true,
-        cwd: targetDir,
-      }),
-    );
-
-    if (runExitCode !== 0) {
-      return { missionId, exitCode: runExitCode };
+    // 7. Automatic Attachment (for interactive missions)
+    if (action === 'chat') {
+      // Give tmux a moment to spawn the session
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const exitCode = await this.attach({ identifier, action });
+      return { missionId, exitCode };
     }
 
-    // 6. Finalization
+    // 8. Finalization
     this.observer.onLog?.(
       LogLevel.INFO,
       'MISSION',
@@ -253,186 +238,169 @@ export class MissionManager {
     this.observer.onLog?.(
       LogLevel.INFO,
       'SHELL',
-      `🛰️ Entering raw shell in capsule: ${target}`,
+      `🛰️ Entering mission shell: ${target}`,
     );
     return provider.missionShell(target);
   }
 
   /**
-   * Decommission a specific mission and its workspace.
+   * Drops into a raw interactive tmux session inside a mission capsule.
    */
-  async jettison(options: JettisonOptions): Promise<MissionResult> {
-    const { identifier, action = 'chat' } = options;
+  async attach(options: {
+    identifier: string;
+    action?: string | undefined;
+  }): Promise<number> {
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
-    const mCtx = resolveMissionContext(identifier, action);
 
-    try {
-      const capsules = await provider.listCapsules();
-      const targetCapsule = capsules.find((c) => c.includes(identifier));
+    const action = options.action || 'chat';
 
-      if (targetCapsule) {
-        await provider.stopCapsule(targetCapsule);
-        await provider.removeCapsule(targetCapsule);
-      }
-
-      if (!this.infra.projectId || this.infra.projectId === 'local') {
-        // Local cleanup if needed
-      } else {
-        const workspacePath = `${SATELLITE_WORKSPACES_PATH}/${this.projectCtx.repoName}/${mCtx.workspaceName}`;
-        const rmCmd = { bin: 'rm', args: ['-rf', workspacePath] };
-        await provider.exec(rmCmd);
-
-        // ADR 14: Cleanup RAM-disk secret file
-        const secretPath = `/dev/shm/.orbit-env-${SessionManager.generateMissionId(identifier, action)}`;
-        await provider.exec(`sudo rm -f ${secretPath}`);
-      }
-
-      return { missionId: identifier, exitCode: 0 };
-    } catch (e: any) {
-      throw new Error(`Jettison failed: ${e.message}`, { cause: e });
-    }
-  }
-
-  /**
-   * Identify and remove idle mission capsules.
-   */
-  async reap(options: ReapOptions): Promise<number> {
-    const threshold = options.threshold ?? 4;
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'MISSION',
+      `👋 Resuming existing '${action}' for ${options.identifier}...`,
     );
+
+    // 1. Calculate canonical session name via Provider Hook
+    const { repoSlug, idSlug } = resolveMissionContext(
+      options.identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+    const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
+
+    // 2. Try direct attach to canonical name first
+    const directRes = await provider.attach(sessionName);
+    if (directRes === 0) return 0;
+
+    // 3. Fallback: List Capsules to find the right one (Legacy support)
     const capsules = await provider.listCapsules();
-
-    let reapedCount = 0;
-    for (const capsule of capsules) {
-      if (capsule === 'main' || capsule === 'primary') continue;
-      const idleTimeSeconds = await provider.getCapsuleIdleTime(capsule);
-      const idleTimeHours = Math.floor(idleTimeSeconds / 3600);
-      if (options.force || idleTimeHours >= threshold) {
-        const res = await provider.removeCapsule(capsule);
-        if (res === 0) reapedCount++;
-      }
-    }
-    return reapedCount;
-  }
-
-  /**
-   * Execute a one-off command inside a mission capsule.
-   */
-  async exec(options: MissionExecOptions): Promise<number> {
-    const { identifier, command, action = 'chat' } = options;
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
-    const mCtx = resolveMissionContext(identifier, action);
-    const capsules = await provider.listCapsules();
-
-    const target =
-      capsules.find((c) => c === mCtx.containerName) ||
-      capsules.find((c) => c.includes(identifier));
-
-    if (!target) {
-      this.observer.onLog?.(
-        LogLevel.ERROR,
-        'EXEC',
-        `❌ No active mission found for ${identifier}`,
-      );
-      return 1;
-    }
-
-    const cmdObj: Command = { bin: '/bin/bash', args: ['-c', command] };
-    return provider.exec(cmdObj, {
-      wrapCapsule: target,
-      interactive: true,
-    });
-  }
-
-  /**
-   * Attach to an active mission session.
-   */
-  async attach(options: AttachOptions): Promise<number> {
-    const { identifier, action = 'chat' } = options;
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
-    const mCtx = resolveMissionContext(identifier, action);
-    const capsules = await provider.listCapsules();
-
-    const target =
-      capsules.find((c) => c === mCtx.containerName) ||
-      capsules.find((c) => c.includes(identifier));
+    const target = capsules.find((c) => c.includes(options.identifier));
 
     if (!target) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'ATTACH',
-        `❌ No active mission found for ${identifier}`,
+        `❌ Could not find active mission for "${options.identifier}".`,
       );
       return 1;
     }
 
+    // 4. Attach via Provider
     return provider.attach(target);
   }
 
   /**
-   * Inspect latest mission telemetry.
+   * Executes a one-off command in the mission capsule.
    */
-  async getLogs(options: GetLogsOptions): Promise<number> {
-    const { identifier, action = 'review' } = options;
+  async exec(options: {
+    identifier: string;
+    command: string;
+  }): Promise<number> {
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
     );
-    const mId = SessionManager.generateMissionId(identifier, action);
-    const logPath = path.join(
-      getProjectOrbitDir(this.projectCtx.repoRoot),
-      `${mId}.log`,
+    const { branchName, repoSlug, idSlug } = resolveMissionContext(
+      options.identifier,
+      this.projectCtx.repoName,
+      this.pm,
     );
+    const mCtx: MissionContext = {
+      branchName,
+      repoSlug,
+      idSlug,
+      workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
+      containerName: provider.resolveContainerName(repoSlug, idSlug, 'chat'),
+      sessionName: provider.resolveSessionName(repoSlug, idSlug, 'chat'),
+    };
 
-    if (fs.existsSync(logPath)) {
-      console.log(fs.readFileSync(logPath, 'utf8'));
-      return 0;
-    }
-
-    const mCtx = resolveMissionContext(identifier, action);
-    const capsules = await provider.listCapsules();
-    const target =
-      capsules.find((c) => c === mCtx.containerName) ||
-      capsules.find((c) => c.includes(identifier));
-
-    if (target) {
-      const catCmd = { bin: 'cat', args: ['/tmp/mission.log'] };
-      await provider.exec(
-        catCmd,
-        this.getExecOptions(
-          this.infra.providerType === 'local-worktree',
-          target,
-          {
-            interactive: true,
-          },
-        ),
-      );
-      return 0;
-    }
-
-    return 1;
+    return provider.execMission(options.command, mCtx);
   }
 
-  private getExecOptions(
-    isLocal: boolean,
-    capsuleName: string,
-    overrides: Partial<ExecOptions> = {},
-  ): ExecOptions {
-    const options: ExecOptions = { ...overrides };
-    if (!isLocal) {
-      options.wrapCapsule = capsuleName;
+  /**
+   * Removes a mission from the fleet.
+   */
+  async jettison(options: JettisonOptions): Promise<MissionResult> {
+    const { identifier, action } = options;
+
+    const provider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+
+    const actionsToCleanup = action
+      ? [action]
+      : ['chat', 'fix', 'review', 'implement', 'ready'];
+
+    const { repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    for (const act of actionsToCleanup) {
+      const containerName = provider.resolveContainerName(
+        repoSlug,
+        idSlug,
+        act,
+      );
+      await provider.removeCapsule(containerName);
+
+      const sessionId = SessionManager.generateMissionId(identifier, act);
+      const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
+      await provider.exec(`sudo rm -f ${secretPath}`, { quiet: true });
     }
-    return options;
+
+    return { missionId: identifier, exitCode: 0 };
+  }
+
+  /**
+   * Removes idle mission capsules.
+   */
+  async reap(options: ReapOptions): Promise<number> {
+    const provider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+    const capsules = await provider.listCapsules();
+    const threshold = options.threshold || 24; // 24 hours default
+
+    for (const name of capsules) {
+      const idleTime = await provider.getCapsuleIdleTime(name);
+      if (options.force || idleTime > threshold * 3600) {
+        this.observer.onLog?.(
+          LogLevel.INFO,
+          'REAP',
+          `🔥 Reaping idle mission: ${name} (Idle for ${Math.round(
+            idleTime / 3600,
+          )}h)`,
+        );
+        await provider.removeCapsule(name);
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Retrieves logs from a mission capsule.
+   */
+  async getLogs(options: GetLogsOptions): Promise<number> {
+    const provider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+    const capsules = await provider.listCapsules();
+    const target = capsules.find((c) => c.includes(options.identifier));
+
+    if (!target) {
+      throw new Error(`❌ No active mission found for ${options.identifier}`);
+    }
+
+    const logs = await provider.capturePane(target);
+    console.log(logs);
+    return 0;
   }
 }

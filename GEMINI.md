@@ -50,6 +50,20 @@ respective modules where possible.
 npm test
 ```
 
+### Manual E2E Testing (Local)
+
+To safely test local mission orchestration (worktrees and tmux sessions) in a
+clean state, use the following sequence:
+
+```bash
+# 1. Force cleanup of previous test artifacts
+git worktree remove --force "../../workspaces/orbit-test-run" || true
+tmux kill-session -t orbit-test-run || true
+
+# 2. Rebuild and launch fresh mission
+npm run build && node bundle/orbit-cli.js mission start test-run --local --verbose
+```
+
 ## 🔭 Mission Control: Orchestration
 
 Missions follow a strict phased execution via the `TaskRunner`:

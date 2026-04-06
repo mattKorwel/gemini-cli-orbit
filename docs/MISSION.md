@@ -9,7 +9,7 @@ for a specific Pull Request or task.
 Launch a mission by providing a PR number or branch:
 
 ```bash
-orbit mission start 123 chat
+orbit mission launch 123 chat
 ```
 
 ### 1. Manual Interaction (`chat`)
@@ -51,8 +51,10 @@ interrupting an active agent session.
 
 ## ✨ Quick Commands
 
-- `orbit mission start <PR> [action]`: Launch a mission (chat, fix, review,
+- `orbit mission launch <PR> [action]`: Launch a mission (chat, fix, review,
   etc).
 - `orbit mission shell <PR>`: Enter a raw side-terminal in the mission capsule.
 - `orbit mission ci <PR>`: Monitor GitHub Actions status for the PR.
 - `orbit mission jettison <PR>`: Purge remote container and workspace.
+- `orbit constellation --pulse`: View state and resource usage of all active
+  missions.

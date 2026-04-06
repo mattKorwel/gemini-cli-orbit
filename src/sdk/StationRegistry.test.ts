@@ -48,19 +48,20 @@ describe('StationRegistry', () => {
 
     const stations = await registry.listStations();
     expect(stations).toHaveLength(1);
-    expect(stations[0]!.name).toBe('station-1');
+    expect(stations[0]!.receipt.name).toBe('station-1');
   });
 
   it('should discover local stations from settings', async () => {
     (fs.readdirSync as any).mockReturnValue([]);
+    (fs.existsSync as any).mockReturnValue(true);
     configManager.loadSettings.mockReturnValue({
       repos: {
-        'some-repo': { projectId: 'local' },
+        'some-repo': { projectId: 'local', repoRoot: '/some/path' },
       },
     });
 
     const stations = await registry.listStations();
     expect(stations).toHaveLength(1);
-    expect(stations[0]!.name).toBe('local-some-repo');
+    expect(stations[0]!.receipt.name).toBe('local-some-repo');
   });
 });

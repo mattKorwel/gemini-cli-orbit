@@ -7,31 +7,69 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StationSupervisor } from './StationSupervisor.js';
 import fs from 'node:fs';
-import * as ConfigManager from '../core/ConfigManager.js';
-import { ProcessManager } from '../core/ProcessManager.js';
+import { GitExecutor } from '../core/executors/GitExecutor.js';
 
 vi.mock('node:fs');
-vi.mock('../playbooks/fix.js');
-vi.mock('../playbooks/ready.js');
-vi.mock('../playbooks/review.js');
-vi.mock('../core/ConfigManager.js');
+vi.mock('node:path', async () => {
+  const actual = await vi.importActual('node:path');
+  return {
+    ...actual,
+    resolve: (p: string) => p,
+  };
+});
 vi.mock('../core/ProcessManager.js');
+
+// Mock GitExecutor
+vi.mock('../core/executors/GitExecutor.js', () => ({
+  GitExecutor: {
+    init: vi.fn().mockReturnValue({ bin: 'git', args: ['init'] }),
+    remoteAdd: vi.fn().mockReturnValue({
+      bin: 'git',
+      args: ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
+    }),
+    fetch: vi.fn().mockReturnValue({ bin: 'git', args: ['fetch'] }),
+    checkout: vi.fn().mockReturnValue({ bin: 'git', args: ['checkout'] }),
+    revParse: vi.fn().mockReturnValue({ bin: 'git', args: ['rev-parse'] }),
+    verify: vi
+      .fn()
+      .mockReturnValue({ bin: 'git', args: ['rev-parse', '--verify'] }),
+    checkoutNew: vi
+      .fn()
+      .mockReturnValue({ bin: 'git', args: ['checkout', '-b'] }),
+  },
+}));
+
+vi.mock('../core/executors/NodeExecutor.js', () => ({
+  NodeExecutor: {
+    create: vi.fn().mockReturnValue({ bin: 'node', args: ['entrypoint.js'] }),
+  },
+}));
+
+vi.mock('../core/executors/TmuxExecutor.js', () => ({
+  TmuxExecutor: vi.fn().mockImplementation(() => ({
+    wrapMission: vi
+      .fn()
+      .mockReturnValue({ bin: 'tmux', args: ['new-session'] }),
+  })),
+}));
+
+vi.mock('../core/ConfigManager.js', () => ({
+  getRepoConfig: vi.fn().mockReturnValue({}),
+  getPrimaryRepoRoot: vi.fn().mockReturnValue('/tmp/repo'),
+}));
 
 describe('StationSupervisor', () => {
   let manager: StationSupervisor;
+  let mockPm: any;
 
   beforeEach(() => {
-    vi.resetAllMocks();
-    manager = new StationSupervisor('/mock/dirname');
-    (ProcessManager.runSync as any).mockReturnValue({
-      status: 0,
-      stdout: '',
-      stderr: '',
-    });
-    (fs.existsSync as any).mockReturnValue(true);
-    (ConfigManager.getRepoConfig as any).mockReturnValue({
-      repoName: 'test-repo',
-    });
+    vi.clearAllMocks();
+    mockPm = {
+      runSync: vi.fn(),
+      runAsync: vi.fn(),
+      spawn: vi.fn(),
+    };
+    manager = new StationSupervisor('/mock/dirname', mockPm);
   });
 
   it('initGit performs git initialization', async () => {
@@ -40,7 +78,7 @@ describe('StationSupervisor', () => {
       return true;
     });
 
-    (ProcessManager.runSync as any)
+    mockPm.runSync
       .mockReturnValueOnce({ status: 0 }) // init
       .mockReturnValueOnce({ status: 0 }) // remote add
       .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
@@ -48,65 +86,59 @@ describe('StationSupervisor', () => {
       .mockReturnValueOnce({ status: 0 }) // check local
       .mockReturnValueOnce({ status: 0 }); // checkout
 
-    await manager.initGit(
-      '/test/dir',
-      'https://github.com/org/repo.git',
-      'feat-test',
-      '/mnt/disks/data/main',
-    );
-
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
-      'git',
-      ['init'],
-      expect.any(Object),
-    );
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
-      'git',
-      ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
-      expect.any(Object),
-    );
-  });
-
-  it('initGit falls back to new branch creation if origin branch missing', async () => {
-    (fs.existsSync as any).mockImplementation((p: string) => {
-      if (p.endsWith('.git')) return false;
-      return true;
+    await manager.initGit({
+      identifier: 'test-id',
+      repoName: 'test-repo',
+      branchName: 'feat-test',
+      action: 'review',
+      workDir: '/test/dir',
+      containerName: 'test-repo-test-id',
+      policyPath: '/test/policy',
+      sessionName: 'test-repo/test-id',
+      upstreamUrl: 'https://github.com/org/repo.git',
+      mirrorPath: '/mnt/disks/data/main',
     });
 
-    // Mock sequence:
-    // 1. init (0)
-    // 2. remote add (0)
-    // 3. current branch check (0, 'HEAD')
-    // 4. fetch (1) - fail
-    // 5. check local (1) - missing
-    // 6. check remote (1) - missing
-    // 7. checkout -b (0) - fallback
-    (ProcessManager.runSync as any)
-      .mockReturnValueOnce({ status: 0 }) // init
-      .mockReturnValueOnce({ status: 0 }) // remote add
-      .mockReturnValueOnce({ status: 0, stdout: 'HEAD' }) // current branch check
-      .mockReturnValueOnce({ status: 1 }) // fetch
-      .mockReturnValueOnce({ status: 1 }) // check local
-      .mockReturnValueOnce({ status: 1 }) // check remote
-      .mockReturnValueOnce({ status: 0 }); // checkout -b
+    expect(GitExecutor.init).toHaveBeenCalled();
+    expect(GitExecutor.remoteAdd).toHaveBeenCalled();
+    expect(mockPm.runSync).toHaveBeenCalledTimes(6);
+  });
 
-    await manager.initGit(
-      '/test/dir',
-      'https://github.com/org/repo.git',
-      'new-branch',
-    );
+  it('initGit throws a helpful error on failure', async () => {
+    (fs.existsSync as any).mockReturnValue(false);
 
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
-      'git',
-      ['checkout', '-b', 'new-branch'],
-      expect.any(Object),
-    );
+    mockPm.runSync.mockReturnValueOnce({
+      status: 128,
+      stdout: '',
+      stderr: 'Permission denied',
+    });
+
+    await expect(
+      manager.initGit({
+        identifier: 'test-id',
+        repoName: 'test-repo',
+        branchName: 'feat-test',
+        action: 'review',
+        workDir: '/test/dir',
+        upstreamUrl: 'https://github.com/org/repo.git',
+      } as any),
+    ).rejects.toThrow(/Git command failed: git init/);
   });
 
   it('setupHooks configures the workspace', async () => {
     (fs.existsSync as any).mockReturnValue(false);
 
-    await manager.setupHooks('/test/dir');
+    await manager.setupHooks({
+      identifier: 'test-id',
+      repoName: 'test-repo',
+      branchName: 'feat-test',
+      action: 'review',
+      workDir: '/test/dir',
+      containerName: 'test-repo-test-id',
+      policyPath: '/test/policy',
+      sessionName: 'test-repo/test-id',
+      upstreamUrl: 'https://github.com/org/repo.git',
+    });
 
     expect(fs.mkdirSync).toHaveBeenCalledWith(
       expect.stringContaining('.gemini/orbit'),
@@ -114,11 +146,68 @@ describe('StationSupervisor', () => {
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('state.json'),
-      expect.stringContaining('IDLE'),
+      expect.stringContaining('INITIALIZING'),
     );
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('settings.json'),
-      expect.stringContaining('BeforeAgent'),
+  });
+
+  it('start orchestrates init, hooks and mission launch', async () => {
+    const manifest = {
+      identifier: 'test-id',
+      repoName: 'test-repo',
+      branchName: 'feat-test',
+      action: 'chat',
+      workDir: '/test/dir',
+      containerName: 'test-repo-test-id',
+      policyPath: '/test/policy',
+      sessionName: 'test-repo/test-id',
+      upstreamUrl: 'https://github.com/org/repo.git',
+    };
+
+    const initSpy = vi.spyOn(manager, 'initGit').mockResolvedValue(0 as any);
+    const hooksSpy = vi
+      .spyOn(manager, 'setupHooks')
+      .mockResolvedValue(0 as any);
+    const runSpy = vi.spyOn(manager, 'runMission').mockResolvedValue(0 as any);
+
+    await manager.start(manifest);
+
+    expect(initSpy).toHaveBeenCalledWith(manifest);
+    expect(hooksSpy).toHaveBeenCalledWith(manifest);
+    expect(runSpy).toHaveBeenCalledWith(manifest);
+  });
+
+  it('runMission injects GCLI_ORBIT_VERBOSE if manifest.verbose is true', async () => {
+    const manifest = {
+      identifier: 'test-id',
+      repoName: 'test-repo',
+      branchName: 'feat-test',
+      action: 'chat',
+      workDir: '/test/dir',
+      containerName: 'test-repo-test-id',
+      policyPath: '/test/policy',
+      sessionName: 'test-repo/test-id',
+      upstreamUrl: 'https://github.com/org/repo.git',
+      verbose: true,
+    };
+
+    const mockTmux = {
+      wrapMission: vi
+        .fn()
+        .mockReturnValue({ bin: 'tmux', args: ['new-session'], options: {} }),
+    };
+    (manager as any).tmux = mockTmux;
+    mockPm.runSync.mockReturnValue({ status: 0 });
+
+    await manager.runMission(manifest);
+
+    expect(mockTmux.wrapMission).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GCLI_ORBIT_VERBOSE: '1',
+        }),
+      }),
     );
   });
 });

@@ -5,9 +5,39 @@
  */
 
 import { type Command } from './types.js';
-import { type IRunOptions } from '../interfaces.js';
+import {
+  type IRunOptions,
+  type INodeExecutor,
+  type IProcessManager,
+} from '../interfaces.js';
 
-export class NodeExecutor {
+export class NodeExecutor implements INodeExecutor {
+  constructor(private readonly _pm: IProcessManager) {}
+
+  /**
+   * Creates a command to run a Node.js script.
+   */
+  public create(
+    scriptPath: string,
+    args: string[] = [],
+    options: IRunOptions = {},
+  ): Command {
+    return NodeExecutor.create(scriptPath, args, options);
+  }
+
+  /**
+   * Creates a command to run a Node.js script on a remote host (Generic 'node').
+   */
+  public createRemote(
+    scriptPath: string,
+    args: string[] = [],
+    options: IRunOptions = {},
+  ): Command {
+    return NodeExecutor.createRemote(scriptPath, args, options);
+  }
+
+  // --- Static Metadata Helpers ---
+
   /**
    * Creates a command to run a Node.js script.
    */
@@ -18,6 +48,21 @@ export class NodeExecutor {
   ): Command {
     return {
       bin: process.execPath,
+      args: [scriptPath, ...args],
+      options,
+    };
+  }
+
+  /**
+   * Creates a command to run a Node.js script on a remote host (Generic 'node').
+   */
+  public static createRemote(
+    scriptPath: string,
+    args: string[] = [],
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'node',
       args: [scriptPath, ...args],
       options,
     };

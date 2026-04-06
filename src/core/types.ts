@@ -15,6 +15,7 @@ export interface OrbitObserver {
   onProgress?(phase: string, message: string, progress?: number): void;
   onLog?(level: LogLevel, tag: string, message: string, ...args: any[]): void;
   onDivider?(title?: string): void;
+  setVerbose?(verbose: boolean): void;
 }
 
 /**
@@ -31,6 +32,7 @@ export interface MissionResult {
  */
 export interface CapsuleInfo {
   name: string;
+  repo?: string;
   state:
     | 'IDLE'
     | 'WAITING'
@@ -48,31 +50,17 @@ export interface CapsuleInfo {
 }
 
 /**
- * Structured result for Pulse check.
+ * Unified state model for an Orbit Station (Hardware + Missions).
  */
-export interface PulseInfo {
-  stationName: string;
-  repoName: string;
-  status: string;
-  internalIp?: string | undefined;
-  externalIp?: string | undefined;
-  capsules: CapsuleInfo[];
-}
-
-/**
- * Structured info for a Station.
- */
-export interface StationInfo {
-  name: string;
-  type: 'gce' | 'local-worktree';
-  repo: string;
-  status?: string | undefined;
-  projectId?: string | undefined;
-  zone?: string | undefined;
-  rootPath?: string | undefined;
-  lastSeen?: string | undefined;
-  missions: string[];
+export interface StationState {
+  receipt: import('../core/interfaces.js').StationReceipt;
   isActive: boolean;
+  reality?: {
+    status: string;
+    internalIp?: string;
+    externalIp?: string;
+    missions: CapsuleInfo[];
+  };
 }
 
 /**
@@ -83,6 +71,25 @@ export interface CIStatus {
   status: 'PENDING' | 'PASSED' | 'FAILED' | 'NOT_FOUND';
   failures?: Map<string, Set<string>>;
   testCommand?: string;
+}
+
+/**
+ * Immutable unit of truth for a mission's state and configuration.
+ * Passed via the GCLI_ORBIT_MANIFEST environment variable.
+ */
+export interface MissionManifest {
+  identifier: string; // The user's ID (PR # or branch name)
+  repoName: string; // The sanitized repository name
+  branchName: string; // The resolved git branch
+  action: string; // The playbook action (chat, fix, review, etc.)
+  workDir: string; // The absolute path to the workspace
+  containerName: string; // The name of the mission container
+  policyPath: string; // The absolute path to the active policy
+  sessionName: string; // The user-friendly hierarchical session name
+  upstreamUrl: string; // The git remote origin URL
+  mirrorPath?: string; // Optional path to local git mirror
+  verbose?: boolean | undefined; // Whether to enable detailed logging
+  tempDir?: string | undefined; // Root directory for temporary logs and artifacts
 }
 
 /**
@@ -130,6 +137,7 @@ export interface GetLogsOptions {
  * Options for provisioning a station.
  */
 export interface ProvisionOptions {
+  stationName?: string | undefined;
   schematicName?: string | undefined;
   destroy?: boolean | undefined;
 }
@@ -140,6 +148,8 @@ export interface ProvisionOptions {
 export interface ListStationsOptions {
   syncWithReality?: boolean | undefined;
   includeMissions?: boolean | undefined;
+  repoFilter?: string | undefined;
+  nameFilter?: string | undefined;
 }
 
 /**
@@ -187,8 +197,10 @@ export interface MissionExecOptions {
  */
 export interface IOrbitSDK {
   readonly observer: OrbitObserver;
-  getPulse(): Promise<PulseInfo>;
-  startMission(options: MissionOptions): Promise<MissionResult>;
+  getPulse(): Promise<StationState>;
+  getFleetState(options: ListStationsOptions): Promise<StationState[]>;
+  startMission(manifest: MissionManifest): Promise<MissionResult>;
+  resolveMission(options: MissionOptions): Promise<MissionManifest>;
   missionExec(options: MissionExecOptions): Promise<number>;
   jettisonMission(options: JettisonOptions): Promise<MissionResult>;
   reapMissions(options: ReapOptions): Promise<number>;
@@ -199,7 +211,7 @@ export interface IOrbitSDK {
   attach(options: AttachOptions): Promise<number>;
   getLogs(options: GetLogsOptions): Promise<number>;
   installShell(): Promise<void>;
-  listStations(options: ListStationsOptions): Promise<StationInfo[]>;
+  listStations(options: ListStationsOptions): Promise<StationState[]>;
   activateStation(name: string): Promise<void>;
   listSchematics(): SchematicInfo[];
   getSchematic(name: string): OrbitConfig | null;
@@ -239,15 +251,15 @@ export interface SetupOptions {
   userSuffix?: string;
   backendType?: string;
 }
-
 export interface ExecOptions {
   interactive?: boolean;
-  cwd?: string;
-  wrapCapsule?: string;
+  cwd?: string; // Absolute source of truth for the filesystem location
+  isolationId?: string; // Strictly for the isolation handle (Tmux session or Docker container name)
+  user?: string; // Unix user for remote execution
   quiet?: boolean;
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
-  user?: string;
+  manifest?: MissionManifest;
 }
 
 export interface RemoteCommand {
@@ -274,6 +286,7 @@ export interface SyncOptions {
   delete?: boolean;
   exclude?: string[];
   sudo?: boolean;
+  quiet?: boolean;
 }
 
 export interface OrbitStatus {

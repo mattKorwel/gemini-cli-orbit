@@ -9,30 +9,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-// We mock SATELLITE_WORKSPACES_PATH in Constants
-vi.mock('../core/Constants.js', async (importOriginal) => {
-  const original = await importOriginal<any>();
-  return {
-    ...original,
-    SATELLITE_WORKSPACES_PATH: path.join(os.tmpdir(), 'orbit-workspaces-test'),
-  };
-});
-
-import { main } from './worker.js';
-import {
-  SATELLITE_WORKSPACES_PATH,
-  ORBIT_STATE_PATH,
-} from '../core/Constants.js';
+// DO NOT MOCK CONSTANTS GLOBALLY
+import { main } from './station.js';
+import { ORBIT_STATE_PATH } from '../core/Constants.js';
 
 describe('Worker Status Aggregator', () => {
   let workspacesDir: string;
 
   beforeEach(() => {
-    workspacesDir = SATELLITE_WORKSPACES_PATH;
-    if (fs.existsSync(workspacesDir)) {
-      fs.rmSync(workspacesDir, { recursive: true, force: true });
-    }
-    fs.mkdirSync(workspacesDir, { recursive: true });
+    workspacesDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'orbit-workspaces-test-'),
+    );
 
     // Mock console.log to capture output
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -44,7 +31,6 @@ describe('Worker Status Aggregator', () => {
   });
 
   it('aggregates state from multiple mission workspaces', async () => {
-    // Setup mock workspaces
     const repo1 = path.join(workspacesDir, 'repo-a');
     const mission1 = path.join(repo1, 'mission-1');
     const mission2 = path.join(repo1, 'mission-2');
@@ -52,8 +38,16 @@ describe('Worker Status Aggregator', () => {
     fs.mkdirSync(mission1, { recursive: true });
     fs.mkdirSync(mission2, { recursive: true });
 
-    const state1 = { status: 'THINKING', last_thought: 'Working on it...' };
-    const state2 = { status: 'WAITING_FOR_INPUT', last_question: 'Ready?' };
+    const state1 = {
+      status: 'THINKING',
+      last_thought: 'Working on it...',
+      mission: 'mission-1',
+    };
+    const state2 = {
+      status: 'WAITING_FOR_INPUT',
+      last_question: 'Ready?',
+      mission: 'mission-2',
+    };
 
     fs.mkdirSync(path.dirname(path.join(mission1, ORBIT_STATE_PATH)), {
       recursive: true,
@@ -71,14 +65,7 @@ describe('Worker Status Aggregator', () => {
       JSON.stringify(state2),
     );
 
-    await main(['status']);
-
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('"status": "THINKING"'),
-    );
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('"status": "WAITING_FOR_INPUT"'),
-    );
+    await main(['status', workspacesDir]);
 
     const output = JSON.parse((console.log as any).mock.calls[0][0]);
     expect(output.missions).toHaveLength(2);
@@ -88,8 +75,37 @@ describe('Worker Status Aggregator', () => {
   });
 
   it('returns empty list if no workspaces exist', async () => {
-    await main(['status']);
+    await main(['status', workspacesDir]);
     const output = JSON.parse((console.log as any).mock.calls[0][0]);
     expect(output.missions).toEqual([]);
+  });
+
+  it('aggregates state from an explicit path provided via CLI', async () => {
+    const customDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'orbit-custom-pulse-'),
+    );
+
+    const repoDir = path.join(customDir, 'repo-x');
+    const missionDir = path.join(repoDir, 'mission-x');
+    fs.mkdirSync(missionDir, { recursive: true });
+
+    const stateFile = path.join(missionDir, ORBIT_STATE_PATH);
+    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+    fs.writeFileSync(
+      stateFile,
+      JSON.stringify({
+        status: 'COMPLETED',
+        mission: 'mission-x',
+      }),
+    );
+
+    await main(['status', customDir]);
+
+    const output = JSON.parse((console.log as any).mock.calls[0][0]);
+    expect(output.missions).toHaveLength(1);
+    expect(output.missions[0].status).toBe('COMPLETED');
+    expect(output.missions[0].repo).toBe('repo-x');
+
+    fs.rmSync(customDir, { recursive: true, force: true });
   });
 });

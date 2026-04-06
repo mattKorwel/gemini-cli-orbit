@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { main } from './worker.js';
+import { main } from './station.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -28,16 +28,28 @@ describe('Worker Integration (High-Fidelity)', () => {
     remoteRepoPath = path.join(tmpDir, 'remote-repo');
     workspacePath = path.join(tmpDir, 'workspace');
 
+    const mockManifest = {
+      identifier: 'pr-123',
+      repoName: 'test-repo',
+      branchName: 'feat/test',
+      action: 'review',
+      workDir: workspacePath,
+      policyPath: '/test/policy',
+      sessionName: 'test/id',
+      upstreamUrl: remoteRepoPath,
+    };
+    vi.stubEnv('GCLI_ORBIT_MANIFEST', JSON.stringify(mockManifest));
+
     // Ensure directory doesn't exist to start with
     if (fs.existsSync(tmpDir)) {
       // We can't really remove it if we mocked fs, but this is for local runs
     }
 
-    // Mock ProcessManager.runSync to return success without executing real commands
-    (ProcessManager.runSync as any).mockImplementation(
+    // Mock ProcessManager.prototype.runSync to return success without executing real commands
+    (ProcessManager.prototype.runSync as any).mockImplementation(
       (bin: string, args: string[]) => {
         if (bin === 'git' && args.includes('rev-parse')) {
-          return { status: 0, stdout: 'feat/test', stderr: '' };
+          return { status: 0, stdout: 'feat/test' };
         }
         return { status: 0, stdout: '', stderr: '' };
       },
@@ -51,6 +63,7 @@ describe('Worker Integration (High-Fidelity)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('should perform a full chunky initialization locally', async () => {
@@ -63,25 +76,19 @@ describe('Worker Integration (High-Fidelity)', () => {
       return false;
     });
 
-    const exitCode = await main([
-      'init',
-      workspacePath,
-      'pr-123',
-      'feat/test',
-      remoteRepoPath,
-    ]);
+    const exitCode = await main(['init']);
 
     expect(exitCode).toBe(0);
 
     // Verify git init was called via ProcessManager
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+    expect(ProcessManager.prototype.runSync).toHaveBeenCalledWith(
       'git',
       ['init'],
       expect.objectContaining({ cwd: workspacePath }),
     );
 
     // Verify remote add
-    expect(ProcessManager.runSync).toHaveBeenCalledWith(
+    expect(ProcessManager.prototype.runSync).toHaveBeenCalledWith(
       'git',
       ['remote', 'add', 'origin', remoteRepoPath],
       expect.objectContaining({ cwd: workspacePath }),
@@ -96,23 +103,17 @@ describe('Worker Integration (High-Fidelity)', () => {
       return true;
     });
 
-    // Mock ProcessManager.runSync sequence:
+    // Mock ProcessManager.prototype.runSync sequence:
     // 1. top-level (0, workspacePath)
     // 2. current-branch (0, 'feat/test')
-    (ProcessManager.runSync as any)
+    (ProcessManager.prototype.runSync as any)
       .mockReturnValueOnce({ status: 0, stdout: workspacePath }) // top-level check
       .mockReturnValueOnce({ status: 0, stdout: 'feat/test' }); // current branch check
 
     // Mock fs.mkdirSync to not do anything real
     vi.spyOn(fs, 'mkdirSync').mockReturnValue(undefined as any);
 
-    const exitCode = await main([
-      'init',
-      workspacePath,
-      'pr-123',
-      'feat/test',
-      remoteRepoPath,
-    ]);
+    const exitCode = await main(['init']);
 
     expect(exitCode).toBe(0);
     // Verified via 'Rolling with it' logic

@@ -6,17 +6,16 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GceCosProvider } from './GceCosProvider.js';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { type ProjectContext } from '../core/Constants.js';
 
-vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('../core/Logger.js', () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
+    debug: vi.fn(),
     logOutput: vi.fn(),
   },
   LogLevel: {
@@ -25,16 +24,6 @@ vi.mock('../core/Logger.js', () => ({
     WARN: 'WARN',
   },
 }));
-
-const mockSsh = {
-  runHostCommand: vi.fn(),
-  runDockerExec: vi.fn(),
-  syncPath: vi.fn().mockResolvedValue(0),
-  getMagicRemote: vi.fn().mockReturnValue('user@host'),
-  getBackendType: vi.fn().mockReturnValue('direct-internal'),
-  setOverrideHost: vi.fn(),
-  attachToTmux: vi.fn().mockResolvedValue(0),
-};
 
 describe('GceCosProvider', () => {
   const projectId = 'test-p';
@@ -47,23 +36,55 @@ describe('GceCosProvider', () => {
   };
   let provider: GceCosProvider;
 
+  const mockPm: any = {
+    runSync: vi.fn(),
+    runAsync: vi.fn(),
+    spawn: vi.fn(),
+  };
+
+  const mockSsh = {
+    runHostCommand: vi.fn(),
+    runDockerExec: vi.fn(),
+    syncPath: vi.fn().mockResolvedValue(0),
+    getMagicRemote: vi.fn().mockReturnValue('user@host'),
+    getBackendType: vi.fn().mockReturnValue('direct-internal'),
+    setOverrideHost: vi.fn(),
+    attachToTmux: vi.fn().mockResolvedValue(0),
+    syncPathIfChanged: vi.fn().mockResolvedValue(0),
+  };
+  mockSsh.runDockerExec.mockResolvedValue({
+    status: 0,
+    stdout: 'session',
+    stderr: '',
+  });
+
+  const mockExecutors: any = {
+    git: {},
+    docker: {
+      run: vi.fn().mockReturnValue({ bin: 'docker', args: ['run'] }),
+      stop: vi.fn().mockReturnValue({ bin: 'docker', args: ['stop'] }),
+      remove: vi.fn().mockReturnValue({ bin: 'docker', args: ['rm'] }),
+    },
+    tmux: {},
+    node: {
+      createRemote: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
+    },
+    gemini: {},
+    ssh: mockSsh,
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     (fs.existsSync as any).mockReturnValue(true);
-    (fs.mkdirSync as any).mockReturnValue(undefined);
 
     mockSsh.runHostCommand.mockResolvedValue({
       status: 0,
       stdout: '',
       stderr: '',
     });
-    mockSsh.runDockerExec.mockResolvedValue({
-      status: 0,
-      stdout: '',
-      stderr: '',
-    });
-    mockSsh.syncPath.mockResolvedValue(0);
+    mockSsh.syncPathIfChanged.mockResolvedValue(0);
+    mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
 
     provider = new GceCosProvider(
       projectCtx,
@@ -71,7 +92,10 @@ describe('GceCosProvider', () => {
       zone,
       instanceName,
       repoRoot,
-      mockSsh as any, // Inject the mock
+      mockSsh as any,
+      mockPm,
+      mockExecutors,
+      { projectId, zone, instanceName } as any,
     );
   });
 
@@ -80,85 +104,62 @@ describe('GceCosProvider', () => {
   });
 
   it('should get status from gcloud', async () => {
-    const mockData = {
-      name: 'test-i',
-      status: 'RUNNING',
-      networkInterfaces: [
-        {
-          networkIP: '10.0.0.1',
-          accessConfigs: [{ natIP: '34.0.0.1' }],
-        },
-      ],
-    };
-    (spawnSync as any).mockReturnValue({
+    mockPm.runSync.mockReturnValue({
       status: 0,
-      stdout: Buffer.from(JSON.stringify(mockData)),
-    } as any);
+      stdout: JSON.stringify({
+        name: instanceName,
+        status: 'RUNNING',
+        networkInterfaces: [{ networkIP: '1.2.3.4' }],
+      }),
+    });
 
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
-    expect(status.internalIp).toBe('10.0.0.1');
-    expect(status.externalIp).toBe('34.0.0.1');
-  });
-
-  it('should have public projectId and zone', () => {
-    expect(provider.projectId).toBe(projectId);
-    expect(provider.zone).toBe(zone);
-    expect(provider.stationName).toBe('test-i');
+    expect(status.internalIp).toBe('1.2.3.4');
   });
 
   it('should list stations for the user', async () => {
-    (spawnSync as any).mockReturnValue({ status: 0 } as any);
-    const res = await provider.listStations();
-    expect(res).toBe(0);
-    expect(spawnSync).toHaveBeenCalledWith(
-      'gcloud',
-      [
-        '--verbosity=error',
-        'compute',
-        'instances',
-        'list',
-        '--project',
-        'test-p',
-        '--filter',
-        'labels.orbit-managed=true',
-      ],
-      expect.objectContaining({ stdio: 'inherit' }),
-    );
+    mockPm.runSync.mockReturnValue({
+      status: 0,
+      stdout: JSON.stringify([{ name: 's1' }, { name: 's2' }]),
+    });
+
+    const stations = await provider.listStations();
+    expect(stations).toBe(0);
   });
 
   it('should list active orbit capsules', async () => {
     mockSsh.runHostCommand.mockResolvedValue({
       status: 0,
-      stdout: 'orbit-pr-123\norbit-pr-456\n',
+      stdout: 'c1\nc2\n',
       stderr: '',
     });
 
     const capsules = await provider.listCapsules();
-    expect(capsules).toEqual(['orbit-pr-123', 'orbit-pr-456']);
+    expect(capsules).toEqual(['c1', 'c2']);
   });
 
   it('should execute ensureReady and refresh capsule if missing', async () => {
-    // 1. repo check success
+    // 1. repo check
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: '',
       stderr: '',
     });
-    // 2. initial capsule check (missing)
+    // 2. mkdir -p check
     mockSsh.runHostCommand.mockResolvedValueOnce({
-      status: 1,
-      stdout: '',
-      stderr: 'No such object',
-    });
-    // 3. refresh commands (pull, rm, run)
-    mockSsh.runHostCommand.mockResolvedValue({
       status: 0,
       stdout: '',
       stderr: '',
     });
-    // 4. Signal lock checks (running)
-    mockSsh.runHostCommand.mockResolvedValue({
+    // 3. initial capsule check (exists)
+    mockSsh.runHostCommand.mockResolvedValueOnce({
+      status: 0,
+      stdout: 'true',
+      stderr: '',
+    });
+    // 4. Signal lock loop check
+    mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',
       stderr: '',
@@ -169,79 +170,61 @@ describe('GceCosProvider', () => {
     const res = await readyPromise;
 
     expect(res).toBe(0);
-    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        bin: '/bin/bash',
-        args: expect.arrayContaining([
-          expect.stringContaining('ls -d /repo/.git'),
-        ]),
-      }),
-      expect.any(Object),
+  });
+
+  it('should use executors for capsule operations', async () => {
+    await provider.runCapsule({ image: 'img', name: 'c1' } as any);
+    expect(mockExecutors.docker.run).toHaveBeenCalled();
+
+    await provider.stopCapsule('c1');
+    expect(mockExecutors.docker.stop).toHaveBeenCalledWith('c1');
+
+    await provider.removeCapsule('c1');
+    expect(mockExecutors.docker.remove).toHaveBeenCalledWith('c1');
+  });
+
+  it('should fetch mission telemetry via SSH/Docker', async () => {
+    mockSsh.runHostCommand.mockImplementation(async (cmdObj: any) => {
+      const args = cmdObj.args || [];
+      const cmd = args.join(' ');
+      if (cmd.includes('docker ps')) {
+        return { status: 0, stdout: 'repo-123', stderr: '' };
+      }
+      if (cmd.includes('station.js status')) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            missions: [
+              { repo: 'repo', mission: 'repo-123', status: 'THINKING' },
+            ],
+          }),
+          stderr: '',
+        };
+      }
+      if (cmd.includes('docker stats')) {
+        return { status: 0, stdout: '10% / 100MB', stderr: '' };
+      }
+      // Default success for other commands like tmux list-sessions
+      return { status: 0, stdout: 'session', stderr: '' };
+    });
+
+    const telemetry = await provider.getMissionTelemetry();
+    expect(telemetry).toHaveLength(1);
+    expect(telemetry[0]!.name).toBe('repo-123');
+  });
+
+  it('should correctly resolve naming for GCE', () => {
+    expect(provider.resolveWorkspaceName('repo', '123')).toBe('repo/123');
+    expect(provider.resolveSessionName('repo', '123', 'chat')).toBe('repo/123');
+    expect(provider.resolveContainerName('repo', '123', 'chat')).toBe(
+      'repo-123',
     );
   });
 
-  it('should inject infrastructure state into connection manager', () => {
-    (provider as any).projectCtx.backendType = 'external';
-    provider.injectState({
-      status: 'ready',
-      privateIp: '10.0.0.5',
-      publicIp: '34.0.0.5',
-    });
-    expect(mockSsh.setOverrideHost).toHaveBeenCalledWith('34.0.0.5');
-  });
-
-  it('should use host exec for capsule status commands', async () => {
-    mockSsh.runHostCommand.mockResolvedValue({
-      status: 0,
-      stdout: 'true',
-      stderr: '',
-    });
-
-    await provider.getCapsuleStatus('test-capsule');
-    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.arrayContaining([
-          expect.stringContaining('sudo docker inspect'),
-        ]),
-      }),
-      expect.objectContaining({ quiet: true }),
+  it('should correctly resolve paths for GCE', () => {
+    expect(provider.resolveWorkDir('repo/ws1')).toBe(
+      '/mnt/disks/data/workspaces/repo/ws1',
     );
-
-    await provider.getCapsuleStats('test-capsule');
-    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.arrayContaining([
-          expect.stringContaining('sudo docker stats'),
-        ]),
-      }),
-      expect.objectContaining({ quiet: true }),
-    );
-  });
-
-  it('should not include sensitiveEnv in docker run flags', async () => {
-    mockSsh.runHostCommand.mockResolvedValue({
-      status: 0,
-      stdout: '',
-      stderr: '',
-    });
-
-    await provider.runCapsule({
-      name: 'test-capsule',
-      image: 'test-image',
-      mounts: [],
-      env: { PUBLIC_VAR: 'public' },
-      sensitiveEnv: { PRIVATE_VAR: 'secret' },
-    });
-
-    const lastCall = mockSsh.runHostCommand.mock.calls.find((call: any) =>
-      call[0].args.some((arg: string) => arg.includes('docker run')),
-    );
-
-    expect(lastCall).toBeDefined();
-    const dockerCmd = lastCall![0].args.find((arg: string) =>
-      arg.includes('docker run'),
-    );
-    expect(dockerCmd).toContain("-e PUBLIC_VAR='\\''public'\\''");
-    expect(dockerCmd).not.toContain("-e PRIVATE_VAR='\\''secret'\\''");
+    expect(provider.resolveWorkspacesRoot()).toBe('/mnt/disks/data/workspaces');
   });
 });

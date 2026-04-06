@@ -6,54 +6,55 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveMissionContext } from './MissionUtils.js';
-import { spawnSync } from 'node:child_process';
-
-vi.mock('node:child_process', () => ({
-  spawnSync: vi.fn(),
-}));
 
 describe('MissionUtils', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should resolve simple mission ID', () => {
-    const ctx = resolveMissionContext('test-branch', 'chat', 'test-repo');
-    expect(ctx.containerName).toBe('orbit-test-repo-test-branch');
-    expect(ctx.workspaceName).toBe('orbit-test-repo-test-branch');
-    expect(ctx.sessionName).toBe('orbit/test-repo/test-branch');
+  it('should resolve metadata and slugs (Preserved)', () => {
+    const ctx = resolveMissionContext('test-branch', 'gemini-cli-orbit');
+    expect(ctx.branchName).toBe('test-branch');
+    expect(ctx.repoSlug).toBe('gemini-cli-orbit');
+    expect(ctx.idSlug).toBe('test-branch');
   });
 
   it('should resolve named mission with suffix (id:name)', () => {
-    const ctx = resolveMissionContext('123:debug', 'chat', 'test-repo');
-    expect(ctx.containerName).toBe('orbit-test-repo-123-debug');
-    expect(ctx.workspaceName).toBe('orbit-test-repo-123-debug');
-    expect(ctx.sessionName).toBe('orbit/test-repo/123-debug');
+    const ctx = resolveMissionContext('123:debug', 'gemini-cli-orbit');
+    expect(ctx.idSlug).toBe('123-debug');
   });
 
-  it('should resolve PR metadata using only the base ID', () => {
-    (spawnSync as any).mockReturnValue({
-      status: 0,
-      stdout: JSON.stringify({ headRefName: 'feature-branch' }),
-    });
+  it('should resolve PR metadata using GH CLI for numeric IDs', () => {
+    const mockPm = {
+      runSync: vi.fn().mockReturnValue({
+        status: 0,
+        stdout: JSON.stringify({ headRefName: 'feature-branch' }),
+      }),
+    };
 
-    const ctx = resolveMissionContext('123:debug', 'chat', 'test-repo');
+    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm as any);
 
-    // Verify gh pr view was called with base ID
-    expect(spawnSync).toHaveBeenCalledWith(
+    expect(mockPm.runSync).toHaveBeenCalledWith(
       'gh',
-      expect.arrayContaining(['pr', 'view', '123']),
-      expect.any(Object),
+      ['pr', 'view', '123', '--json', 'headRefName'],
+      expect.objectContaining({ quiet: true }),
     );
 
     expect(ctx.branchName).toBe('feature-branch');
-    expect(ctx.sessionName).toBe('orbit/test-repo/123-debug');
+    expect(ctx.idSlug).toBe('123');
   });
 
-  it('should handle complex suffixes with multiple colons', () => {
-    const ctx = resolveMissionContext('123:deep:dive', 'review', 'test-repo');
-    expect(ctx.containerName).toBe('orbit-test-repo-123-deep-dive-review');
-    expect(ctx.workspaceName).toBe('orbit-test-repo-123-deep-dive');
-    expect(ctx.sessionName).toBe('orbit/test-repo/123-deep-dive/review');
+  it('should fallback to ID as branch name if GH CLI fails', () => {
+    const mockPm = {
+      runSync: vi.fn().mockReturnValue({
+        status: 1,
+        stderr: 'error',
+      }),
+    };
+
+    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm as any);
+
+    expect(ctx.branchName).toBe('123');
+    expect(ctx.idSlug).toBe('123');
   });
 });

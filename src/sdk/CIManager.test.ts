@@ -19,11 +19,13 @@ describe('CIManager', () => {
     processManager = {
       runSync: vi.fn(),
     } as any;
+    const mockExecutors: any = {};
     ci = new CIManager(
       projectCtx as any,
       {} as any,
       observer as any,
       processManager,
+      mockExecutors,
     );
   });
 

@@ -15,48 +15,54 @@ import {
  * Aggregates all mission state manifests on this station.
  */
 export class StatusAggregator {
+  constructor(
+    private readonly workspacesRoot: string = SATELLITE_WORKSPACES_PATH,
+  ) {}
+
   async getStatus() {
-    const workspacesRoot = SATELLITE_WORKSPACES_PATH;
-    if (!fs.existsSync(workspacesRoot)) {
+    const root = this.workspacesRoot;
+    if (!fs.existsSync(root)) {
       return { missions: [] };
     }
 
     const reports: any[] = [];
-    const repos = fs.readdirSync(workspacesRoot);
 
-    for (const repo of repos) {
-      const repoPath = path.join(workspacesRoot, repo);
-      try {
-        if (!fs.statSync(repoPath).isDirectory()) continue;
-      } catch (_e) {
-        continue;
+    const scan = (dir: string) => {
+      const stateFile = path.join(dir, ORBIT_STATE_PATH);
+      if (fs.existsSync(stateFile)) {
+        try {
+          const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+          const rel = path.relative(root, dir);
+          const parts = rel.split(path.sep);
+
+          reports.push({
+            repo: parts.length > 1 ? parts[0] : 'unknown',
+            mission: parts[parts.length - 1],
+            ...state,
+          });
+          return; // Don't scan inside a mission
+        } catch (_e) {
+          // Skip
+        }
       }
 
-      const missions = fs.readdirSync(repoPath);
-      for (const mission of missions) {
-        const missionPath = path.join(repoPath, mission);
-        try {
-          if (!fs.statSync(missionPath).isDirectory()) continue;
-        } catch (_e) {
-          continue;
-        }
+      // Keep scanning subdirs (up to 2 levels deep)
+      const rel = path.relative(root, dir);
+      const depth = rel === '' ? 0 : rel.split(path.sep).length;
+      if (depth >= 2) return;
 
-        const stateFile = path.join(missionPath, ORBIT_STATE_PATH);
-        if (fs.existsSync(stateFile)) {
-          try {
-            const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-            reports.push({
-              repo,
-              mission,
-              ...state,
-            });
-          } catch (_e) {
-            // Skip corrupted state files
+      try {
+        const entries = fs.readdirSync(dir);
+        for (const entry of entries) {
+          const full = path.join(dir, entry);
+          if (fs.statSync(full).isDirectory()) {
+            scan(full);
           }
         }
-      }
-    }
+      } catch (_e) {}
+    };
 
+    scan(root);
     return { missions: reports };
   }
 }

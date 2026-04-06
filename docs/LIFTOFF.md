@@ -51,5 +51,11 @@ orbit infra liftoff --schematic my-sandbox
 To permanently delete a station and all its cloud resources (VPC, Disks, VM):
 
 ```bash
+orbit station delete <INSTANCE_NAME>
+```
+
+Or via the infrastructure command:
+
+```bash
 orbit infra liftoff <INSTANCE_NAME> --destroy
 ```

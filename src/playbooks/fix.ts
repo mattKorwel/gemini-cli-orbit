@@ -8,6 +8,7 @@ import { createTaskRunner } from '../core/TaskRunner.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { type IProcessManager } from '../core/interfaces.js';
 import { LOCAL_BUNDLE_PATH, BUNDLE_PATH } from '../core/Constants.js';
 
 export async function runFixPlaybook(
@@ -17,8 +18,9 @@ export async function runFixPlaybook(
   geminiBin: string,
   logDir: string,
   missionHeader: string,
+  pm?: IProcessManager,
 ) {
-  const runner = createTaskRunner(logDir, missionHeader);
+  const runner = createTaskRunner(logDir, missionHeader, pm);
 
   // Resolve the effective bundle directory based on environment
   const isRemote =

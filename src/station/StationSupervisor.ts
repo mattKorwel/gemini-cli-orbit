@@ -7,83 +7,47 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
+import {
+  type IProcessManager,
+  type ITmuxExecutor,
+} from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
-import { TmuxExecutor as _TmuxExecutor } from '../core/executors/TmuxExecutor.js';
-import { resolveMissionContext as _resolveMissionContext } from '../utils/MissionUtils.js';
-import { runReviewPlaybook } from '../playbooks/review.js';
-import { runFixPlaybook } from '../playbooks/fix.js';
-import { runReadyPlaybook } from '../playbooks/ready.js';
-import { SessionManager } from '../utils/SessionManager.js';
-import { TempManager } from '../utils/TempManager.js';
-import { getRepoConfig } from '../core/ConfigManager.js';
-
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { type Command } from '../core/executors/types.js';
-
+import { type MissionManifest } from '../core/types.js';
 /**
  * StationSupervisor: Remote host management layer.
  * Responsible for workspace setup and mission spawning.
  */
 export class StationSupervisor {
-  constructor(private readonly dirname: string) {}
+  constructor(
+    private readonly dirname: string,
+    private readonly pm: IProcessManager = new ProcessManager(),
+    private readonly tmux: ITmuxExecutor = new TmuxExecutor(pm),
+  ) {}
 
   /**
-   * Ensures the workspace is configured with the mission-control hooks.
+   * Universal Entrypoint: Orchestrates init, hooks, and mission launch.
+   * This is the single RPC call from the SDK to start a mission.
    */
-  async setupHooks(targetDir: string) {
-    const orbitDir = path.join(targetDir, '.gemini/orbit');
-    if (!fs.existsSync(orbitDir)) {
-      fs.mkdirSync(orbitDir, { recursive: true });
-    }
+  async start(manifest: MissionManifest) {
+    await this.initGit(manifest);
+    await this.setupHooks(manifest);
 
-    // Ensure state file is accessible/writable
-    const stateFile = path.join(targetDir, ORBIT_STATE_PATH);
-    if (!fs.existsSync(stateFile)) {
-      fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-      fs.writeFileSync(
-        stateFile,
-        JSON.stringify({ status: 'IDLE', timestamp: new Date().toISOString() }),
-      );
-    }
-
-    // Inject hooks into settings.json for Gemini CLI
-    const settingsFile = path.join(targetDir, '.gemini/settings.json');
-    const hooksScript = path.join(this.dirname, 'hooks.js');
-    const orbitHooks = {
-      BeforeAgent: [{ type: 'command', command: `node ${hooksScript}` }],
-      AfterAgent: [{ type: 'command', command: `node ${hooksScript}` }],
-      BeforeTool: [{ type: 'command', command: `node ${hooksScript}` }],
-      Notification: [{ type: 'command', command: `node ${hooksScript}` }],
-    };
-
-    let settings: any = {};
-    if (fs.existsSync(settingsFile)) {
-      try {
-        settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
-      } catch {}
-    }
-
-    settings.hooks = { ...(settings.hooks || {}), ...orbitHooks };
-    settings.hooksConfig = { ...(settings.hooksConfig || {}), enabled: true };
-
-    fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
-    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-
-    return 0;
+    return this.runMission(manifest);
   }
 
   /**
-   * Performs Git initialization using GitExecutor.
+   * Initializes the mission workspace on the host.
    */
-  async initGit(
-    targetDir: string,
-    upstreamUrl: string,
-    branch: string,
-    mirrorPath?: string,
-  ) {
+  async initGit(manifest: MissionManifest) {
+    const { workDir, upstreamUrl, branchName: branch, mirrorPath } = manifest;
+    const targetDir = path.resolve(workDir);
+
     const run = (cmd: Command) => {
-      const res = ProcessManager.runSync(cmd.bin, cmd.args, cmd.options);
+      const res = this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       if (res.status !== 0) {
         throw new Error(
           `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n` +
@@ -95,13 +59,10 @@ export class StationSupervisor {
       return res;
     };
 
-    // Strict local .git detection.
-    // In a worktree, .git is a FILE. In a primary repo, it is a FOLDER.
-    // If neither exists in the targetDir specifically, it is UNINITIALIZED.
-    const gitPath = path.join(targetDir, '.git');
-    const isInitialized = fs.existsSync(gitPath);
-
-    if (!isInitialized) {
+    const r = path.join(targetDir, '.git');
+    if (fs.existsSync(r)) {
+      console.log(`✅ Git workspace already initialized at ${targetDir}`);
+    } else {
       console.log(`📦 Initializing Git workspace at ${targetDir}...`);
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
@@ -111,36 +72,20 @@ export class StationSupervisor {
       run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
 
       if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
-        console.log(`   - Using reference mirror: ${mirrorPath}`);
-        const alternatesPath = path.join(
-          targetDir,
-          '.git/objects/info/alternates',
-        );
-        const mirrorObjects = path.join(mirrorPath, 'objects');
-        fs.mkdirSync(path.dirname(alternatesPath), { recursive: true });
-        fs.writeFileSync(alternatesPath, mirrorObjects);
+        const alternates = path.join(targetDir, '.git/objects/info/alternates');
+        const objects = path.join(mirrorPath, 'objects');
+        fs.mkdirSync(path.dirname(alternates), { recursive: true });
+        fs.writeFileSync(alternates, objects);
       }
-    } else {
-      console.log(`✅ Git workspace already initialized at ${targetDir}`);
     }
 
-    // --- Unified Branch Resolution ---
-
-    // 0. Check if we are already on the correct branch to avoid conflicts
-    const currentBranchCmd: Command = {
-      bin: 'git',
-      args: ['rev-parse', '--abbrev-ref', 'HEAD'],
-      options: { cwd: targetDir, quiet: true },
-    };
-    const currentBranchRes = ProcessManager.runSync(
-      currentBranchCmd.bin,
-      currentBranchCmd.args,
-      currentBranchCmd.options,
+    const currentBranchRes = run(
+      GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD'], {
+        quiet: true,
+      }),
     );
 
-    const currentBranch =
-      currentBranchRes.status === 0 ? currentBranchRes.stdout.trim() : '';
-    if (currentBranch === branch) {
+    if (currentBranchRes.stdout.trim() === branch) {
       console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }
@@ -148,23 +93,20 @@ export class StationSupervisor {
     // Try to fetch the branch from origin
     console.log(`   - Attempting to fetch branch '${branch}' from origin...`);
     const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-    const fetchRes = ProcessManager.runSync(
+    const fetchRes = this.pm.runSync(
       fetchCmd.bin,
       fetchCmd.args,
       fetchCmd.options,
     );
-
     if (fetchRes.status !== 0) {
       console.log(`   ⚠️  Branch '${branch}' not found on origin.`);
     }
 
     // 1. Check if branch already exists locally
-    const checkLocalCmd: Command = {
-      bin: 'git',
-      args: ['rev-parse', '--verify', branch],
-      options: { cwd: targetDir, quiet: true },
-    };
-    const localRes = ProcessManager.runSync(
+    const checkLocalCmd = GitExecutor.verify(targetDir, branch, {
+      quiet: true,
+    });
+    const localRes = this.pm.runSync(
       checkLocalCmd.bin,
       checkLocalCmd.args,
       checkLocalCmd.options,
@@ -176,12 +118,10 @@ export class StationSupervisor {
     } else {
       // 2. Try to checkout from origin/branch if we successfully fetched it
       const remoteRef = `origin/${branch}`;
-      const checkRemoteCmd: Command = {
-        bin: 'git',
-        args: ['rev-parse', '--verify', remoteRef],
-        options: { cwd: targetDir, quiet: true },
-      };
-      const remoteRes = ProcessManager.runSync(
+      const checkRemoteCmd = GitExecutor.verify(targetDir, remoteRef, {
+        quiet: true,
+      });
+      const remoteRes = this.pm.runSync(
         checkRemoteCmd.bin,
         checkRemoteCmd.args,
         checkRemoteCmd.options,
@@ -189,19 +129,11 @@ export class StationSupervisor {
 
       if (remoteRes.status === 0) {
         console.log(`   - Creating branch '${branch}' from ${remoteRef}...`);
-        run({
-          bin: 'git',
-          args: ['checkout', '-b', branch, remoteRef],
-          options: { cwd: targetDir },
-        });
+        run(GitExecutor.checkoutNew(targetDir, branch, remoteRef));
       } else {
         // 3. Fallback: Create new branch from current HEAD
         console.log(`   - Creating new branch '${branch}' from HEAD...`);
-        run({
-          bin: 'git',
-          args: ['checkout', '-b', branch],
-          options: { cwd: targetDir },
-        });
+        run(GitExecutor.checkoutNew(targetDir, branch));
       }
     }
 
@@ -210,196 +142,59 @@ export class StationSupervisor {
   }
 
   /**
-   * Executes a mission playbook directly (called by entrypoint).
+   * Provision session-specific state and hooks.
    */
-  async runPlaybook(
-    prNumberOrIssue: string,
-    branchName: string,
-    action: string,
-    policyPath: string,
-    sessionName?: string,
-  ) {
-    const targetDir = process.cwd();
+  async setupHooks(manifest: MissionManifest) {
+    const { workDir } = manifest;
+    const targetDir = path.resolve(workDir);
 
-    // Resolve absolute path of gemini
-    const geminiBin = 'gemini';
-
-    const config = getRepoConfig();
-    const tempManager = new TempManager(config);
-    const sessionId =
-      SessionManager.getSessionIdFromEnv() ||
-      SessionManager.generateMissionId(prNumberOrIssue, action);
-    const logDir = tempManager.getDir(sessionId);
-
-    // Policy Resolution
-    let resolvedPolicyPath = policyPath;
-    const projectLocalPolicy = path.join(
-      targetDir,
-      `.gemini/orbit/${action}.policy.toml`,
-    );
-    if (fs.existsSync(projectLocalPolicy)) {
-      resolvedPolicyPath = projectLocalPolicy;
+    const orbitDir = path.join(targetDir, '.gemini/orbit');
+    if (!fs.existsSync(orbitDir)) {
+      fs.mkdirSync(orbitDir, { recursive: true });
     }
 
-    const missionHeader = `🚀 Orbit Mission | ID: ${prNumberOrIssue} | Action: ${action}`;
-    console.log(`\n${missionHeader}`);
-    console.log(`📂 Log Directory: ${logDir}`);
-    console.log(`🛡️  Using Policy: ${resolvedPolicyPath}`);
-
-    // Dispatch to Playbook
-    switch (action) {
-      case 'chat': {
-        // Chat mode: drop into interactive Gemini
-        const missionId = prNumberOrIssue;
-        console.log(`\n💬 Entering Mission Chat: ${sessionName || missionId}`);
-
-        // Automatic Resumption logic: --resume latest
-        const cmd = `${geminiBin} --resume latest`;
-        const res = ProcessManager.runSync('sh', ['-c', cmd], {
-          stdio: 'inherit',
-          cwd: targetDir,
-        });
-        return res.status;
-      }
-
-      case 'review':
-        return runReviewPlaybook(
-          prNumberOrIssue,
-          targetDir,
-          resolvedPolicyPath,
-          geminiBin,
-          logDir,
-          missionHeader,
-        );
-
-      case 'fix':
-        return runFixPlaybook(
-          prNumberOrIssue,
-          targetDir,
-          resolvedPolicyPath,
-          geminiBin,
-          logDir,
-          missionHeader,
-        );
-
-      case 'ready':
-        return runReadyPlaybook(
-          prNumberOrIssue,
-          targetDir,
-          resolvedPolicyPath,
-          geminiBin,
-          logDir,
-          missionHeader,
-        );
-
-      case 'implement': {
-        const { runImplementPlaybook } =
-          await import('../playbooks/implement.js');
-        return runImplementPlaybook(
-          prNumberOrIssue,
-          targetDir,
-          resolvedPolicyPath,
-          geminiBin,
-          logDir,
-          missionHeader,
-        );
-      }
-      default:
-        console.error(`❌ Unknown playbook action: ${action}`);
-        return 1;
+    const statePath = path.join(targetDir, ORBIT_STATE_PATH);
+    if (!fs.existsSync(statePath)) {
+      fs.writeFileSync(
+        statePath,
+        JSON.stringify(
+          {
+            status: 'INITIALIZING',
+            mission: manifest.identifier,
+            timestamp: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
     }
+
+    return 0;
   }
 
   /**
    * Spawns a mission using the unified Tmux wrapper.
    */
-  async runMission(
-    identifier: string,
-    branchName: string,
-    action: string,
-    policyPath: string,
-    workDir: string,
-    sessionName?: string,
-  ) {
+  async runMission(manifest: MissionManifest) {
+    const { workDir, sessionName: sName } = manifest;
     const targetDir = path.resolve(workDir);
-    const entrypointPath = path.join(this.dirname, 'entrypoint.js');
-    const sName = sessionName || identifier;
+    const missionPath = path.join(this.dirname, 'mission.js');
 
-    // Stealth UI Styles
-    const styles = [
-      'set-option status on',
-      'set-option status-position top',
-      'set-option status-style bg=colour235,fg=colour244',
-      'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
-      'set-option status-right "#[fg=colour244] #H "',
-      'set-option window-status-current-format "#[fg=colour45,bold] #S "',
-    ]
-      .map((s) => `tmux ${s}`)
-      .join('; ');
+    // ADR 0018: The Mission binary is our sole authority in the session
+    const nodeCmd = NodeExecutor.create(missionPath, []);
+    const innerCommand = `${nodeCmd.bin} ${nodeCmd.args.join(' ')}`;
 
-    // Build the inner node command
-    // Order: <id> <branch> <action> <policy> [sessionName]
-    const nodeCmd = NodeExecutor.create(entrypointPath, [
-      identifier,
-      targetDir,
-      policyPath,
-      action,
-      sName,
-    ]);
-
-    // Wrap it in Tmux for persistence
-    // 1. Apply styles.
-    // 2. Print tip. (ANSI: \x1b[38;5;244m = Gray, \x1b[38;5;39m = Blue, \x1b[0m = Reset)
-    const tip =
-      'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
-    const launch = `${styles}; ${tip}; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`;
-
-    const tmuxCmd = {
-      bin: 'tmux',
-      args: [
-        'new-session',
-        '-d',
-        '-A',
-        '-s',
-        sName,
-        `${tip}; ${nodeCmd.bin} ${nodeCmd.args.join(' ')} || exec zsh`,
-      ],
-      options: { cwd: targetDir },
-    };
+    // Use the dedicated TmuxExecutor to build the session wrapper
+    const tmuxCmd = this.tmux.wrapMission(sName, innerCommand, {
+      cwd: targetDir,
+      env: {
+        GCLI_ORBIT_MANIFEST: JSON.stringify(manifest),
+        GCLI_ORBIT_VERBOSE: manifest.verbose ? '1' : '0',
+      },
+    });
 
     // Launch!
-    const res = ProcessManager.runSync(
-      tmuxCmd.bin,
-      tmuxCmd.args,
-      tmuxCmd.options,
-    );
-
-    // Apply Stealth UI Styles to the session explicitly
-    const styleCmds = [
-      ['set-option', '-t', sName, 'status', 'on'],
-      ['set-option', '-t', sName, 'status-position', 'top'],
-      ['set-option', '-t', sName, 'status-style', 'bg=colour235,fg=colour244'],
-      [
-        'set-option',
-        '-t',
-        sName,
-        'status-left',
-        '#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ ',
-      ],
-      ['set-option', '-t', sName, 'status-right', '#[fg=colour244] #H '],
-      [
-        'set-option',
-        '-t',
-        sName,
-        'window-status-current-format',
-        '#[fg=colour45,bold] #S ',
-      ],
-    ];
-
-    for (const args of styleCmds) {
-      ProcessManager.runSync('tmux', args, { quiet: true });
-    }
-
+    const res = this.pm.runSync(tmuxCmd.bin, tmuxCmd.args, tmuxCmd.options);
     return res.status;
   }
 }

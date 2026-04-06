@@ -14,7 +14,7 @@ import {
   type CIStatus,
   type MonitorCIOptions,
 } from '../core/types.js';
-import { type IProcessManager } from '../core/interfaces.js';
+import { type IProcessManager, type IExecutors } from '../core/interfaces.js';
 
 export class CIManager {
   constructor(
@@ -22,6 +22,7 @@ export class CIManager {
     private readonly infra: InfrastructureSpec,
     private readonly observer: OrbitObserver,
     private readonly processManager: IProcessManager,
+    private readonly executors: IExecutors,
   ) {}
 
   /**

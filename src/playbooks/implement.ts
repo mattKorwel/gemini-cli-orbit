@@ -8,6 +8,7 @@ import { createTaskRunner } from '../core/TaskRunner.js';
 import path from 'path';
 import fs from 'fs';
 import { spawnSync } from 'node:child_process';
+import { type IProcessManager } from '../core/interfaces.js';
 
 export async function runImplementPlaybook(
   issueNumber: string,
@@ -16,9 +17,10 @@ export async function runImplementPlaybook(
   geminiBin: string,
   logDir: string,
   missionHeader: string,
+  pm?: IProcessManager,
   guidelinesPath?: string,
 ) {
-  const runner = createTaskRunner(logDir, missionHeader);
+  const runner = createTaskRunner(logDir, missionHeader, pm);
 
   // 1. PHASE 0: Parallel Research & Context
   runner.register([

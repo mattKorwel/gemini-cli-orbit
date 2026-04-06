@@ -30,7 +30,7 @@ vi.mock('../utils/MissionUtils.js', () => ({
   SessionManager: {
     generateMissionId: vi.fn().mockReturnValue('mock-mission-id'),
   },
-  MISSION_PREFIX: 'orbit-',
+  getPrimaryRepoRoot: vi.fn().mockReturnValue('/tmp/repo'),
 }));
 vi.mock('../utils/SessionManager.js', () => ({
   SessionManager: {
@@ -47,6 +47,9 @@ describe('MissionManager', () => {
   let mockProvider: any;
   let providerFactory: Mocked<IProviderFactory>;
   let configManager: Mocked<IConfigManager>;
+  let mockPm: any;
+  let mockExecutors: any;
+  let mockStationRegistry: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,6 +68,27 @@ describe('MissionManager', () => {
       sync: vi.fn().mockResolvedValue(0),
       syncIfChanged: vi.fn().mockResolvedValue(0),
       ensureReady: vi.fn().mockResolvedValue(0),
+      removeCapsule: vi.fn().mockResolvedValue(0),
+      capturePane: vi.fn().mockResolvedValue('mock-logs'),
+      getCapsuleIdleTime: vi.fn().mockResolvedValue(0),
+      resolveWorkspaceName: vi.fn().mockImplementation((r, i) => `${r}-${i}`),
+      resolveSessionName: vi.fn().mockImplementation((r, i) => `${r}/${i}`),
+      resolveContainerName: vi
+        .fn()
+        .mockImplementation((r, i, a) => `${r}-${i}-${a}`),
+      resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
+      resolveProjectConfigDir: vi.fn().mockReturnValue('/tmp/project-configs'),
+      resolveWorkerPath: vi.fn().mockReturnValue('/tmp/station.js'),
+      resolvePolicyPath: vi.fn().mockReturnValue('/tmp/policy.toml'),
+      resolveMirrorPath: vi.fn().mockReturnValue('/tmp/mirror'),
+      createNodeCommand: vi
+        .fn()
+        .mockImplementation((s, a) => ({ bin: 'node', args: [s, ...a] })),
+      getMissionExecOutput: vi
+        .fn()
+        .mockResolvedValue({ status: 0, stdout: '', stderr: '' }),
+      execMission: vi.fn().mockResolvedValue(0),
+      getStationReceipt: vi.fn().mockReturnValue({ name: 'mock-station' }),
     };
 
     providerFactory = {
@@ -82,12 +106,30 @@ describe('MissionManager', () => {
         .mockReturnValue('https://github.com/test/test.git'),
     } as any;
 
+    mockExecutors = {
+      node: {
+        create: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
+        createRemote: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
+      },
+    };
+
+    mockStationRegistry = {
+      saveReceipt: vi.fn(),
+    };
+
+    mockPm = {
+      runSync: vi.fn().mockReturnValue({ status: 0, stdout: '', stderr: '' }),
+    };
+
     manager = new MissionManager(
       { repoName: 'test-repo', repoRoot: '/tmp' } as any,
       { projectId: 'p1', zone: 'z1' } as any,
       { onLog: vi.fn(), onProgress: vi.fn() } as any,
       providerFactory,
       configManager,
+      mockPm,
+      mockExecutors,
+      mockStationRegistry,
     );
   });
 
@@ -95,95 +137,115 @@ describe('MissionManager', () => {
     vi.unstubAllEnvs();
   });
 
-  it('should perform chunky handshake (init, hooks, then run) for a new mission', async () => {
-    const fullName = 'orbit-123-review';
+  it('should perform a single start handshake for a new mission', async () => {
+    const fullName = 'test-repo-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: fullName,
-      sessionName: fullName,
-      workspaceName: fullName,
+      repoSlug: 'test-repo',
+      idSlug: '123',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
-    const result = await manager.start({ identifier: '123', action: 'review' });
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'review',
+    });
+    const result = await manager.start(manifest);
 
-    // 1. Verify init call
-    expect(mockProvider.exec).toHaveBeenCalledWith(
+    // Verify a single 'start' call was made
+    expect(mockProvider.getMissionExecOutput).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: expect.arrayContaining(['init', '123', 'feat']),
+        args: expect.arrayContaining(['start']),
       }),
       expect.any(Object),
-    );
-
-    // 2. Verify hooks call
-    expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: expect.arrayContaining(['setup-hooks']),
+        manifest: expect.objectContaining({
+          identifier: '123',
+          action: 'review',
+        }),
       }),
-      expect.any(Object),
-    );
-
-    // 3. Verify run call
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.arrayContaining(['run', '123', 'feat', 'review']),
-      }),
-      expect.any(Object),
     );
 
     expect(result.exitCode).toBe(0);
   });
 
-  it('should run both init and run phases for chat action in the new architecture', async () => {
-    const fullName = 'orbit-123-chat';
+  it('should call start and attach for chat missions', async () => {
+    const fullName = 'test-repo-123';
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: fullName,
-      sessionName: fullName,
-      workspaceName: fullName,
+      repoSlug: 'test-repo',
+      idSlug: '123',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
-    await manager.start({ identifier: '123', action: 'chat' });
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'chat',
+    });
+    await manager.start(manifest);
 
-    // Should call init
-    expect(mockProvider.exec).toHaveBeenCalledWith(
+    // Verify 'start' call
+    expect(mockProvider.getMissionExecOutput).toHaveBeenCalledWith(
       expect.objectContaining({
-        args: expect.arrayContaining(['init', '123', 'feat']),
+        args: expect.arrayContaining(['start']),
       }),
       expect.any(Object),
+      expect.objectContaining({
+        manifest: expect.objectContaining({
+          identifier: '123',
+          action: 'chat',
+        }),
+      }),
     );
 
-    // Should ALSO call run now (to start entrypoint/doctor)
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.arrayContaining(['run', '123', 'feat', 'chat']),
-      }),
-      expect.any(Object),
-    );
+    // Verify 'attach' call
+    expect(mockProvider.attach).toHaveBeenCalled();
   });
 
-  it('should clean up RAM-disk secret file during jettison', async () => {
-    const fullName = 'orbit-123-chat';
+  it('should clean up RAM-disk secret file and all possible mission variants during jettison', async () => {
     (resolveMissionContext as any).mockReturnValue({
       branchName: 'feat',
-      containerName: fullName,
-      sessionName: fullName,
-      workspaceName: fullName,
+      repoSlug: 'test-repo',
+      idSlug: '123',
     });
-    mockProvider.listCapsules.mockResolvedValue([fullName]);
-    mockProvider.stopCapsule = vi.fn().mockResolvedValue(0);
-    mockProvider.removeCapsule = vi.fn().mockResolvedValue(0);
+    mockProvider.listCapsules.mockResolvedValue(['test-repo-123']);
 
-    await manager.jettison({ identifier: '123', action: 'chat' });
+    await manager.jettison({ identifier: '123' });
 
-    // Should stop and remove capsule
-    expect(mockProvider.stopCapsule).toHaveBeenCalledWith(fullName);
-    expect(mockProvider.removeCapsule).toHaveBeenCalledWith(fullName);
+    // Should attempt to remove variants
+    expect(mockProvider.removeCapsule).toHaveBeenCalled();
 
     // Should cleanup secrets
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
+      expect.any(Object),
     );
+  });
+
+  it('should propagate verbose flag to the manifest', async () => {
+    // Create manager with verbose infra
+    const verboseManager = new MissionManager(
+      { repoName: 'test-repo', repoRoot: '/tmp' } as any,
+      { projectId: 'p1', zone: 'z1', verbose: true } as any,
+      { onLog: vi.fn(), onProgress: vi.fn() } as any,
+      providerFactory,
+      configManager,
+      mockPm,
+      mockExecutors,
+      mockStationRegistry,
+    );
+
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+    });
+
+    const manifest = await verboseManager.resolve({
+      identifier: '123',
+      action: 'review',
+    });
+
+    expect(manifest.verbose).toBe(true);
   });
 });

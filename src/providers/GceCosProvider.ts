@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
-import { type OrbitProvider } from './BaseProvider.js';
+import path from 'node:path';
+import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
+  type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
+  type CapsuleInfo,
 } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
@@ -19,7 +21,18 @@ import { logger } from '../core/Logger.js';
 import {
   type ProjectContext,
   type InfrastructureSpec,
+  STATION_BUNDLE_PATH,
+  ORBIT_ROOT,
+  MAIN_REPO_PATH,
+  BUNDLE_PATH,
+  LOCAL_BUNDLE_PATH,
 } from '../core/Constants.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
+import {
+  type IExecutors,
+  type IProcessManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
 export class ConnectivityError extends Error {
   constructor(message: string) {
@@ -30,10 +43,11 @@ export class ConnectivityError extends Error {
 
 /**
  * GCE Container-Optimized OS (COS) Execution Provider.
+ * Overrides BaseProvider to maintain legacy flat naming structure.
  */
-export class GceCosProvider implements OrbitProvider {
+export class GceCosProvider extends BaseProvider {
   public readonly type = 'gce';
-  public readonly isLocal = false;
+  public readonly isPersistent = true;
 
   public readonly projectId: string;
   public readonly zone: string;
@@ -51,11 +65,19 @@ export class GceCosProvider implements OrbitProvider {
     instanceName: string,
     repoRoot: string,
     ssh: SSHManager,
+    pm: IProcessManager,
+    executors: IExecutors,
+    private readonly infra: InfrastructureSpec,
     config: {
       imageUri?: string;
       stationName?: string;
     } = {},
   ) {
+    super(pm, executors);
+    logger.debug(
+      'FLEET',
+      `GceCosProvider infra: ${JSON.stringify(infra, null, 2)}`,
+    );
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;
@@ -67,28 +89,48 @@ export class GceCosProvider implements OrbitProvider {
     this.stationName = config.stationName || instanceName;
   }
 
+  /**
+   * Path resolution (Backend specific root)
+   */
+  override resolveWorkDir(workspaceName: string): string {
+    return path.join(this.resolveWorkspacesRoot(), workspaceName);
+  }
+
+  override resolveWorkspacesRoot(): string {
+    return `${ORBIT_ROOT}/workspaces`;
+  }
+
+  override resolveWorkerPath(): string {
+    return STATION_BUNDLE_PATH;
+  }
+
+  override resolveProjectConfigDir(): string {
+    return `${ORBIT_ROOT}/project-configs`;
+  }
+
+  override resolvePolicyPath(_repoRoot: string): string {
+    return `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+  }
+
+  override resolveMirrorPath(): string {
+    return MAIN_REPO_PATH;
+  }
+
   injectState(state: InfrastructureState): void {
-    // If we have a public IP (external backend), override the host in SSH manager
     if (state.publicIp) {
       this.ssh.setOverrideHost(state.publicIp);
     }
   }
 
   async prepareMissionWorkspace(
-    identifier: string,
-    branch: string,
-    action: string,
+    mCtx: MissionContext,
     infra: InfrastructureSpec,
   ): Promise<void> {
     const provisioner = new RemoteProvisioner(this.projectCtx, this);
-    await provisioner.prepareMissionWorkspace(identifier, action, infra);
+    await provisioner.prepareMissionWorkspace(mCtx, infra);
   }
 
-  /**
-   * Ensures the station is responsive and the supervisor capsule is running.
-   */
   async ensureReady(): Promise<number> {
-    // Verify main repo existence on host
     const repoCheck = await this.getExecOutput(`ls -d ${this.repoRoot}/.git`, {
       quiet: true,
     });
@@ -105,10 +147,31 @@ export class GceCosProvider implements OrbitProvider {
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
 
+      // ADR 0018: Ensure the station code is up to date on the host before launching capsules
+      // Note: Trailing slash on localPath ensures only the contents are synced
+
+      // Ensure parent directory exists before rsync
+      await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`, { quiet: true });
+
+      const syncStatus = await this.syncIfChanged(
+        `${LOCAL_BUNDLE_PATH}/`,
+        BUNDLE_PATH,
+        {
+          delete: true,
+          sudo: true,
+          quiet: true,
+        },
+      );
+
+      if (syncStatus !== 0) {
+        throw new Error(
+          `Failed to synchronize extension bundle to remote host (exit code ${syncStatus}).`,
+        );
+      }
+
       let check: { exists: boolean; running: boolean } | null = null;
       let lastErr: any = null;
 
-      // SSH Retry Loop
       for (let i = 0; i < 10; i++) {
         try {
           check = await this.getCapsuleStatus(this.instanceName);
@@ -141,7 +204,7 @@ export class GceCosProvider implements OrbitProvider {
               -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
               ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
           `;
-        await this.exec(refreshCmd);
+        await this.exec(refreshCmd, { quiet: true });
       }
 
       logger.info(`📡 Acquiring station signal (${this.stationName})...`);
@@ -168,7 +231,11 @@ export class GceCosProvider implements OrbitProvider {
     return 1;
   }
 
-  getRunCommand(_command: string, _options: ExecOptions = {}): string {
+  override createNodeCommand(scriptPath: string, args: string[] = []): Command {
+    return this.executors.node.createRemote(scriptPath, args);
+  }
+
+  getRunCommand(): string {
     return 'NOT_IMPLEMENTED_USE_SSH_MANAGER';
   }
 
@@ -180,34 +247,49 @@ export class GceCosProvider implements OrbitProvider {
     return res.status;
   }
 
+  override resolveIsolationId(mCtx: MissionContext): string {
+    return mCtx.containerName;
+  }
+
   async getExecOutput(
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    const cmdObj: RemoteCommand = {
-      bin: '/bin/bash',
-      args: ['-c', this.sshQuote(flattenCommand(command))],
+    const cmdObj =
+      typeof command === 'string' ? { bin: command, args: [] } : command;
+
+    const mergedOptions = {
+      ...options,
+      ...(cmdObj.options || {}),
     };
 
-    if (options.cwd) cmdObj.cwd = options.cwd;
-    if (options.user) cmdObj.user = options.user;
+    const remoteCmd: RemoteCommand = {
+      bin: '/bin/bash',
+      args: ['-c', this.shellQuote(flattenCommand(command))],
+      env: { ...(mergedOptions.env || {}) },
+    };
 
-    // Inject correct PATH for capsule execution
-    if (options.wrapCapsule) {
+    if (mergedOptions.cwd) remoteCmd.cwd = mergedOptions.cwd;
+    if (mergedOptions.user) remoteCmd.user = mergedOptions.user;
+
+    if (mergedOptions.isolationId) {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
-      cmdObj.env = { ...(options.env || {}), PATH: capsulePath };
-      return this.ssh.runDockerExec(options.wrapCapsule, cmdObj, options);
+      remoteCmd.env!.PATH = capsulePath;
+      return this.ssh.runDockerExec(
+        mergedOptions.isolationId,
+        remoteCmd,
+        mergedOptions,
+      );
     }
 
-    if (options.env) cmdObj.env = options.env;
-    return this.ssh.runHostCommand(cmdObj, options);
+    return this.ssh.runHostCommand(remoteCmd, mergedOptions);
   }
 
   async sync(
     localPath: string,
     remotePath: string,
-    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+    options: SyncOptions = {},
   ): Promise<number> {
     return this.ssh.syncPath(localPath, remotePath, options);
   }
@@ -215,13 +297,13 @@ export class GceCosProvider implements OrbitProvider {
   async syncIfChanged(
     localPath: string,
     remotePath: string,
-    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+    options: SyncOptions = {},
   ): Promise<number> {
     return this.ssh.syncPathIfChanged(localPath, remotePath, options);
   }
 
   async getStatus(): Promise<OrbitStatus> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -238,7 +320,7 @@ export class GceCosProvider implements OrbitProvider {
         'json(name,status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)',
       ],
       {
-        stdio: 'pipe',
+        quiet: true,
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
@@ -259,8 +341,31 @@ export class GceCosProvider implements OrbitProvider {
     };
   }
 
+  async start(): Promise<number> {
+    const res = this.pm.runSync(
+      'gcloud',
+      [
+        '--verbosity=error',
+        'compute',
+        'instances',
+        'start',
+        this.instanceName,
+        '--project',
+        this.projectId,
+        '--zone',
+        this.zone,
+        '--quiet',
+      ],
+      {
+        stdio: 'inherit',
+        env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      },
+    );
+    return res.status;
+  }
+
   async stop(): Promise<number> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -279,7 +384,7 @@ export class GceCosProvider implements OrbitProvider {
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
-    return res.status ?? 1;
+    return res.status;
   }
 
   async getCapsuleStatus(
@@ -313,35 +418,19 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
-    const mounts = config.mounts
-      .map(
-        (m: { host: string; capsule: string; readonly?: boolean }) =>
-          `-v ${m.host}:${m.capsule}${m.readonly ? ':ro' : ':rw'}`,
-      )
-      .join(' ');
-
-    const envFlags = [
-      ...(config.env
-        ? Object.entries(config.env).map(
-            ([k, v]) => `-e ${k}=${this.sshQuote(v as string)}`,
-          )
-        : []),
-    ].join(' ');
-
-    const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
-
-    const cmd = config.command || 'while true; do sleep 1000; done';
-    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.sshQuote(cmd)}`;
-
-    return this.exec(dockerCmd);
+    const cmd = this.executors.docker.run(config.image, config.command, {
+      ...config,
+      label: 'orbit-mission=true',
+    });
+    return this.exec(cmd);
   }
 
   async stopCapsule(name: string): Promise<number> {
-    return this.exec(`sudo docker stop ${name}`);
+    return this.exec(this.executors.docker.stop(name));
   }
 
   async removeCapsule(name: string): Promise<number> {
-    return this.exec(`sudo docker rm -f ${name}`);
+    return this.exec(this.executors.docker.remove(name));
   }
 
   async capturePane(capsuleName: string): Promise<string> {
@@ -353,7 +442,7 @@ export class GceCosProvider implements OrbitProvider {
   }
 
   async listStations(): Promise<number> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -370,11 +459,11 @@ export class GceCosProvider implements OrbitProvider {
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
-    return res.status ?? 0;
+    return res.status;
   }
 
   async destroy(): Promise<number> {
-    const res = spawnSync(
+    const res = this.pm.runSync(
       'gcloud',
       [
         '--verbosity=error',
@@ -393,20 +482,28 @@ export class GceCosProvider implements OrbitProvider {
         env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       },
     );
-    return res.status ?? 0;
+    return res.status;
   }
 
   async listCapsules(): Promise<string[]> {
-    const res = await this.getExecOutput(
-      "sudo docker ps --format '{{.Names}}' | grep '^orbit-'",
-      { quiet: true },
-    );
-    if (res.status !== 0) {
-      throw new Error(
-        `Failed to list capsules: ${res.stderr || 'Connection failed'}`,
+    try {
+      const res = await this.getExecOutput(
+        "sudo docker ps --format '{{.Names}}' --filter 'label=orbit-mission=true'",
+        { quiet: true },
       );
+      if (res.status !== 0) {
+        // grep returns 1 if no matches found, which is fine
+        if (res.status === 1 && !res.stderr) return [];
+
+        throw new Error(
+          `Failed to list capsules: ${res.stderr || 'Connection failed'} (exit ${res.status})`,
+        );
+      }
+      return res.stdout.trim().split('\n').filter(Boolean);
+    } catch (e: any) {
+      logger.debug('FLEET', `Error in listCapsules: ${e.message}`);
+      throw e;
     }
-    return res.stdout.trim().split('\n').filter(Boolean);
   }
 
   async provisionMirror(remoteUrl: string): Promise<number> {
@@ -422,7 +519,7 @@ export class GceCosProvider implements OrbitProvider {
     ];
 
     for (const cmd of cmds) {
-      const res = await this.exec(cmd);
+      const res = await this.exec(cmd, { quiet: true });
       if (res !== 0) return res;
     }
     return 0;
@@ -431,16 +528,59 @@ export class GceCosProvider implements OrbitProvider {
   async stationShell(): Promise<number> {
     return this.exec('/bin/bash', { interactive: true });
   }
-
   async missionShell(capsuleName: string): Promise<number> {
     return this.exec('/bin/bash', {
-      wrapCapsule: capsuleName,
+      isolationId: capsuleName,
       interactive: true,
       user: 'node',
     });
   }
 
-  private sshQuote(val: string): string {
-    return `'${val.replace(/'/g, "'\\''")}'`;
+  getStationReceipt(): StationReceipt {
+    return {
+      name: this.stationName,
+      instanceName: this.instanceName,
+      type: 'gce',
+      projectId: this.projectId,
+      zone: this.zone,
+      repo: this.projectCtx.repoName,
+      backendType: this.infra.backendType as any,
+      schematic: this.infra.schematic,
+      dnsSuffix: this.infra.dnsSuffix,
+      userSuffix: this.infra.userSuffix,
+      lastSeen: new Date().toISOString(),
+    };
+  }
+
+  protected override async resolveLegacyCapsuleState(
+    name: string,
+  ): Promise<CapsuleInfo['state']> {
+    const tmuxCmd = {
+      bin: 'tmux',
+      args: ['list-sessions', '-F', '#S'],
+    };
+
+    const tmuxRes = await this.getExecOutput(tmuxCmd, {
+      isolationId: name,
+      quiet: true,
+    });
+
+    if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
+      const paneOutput = await this.capturePane(name);
+      const lines = paneOutput.trim().split('\n');
+      const lastLine = lines[lines.length - 1] || '';
+      const lastTwoLines = lines.slice(-2).join(' ');
+
+      const isWaiting =
+        lastLine.includes(' > ') ||
+        lastLine.trim().endsWith('>') ||
+        lastTwoLines.includes('(y/n)') ||
+        lastLine.trim().endsWith('?') ||
+        (lastLine.includes('node@') && lastLine.includes('$'));
+
+      return isWaiting ? 'WAITING' : 'THINKING';
+    }
+
+    return 'IDLE';
   }
 }

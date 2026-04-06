@@ -72,3 +72,4 @@ temp_agents/
 bundle/
 dist/
 mcp.json
+coverage/

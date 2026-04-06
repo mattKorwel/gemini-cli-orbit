@@ -7,10 +7,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
+export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
 
-interface OrbitState {
+export interface OrbitState {
   status:
+    | 'INITIALIZING'
     | 'THINKING'
     | 'IDLE'
     | 'WAITING_FOR_INPUT'
@@ -22,9 +23,10 @@ interface OrbitState {
   pending_tool?: string;
   last_question?: string;
   timestamp: string;
+  mission?: string;
 }
 
-function updateState(targetDir: string, patch: Partial<OrbitState>) {
+export function updateState(targetDir: string, patch: Partial<OrbitState>) {
   const stateFile = path.join(targetDir, ORBIT_STATE_PATH);
   const dir = path.dirname(stateFile);
   if (!fs.existsSync(dir)) {

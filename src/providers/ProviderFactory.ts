@@ -15,9 +15,18 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import path from 'node:path';
-import { type IProviderFactory } from '../core/interfaces.js';
+import {
+  type IProviderFactory,
+  type IProcessManager,
+  type IExecutors,
+} from '../core/interfaces.js';
 
 export class ProviderFactory implements IProviderFactory {
+  constructor(
+    private readonly pm: IProcessManager,
+    private readonly executors: IExecutors,
+  ) {}
+
   getProvider(
     projectCtx: ProjectContext,
     infra: InfrastructureSpec,
@@ -30,19 +39,20 @@ export class ProviderFactory implements IProviderFactory {
     const effectiveProvider =
       infra.providerType || (isLocal ? 'local-worktree' : 'gce');
 
-    const stationName =
-      infra.stationName || `orbit-station-${projectCtx.repoName}`;
+    const stationName = infra.stationName || `station-${projectCtx.repoName}`;
 
     if (effectiveProvider === 'local-worktree') {
-      const primaryRoot = getPrimaryRepoRoot(projectCtx.repoRoot);
-      const localWorkspacesDir =
-        infra.workspacesDir ||
-        infra.worktreesDir ||
-        path.resolve(primaryRoot, '..', 'workspaces');
       return new LocalWorktreeProvider(
         projectCtx,
+        this.pm,
+        this.executors,
         stationName,
-        localWorkspacesDir,
+        infra.workspacesDir ||
+          path.resolve(
+            getPrimaryRepoRoot(projectCtx.repoRoot),
+            '..',
+            'orbit-git-worktrees',
+          ),
       );
     }
 
@@ -52,6 +62,8 @@ export class ProviderFactory implements IProviderFactory {
       infra.zone!,
       infra.instanceName!,
       infra,
+      this.pm,
+      this.executors.ssh,
     );
 
     const gceConfig: { imageUri?: string; stationName?: string } = {};
@@ -65,6 +77,9 @@ export class ProviderFactory implements IProviderFactory {
       infra.instanceName!,
       getPrimaryRepoRoot(projectCtx.repoRoot),
       ssh,
+      this.pm,
+      this.executors,
+      infra,
       gceConfig,
     );
 

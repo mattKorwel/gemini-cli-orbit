@@ -36,7 +36,7 @@ session. While a powerful CLI is available, the most natural way to manage your
 missions is through natural language:
 
 - _"Launch a review for PR #42"_
-- _"How is my orbit looking?"_ (Triggers Pulse)
+- _"How is my orbit looking?"_ (Triggers Constellation Pulse)
 - _"Fix the CI failures on this branch"_
 - _"Re-attach to mission 42"_
 - _"Jettison all idle capsules"_
@@ -79,10 +79,10 @@ on your own terrestrial machine:
 
 ```bash
 # Open an interactive Gemini session inside a clean workspace for PR #42
-orbit mission 42 --local
+orbit mission launch 42 --local
 
 # Or let Orbit autonomously review it for you
-orbit mission 42 review --local
+orbit mission launch 42 review --local
 
 # Or just ask Gemini in the app:
 # "Review PR 42 for me locally"
@@ -138,13 +138,13 @@ orbit uplink 42        # Inspect telemetry without attaching
 Orbit doesn't just provide infrastructure — it executes high-fidelity missions
 autonomously.
 
-| Command                              | What it does                                                                                                                        |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `orbit mission start <pr> review`    | Parallelized PR analysis: fetches context, runs the build, performs a mandatory **Behavioral Proof**, outputs `final-assessment.md` |
-| `orbit mission start <pr> fix`       | Iterative CI repair — reads failures, patches code, re-runs until the mission is green                                              |
-| `orbit mission start <pr> implement` | Implements features or changes from issue descriptions, test-first                                                                  |
-| `orbit mission start <pr> chat`      | Interactive Gemini chat session inside the isolated Mission Capsule (default)                                                       |
-| `orbit mission shell <pr>`           | Raw bash shell inside the capsule (sidecar terminal)                                                                                |
+| Command                               | What it does                                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `orbit mission launch <pr> review`    | Parallelized PR analysis: fetches context, runs the build, performs a mandatory **Behavioral Proof**, outputs `final-assessment.md` |
+| `orbit mission launch <pr> fix`       | Iterative CI repair — reads failures, patches code, re-runs until the mission is green                                              |
+| `orbit mission launch <pr> implement` | Implements features or changes from issue descriptions, test-first                                                                  |
+| `orbit mission launch <pr> chat`      | Interactive Gemini chat session inside the isolated Mission Capsule (default)                                                       |
+| `orbit mission shell <pr>`            | Raw bash shell inside the capsule (sidecar terminal)                                                                                |
 
 > See [Maneuvers](docs/MANEUVERS.md) for a phase-by-phase breakdown of each
 > mission type.
@@ -156,10 +156,11 @@ autonomously.
 Stay informed about your missions, your station, and your CI status.
 
 ```bash
-orbit pulse                         # Orbital health check — all active stations and capsules
+orbit ls                            # Orbital health check — all active stations and capsules
+orbit constellation --pulse         # Deep-dive into active mission thoughts and stats
 orbit ci [branch]                   # Monitor GitHub Actions CI status for any branch
-orbit uplink <pr> [action]          # Inspect mission telemetry (local-first, falls back to remote)
-orbit attach <pr>                   # Re-dock to a running mission session
+orbit mission uplink <pr> [action]  # Inspect mission telemetry (local-first, falls back to remote)
+orbit mission attach <pr>           # Re-dock to a running mission session
 ```
 
 ## 🧹 Mission Control & Cleanup

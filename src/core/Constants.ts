@@ -69,7 +69,17 @@ export interface InfrastructureSpec {
   reaperIdleLimit?: number | undefined;
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
+  sshUser?: string | undefined;
+  schematic?: string | undefined;
   verbose?: boolean | undefined;
+}
+
+/**
+ * OrbitContext: The unified, hydrated world-view used by the entire SDK.
+ */
+export interface OrbitContext {
+  project: ProjectContext;
+  infra: InfrastructureSpec;
 }
 
 /**
@@ -112,7 +122,7 @@ export function getPrimaryRepoRoot(repoRoot: string = process.cwd()): string {
 }
 
 /**
- * Standardized paths on the REMOTE station
+ * Standardized paths on the REMOTE station (Hardware Host)
  */
 export const ORBIT_ROOT = '/mnt/disks/data';
 export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
@@ -124,7 +134,15 @@ export const CONFIG_DIR = `${ORBIT_ROOT}/gemini-cli-config/.gemini`;
 export const EXTENSION_REMOTE_PATH = `${ORBIT_ROOT}/extension`;
 export const BUNDLE_PATH = `${ORBIT_ROOT}/bundle`;
 export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
-export const MISSION_PREFIX = 'orbit-';
+
+/**
+ * Standardized paths INSIDE the Agent Capsule (Docker Container)
+ * Aligned with orbit-capsule.Dockerfile
+ */
+export const CAPSULE_WORKDIR = '/home/node/dev/main';
+export const CAPSULE_CLI_ROOT = '/usr/local/lib/gemini-cli';
+export const CAPSULE_BUNDLE_PATH = `${CAPSULE_CLI_ROOT}/bundle`;
+export const STATION_BUNDLE_PATH = `${BUNDLE_PATH}/station.js`;
 
 /**
  * Standardized paths on the LOCAL machine (The Extension itself)
@@ -194,6 +212,7 @@ export const DEFAULT_IMAGE_URI =
 export interface OrbitConfig extends InfrastructureSpec {
   upstreamRepo?: string | undefined;
   repoName?: string | undefined;
+  repoRoot?: string | undefined;
   terminalTarget?: 'foreground' | 'background' | 'tab' | 'window' | undefined;
   userFork?: string | undefined;
   remoteHost?: string | undefined;

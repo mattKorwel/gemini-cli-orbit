@@ -13,11 +13,14 @@ describe('GeminiExecutor', () => {
       approvalMode: 'auto_edit',
       policy: 'my.policy',
       promptInteractive: 'Hello',
+      resume: 'latest',
     });
     expect(cmd.bin).toBe('/bin/gemini');
     expect(cmd.args).toContain('--approval-mode');
     expect(cmd.args).toContain('auto_edit');
     expect(cmd.args).toContain('--policy');
     expect(cmd.args).toContain('--prompt-interactive');
+    expect(cmd.args).toContain('--resume');
+    expect(cmd.args).toContain('latest');
   });
 });

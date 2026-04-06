@@ -36,8 +36,8 @@ async function build() {
   const entries = [
     { in: 'src/cli/cli.ts', out: 'bundle/orbit-cli.js' },
     { in: 'src/mcp/mcp.ts', out: 'bundle/mcp-server.js' },
-    { in: 'src/station/capsule/entrypoint.ts', out: 'bundle/entrypoint.js' },
-    { in: 'src/station/worker.ts', out: 'bundle/station.js' },
+    { in: 'src/station/capsule/mission.ts', out: 'bundle/mission.js' },
+    { in: 'src/station/station.ts', out: 'bundle/station.js' },
     { in: 'src/station/capsule/hooks.ts', out: 'bundle/hooks.js' },
   ];
 

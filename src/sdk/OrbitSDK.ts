@@ -4,13 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type OrbitConfig, type ProjectContext } from '../core/Constants.js';
+import {
+  type OrbitConfig,
+  type ProjectContext,
+  type OrbitContext,
+} from '../core/Constants.js';
 import { logger, LogLevel } from '../core/Logger.js';
 import {
   type OrbitObserver,
   type MissionResult,
-  type PulseInfo,
-  type StationInfo,
+  type MissionManifest,
+  type StationState,
   type CIStatus,
   type MissionOptions,
   type JettisonOptions,
@@ -32,14 +36,21 @@ import { FleetManager } from './FleetManager.js';
 import { StatusManager } from './StatusManager.js';
 import { CIManager } from './CIManager.js';
 import { IntegrationManager } from './IntegrationManager.js';
-import { resolveContextBundles, ConfigManager } from '../core/ConfigManager.js';
+import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { SchematicManager } from './SchematicManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { ProcessManager } from '../core/ProcessManager.js';
+import { GitExecutor } from '../core/executors/GitExecutor.js';
+import { DockerExecutor } from '../core/executors/DockerExecutor.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { ShellIntegration } from '../utils/ShellIntegration.js';
 import { DependencyManager } from './DependencyManager.js';
+import { type IExecutors } from '../core/interfaces.js';
+import { SshExecutor } from '../core/executors/SshExecutor.js';
 
 export * from '../core/types.js';
 
@@ -61,6 +72,10 @@ export class DefaultObserver implements OrbitObserver {
   onDivider(title?: string): void {
     logger.divider(title);
   }
+
+  setVerbose(verbose: boolean): void {
+    logger.setVerbose(verbose);
+  }
 }
 
 /**
@@ -76,21 +91,31 @@ export class OrbitSDK implements IOrbitSDK {
   private readonly integrations: IntegrationManager;
 
   constructor(
-    private readonly config: OrbitConfig,
+    public readonly context: OrbitContext,
     public readonly observer: OrbitObserver = new DefaultObserver(),
-    repoRoot: string = process.cwd(),
   ) {
-    const bundles = resolveContextBundles(repoRoot, config);
-    this.projectCtx = bundles.project;
+    this.projectCtx = context.project;
 
     // Ensure logger uses the correct repo root for its stream
     logger.setRepoRoot(this.projectCtx.repoRoot);
+    logger.setVerbose(context.infra.verbose === true);
+    this.observer.setVerbose?.(context.infra.verbose === true);
+
+    // Foundation
+    const processManager = new ProcessManager();
+    const executors: IExecutors = {
+      git: new GitExecutor(processManager),
+      docker: new DockerExecutor(processManager),
+      tmux: new TmuxExecutor(processManager),
+      node: new NodeExecutor(processManager),
+      gemini: new GeminiExecutor(processManager),
+      ssh: new SshExecutor(processManager),
+    };
 
     // Dependencies
     const configManager = new ConfigManager();
-    const providerFactory = new ProviderFactory();
+    const providerFactory = new ProviderFactory(processManager, executors);
     const infraFactory = new InfrastructureFactory();
-    const processManager = new ProcessManager();
     const shellIntegration = new ShellIntegration();
     const dependencyManager = new DependencyManager(processManager);
     const stationRegistry = new StationRegistry(providerFactory, configManager);
@@ -98,14 +123,24 @@ export class OrbitSDK implements IOrbitSDK {
 
     this.missions = new MissionManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       this.observer,
       providerFactory,
       configManager,
+      processManager,
+      executors,
+      stationRegistry,
+    );
+    this.status = new StatusManager(
+      this.projectCtx,
+      this.context.infra,
+      providerFactory,
+      executors,
+      stationRegistry,
     );
     this.fleet = new FleetManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       this.observer,
       stationRegistry,
       schematicManager,
@@ -113,17 +148,15 @@ export class OrbitSDK implements IOrbitSDK {
       infraFactory,
       configManager,
       dependencyManager,
-    );
-    this.status = new StatusManager(
-      this.projectCtx,
-      bundles.infra,
-      providerFactory,
+      executors,
+      this.status,
     );
     this.ci = new CIManager(
       this.projectCtx,
-      bundles.infra,
+      this.context.infra,
       this.observer,
       processManager,
+      executors,
     );
     this.integrations = new IntegrationManager(this.observer, shellIntegration);
   }
@@ -131,15 +164,60 @@ export class OrbitSDK implements IOrbitSDK {
   /**
    * Check station health and active mission status.
    */
-  async getPulse(): Promise<PulseInfo> {
+  async getPulse(): Promise<StationState> {
     return this.status.getPulse();
+  }
+
+  /**
+   * Parallel aggregator for fleet status.
+   */
+  async getFleetState(options: ListStationsOptions): Promise<StationState[]> {
+    const { syncWithReality, includeMissions, repoFilter, nameFilter } =
+      options;
+
+    let stations = await this.status['stationRegistry'].listStations({
+      syncWithReality: false, // We'll sync reality in the next step based on filters
+    });
+
+    // 1. Apply Repository Filter
+    if (repoFilter) {
+      stations = stations.filter((s) => s.receipt.repo === repoFilter);
+    }
+
+    // 2. Apply Name/Pattern Filter
+    if (nameFilter) {
+      const regex = new RegExp(nameFilter.replace(/\*/g, '.*'), 'i');
+      stations = stations.filter(
+        (s) => regex.test(s.receipt.name) || regex.test(s.receipt.instanceName),
+      );
+    }
+
+    // 3. Fetch Reality for the filtered set
+    return this.status.fetchFleetState(
+      stations,
+      includeMissions ? 'pulse' : syncWithReality ? 'health' : 'inventory',
+    );
+  }
+
+  /**
+   * Fetches pulses for ALL local stations registered on this machine.
+   */
+  async getGlobalLocalPulse(): Promise<StationState[]> {
+    return this.status.getGlobalLocalPulse();
   }
 
   /**
    * Launch or resume an isolated developer presence.
    */
-  async startMission(options: MissionOptions): Promise<MissionResult> {
-    return this.missions.start(options);
+  async startMission(manifest: MissionManifest): Promise<MissionResult> {
+    return this.missions.start(manifest);
+  }
+
+  /**
+   * Resolve user intent into a concrete MissionManifest.
+   */
+  async resolveMission(options: MissionOptions): Promise<MissionManifest> {
+    return this.missions.resolve(options);
   }
 
   /**
@@ -223,9 +301,9 @@ export class OrbitSDK implements IOrbitSDK {
    * List all provisioned stations and discovered local repos.
    */
   async listStations(
-    options: ListStationsOptions = {},
-  ): Promise<StationInfo[]> {
-    return this.fleet.listStations(options);
+    options: ListStationsOptions = { syncWithReality: true },
+  ): Promise<StationState[]> {
+    return this.getFleetState(options);
   }
 
   /**

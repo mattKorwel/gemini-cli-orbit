@@ -8,135 +8,97 @@ import {
   type InfrastructureSpec,
   type ProjectContext,
 } from '../core/Constants.js';
-import { type PulseInfo, type CapsuleInfo } from '../core/types.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
-import { type IProviderFactory } from '../core/interfaces.js';
+import { type StationState } from '../core/types.js';
+import {
+  type IProviderFactory,
+  type IExecutors,
+  type IStationRegistry,
+  type HydratedStation,
+  type IStatusManager,
+} from '../core/interfaces.js';
 
-export class StatusManager {
+export class StatusManager implements IStatusManager {
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
     private readonly providerFactory: IProviderFactory,
+    private readonly executors: IExecutors,
+    private readonly stationRegistry: IStationRegistry,
   ) {}
 
   /**
-   * Check station health and active mission status.
+   * Check station health and active mission status for the active project.
    */
-  async getPulse(): Promise<PulseInfo> {
-    const isLocal =
-      !this.infra.projectId ||
-      this.infra.projectId === 'local' ||
-      (this.infra.providerType as any) === 'local-worktree';
+  async getPulse(): Promise<StationState> {
+    const all = await this.stationRegistry.listStations();
+    // Default to the most relevant station (active project OR explicit name)
+    const targetName = this.infra.instanceName;
+    const target =
+      all.find((s) => s.receipt.name === targetName) ||
+      all.find((s) => s.receipt.repo === this.projectCtx.repoName);
 
-    if (!isLocal && !this.infra.instanceName) {
+    if (!target) {
       throw new Error(
-        `Station name not configured. Check your profile or environment variables (GCLI_ORBIT_INSTANCE_NAME).`,
+        `No active station found for ${this.projectCtx.repoName}`,
       );
     }
 
-    const instanceName = this.infra.instanceName || 'local';
-    const provider = this.providerFactory.getProvider(this.projectCtx, {
-      ...this.infra,
-      projectId: this.infra.projectId || 'local',
-      zone: this.infra.zone || 'local',
-      instanceName,
-    } as any);
+    const states = await this.fetchFleetState([target], 'pulse');
+    return states[0]!;
+  }
 
-    const statusRes = await provider.getStatus();
-    if (statusRes.status === 'UNKNOWN' || statusRes.status === 'ERROR') {
-      throw new Error(
-        `Station ${instanceName} is in an invalid state: ${statusRes.status}`,
-      );
-    }
+  /**
+   * Parallel aggregator for fleet status.
+   */
+  async fetchFleetState(
+    stations: HydratedStation[],
+    depth: 'inventory' | 'health' | 'pulse',
+  ): Promise<StationState[]> {
+    return Promise.all(
+      stations.map(async (s) => {
+        const state: StationState = {
+          receipt: s.receipt,
+          isActive: false, // Will be set by caller based on context
+        };
 
-    const capsules: CapsuleInfo[] = [];
+        if (depth === 'inventory') return state;
 
-    if (statusRes.status === 'RUNNING') {
-      const isLocalWorkspace = provider.type === 'local-worktree';
-      const bundlePath = isLocalWorkspace ? 'bundle' : '/mnt/disks/data/bundle';
-
-      const statusCmd = NodeExecutor.create(`${bundlePath}/station.js`, [
-        'status',
-      ]);
-      const statusOutput = await provider.getExecOutput(statusCmd, {
-        quiet: true,
-      });
-
-      let aggregatedMissions: any[] = [];
-      if (statusOutput.status === 0) {
         try {
-          const report = JSON.parse(statusOutput.stdout);
-          aggregatedMissions = report.missions || [];
-        } catch (_e) {
-          // Fallback to legacy discovery if aggregator fails
-        }
-      }
-
-      const containerNames = await provider.listCapsules();
-
-      for (const containerName of containerNames) {
-        const stats = await provider.getCapsuleStats(containerName);
-        const missionState = aggregatedMissions.find(
-          (m) =>
-            m.mission === containerName || containerName.includes(m.mission),
-        );
-
-        if (missionState) {
-          capsules.push({
-            name: containerName,
-            state: missionState.status,
-            stats,
-            lastThought: missionState.last_thought,
-            blocker: missionState.blocker,
-            progress: missionState.progress,
-            pendingTool: missionState.pending_tool,
-            lastQuestion: missionState.last_question,
-          });
-        } else {
-          // Legacy/Fallback discovery
-          const tmuxCmd = {
-            bin: 'tmux',
-            args: ['list-sessions', '-F', '#S'],
+          const reality = await s.provider.getStatus();
+          state.reality = {
+            status: reality.status,
+            missions: [],
           };
+          if (reality.internalIp) state.reality.internalIp = reality.internalIp;
+          if (reality.externalIp) state.reality.externalIp = reality.externalIp;
 
-          const tmuxRes = await provider.getExecOutput(tmuxCmd, {
-            wrapCapsule: containerName,
-            quiet: true,
-          });
-
-          let state: CapsuleInfo['state'] = 'IDLE';
-          if (tmuxRes.status === 0 && tmuxRes.stdout.trim()) {
-            const paneOutput = await provider.capturePane(containerName);
-            const lines = paneOutput.trim().split('\n');
-            const lastLine = lines[lines.length - 1] || '';
-            const lastTwoLines = lines.slice(-2).join(' ');
-
-            const isWaiting =
-              lastLine.includes(' > ') ||
-              lastLine.trim().endsWith('>') ||
-              lastTwoLines.includes('(y/n)') ||
-              lastLine.trim().endsWith('?') ||
-              (lastLine.includes('node@') && lastLine.includes('$'));
-
-            state = isWaiting ? 'WAITING' : 'THINKING';
+          if (
+            depth === 'pulse' &&
+            reality.status === 'RUNNING' &&
+            state.reality
+          ) {
+            const missions = await s.provider.getMissionTelemetry();
+            // Standardize repo attribution for scoped aggregation
+            missions.forEach((m) => {
+              if (m.repo === 'unknown' || !m.repo) m.repo = s.receipt.repo;
+            });
+            state.reality.missions = missions;
           }
-
-          capsules.push({
-            name: containerName,
-            state,
-            stats,
-          });
+        } catch (_e: any) {
+          state.reality = { status: 'UNREACHABLE', missions: [] };
         }
-      }
-    }
 
-    return {
-      stationName: instanceName,
-      repoName: this.projectCtx.repoName,
-      status: statusRes.status,
-      internalIp: statusRes.internalIp || undefined,
-      externalIp: statusRes.externalIp || undefined,
-      capsules,
-    };
+        return state;
+      }),
+    );
+  }
+
+  /**
+   * Special case: Fetches pulse for ALL local stations registered on this machine.
+   */
+  async getGlobalLocalPulse(): Promise<StationState[]> {
+    const all = await this.stationRegistry.listStations();
+    const local = all.filter((s) => s.receipt.type === 'local-worktree');
+    return this.fetchFleetState(local, 'pulse');
   }
 }

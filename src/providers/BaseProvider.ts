@@ -3,155 +3,288 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+import path from 'node:path';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import type { InfrastructureSpec } from '../core/Constants.js';
+import { type InfrastructureSpec } from '../core/Constants.js';
 import type {
   ExecOptions,
   SyncOptions,
   OrbitStatus,
   CapsuleConfig,
+  CapsuleInfo,
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
+
+import {
+  type IExecutors,
+  type IProcessManager,
+  type StationReceipt,
+} from '../core/interfaces.js';
 
 /**
- * OrbitProvider interface defines the contract for different remote
- * mission environments (GCE Station, Local Docker, etc.).
+ * BaseProvider: Shared logic for all Orbit backends.
+ * Centralizes naming policy with overridable defaults.
  */
-export interface OrbitProvider {
-  readonly type: 'gce' | 'local-worktree';
-  readonly isLocal: boolean;
-  projectId: string;
-  zone: string;
-  stationName: string;
+export abstract class BaseProvider {
+  abstract readonly type: 'gce' | 'local-worktree';
+  abstract readonly isPersistent: boolean;
+  abstract projectId: string;
+  abstract zone: string;
+  abstract stationName: string;
+
+  constructor(
+    protected readonly pm: IProcessManager,
+    protected readonly executors: IExecutors,
+  ) {}
 
   /**
-   * Injects pre-discovered infrastructure state (e.g. from Pulumi).
+   * Naming Policy Hooks (Standard Hierarchical Defaults)
    */
-  injectState?(state: InfrastructureState): void;
+
+  resolveWorkspaceName(repoSlug: string, idSlug: string): string {
+    // Hierarchical folder path: <repo>/<id>
+    return path.join(repoSlug, idSlug);
+  }
+
+  resolveSessionName(repoSlug: string, idSlug: string, action: string): string {
+    // Hierarchical Tmux name: <repo>/<id>[/<action>]
+    const parts = [repoSlug, idSlug];
+    if (action !== 'chat') parts.push(action);
+    return parts.join('/');
+  }
+
+  resolveContainerName(
+    repoSlug: string,
+    idSlug: string,
+    action: string,
+  ): string {
+    // System-safe handle: <repo>-<id>[-<action>]
+    const parts = [repoSlug, idSlug];
+    if (action !== 'chat') parts.push(action);
+    return parts.join('-');
+  }
 
   /**
-   * Ensures the station is running and accessible.
+   * Abstract Hooks: Must be unique per backend environment.
    */
-  ensureReady(): Promise<number>;
 
   /**
-   * Returns the raw command string that would be used to execute a command.
+   * Translates a workspace name into an absolute filesystem path.
    */
-  getRunCommand(command: string, options?: ExecOptions): string;
+  abstract resolveWorkDir(workspaceName: string): string;
 
   /**
-   * Executes a command on the station.
+   * Returns the absolute path to the directory containing all mission workspaces.
    */
-  exec(command: string | Command, options?: ExecOptions): Promise<number>;
+  abstract resolveWorkspacesRoot(): string;
 
   /**
-   * Executes a command on the station and returns the output.
+   * Returns the absolute path to the Orbit worker (station.js) in this environment.
    */
-  getExecOutput(
+  abstract resolveWorkerPath(): string;
+
+  /**
+   * Returns the absolute path to the project config directory (.gemini) in this environment.
+   */
+  abstract resolveProjectConfigDir(): string;
+
+  /**
+   * Returns the absolute path to the workspace policy file in this environment.
+   */
+  abstract resolvePolicyPath(repoRoot: string): string;
+
+  /**
+   * Returns the absolute path to the git mirror repository in this environment.
+   */
+  abstract resolveMirrorPath(): string;
+
+  /**
+   * Creates a command to run a Node.js script.
+   */
+  abstract createNodeCommand(scriptPath: string, args?: string[]): Command;
+
+  abstract ensureReady(): Promise<number>;
+
+  /**
+   * Returns the canonical isolation identifier (session/container name) for this environment.
+   */
+  abstract resolveIsolationId(mCtx: MissionContext): string;
+
+  /**
+   * Executes a command within the context of a specific mission.
+   * Providers handle environment isolation (e.g. Docker wrap, CWD shift).
+   */
+  async execMission(
+    command: string | Command,
+    mCtx: MissionContext,
+    options: ExecOptions = {},
+  ): Promise<number> {
+    const res = await this.getMissionExecOutput(command, mCtx, options);
+    return res.status;
+  }
+
+  /**
+   * Returns output from a command executed within a specific mission.
+   */
+  async getMissionExecOutput(
+    command: string | Command,
+    mCtx: MissionContext,
+    options: ExecOptions = {},
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
+    const env = { ...options.env };
+    if (options.manifest) {
+      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
+    }
+
+    return this.getExecOutput(command, {
+      ...options,
+      env,
+      cwd:
+        options.cwd ||
+        options.manifest?.workDir ||
+        this.resolveWorkDir(mCtx.workspaceName),
+      isolationId: this.resolveIsolationId(mCtx),
+    });
+  }
+
+  /**
+   * Shell-safe quoting helper.
+   */
+  shellQuote(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
+  }
+
+  async exec(
+    command: string | Command,
+    options: ExecOptions = {},
+  ): Promise<number> {
+    const res = await this.getExecOutput(command, options);
+    return res.status;
+  }
+
+  abstract getExecOutput(
     command: string | Command,
     options?: ExecOptions,
   ): Promise<{ status: number; stdout: string; stderr: string }>;
 
-  /**
-   * Synchronizes local files to the station.
-   */
-  sync(
+  abstract getRunCommand(command: string, options?: ExecOptions): string;
+  abstract sync(
     localPath: string,
     remotePath: string,
     options?: SyncOptions,
   ): Promise<number>;
-
-  syncIfChanged(
+  abstract syncIfChanged(
     localPath: string,
     remotePath: string,
     options?: SyncOptions,
   ): Promise<number>;
+  abstract getStatus(): Promise<OrbitStatus>;
 
   /**
-   * Prepares the workspace for a mission (e.g., creates worktree or ensures container).
+   * Safe wake of a hibernated station.
    */
-  prepareMissionWorkspace(
-    identifier: string,
-    branch: string,
-    action: string,
+  abstract start(): Promise<number>;
+
+  abstract stop(): Promise<number>;
+  abstract getCapsuleStatus(
+    name: string,
+  ): Promise<{ running: boolean; exists: boolean }>;
+  abstract getCapsuleStats(name: string): Promise<string>;
+  abstract getCapsuleIdleTime(name: string): Promise<number>;
+  abstract attach(name: string): Promise<number>;
+  abstract runCapsule(config: CapsuleConfig): Promise<number>;
+  abstract stopCapsule(name: string): Promise<number>;
+  abstract removeCapsule(name: string): Promise<number>;
+  abstract capturePane(capsuleName: string): Promise<string>;
+  abstract listStations(): Promise<number>;
+  abstract destroy(): Promise<number>;
+  abstract listCapsules(): Promise<string[]>;
+  abstract provisionMirror(remoteUrl: string): Promise<number>;
+  abstract stationShell(): Promise<number>;
+  abstract missionShell(capsuleName: string): Promise<number>;
+
+  abstract getStationReceipt(): StationReceipt;
+
+  injectState?(state: InfrastructureState): void;
+
+  abstract prepareMissionWorkspace(
+    mCtx: MissionContext,
     infra: InfrastructureSpec,
   ): Promise<void>;
 
   /**
-   * Returns the status of the station.
+   * Fetches deep mission status from inside the station.
+   * Centralized logic that uses environment-specific hooks.
    */
-  getStatus(): Promise<OrbitStatus>;
+  async getMissionTelemetry(): Promise<CapsuleInfo[]> {
+    const capsules: CapsuleInfo[] = [];
+
+    // 1. Request aggregated status from the worker
+    const bundlePath = this.resolveWorkerPath();
+    const workspacesRoot = this.resolveWorkspacesRoot();
+
+    const statusCmd = this.createNodeCommand(bundlePath, [
+      'status',
+      workspacesRoot,
+    ]);
+
+    const statusOutput = await this.getExecOutput(statusCmd, { quiet: true });
+
+    let aggregatedMissions: any[] = [];
+    if (statusOutput.status === 0) {
+      try {
+        const report = JSON.parse(statusOutput.stdout);
+        aggregatedMissions = report.missions || [];
+      } catch (_e) {
+        // Fallback
+      }
+    }
+
+    // 2. Discover active capsules/containers
+    const containerNames = await this.listCapsules();
+
+    for (const containerName of containerNames) {
+      const stats = await this.getCapsuleStats(containerName);
+      const missionState = aggregatedMissions.find(
+        (m) => m.mission === containerName || containerName.includes(m.mission),
+      );
+
+      if (missionState) {
+        capsules.push({
+          name: containerName,
+          state: missionState.status,
+          stats,
+          lastThought: missionState.last_thought,
+          blocker: missionState.blocker,
+          progress: missionState.progress,
+          pendingTool: missionState.pending_tool,
+          lastQuestion: missionState.last_question,
+        });
+      } else {
+        // 3. Provider-specific fallback (e.g. Tmux parsing)
+        const state = await this.resolveLegacyCapsuleState(containerName);
+        capsules.push({
+          name: containerName,
+          state,
+          stats,
+        });
+      }
+    }
+
+    return capsules;
+  }
 
   /**
-   * Stops the station to save costs.
+   * Environment-specific fallback for determining capsule state when
+   * no manifest is found.
    */
-  stop(): Promise<number>;
-
-  /**
-   * Returns the status of a specific capsule (container) in the station.
-   */
-  getCapsuleStatus(
+  protected abstract resolveLegacyCapsuleState(
     name: string,
-  ): Promise<{ running: boolean; exists: boolean }>;
-
-  /**
-   * Returns resource usage stats for a specific capsule.
-   */
-  getCapsuleStats(name: string): Promise<string>;
-
-  /**
-   * Returns the number of seconds since the last activity in the capsule.
-   */
-  getCapsuleIdleTime(name: string): Promise<number>;
-
-  /**
-   * Attaches to an active mission capsule.
-   */
-  attach(name: string): Promise<number>;
-
-  /**
-   * Runs a capsule (container) with specific configuration.
-   */
-  runCapsule(config: CapsuleConfig): Promise<number>;
-
-  /**
-   * Stops a specific capsule.
-   */
-  stopCapsule(name: string): Promise<number>;
-
-  /**
-   * Stops and removes a specific capsule.
-   */
-  removeCapsule(name: string): Promise<number>;
-
-  /**
-   * Captures the contents of the current tmux pane in a capsule.
-   */
-  capturePane(capsuleName: string): Promise<string>;
-
-  /**
-   * Lists all stations for the current user/project.
-   */
-  listStations(): Promise<number>;
-
-  /**
-   * Destroys the station and its associated resources.
-   */
-  destroy(): Promise<number>;
-
-  /**
-   * Lists active mission capsules.
-   */
-  listCapsules(): Promise<string[]>;
-  provisionMirror(remoteUrl: string): Promise<number>;
-
-  /**
-   * Drops into a raw interactive shell on the hardware host.
-   */
-  stationShell(): Promise<number>;
-
-  /**
-   * Drops into a raw interactive bash shell inside a mission capsule.
-   */
-  missionShell(capsuleName: string): Promise<number>;
+  ): Promise<CapsuleInfo['state']>;
 }
+
+/**
+ * Compatibility alias for existing code
+ */
+export type OrbitProvider = BaseProvider;

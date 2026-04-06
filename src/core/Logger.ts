@@ -38,10 +38,15 @@ class Logger {
     const orbitDir = getProjectOrbitDir(this.repoRoot);
     const logPath = getOrbitLogPath(this.repoRoot);
 
-    if (!fs.existsSync(orbitDir)) {
-      fs.mkdirSync(orbitDir, { recursive: true });
+    try {
+      if (!fs.existsSync(orbitDir)) {
+        fs.mkdirSync(orbitDir, { recursive: true });
+      }
+      this.logStream = fs.createWriteStream(logPath, { flags: 'a' });
+    } catch (_err) {
+      // Fallback to no-op stream if we can't write to the log file (e.g. read-only fs)
+      this.logStream = null;
     }
-    this.logStream = fs.createWriteStream(logPath, { flags: 'a' });
   }
 
   setVerbose(verbose: boolean) {
@@ -156,6 +161,8 @@ export const logger = new Logger();
  * Concrete implementation of OrbitObserver that pipes to stdout/stderr.
  */
 export class ConsoleObserver {
+  private verbose: boolean = false;
+
   private shouldFilter(message: string): boolean {
     if (!message) return false;
     const l = message.toLowerCase();
@@ -168,10 +175,14 @@ export class ConsoleObserver {
     return false;
   }
 
+  setVerbose(verbose: boolean) {
+    this.verbose = verbose;
+  }
+
   onLog(level: LogLevel, tag: string, message: string, ...args: any[]) {
     if (this.shouldFilter(message)) return;
     const isMcp = !!process.env.GCLI_MCP;
-    const isVerbose = process.env.GCLI_ORBIT_VERBOSE === '1';
+    const isVerbose = this.verbose || process.env.GCLI_ORBIT_VERBOSE === '1';
 
     if (level === LogLevel.DEBUG && !isVerbose) return;
 

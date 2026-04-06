@@ -24,7 +24,9 @@ describe('ProviderFactory', () => {
       instanceName: 'test-instance',
     };
 
-    const factory = new ProviderFactory();
+    const mockPm: any = {};
+    const mockExecutors: any = {};
+    const factory = new ProviderFactory(mockPm, mockExecutors);
     const provider = factory.getProvider(projectCtx, infra);
     expect(provider).toBeInstanceOf(GceCosProvider);
   });

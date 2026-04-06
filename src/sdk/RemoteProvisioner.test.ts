@@ -16,8 +16,8 @@ vi.mock('../utils/SessionManager.js');
 vi.mock('../utils/MissionUtils.js', () => ({
   resolveMissionContext: vi.fn().mockReturnValue({
     branchName: 'feat-test',
-    containerName: 'orbit-test-container',
-    worktreeName: 'test-wt',
+    repoSlug: 'test-repo',
+    idSlug: 'feat-test',
   }),
 }));
 vi.mock('../core/Logger.js');
@@ -40,9 +40,19 @@ describe('RemoteProvisioner', () => {
     remoteWorkDir: '/mnt/disks/data/main',
   };
 
+  const mockCtx = {
+    branchName: 'feat-test',
+    repoSlug: 'test-repo',
+    idSlug: 'feat-test',
+    containerName: 'test-repo-feat-test',
+    workspaceName: 'test-repo-feat-test',
+    sessionName: 'test-repo/feat-test',
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (SessionManager.generateMissionId as any).mockReturnValue('test-session');
+    (SessionManager.getSessionIdFromEnv as any).mockReturnValue(null);
     mockProvider.exec.mockResolvedValue(0);
   });
 
@@ -51,7 +61,7 @@ describe('RemoteProvisioner', () => {
     mockProvider.runCapsule.mockResolvedValue(0);
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', infra);
+    await provisioner.prepareMissionWorkspace(mockCtx, infra);
 
     // Should touch the secret file even if no secrets
     expect(mockProvider.exec).toHaveBeenCalledWith(
@@ -60,7 +70,7 @@ describe('RemoteProvisioner', () => {
 
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'orbit-test-container',
+        name: 'test-repo-feat-test',
       }),
     );
   });
@@ -75,7 +85,7 @@ describe('RemoteProvisioner', () => {
     };
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', infraWithSecrets);
+    await provisioner.prepareMissionWorkspace(mockCtx, infraWithSecrets);
 
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining("API_KEY='\\''secret-123'\\'''"),
@@ -89,7 +99,7 @@ describe('RemoteProvisioner', () => {
     mockProvider.getCapsuleStatus.mockResolvedValue({ exists: true });
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
-    await provisioner.prepareMissionWorkspace('123', 'chat', infra);
+    await provisioner.prepareMissionWorkspace(mockCtx, infra);
 
     expect(mockProvider.runCapsule).not.toHaveBeenCalled();
   });

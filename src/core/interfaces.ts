@@ -24,9 +24,16 @@ export interface StationReceipt {
   repo: string;
   status?: string;
   backendType?: 'direct-internal' | 'external';
-  schematic?: string;
-  rootPath?: string;
+  schematic?: string | undefined;
+  rootPath?: string | undefined;
+  workspacesDir?: string;
+  dnsSuffix?: string | undefined;
+  userSuffix?: string | undefined;
   lastSeen: string;
+}
+export interface HydratedStation {
+  receipt: StationReceipt;
+  provider: import('../providers/BaseProvider.js').OrbitProvider;
 }
 
 /**
@@ -37,8 +44,7 @@ export interface IStationRegistry {
   deleteReceipt(name: string): void;
   listStations(options?: {
     syncWithReality?: boolean;
-  }): Promise<StationReceipt[]>;
-  getMissions(receipt: StationReceipt): Promise<string[]>;
+  }): Promise<HydratedStation[]>;
 }
 
 /**
@@ -48,6 +54,18 @@ export interface ISchematicManager {
   listSchematics(): SchematicInfo[];
   importSchematic(source: string): Promise<string>;
   runWizard(name: string, cliFlags?: Partial<OrbitConfig>): Promise<void>;
+}
+
+/**
+ * Status Manager: High-level aggregator for fleet state.
+ */
+export interface IStatusManager {
+  getPulse(): Promise<import('./types.js').StationState>;
+  getGlobalLocalPulse(): Promise<import('./types.js').StationState[]>;
+  fetchFleetState(
+    stations: HydratedStation[],
+    depth: 'inventory' | 'health' | 'pulse',
+  ): Promise<import('./types.js').StationState[]>;
 }
 
 /**
@@ -82,7 +100,7 @@ export interface IRunOptions {
   env?: Record<string, string>;
   interactive?: boolean;
   quiet?: boolean;
-  stdio?: 'inherit' | 'pipe' | 'ignore';
+  stdio?: 'inherit' | 'pipe' | 'ignore' | ('inherit' | 'pipe' | 'ignore')[];
 }
 
 /**
@@ -90,6 +108,98 @@ export interface IRunOptions {
  */
 export interface IProcessManager {
   runSync(bin: string, args: string[], options?: IRunOptions): IProcessResult;
+  runAsync(
+    bin: string,
+    args: string[],
+    options?: IRunOptions,
+  ): import('node:child_process').ChildProcess;
+  spawn(
+    bin: string,
+    args: string[],
+    options?: IRunOptions,
+  ): import('node:child_process').ChildProcess;
+}
+
+export interface IGitExecutor {
+  init(cwd: string, options?: IRunOptions): IProcessResult;
+  remoteAdd(
+    cwd: string,
+    name: string,
+    url: string,
+    options?: IRunOptions,
+  ): IProcessResult;
+  fetch(
+    cwd: string,
+    remote: string,
+    branch: string,
+    options?: IRunOptions,
+  ): IProcessResult;
+  checkout(cwd: string, branch: string, options?: IRunOptions): IProcessResult;
+  worktreeAdd(
+    cwd: string,
+    path: string,
+    branch: string,
+    options?: IRunOptions,
+  ): IProcessResult;
+}
+
+export interface IDockerExecutor {
+  exec(
+    container: string,
+    command: string[],
+    options?: IRunOptions,
+  ): IProcessResult;
+  run(
+    image: string,
+    command?: string,
+    options?: IRunOptions & {
+      name?: string;
+      mounts?: { host: string; capsule: string; readonly?: boolean }[];
+      label?: string;
+    },
+  ): import('./executors/types.js').Command;
+  stop(container: string): import('./executors/types.js').Command;
+  remove(container: string): import('./executors/types.js').Command;
+}
+
+export interface ITmuxExecutor {
+  wrapMission(
+    sessionName: string,
+    innerCommand: string,
+    options?: IRunOptions,
+  ): import('./executors/types.js').Command;
+  wrap(
+    sessionName: string,
+    innerCommand: string,
+    options?: IRunOptions & { detached?: boolean },
+  ): import('./executors/types.js').Command;
+  attach(sessionName: string): IProcessResult;
+}
+
+export interface INodeExecutor {
+  create(
+    scriptPath: string,
+    args?: string[],
+    options?: IRunOptions,
+  ): import('./executors/types.js').Command;
+  createRemote(
+    scriptPath: string,
+    args?: string[],
+    options?: IRunOptions,
+  ): import('./executors/types.js').Command;
+}
+
+export interface IGeminiExecutor {
+  create(bin: string, options?: any): import('./executors/types.js').Command;
+}
+
+export interface IExecutors {
+  git: IGitExecutor;
+  docker: IDockerExecutor;
+  tmux: ITmuxExecutor;
+  node: INodeExecutor;
+  gemini: IGeminiExecutor;
+  ssh: import('./executors/SshExecutor.js').ISshExecutor;
 }
 
 /**

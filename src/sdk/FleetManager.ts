@@ -13,7 +13,7 @@ import {
 import { LogLevel } from '../core/Logger.js';
 import {
   type OrbitObserver,
-  type StationInfo,
+  type StationState,
   type SchematicInfo,
   type ProvisionOptions,
   type ListStationsOptions,
@@ -27,7 +27,8 @@ import {
   type IInfrastructureFactory,
   type IConfigManager,
   type IDependencyManager,
-  type StationReceipt,
+  type IExecutors,
+  type IStatusManager,
 } from '../core/interfaces.js';
 
 export class FleetManager {
@@ -41,14 +42,16 @@ export class FleetManager {
     private readonly infraFactory: IInfrastructureFactory,
     private readonly configManager: IConfigManager,
     private readonly dependencyManager: IDependencyManager,
+    private readonly executors: IExecutors,
+    private readonly statusManager: IStatusManager,
   ) {}
 
   /**
    * Build or wake Orbital Station infrastructure. (Idempotent Liftoff)
    */
   async provision(options: ProvisionOptions): Promise<number> {
-    const { schematicName, destroy } = options;
-    const instanceName = this.infra.instanceName || 'default';
+    const { schematicName, stationName, destroy } = options;
+    const instanceName = stationName || this.infra.instanceName || 'default';
     const sName = schematicName || (this.infra as any).schematic || 'default';
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');
@@ -59,7 +62,12 @@ export class FleetManager {
     );
 
     const schematic = this.configManager.loadSchematic(sName);
-    const config = { ...this.infra, ...schematic, instanceName };
+    const config = {
+      ...this.infra,
+      ...schematic,
+      instanceName,
+      schematic: sName,
+    };
 
     if (!config.projectId && config.providerType !== 'local-worktree') {
       this.observer.onLog?.(
@@ -96,9 +104,9 @@ export class FleetManager {
 
     // IDEMPOTENCY: Check if instance exists and is hibernated
     const currentStatus = await this.stationManager.listStations();
-    const existing = currentStatus.find((s) => s.name === instanceName);
+    const existing = currentStatus.find((s) => s.receipt.name === instanceName);
 
-    if (existing && existing.status === 'TERMINATED') {
+    if (existing && existing.receipt.status === 'TERMINATED') {
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
@@ -108,9 +116,7 @@ export class FleetManager {
         this.projectCtx,
         config as any,
       );
-      // 'gcloud compute instances start'
-      await provider.exec(`echo "Waking VM..."`); // Placeholder for provider.start()
-      await (provider as any).start?.();
+      await provider.start();
     }
 
     this.observer.onDivider?.('STATION LIFTOFF');
@@ -157,9 +163,7 @@ export class FleetManager {
       }
     }
 
-    const isLocal =
-      config.projectId === 'local' || config.providerType === 'local-worktree';
-    if (state.status !== 'destroyed' && !isLocal) {
+    if (state.status !== 'destroyed' && provider.isPersistent) {
       const settings = this.configManager.loadSettings();
       const stationName = instanceName;
       const rName = this.projectCtx.repoName;
@@ -179,17 +183,7 @@ export class FleetManager {
         `🎯 Active Station for ${rName || 'global'} set to: ${stationName}`,
       );
 
-      this.stationManager.saveReceipt({
-        name: stationName,
-        instanceName: stationName,
-        type: 'gce',
-        projectId: config.projectId!,
-        zone: config.zone || 'us-central1-a',
-        backendType: config.backendType as any,
-        repo: this.projectCtx.repoName,
-        schematic: sName,
-        lastSeen: new Date().toISOString(),
-      });
+      this.stationManager.saveReceipt(provider.getStationReceipt());
     }
 
     this.observer.onLog?.(
@@ -205,56 +199,27 @@ export class FleetManager {
    */
   async listStations(
     options: ListStationsOptions = {},
-  ): Promise<StationInfo[]> {
+  ): Promise<StationState[]> {
     const settings = this.configManager.loadSettings();
-    const receipts = await this.stationManager.listStations(options as any);
+    const stations = await this.stationManager.listStations({
+      syncWithReality: !!options.syncWithReality,
+    });
 
-    const stationInfos: StationInfo[] = await Promise.all(
-      receipts.map(async (r: StationReceipt) => {
-        let missions: string[] = [];
-        let status = r.status || 'READY';
-
-        // Only fetch missions if station is active/ready to avoid hung SSH
-        if (
-          options.includeMissions &&
-          (status === 'RUNNING' || status === 'READY')
-        ) {
-          try {
-            missions = await this.stationManager.getMissions(r);
-            this.observer.onLog?.(
-              LogLevel.DEBUG,
-              'FLEET',
-              `Fetched ${missions.length} missions for ${r.name}`,
-            );
-          } catch (e: any) {
-            this.observer.onLog?.(
-              LogLevel.DEBUG,
-              'FLEET',
-              `Failed to fetch missions for ${r.name}: ${e.message}`,
-            );
-            // If we can't talk to it, mark it as unreachable if it was supposed to be running
-            if (status === 'RUNNING') {
-              status = 'UNREACHABLE';
-            }
-          }
-        }
-
-        return {
-          name: r.name,
-          type: r.type,
-          repo: r.repo,
-          status,
-          projectId: r.projectId,
-          zone: r.zone,
-          rootPath: r.rootPath || undefined,
-          lastSeen: r.lastSeen,
-          missions,
-          isActive: settings.activeStation === r.name,
-        };
-      }),
+    const states = await this.statusManager.fetchFleetState(
+      stations,
+      options.includeMissions
+        ? 'pulse'
+        : options.syncWithReality
+          ? 'health'
+          : 'inventory',
     );
 
-    return stationInfos;
+    // Set Active Marker based on settings
+    states.forEach((s) => {
+      s.isActive = settings.activeStation === s.receipt.name;
+    });
+
+    return states;
   }
 
   /**
@@ -263,18 +228,13 @@ export class FleetManager {
   async hibernate(options: HibernateOptions): Promise<void> {
     const { name } = options;
     const stations = await this.stationManager.listStations();
-    const receipt = stations.find((s) => s.name === name);
+    const station = stations.find((s) => s.receipt.name === name);
 
-    if (!receipt) {
+    if (!station) {
       throw new Error(`Station "${name}" not found in registry.`);
     }
 
-    const provider = this.providerFactory.getProvider(this.projectCtx, {
-      instanceName: receipt.instanceName || name,
-      projectId: receipt.projectId,
-      zone: receipt.zone,
-      providerType: receipt.type,
-    } as any);
+    const { provider } = station;
 
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -291,7 +251,7 @@ export class FleetManager {
   async activateStation(name: string): Promise<void> {
     const settings = this.configManager.loadSettings();
     const stations = await this.stationManager.listStations();
-    const station = stations.find((s) => s.name === name);
+    const station = stations.find((s) => s.receipt.name === name);
     if (!station) {
       throw new Error(`Station "${name}" not found in registry.`);
     }
@@ -300,16 +260,16 @@ export class FleetManager {
     if (rName && rName !== 'gemini-cli') {
       if (!settings.repos) settings.repos = {};
       if (!settings.repos[rName]) settings.repos[rName] = {} as any;
-      settings.repos[rName]!.activeStation = station.name;
+      settings.repos[rName]!.activeStation = station.receipt.name;
     } else {
-      settings.activeStation = station.name;
+      settings.activeStation = station.receipt.name;
     }
 
     this.configManager.saveSettings(settings);
     this.observer.onLog?.(
       LogLevel.INFO,
       'CONFIG',
-      `🎯 Active Station for ${rName || 'global'} set to: ${station.name}`,
+      `🎯 Active Station for ${rName || 'global'} set to: ${station.receipt.name}`,
     );
   }
 
@@ -331,21 +291,15 @@ export class FleetManager {
       return 0;
     }
 
-    // 2. Fetch Receipt for the target
+    // 2. Resolve Target Station
     const stations = await this.stationManager.listStations();
-    const receipt = stations.find((s) => s.name === targetName);
+    const station = stations.find((s) => s.receipt.name === targetName);
 
-    if (!receipt) {
+    if (!station) {
       throw new Error(`Station "${targetName}" not found in registry.`);
     }
 
-    // 3. Instantiate Scoped Provider
-    const provider = this.providerFactory.getProvider(this.projectCtx, {
-      instanceName: receipt.instanceName || receipt.name,
-      projectId: receipt.projectId,
-      zone: receipt.zone,
-      providerType: receipt.type,
-    } as any);
+    const { receipt, provider } = station;
 
     this.observer.onLog?.(
       LogLevel.INFO,

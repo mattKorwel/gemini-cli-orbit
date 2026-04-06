@@ -55,7 +55,7 @@ A supervisor merges all findings into a high-fidelity `final-assessment.md`.
 ### 🚀 Usage
 
 ```bash
-orbit mission <PR_NUMBER> review
+orbit mission launch <PR_NUMBER> review
 ```
 
 ---
@@ -102,7 +102,7 @@ conditions:
 ### 🚀 Usage
 
 ```bash
-orbit mission <PR_NUMBER> fix
+orbit mission launch <PR_NUMBER> fix
 ```
 
 ---
@@ -158,14 +158,24 @@ The agent implements the plan in small chunks (~10-15 minutes).
 ### 🚀 Usage
 
 ```bash
-orbit mission <ISSUE_NUMBER> implement
+orbit mission launch <ISSUE_NUMBER> implement
 ```
 
 ---
 
 ## 🎮 Command Reference
 
-### 1. Mission (The Workflow)
+### 1. Constellation (The Fleet View)
+
+_Unified status, health, and monitoring across your entire constellation._
+
+| Maneuver         | Command                       | Description                                     |
+| :--------------- | :---------------------------- | :---------------------------------------------- |
+| **Inventory**    | `orbit constellation`         | View registered stations (fast).                |
+| **Reality Sync** | `orbit constellation --sync`  | Health check of hardware (ping).                |
+| **Telemetry**    | `orbit constellation --pulse` | Deep dive into mission logs and resource stats. |
+
+### 2. Mission (The Workflow)
 
 _Focused on the PR or Issue you are working on._
 
@@ -178,20 +188,19 @@ _Focused on the PR or Issue you are working on._
 | **CI**       | `orbit mission ci <id>`       | Monitor GitHub Actions status for the branch.   |
 | **Jettison** | `orbit mission jettison <id>` | Cleanup mission-specific worktree and capsule.  |
 
-### 2. Station (The Hardware)
+### 3. Station (The Hardware)
 
-_Focused on managing the compute instances._
+_Focused on managing the lifecycle of compute instances._
 
-| Maneuver      | Command                          | Description                                     |
-| :------------ | :------------------------------- | :---------------------------------------------- |
-| **List**      | `orbit station list`             | View your constellation status (Cloud + Local). |
-| **Shell**     | `orbit station shell [name]`     | **Host Access.** Raw shell on hardware VM.      |
-| **Activate**  | `orbit station activate <name>`  | Set the active target for future missions.      |
-| **Hibernate** | `orbit station hibernate <name>` | Safe compute-only shutdown to save cost.        |
-| **Pulse**     | `orbit station pulse`            | Health check for the active station.            |
-| **Reap**      | `orbit station reap`             | Automatic cleanup of idle mission capsules.     |
+| Maneuver      | Command                          | Description                                 |
+| :------------ | :------------------------------- | :------------------------------------------ |
+| **Activate**  | `orbit station activate <name>`  | Set the active target for future missions.  |
+| **Hibernate** | `orbit station hibernate <name>` | Safe compute-only shutdown to save cost.    |
+| **Shell**     | `orbit station shell [name]`     | **Host Access.** Raw shell on hardware VM.  |
+| **Reap**      | `orbit station reap`             | Automatic cleanup of idle mission capsules. |
+| **Delete**    | `orbit station delete <name>`    | Decommission station hardware.              |
 
-### 3. Infra (The Foundation)
+### 4. Infra (The Foundation)
 
 _Focused on provisioning and blueprints._
 

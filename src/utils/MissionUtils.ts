@@ -4,25 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawnSync } from 'node:child_process';
-import { sanitizeName, detectRepoName } from '../core/ConfigManager.js';
-import { MISSION_PREFIX as _MISSION_PREFIX } from '../core/Constants.js';
+import { sanitizeName } from '../core/ConfigManager.js';
+import { type MissionManifest } from '../core/types.js';
+import { type IProcessManager } from '../core/interfaces.js';
+import { ProcessManager } from '../core/ProcessManager.js';
 
 export interface MissionContext {
   branchName: string;
+  repoSlug: string;
+  idSlug: string;
+  workspaceName: string;
   containerName: string;
   sessionName: string;
-  workspaceName: string;
 }
 
 /**
- * Resolves PR/Issue metadata and calculates standardized mission names.
+ * Resolves PR/Issue metadata and extracts raw naming components.
+ * This is the PURE METADATA source for Orbit missions.
  */
 export function resolveMissionContext(
   identifier: string,
-  action: string,
-  repoName?: string,
-): MissionContext {
+  repoName: string,
+  pm: IProcessManager = new ProcessManager(),
+): { branchName: string; repoSlug: string; idSlug: string } {
   const parts = identifier.split(':');
   const prId = parts[0]!;
   const suffix = parts.length > 1 ? parts.slice(1).join('-') : undefined;
@@ -32,12 +36,11 @@ export function resolveMissionContext(
   // Try to resolve PR branch name via GH CLI if identifier is numeric
   if (/^\d+$/.test(prId)) {
     try {
-      const res = spawnSync(
+      const res = pm.runSync(
         'gh',
         ['pr', 'view', prId, '--json', 'headRefName'],
         {
-          encoding: 'utf8',
-          stdio: 'pipe',
+          quiet: true,
         },
       );
       if (res.status === 0 && res.stdout.trim()) {
@@ -52,23 +55,39 @@ export function resolveMissionContext(
   const sBranch = sanitizeName(branchName);
   const sId = sanitizeName(prId);
   const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
-  const sRepo = sanitizeName(repoName || detectRepoName() || 'unknown');
 
-  // Unified Starfleet Naming:
-  // Display: orbit/repo/id
-  // Slug:    orbit-repo-id
-  const displayName = `orbit/${sRepo}/${sId}${sSuffix}`;
-  const slugName = `orbit-${sRepo}-${sId}${sSuffix}`;
-
-  // For backward compatibility, the container name for playbooks still includes the action
-  const containerName = action === 'chat' ? slugName : `${slugName}-${action}`;
-  const sessionName =
-    action === 'chat' ? displayName : `${displayName}/${action}`;
+  // Total Preservation: No pruning or prefixing here.
+  const repoSlug = sanitizeName(repoName);
+  const idSlug = `${sId}${sSuffix}`;
 
   return {
     branchName: sBranch,
-    containerName,
-    sessionName,
-    workspaceName: slugName,
+    repoSlug,
+    idSlug,
   };
+}
+
+/**
+ * Serializes a manifest for environment injection.
+ */
+export function serializeManifest(manifest: MissionManifest): string {
+  return JSON.stringify(manifest);
+}
+
+/**
+ * Retrieves and parses the mission manifest from the environment.
+ */
+export function getManifestFromEnv(): MissionManifest {
+  const raw = process.env.GCLI_ORBIT_MANIFEST;
+  if (!raw) {
+    throw new Error('❌ Missing GCLI_ORBIT_MANIFEST environment variable.');
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed as MissionManifest;
+  } catch (e: any) {
+    throw new Error(`❌ Failed to parse mission manifest: ${e.message}`, {
+      cause: e,
+    });
+  }
 }
