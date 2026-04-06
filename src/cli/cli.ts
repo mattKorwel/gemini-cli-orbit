@@ -191,7 +191,19 @@ export async function dispatch(argv: string[]): Promise<number> {
 
   const parser = yargs(processedArgv)
     .scriptName('orbit')
-    .usage('$0 <command> [args]')
+    .usage(
+      `Usage: $0 <command> [args]
+
+🚀 Escaping the Gravity of local constraints by orchestrating persistent, autonomous agent satellites.
+
+QUICK START:
+  1. Liftoff:   orbit infra liftoff        (Provision or wake your hardware)
+  2. Mission:   orbit mission 123 review   (Launch an autonomous maneuver)
+  3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
+  4. Attach:    orbit mission attach 123   (Work alongside the agent)
+  5. Clean:     orbit mission jettison 123 (Surgically remove resources)
+`,
+    )
     .demandCommand(1, 'Please specify a command.')
     .strict()
     .showHelpOnFail(true)
