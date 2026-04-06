@@ -185,6 +185,7 @@ export async function dispatch(argv: string[]): Promise<number> {
     missions: 'mission start',
     schematics: 'infra schematic list',
     pulse: 'constellation --pulse',
+    logs: 'mission logs',
     provision: 'infra liftoff',
   };
   if (processedArgv[0]) {
@@ -294,6 +295,7 @@ QUICK START:
             [
               '$0 <identifier> [action] [extra..]',
               'start <identifier> [action] [extra..]',
+              'launch <identifier> [action] [extra..]',
             ],
             'Start or resume a mission.',
             (y2) => {
@@ -331,10 +333,15 @@ QUICK START:
             async (args: any) => {
               const subcommands = [
                 'start',
+                'launch',
                 'attach',
+                'resume',
                 'uplink',
+                'logs',
                 'ci',
                 'jettison',
+                'delete',
+                'rm',
                 'shell',
                 'reap',
                 'exec',
@@ -364,7 +371,7 @@ QUICK START:
             },
           )
           .command(
-            'attach <identifier> [action]',
+            ['attach <identifier> [action]', 'resume <identifier> [action]'],
             'Resume an active mission.',
             (y2) => {
               y2.positional('identifier', { type: 'string' }).positional(
@@ -384,7 +391,7 @@ QUICK START:
             },
           )
           .command(
-            'uplink <identifier> [action]',
+            ['uplink <identifier> [action]', 'logs <identifier> [action]'],
             'Inspect mission telemetry.',
             (y2) => {
               y2.positional('identifier', { type: 'string' }).positional(
@@ -404,7 +411,11 @@ QUICK START:
             },
           )
           .command(
-            'jettison <identifier> [action]',
+            [
+              'jettison <identifier> [action]',
+              'delete <identifier> [action]',
+              'rm <identifier> [action]',
+            ],
             'Decommission a specific mission.',
             (y2) => {
               y2.positional('identifier', { type: 'string' }).positional(
