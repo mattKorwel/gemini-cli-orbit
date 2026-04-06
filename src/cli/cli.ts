@@ -832,7 +832,6 @@ function renderFleet(
         const typeIcon = s.receipt.type === 'gce' ? '☁️' : '🏠';
         const activeMarker = s.isActive ? '➡️' : '  ';
         const status = s.reality?.status || s.receipt.status || 'READY';
-        const project = s.receipt.projectId || 'local';
         const missionCount =
           s.reality?.missions.length ?? (depth === 'inventory' ? '?' : 0);
 
