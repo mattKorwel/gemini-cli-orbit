@@ -87,8 +87,6 @@ export class MissionManager {
       sessionName: provider.resolveSessionName(repoSlug, idSlug, action),
     };
 
-    const isLocalWorkspace = provider.isLocal;
-
     // 1. Ensure Hardware/Station is Ready
     await provider.ensureReady();
 
@@ -96,19 +94,17 @@ export class MissionManager {
     this.stationRegistry.saveReceipt(provider.getStationReceipt());
 
     // 3. Project Configuration Sync
-    if (!isLocalWorkspace) {
-      this.observer.onProgress?.(
-        'PHASE 0',
-        '📂 Synchronizing project configurations...',
-      );
+    this.observer.onProgress?.(
+      'PHASE 0',
+      '📂 Synchronizing project configurations...',
+    );
 
-      // Lazy Sync Project Configs (.gemini)
-      const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
-      const remoteConfigDir = `${ORBIT_ROOT}/project-configs`;
-      await provider.syncIfChanged(`${localConfigDir}/`, remoteConfigDir, {
-        sudo: true,
-      });
-    }
+    // Lazy Sync Project Configs (.gemini)
+    const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
+    const targetConfigDir = provider.resolveProjectConfigDir();
+    await provider.syncIfChanged(`${localConfigDir}/`, targetConfigDir, {
+      sudo: true,
+    });
 
     // 3. Mission Preparation (Hardware/Container Layer)
     await provider.prepareMissionWorkspace(mCtx, this.infra);
@@ -119,23 +115,15 @@ export class MissionManager {
       '🧪 Initializing worker environment...',
     );
 
-    const workerPath = isLocalWorkspace
-      ? `${LOCAL_BUNDLE_PATH}/station.js`
-      : `${BUNDLE_PATH}/station.js`;
-
-    const policyPath = isLocalWorkspace
-      ? path.join(
-          this.projectCtx.repoRoot,
-          '.gemini/policies/workspace-policy.toml',
-        )
-      : `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+    const workerPath = provider.resolveWorkerPath();
+    const policyPath = provider.resolvePolicyPath(this.projectCtx.repoRoot);
 
     const upstreamUrl = this.infra.upstreamRepo
       ? `https://github.com/${this.infra.upstreamRepo}.git`
       : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
         UPSTREAM_REPO_URL;
 
-    const mirrorPath = `${ORBIT_ROOT}/main`;
+    const mirrorPath = provider.resolveMirrorPath();
 
     // ADR 0018: Provider hook for absolute target path
     const targetDir = provider.resolveWorkDir(mCtx.workspaceName);
@@ -153,10 +141,9 @@ export class MissionManager {
     };
 
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
-    const startCmd = isLocalWorkspace
-      ? this.executors.node.create(workerPath, ['start'])
-      : this.executors.node.createRemote(workerPath, ['start']);
-    const startExitCode = await provider.exec(startCmd, {
+    const startCmd = provider.createNodeCommand(workerPath, ['start']);
+
+    const startExitCode = await provider.execMission(startCmd, mCtx, {
       interactive: true,
       manifest,
     });
@@ -292,19 +279,20 @@ export class MissionManager {
       this.projectCtx,
       this.infra as any,
     );
-    const capsules = await provider.listCapsules();
-    const target = capsules.find((c) => c.includes(options.identifier));
+    const { branchName, repoSlug, idSlug } = resolveMissionContext(
+      options.identifier,
+      this.projectCtx.repoName,
+    );
+    const mCtx: MissionContext = {
+      branchName,
+      repoSlug,
+      idSlug,
+      workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
+      containerName: provider.resolveContainerName(repoSlug, idSlug, 'chat'),
+      sessionName: provider.resolveSessionName(repoSlug, idSlug, 'chat'),
+    };
 
-    if (!target) {
-      this.observer.onLog?.(
-        LogLevel.ERROR,
-        'EXEC',
-        `❌ No active mission found for ${options.identifier}`,
-      );
-      return 1;
-    }
-
-    return provider.exec(options.command, { wrapCapsule: target });
+    return provider.execMission(options.command, mCtx);
   }
 
   /**
@@ -335,11 +323,9 @@ export class MissionManager {
       );
       await provider.removeCapsule(containerName);
 
-      if (provider.type === 'gce') {
-        const sessionId = SessionManager.generateMissionId(identifier, act);
-        const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
-        await provider.exec(`rm -f ${secretPath}`, { quiet: true });
-      }
+      const sessionId = SessionManager.generateMissionId(identifier, act);
+      const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
+      await provider.exec(`sudo rm -f ${secretPath}`, { quiet: true });
     }
 
     return { missionId: identifier, exitCode: 0 };
@@ -390,18 +376,5 @@ export class MissionManager {
     const logs = await provider.capturePane(target);
     console.log(logs);
     return 0;
-  }
-
-  /**
-   * Helper to build ExecOptions for mission commands.
-   */
-  private getExecOptions(
-    _isLocal: boolean,
-    capsuleName: string,
-    overrides: Partial<ExecOptions> = {},
-  ): ExecOptions {
-    const options: ExecOptions = { ...overrides };
-    options.wrapCapsule = capsuleName;
-    return options;
   }
 }

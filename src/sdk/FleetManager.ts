@@ -116,9 +116,7 @@ export class FleetManager {
         this.projectCtx,
         config as any,
       );
-      // 'gcloud compute instances start'
-      await provider.exec(`echo "Waking VM..."`); // Placeholder for provider.start()
-      await (provider as any).start?.();
+      await provider.start();
     }
 
     this.observer.onDivider?.('STATION LIFTOFF');
@@ -165,9 +163,7 @@ export class FleetManager {
       }
     }
 
-    const isLocal =
-      config.projectId === 'local' || config.providerType === 'local-worktree';
-    if (state.status !== 'destroyed' && !isLocal) {
+    if (state.status !== 'destroyed' && provider.isPersistent) {
       const settings = this.configManager.loadSettings();
       const stationName = instanceName;
       const rName = this.projectCtx.repoName;

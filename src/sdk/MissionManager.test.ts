@@ -79,6 +79,14 @@ describe('MissionManager', () => {
         .fn()
         .mockImplementation((r, i, a) => `orbit-${r}-${i}-${a}`),
       resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
+      resolveProjectConfigDir: vi.fn().mockReturnValue('/tmp/project-configs'),
+      resolveWorkerPath: vi.fn().mockReturnValue('/tmp/station.js'),
+      resolvePolicyPath: vi.fn().mockReturnValue('/tmp/policy.toml'),
+      resolveMirrorPath: vi.fn().mockReturnValue('/tmp/mirror'),
+      createNodeCommand: vi
+        .fn()
+        .mockImplementation((s, a) => ({ bin: 'node', args: [s, ...a] })),
+      execMission: vi.fn().mockResolvedValue(0),
       getStationReceipt: vi.fn().mockReturnValue({ name: 'mock-station' }),
     };
 
@@ -135,10 +143,11 @@ describe('MissionManager', () => {
     const result = await manager.start({ identifier: '123', action: 'review' });
 
     // Verify a single 'start' call was made
-    expect(mockProvider.exec).toHaveBeenCalledWith(
+    expect(mockProvider.execMission).toHaveBeenCalledWith(
       expect.objectContaining({
         args: expect.arrayContaining(['start']),
       }),
+      expect.any(Object),
       expect.objectContaining({
         manifest: expect.objectContaining({
           identifier: '123',
@@ -162,10 +171,11 @@ describe('MissionManager', () => {
     await manager.start({ identifier: '123', action: 'chat' });
 
     // Verify 'start' call
-    expect(mockProvider.exec).toHaveBeenCalledWith(
+    expect(mockProvider.execMission).toHaveBeenCalledWith(
       expect.objectContaining({
         args: expect.arrayContaining(['start']),
       }),
+      expect.any(Object),
       expect.objectContaining({
         manifest: expect.objectContaining({
           identifier: '123',

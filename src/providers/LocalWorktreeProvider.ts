@@ -8,7 +8,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { BaseProvider } from './BaseProvider.js';
 import { type ExecOptions, type OrbitStatus } from '../core/types.js';
-import { type ProjectContext } from '../core/Constants.js';
+import { type ProjectContext, LOCAL_BUNDLE_PATH } from '../core/Constants.js';
 import { type Command } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
 import {
@@ -23,7 +23,7 @@ import {
  */
 export class LocalWorktreeProvider extends BaseProvider {
   public readonly type = 'local-worktree';
-  public readonly isLocal = true;
+  public readonly isPersistent = false;
   public projectId = 'local';
   public zone = 'localhost';
   public stationName: string;
@@ -56,16 +56,32 @@ export class LocalWorktreeProvider extends BaseProvider {
   /**
    * Path resolution (Backend specific root)
    */
-  resolveWorkDir(workspaceName: string): string {
+  override resolveWorkDir(workspaceName: string): string {
     return path.join(this.workspacesDir, workspaceName);
+  }
+
+  override resolveWorkerPath(): string {
+    return `${LOCAL_BUNDLE_PATH}/station.js`;
+  }
+
+  override resolveProjectConfigDir(): string {
+    return path.join(this.projectCtx.repoRoot, '.gemini');
+  }
+
+  override resolvePolicyPath(repoRoot: string): string {
+    return path.join(repoRoot, '.gemini/policies/workspace-policy.toml');
+  }
+
+  override resolveMirrorPath(): string {
+    return this.projectCtx.repoRoot;
   }
 
   async ensureReady(): Promise<number> {
     return 0;
   }
 
-  private q(val: string): string {
-    return `'${val.replace(/'/g, "'\\''")}'`;
+  override createNodeCommand(scriptPath: string, args: string[] = []): Command {
+    return this.executors.node.create(scriptPath, args);
   }
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
@@ -77,7 +93,7 @@ export class LocalWorktreeProvider extends BaseProvider {
     const envPrefix =
       Object.keys(envObj).length > 0
         ? Object.entries(envObj)
-            .map(([k, v]) => `${k}=${this.q(v as string)}`)
+            .map(([k, v]) => `${k}=${this.shellQuote(v as string)}`)
             .join(' ') + ' '
         : '';
 
@@ -89,9 +105,9 @@ export class LocalWorktreeProvider extends BaseProvider {
       const sessionName = options.wrapCapsule || 'orbit-local';
       const tip =
         'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
-      return `tmux new-session -d -A -s ${this.q(sessionName)} "cd ${this.q(capsuleDir)} && ${tip}; ${envPrefix}${command} || exec zsh"`;
+      return `tmux new-session -d -A -s ${this.shellQuote(sessionName)} "cd ${this.shellQuote(capsuleDir)} && ${tip}; ${envPrefix}${command} || exec zsh"`;
     }
-    return `cd ${this.q(capsuleDir)} && ${envPrefix}${command}`;
+    return `cd ${this.shellQuote(capsuleDir)} && ${envPrefix}${command}`;
   }
 
   async exec(
@@ -100,6 +116,26 @@ export class LocalWorktreeProvider extends BaseProvider {
   ): Promise<number> {
     const res = await this.getExecOutput(command, options);
     return res.status;
+  }
+
+  async execMission(
+    command: string | Command,
+    mCtx: MissionContext,
+    options: ExecOptions = {},
+  ): Promise<number> {
+    const res = await this.getMissionExecOutput(command, mCtx, options);
+    return res.status;
+  }
+
+  async getMissionExecOutput(
+    command: string | Command,
+    mCtx: MissionContext,
+    options: ExecOptions = {},
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
+    return this.getExecOutput(command, {
+      ...options,
+      wrapCapsule: mCtx.workspaceName,
+    });
   }
 
   async getExecOutput(
@@ -203,6 +239,10 @@ export class LocalWorktreeProvider extends BaseProvider {
       status: 'RUNNING',
       internalIp: '127.0.0.1',
     };
+  }
+
+  async start(): Promise<number> {
+    return 0;
   }
 
   async stop(): Promise<number> {

@@ -99,12 +99,9 @@ export class StatusManager implements IStatusManager {
   ): Promise<CapsuleInfo[]> {
     const capsules: CapsuleInfo[] = [];
 
-    const isLocalWorkspace = provider.type === 'local-worktree';
-    const bundlePath = isLocalWorkspace
-      ? 'bundle/station.js'
-      : STATION_BUNDLE_PATH;
+    const bundlePath = provider.resolveWorkerPath();
+    const statusCmd = provider.createNodeCommand(bundlePath, ['status']);
 
-    const statusCmd = this.executors.node.create(bundlePath, ['status']);
     const statusOutput = await provider.getExecOutput(statusCmd, {
       quiet: true,
     });

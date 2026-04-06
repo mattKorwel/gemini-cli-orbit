@@ -27,7 +27,7 @@ import {
  */
 export abstract class BaseProvider {
   abstract readonly type: 'gce' | 'local-worktree';
-  abstract readonly isLocal: boolean;
+  abstract readonly isPersistent: boolean;
   abstract projectId: string;
   abstract zone: string;
   abstract stationName: string;
@@ -73,15 +73,72 @@ export abstract class BaseProvider {
    */
   abstract resolveWorkDir(workspaceName: string): string;
 
+  /**
+   * Returns the absolute path to the Orbit worker (station.js) in this environment.
+   */
+  abstract resolveWorkerPath(): string;
+
+  /**
+   * Returns the absolute path to the project config directory (.gemini) in this environment.
+   */
+  abstract resolveProjectConfigDir(): string;
+
+  /**
+   * Returns the absolute path to the workspace policy file in this environment.
+   */
+  abstract resolvePolicyPath(repoRoot: string): string;
+
+  /**
+   * Returns the absolute path to the git mirror repository in this environment.
+   */
+  abstract resolveMirrorPath(): string;
+
+  /**
+   * Creates a command to run a Node.js script.
+   */
+  abstract createNodeCommand(scriptPath: string, args?: string[]): Command;
+
   abstract ensureReady(): Promise<number>;
-  abstract exec(
+
+  /**
+   * Executes a command within the context of a specific mission.
+   * Providers handle environment isolation (e.g. Docker wrap, CWD shift).
+   */
+  abstract execMission(
     command: string | Command,
+    mCtx: MissionContext,
     options?: ExecOptions,
   ): Promise<number>;
+
+  /**
+   * Returns output from a command executed within a specific mission.
+   */
+  abstract getMissionExecOutput(
+    command: string | Command,
+    mCtx: MissionContext,
+    options?: ExecOptions,
+  ): Promise<{ status: number; stdout: string; stderr: string }>;
+
+  /**
+   * Shell-safe quoting helper.
+   */
+  shellQuote(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
+  }
+
+  async exec(
+    command: string | Command,
+    options: ExecOptions = {},
+  ): Promise<number> {
+    const res = await this.getExecOutput(command, options);
+    return res.status;
+  }
+
   abstract getExecOutput(
     command: string | Command,
     options?: ExecOptions,
   ): Promise<{ status: number; stdout: string; stderr: string }>;
+
   abstract getRunCommand(command: string, options?: ExecOptions): string;
   abstract sync(
     localPath: string,
@@ -94,6 +151,12 @@ export abstract class BaseProvider {
     options?: SyncOptions,
   ): Promise<number>;
   abstract getStatus(): Promise<OrbitStatus>;
+
+  /**
+   * Safe wake of a hibernated station.
+   */
+  abstract start(): Promise<number>;
+
   abstract stop(): Promise<number>;
   abstract getCapsuleStatus(
     name: string,

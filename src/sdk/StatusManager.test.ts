@@ -58,6 +58,10 @@ describe('StatusManager', () => {
         }
         return { status: 1 };
       }),
+      resolveWorkerPath: vi.fn().mockReturnValue('bundle/station.js'),
+      createNodeCommand: vi
+        .fn()
+        .mockImplementation((p, a) => ({ bin: 'node', args: [p, ...a] })),
       type: 'local-worktree',
     };
 

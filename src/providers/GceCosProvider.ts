@@ -18,6 +18,9 @@ import { logger } from '../core/Logger.js';
 import {
   type ProjectContext,
   type InfrastructureSpec,
+  STATION_BUNDLE_PATH,
+  ORBIT_ROOT,
+  MAIN_REPO_PATH,
 } from '../core/Constants.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
 import {
@@ -39,7 +42,7 @@ export class ConnectivityError extends Error {
  */
 export class GceCosProvider extends BaseProvider {
   public readonly type = 'gce';
-  public readonly isLocal = false;
+  public readonly isPersistent = true;
 
   public readonly projectId: string;
   public readonly zone: string;
@@ -104,8 +107,24 @@ export class GceCosProvider extends BaseProvider {
     return action === 'chat' ? base : `${base}-${action}`;
   }
 
-  resolveWorkDir(_workspaceName: string): string {
-    return '/mnt/disks/data';
+  override resolveWorkDir(workspaceName: string): string {
+    return `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${workspaceName}`;
+  }
+
+  override resolveWorkerPath(): string {
+    return STATION_BUNDLE_PATH;
+  }
+
+  override resolveProjectConfigDir(): string {
+    return `${ORBIT_ROOT}/project-configs`;
+  }
+
+  override resolvePolicyPath(_repoRoot: string): string {
+    return `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+  }
+
+  override resolveMirrorPath(): string {
+    return MAIN_REPO_PATH;
   }
 
   injectState(state: InfrastructureState): void {
@@ -201,6 +220,10 @@ export class GceCosProvider extends BaseProvider {
     return 1;
   }
 
+  override createNodeCommand(scriptPath: string, args: string[] = []): Command {
+    return this.executors.node.createRemote(scriptPath, args);
+  }
+
   getRunCommand(): string {
     return 'NOT_IMPLEMENTED_USE_SSH_MANAGER';
   }
@@ -213,13 +236,33 @@ export class GceCosProvider extends BaseProvider {
     return res.status;
   }
 
+  async execMission(
+    command: string | Command,
+    mCtx: MissionContext,
+    options: ExecOptions = {},
+  ): Promise<number> {
+    const res = await this.getMissionExecOutput(command, mCtx, options);
+    return res.status;
+  }
+
+  async getMissionExecOutput(
+    command: string | Command,
+    mCtx: MissionContext,
+    options: ExecOptions = {},
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
+    return this.getExecOutput(command, {
+      ...options,
+      wrapCapsule: mCtx.containerName,
+    });
+  }
+
   async getExecOutput(
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
     const cmdObj: RemoteCommand = {
       bin: '/bin/bash',
-      args: ['-c', this.sshQuote(flattenCommand(command))],
+      args: ['-c', this.shellQuote(flattenCommand(command))],
       env: { ...(options.env || {}) },
     };
 
@@ -295,6 +338,29 @@ export class GceCosProvider extends BaseProvider {
     };
   }
 
+  async start(): Promise<number> {
+    const res = this.pm.runSync(
+      'gcloud',
+      [
+        '--verbosity=error',
+        'compute',
+        'instances',
+        'start',
+        this.instanceName,
+        '--project',
+        this.projectId,
+        '--zone',
+        this.zone,
+        '--quiet',
+      ],
+      {
+        stdio: 'inherit',
+        env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      },
+    );
+    return res.status;
+  }
+
   async stop(): Promise<number> {
     const res = this.pm.runSync(
       'gcloud',
@@ -359,7 +425,7 @@ export class GceCosProvider extends BaseProvider {
     const envFlags = [
       ...(config.env
         ? Object.entries(config.env).map(
-            ([k, v]) => `-e ${k}=${this.sshQuote(v as string)}`,
+            ([k, v]) => `-e ${k}=${this.shellQuote(v as string)}`,
           )
         : []),
     ].join(' ');
@@ -367,7 +433,7 @@ export class GceCosProvider extends BaseProvider {
     const limits = `${config.cpuLimit ? `--cpus=${config.cpuLimit}` : ''} ${config.memoryLimit ? `--memory=${config.memoryLimit}` : ''}`;
 
     const cmd = config.command || 'while true; do sleep 1000; done';
-    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.sshQuote(cmd)}`;
+    const dockerCmd = `sudo docker run -d --name ${config.name} --restart always ${config.user ? `--user ${config.user}` : ''} ${limits} ${mounts} ${envFlags} ${config.image} /bin/bash -c ${this.shellQuote(cmd)}`;
 
     return this.exec(dockerCmd);
   }
@@ -497,9 +563,5 @@ export class GceCosProvider extends BaseProvider {
       userSuffix: this.infra.userSuffix,
       lastSeen: new Date().toISOString(),
     };
-  }
-
-  private sshQuote(val: string): string {
-    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 }

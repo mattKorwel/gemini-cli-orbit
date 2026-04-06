@@ -266,19 +266,11 @@ export class StationSupervisor {
         console.log(`\n💬 Entering Mission Chat: ${sessionName || missionId}`);
 
         // ADR: Smarter resumption logic.
-        // Only use --resume latest if a previous session actually exists in ~/.gemini/sessions
         const sessionsDir = path.join(os.homedir(), '.gemini/sessions');
         const hasSessions =
           fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
 
-        let cmd: string;
-        if (hasSessions) {
-          cmd = `${geminiBin} --resume latest`;
-        } else {
-          // Fresh start in standby mode
-          const standbyPrompt = `Orbit Mission ${prNumberOrIssue} (${action}) initialized. Standing by for instructions.`;
-          cmd = `${geminiBin} "${standbyPrompt}"`;
-        }
+        const cmd = hasSessions ? `${geminiBin} --resume latest` : `${geminiBin}`;
 
         const res = ProcessManager.runSync('sh', ['-c', cmd], {
           stdio: 'inherit',
@@ -374,7 +366,7 @@ export class StationSupervisor {
       tmuxCmd.options,
     );
 
-    // Apply Stealth UI Styles to the session explicitly
+    // Apply Stealth UI Styles and Environment to the session explicitly
     const styleCmds = [
       ['set-option', '-t', sName, 'status', 'on'],
       ['set-option', '-t', sName, 'status-position', 'top'],
@@ -394,6 +386,8 @@ export class StationSupervisor {
         'window-status-current-format',
         '#[fg=colour45,bold] #S ',
       ],
+      // Explicitly inject manifest into the tmux session environment so all shells see it
+      ['set-environment', '-t', sName, 'GCLI_ORBIT_MANIFEST', manifestJson],
     ];
 
     for (const args of styleCmds) {
