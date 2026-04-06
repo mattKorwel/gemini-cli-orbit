@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import path from 'node:path';
 import { type OrbitProvider } from '../providers/BaseProvider.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
@@ -40,15 +41,21 @@ export class RemoteProvisioner {
       );
     }
 
-    const { branchName: branch, containerName, workspaceName } = mCtx;
+    const {
+      branchName: branch,
+      containerName,
+      workspaceName,
+      repoSlug,
+      idSlug,
+      action,
+    } = mCtx;
 
     const remoteWorkspaceDir = path.join(infra.workspacesDir!, workspaceName);
 
     // RAM-disk secret mount (ADR 14)
-    // For generating the ID, we still use PR ID but we'll stick to mCtx
-    const missionId = SessionManager.getSessionIdFromEnv() || containerName;
+    const secretId = this.provider.resolveSecretId(repoSlug, idSlug, action);
+    const secretPath = this.provider.resolveSecretPath(secretId);
 
-    const secretPath = `/dev/shm/.orbit-env-${missionId}`;
     const imageUri =
       infra.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
@@ -109,7 +116,7 @@ export class RemoteProvisioner {
             readonly: true,
           },
         ],
-        command: `/bin/bash -c "ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done"`,
+        command: `ln -sfn ${ORBIT_ROOT} /home/node/.orbit && while true; do sleep 1000; done`,
       });
 
       if (runRes !== 0) {

@@ -188,4 +188,174 @@ describe('LocalWorktreeProvider', () => {
     const mCtx = { sessionName: 'ws1' } as any;
     expect(provider.resolveIsolationId(mCtx)).toBe('ws1');
   });
+
+  describe('Surgical Jettison', () => {
+    it('should kill only specific session if action is provided', async () => {
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        mockPm,
+        mockExecutors,
+        'local',
+        '/workspaces',
+      );
+
+      // Mock other active sessions exist
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        if (bin === 'tmux' && args[0] === 'list-sessions') {
+          return { status: 0, stdout: 'repo/id1\nrepo/id1/fix\n' };
+        }
+        return { status: 0 };
+      });
+
+      await provider.jettisonMission('id1', 'fix');
+
+      // Should kill the specific session
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'tmux',
+        ['kill-session', '-t', 'repo/id1/fix'],
+        expect.any(Object),
+      );
+
+      // Should NOT remove the worktree because 'repo/id1' (chat) is still there
+      expect(mockPm.runSync).not.toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['worktree', 'remove']),
+      );
+    });
+
+    it('should remove worktree if last session is jettisoned', async () => {
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        mockPm,
+        mockExecutors,
+        'local',
+        '/workspaces',
+      );
+
+      // Mock ONLY our session exists
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        if (bin === 'tmux' && args[0] === 'list-sessions') {
+          return { status: 0, stdout: 'repo/id1/fix\n' };
+        }
+        return { status: 0 };
+      });
+
+      await provider.jettisonMission('id1', 'fix');
+
+      // Should kill the specific session
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'tmux',
+        ['kill-session', '-t', 'repo/id1/fix'],
+        expect.any(Object),
+      );
+
+      // Should remove the worktree
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining([
+          'worktree',
+          'remove',
+          expect.stringContaining('repo/id1'),
+        ]),
+      );
+    });
+
+    it('should remove everything if no action is provided', async () => {
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        mockPm,
+        mockExecutors,
+        'local',
+        '/workspaces',
+      );
+
+      await provider.jettisonMission('id1');
+
+      // Should remove the worktree first
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining([
+          'worktree',
+          'remove',
+          expect.stringContaining('repo/id1'),
+        ]),
+      );
+
+      // Should kill potential sessions
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'tmux',
+        ['kill-session', '-t', 'repo/id1/fix'],
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('Robust Provisioning', () => {
+    it('should swallow error if worktree already exists', async () => {
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        mockPm,
+        mockExecutors,
+        'local',
+        '/workspaces',
+      );
+
+      // Mock git worktree add failure
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        if (bin === 'git' && args.includes('add')) {
+          return {
+            status: 128,
+            stderr: 'fatal: destination path already exists',
+          };
+        }
+        return { status: 0 };
+      });
+
+      // Mock that the directory DOES exist now (created by another process)
+      (fs.existsSync as any).mockReturnValue(true);
+
+      const mCtx = {
+        branchName: 'feat-1',
+        repoSlug: 'repo',
+        idSlug: 'id1',
+        workspaceName: 'repo/id1',
+      } as any;
+
+      // Should NOT throw
+      await expect(
+        provider.prepareMissionWorkspace(mCtx),
+      ).resolves.not.toThrow();
+    });
+
+    it('should throw if git worktree add fails for other reasons', async () => {
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        mockPm,
+        mockExecutors,
+        'local',
+        '/workspaces',
+      );
+
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        if (bin === 'git' && args.includes('add')) {
+          return { status: 1, stderr: 'fatal: some other error' };
+        }
+        return { status: 0 };
+      });
+
+      // Mock that the directory does NOT exist
+      (fs.existsSync as any).mockReturnValue(false);
+
+      const mCtx = {
+        branchName: 'feat-1',
+        repoSlug: 'repo',
+        idSlug: 'id1',
+        workspaceName: 'repo/id1',
+      } as any;
+
+      await expect(provider.prepareMissionWorkspace(mCtx)).rejects.toThrow(
+        'Failed to create workspace',
+      );
+    });
+  });
 });

@@ -30,7 +30,6 @@ import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
-import { SessionManager } from '../utils/SessionManager.js';
 import { type IExecutors } from '../core/interfaces.js';
 
 /**
@@ -126,6 +125,7 @@ export class MissionManager {
       branchName: manifest.branchName,
       repoSlug,
       idSlug,
+      action: manifest.action,
       workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
       containerName: manifest.containerName,
       sessionName: manifest.sessionName,
@@ -331,30 +331,11 @@ export class MissionManager {
       this.infra as any,
     );
 
-    const actionsToCleanup = action
-      ? [action]
-      : ['chat', 'fix', 'review', 'implement', 'ready'];
+    // Delegate ALL cleanup (sessions, worktrees, and secrets) to the provider.
+    // This ensures surgical cleanup for specific actions vs. full mission cleanup.
+    const exitCode = await provider.jettisonMission(identifier, action);
 
-    const { repoSlug, idSlug } = resolveMissionContext(
-      identifier,
-      this.projectCtx.repoName,
-      this.pm,
-    );
-
-    for (const act of actionsToCleanup) {
-      const containerName = provider.resolveContainerName(
-        repoSlug,
-        idSlug,
-        act,
-      );
-      await provider.removeCapsule(containerName);
-
-      const sessionId = SessionManager.generateMissionId(identifier, act);
-      const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
-      await provider.exec(`sudo rm -f ${secretPath}`, { quiet: true });
-    }
-
-    return { missionId: identifier, exitCode: 0 };
+    return { missionId: identifier, exitCode };
   }
 
   /**

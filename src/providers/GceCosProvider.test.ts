@@ -227,4 +227,56 @@ describe('GceCosProvider', () => {
     );
     expect(provider.resolveWorkspacesRoot()).toBe('/mnt/disks/data/workspaces');
   });
+
+  describe('Surgical Jettison', () => {
+    it('should remove only specific container if action provided', async () => {
+      await provider.jettisonMission('123', 'fix');
+
+      // Should call removeCapsule for specific container
+      expect(mockExecutors.docker.remove).toHaveBeenCalledWith('repo-123-fix');
+
+      // Should remove specific secret
+      expect(mockSsh.runHostCommand).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          args: expect.arrayContaining([
+            expect.stringContaining('rm -f /dev/shm/.orbit-env-repo-123-fix'),
+          ]),
+        }),
+        expect.objectContaining({ quiet: true }),
+      );
+    });
+
+    it('should remove all containers for mission if no action provided', async () => {
+      await provider.jettisonMission('123');
+
+      // Verify all commands executed via runHostCommand
+      const calls = mockSsh.runHostCommand.mock.calls;
+      // Each call is [remoteCmd, options]. We want to check remoteCmd.args
+      const commands = calls.map((c) => c[0].args.join(' '));
+      console.log(
+        'DEBUG: EXECUTED COMMANDS:',
+        JSON.stringify(commands, null, 2),
+      );
+
+      // 1. Should use Docker list + grep + xargs for bulk cleanup
+      expect(
+        commands.some(
+          (c) =>
+            c.includes("grep '^repo-123'") ||
+            c.includes("grep '\\''^repo-123'\\''"),
+        ),
+      ).toBe(true);
+      expect(
+        commands.some((c) => c.includes('xargs -r sudo docker rm -f')),
+      ).toBe(true);
+
+      // 2. Should use wildcard for secret cleanup
+      expect(
+        commands.some((c) =>
+          c.includes('rm -f /dev/shm/.orbit-env-repo-123-*'),
+        ),
+      ).toBe(true);
+    });
+  });
 });

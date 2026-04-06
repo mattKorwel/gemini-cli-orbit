@@ -17,7 +17,6 @@ import { ProcessManager } from '../../core/ProcessManager.js';
 
 import { runReviewPlaybook } from '../../playbooks/review.js';
 import { runFixPlaybook } from '../../playbooks/fix.js';
-import { runReadyPlaybook } from '../../playbooks/ready.js';
 import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
@@ -123,16 +122,6 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
         );
       case 'fix':
         return runFixPlaybook(
-          identifier,
-          absWorkDir,
-          policyPath,
-          'gemini',
-          logDir,
-          missionHeader,
-          pm,
-        );
-      case 'ready':
-        return runReadyPlaybook(
           identifier,
           absWorkDir,
           policyPath,

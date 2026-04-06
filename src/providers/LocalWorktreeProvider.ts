@@ -14,7 +14,10 @@ import {
 } from '../core/types.js';
 import { type ProjectContext, LOCAL_BUNDLE_PATH } from '../core/Constants.js';
 import { type Command } from '../core/executors/types.js';
-import { type MissionContext } from '../utils/MissionUtils.js';
+import {
+  type MissionContext,
+  resolveMissionContext,
+} from '../utils/MissionUtils.js';
 import {
   type IExecutors,
   type IProcessManager,
@@ -172,8 +175,12 @@ export class LocalWorktreeProvider extends BaseProvider {
       `   🌿 Orbit: Provisioning local workspace for '${branchName}'...`,
     );
 
-    // Ensure the parent directory exists (e.g. orbit-workspaces/repo/)
-    this.fs.mkdirSync(path.dirname(wtPath), { recursive: true });
+    // 1. Safe Directory Creation (Fix Race Condition)
+    try {
+      this.fs.mkdirSync(path.dirname(wtPath), { recursive: true });
+    } catch (_e) {
+      // Ignore errors if directory was created by concurrent process
+    }
 
     this.pm.runSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
       quiet: true,
@@ -196,6 +203,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       { quiet: true },
     );
 
+    // 2. Standard Branch Checkout (No Detach)
     const args: string[] = ['-C', sourceDir, 'worktree', 'add'];
 
     if (localCheck.status === 0) {
@@ -209,9 +217,17 @@ export class LocalWorktreeProvider extends BaseProvider {
       args.push('-b', branchName, wtPath);
     }
 
-    const res = this.pm.runSync('git', args);
-    if (res.status !== 0)
-      throw new Error(`Failed to create workspace: exit code ${res.status}`);
+    const res = this.pm.runSync('git', args, { quiet: true });
+
+    // 3. Robust "Upsert" logic: If another process beat us to it, it's NOT an error
+    if (res.status !== 0) {
+      if (this.fs.existsSync(wtPath)) {
+        return; // Success by proxy
+      }
+      throw new Error(
+        `Failed to create workspace: exit code ${res.status}\n${res.stderr}`,
+      );
+    }
   }
 
   async getStatus(): Promise<OrbitStatus> {
@@ -273,7 +289,8 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async removeCapsule(name: string): Promise<number> {
     const sourceDir = this.projectCtx.repoRoot;
-    const wtPath = path.join(this.workspacesDir, name.replace(/-/g, '/'));
+    // For local capsules, name is the relative path from workspacesDir
+    const wtPath = path.join(this.workspacesDir, name);
     if (!fs.existsSync(wtPath)) return 0;
 
     if (path.resolve(wtPath) === path.resolve(sourceDir)) return 1;
@@ -287,8 +304,73 @@ export class LocalWorktreeProvider extends BaseProvider {
       wtPath,
       '--force',
     ]);
-    if (this.hasTmux()) this.pm.runSync('tmux', ['kill-session', '-t', name]);
+
+    // Cleanup session if name represents a session-safe slug
+    if (this.hasTmux()) {
+      this.pm.runSync('tmux', ['kill-session', '-t', name.replace(/\//g, '-')]);
+    }
     return 0;
+  }
+
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    const { repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    if (action) {
+      // 1. Surgical Action Cleanup: Kill only the specific session
+      const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
+      if (this.hasTmux()) {
+        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
+          quiet: true,
+        });
+      }
+
+      // ADR: If this was the LAST session for this mission ID, clean up the worktree too
+      if (this.hasTmux()) {
+        const missionPrefix = `${repoSlug}/${idSlug}/`; // Trailing slash is key
+        const chatSession = this.resolveSessionName(repoSlug, idSlug, 'chat'); // The non-action one
+
+        const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
+          quiet: true,
+        });
+        const sessions = (listRes.stdout || '').split('\n');
+
+        const otherSessions = sessions.filter((s) => {
+          if (s === sessionName) return false;
+          return s === chatSession || s.startsWith(missionPrefix);
+        });
+
+        if (otherSessions.length === 0) {
+          const workspaceName = this.resolveWorkspaceName(repoSlug, idSlug);
+          await this.removeCapsule(workspaceName);
+        }
+      }
+      return 0;
+    }
+
+    // 2. Full Mission Cleanup: Remove worktree AND all associated sessions
+    const workspaceName = this.resolveWorkspaceName(repoSlug, idSlug);
+    const res = await this.removeCapsule(workspaceName);
+
+    if (this.hasTmux()) {
+      const actions = ['chat', 'fix', 'review', 'implement'];
+      for (const act of actions) {
+        const sessionName = this.resolveSessionName(repoSlug, idSlug, act);
+        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
+          quiet: true,
+        });
+      }
+    }
+
+    return res;
+  }
+
+  async removeSecret(): Promise<void> {
+    // Local provider does not use isolated secrets
+    return;
   }
 
   async capturePane(): Promise<string> {

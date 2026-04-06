@@ -13,6 +13,7 @@ export interface MissionContext {
   branchName: string;
   repoSlug: string;
   idSlug: string;
+  action: string;
   workspaceName: string;
   containerName: string;
   sessionName: string;

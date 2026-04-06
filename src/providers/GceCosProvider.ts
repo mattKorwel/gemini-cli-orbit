@@ -27,7 +27,11 @@ import {
   BUNDLE_PATH,
   LOCAL_BUNDLE_PATH,
 } from '../core/Constants.js';
-import { type MissionContext } from '../utils/MissionUtils.js';
+import {
+  type MissionContext,
+  resolveMissionContext,
+} from '../utils/MissionUtils.js';
+import { SessionManager } from '../utils/SessionManager.js';
 import {
   type IExecutors,
   type IProcessManager,
@@ -431,6 +435,40 @@ export class GceCosProvider extends BaseProvider {
 
   async removeCapsule(name: string): Promise<number> {
     return this.exec(this.executors.docker.remove(name));
+  }
+
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    const { repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    if (action) {
+      // 1. Surgical Action Cleanup: Remove specific Docker container and its secret
+      const containerName = this.resolveContainerName(repoSlug, idSlug, action);
+      const res = await this.removeCapsule(containerName);
+
+      const secretId = this.resolveSecretId(repoSlug, idSlug, action);
+      await this.removeSecret(secretId);
+      return res;
+    }
+
+    // 2. Full Mission Cleanup: Remove all containers matching repoSlug-idSlug-*
+    const namePrefix = `${repoSlug}-${idSlug}`;
+    const cleanupCmd = `sudo docker ps -a --format '{{.Names}}' | grep '^${namePrefix}' | xargs -r sudo docker rm -f`;
+    const res = await this.exec(cleanupCmd, { quiet: true });
+
+    // Bulk Secret Cleanup
+    const secretPattern = this.resolveSecretPath(`${namePrefix}-*`);
+    await this.exec(`sudo rm -f ${secretPattern}`, { quiet: true });
+
+    return res;
+  }
+
+  async removeSecret(secretId: string): Promise<void> {
+    const secretPath = this.resolveSecretPath(secretId);
+    await this.exec(`sudo rm -f ${secretPath}`, { quiet: true });
   }
 
   async capturePane(capsuleName: string): Promise<string> {

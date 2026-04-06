@@ -66,6 +66,13 @@ export abstract class BaseProvider {
   }
 
   /**
+   * Resolves the ID used for RAM-disk secrets.
+   */
+  resolveSecretId(repoSlug: string, idSlug: string, action: string): string {
+    return this.resolveContainerName(repoSlug, idSlug, action);
+  }
+
+  /**
    * Abstract Hooks: Must be unique per backend environment.
    */
 
@@ -196,6 +203,19 @@ export abstract class BaseProvider {
   abstract runCapsule(config: CapsuleConfig): Promise<number>;
   abstract stopCapsule(name: string): Promise<number>;
   abstract removeCapsule(name: string): Promise<number>;
+  abstract jettisonMission(
+    identifier: string,
+    action?: string,
+  ): Promise<number>;
+  abstract removeSecret(sessionId: string): Promise<void>;
+
+  /**
+   * Resolves the canonical RAM-disk secret path for a session.
+   */
+  resolveSecretPath(secretId: string): string {
+    return `/dev/shm/.orbit-env-${secretId}`;
+  }
+
   abstract capturePane(capsuleName: string): Promise<string>;
   abstract listStations(): Promise<number>;
   abstract destroy(): Promise<number>;
