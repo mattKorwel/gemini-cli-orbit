@@ -47,12 +47,13 @@ Missions now automatically manifest their status:
 
 ### 3. Starfleet Naming Parity
 
-Unified the naming convention to `orbit-<identifier>-<action>` across all tiers:
+Unified naming to a clean hierarchical pattern across all tiers:
 
-- **Git Worktrees**: Named consistently to prevent local collisions.
-- **Docker Containers**: Named identically for easy management.
-- **Tmux Sessions**: Matching names ensure the `attach` command always finds the
-  right session.
+- **Git Worktrees**: `<repo-name>/<id-slug>`.
+- **Docker Containers**: `<repo-name>-<id-slug>`.
+- **Tmux Sessions**: `<repo-name>/<id-slug>`.
+
+This removes redundant `orbit-` prefixes while maintaining strict separation.
 
 ### 4. Resilient Remote Execution
 

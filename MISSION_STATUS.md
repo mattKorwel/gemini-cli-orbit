@@ -25,11 +25,11 @@
   - `resolveContainerName(repo, id, action)`
   - `resolveWorkDir(workspaceName)`
 - **Local Isolation**: Implemented a hierarchical structure for local missions:
-  - Root: `orbit-workspaces/` (sibling of main repo).
-  - Structure: `orbit-workspaces/<repo-name>/<id-slug>/[action]`.
+  - Root: `orbit-git-worktrees/` (sibling of main repo).
+  - Structure: `orbit-git-worktrees/<repo-name>/<id-slug>/[action]`.
   - Tmux: `<repo-name>/<id-slug>/[action]`.
-- **Remote Preservation**: Maintained the flat legacy structure for GCE missions
-  to avoid regressions.
+- **Unified Naming**: Standardized naming across local and remote to a clean
+  hierarchical pattern, removing redundant `orbit-` prefixes.
 - **Data Integrity**: Refactored `resolveMissionContext` to be a pure metadata
   extractor with **zero pruning** of repository names or user identifiers.
 
