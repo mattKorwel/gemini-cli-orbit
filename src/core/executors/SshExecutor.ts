@@ -91,10 +91,14 @@ export class SshExecutor implements ISshExecutor {
     args.push('-e', sshCmd);
     args.push(local, remote);
 
-    return this.pm.runSync('rsync', args, {
+    const runOptions: IRunOptions = {
       stdio: options.quiet ? 'pipe' : 'inherit',
-      quiet: options.quiet,
-    });
+    };
+    if (options.quiet !== undefined) {
+      runOptions.quiet = options.quiet;
+    }
+
+    return this.pm.runSync('rsync', args, runOptions);
   }
 
   private getCommonArgs(): string[] {

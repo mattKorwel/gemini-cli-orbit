@@ -24,6 +24,64 @@ export class DockerExecutor implements IDockerExecutor {
     return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
   }
 
+  public run(
+    image: string,
+    command?: string,
+    options: IRunOptions & {
+      name?: string;
+      mounts?: { host: string; capsule: string; readonly?: boolean }[];
+      label?: string;
+    } = {},
+  ): Command {
+    const { name, mounts, label, env, quiet } = options;
+    const args = ['run', '-d'];
+
+    if (name) args.push('--name', name);
+    if (label) args.push('--label', label);
+
+    if (mounts) {
+      mounts.forEach((m) => {
+        args.push('-v', `${m.host}:${m.capsule}${m.readonly ? ':ro' : ''}`);
+      });
+    }
+
+    if (env) {
+      Object.entries(env).forEach(([k, v]) => {
+        args.push('-e', `${k}=${v}`);
+      });
+    }
+
+    args.push(image);
+    if (command) {
+      args.push('/bin/bash', '-c', command);
+    }
+
+    const runOptions: IRunOptions = {};
+    if (quiet !== undefined) {
+      runOptions.quiet = quiet;
+    }
+
+    return {
+      bin: 'sudo docker',
+      args,
+      options: runOptions,
+    };
+  }
+
+  public stop(container: string): Command {
+    return {
+      bin: 'sudo docker',
+      args: ['stop', container],
+    };
+  }
+
+  public remove(container: string): Command {
+    return {
+      bin: 'sudo docker',
+      args: ['rm', '-f', container],
+    };
+  }
+
   // --- Static Metadata Helpers ---
 
   public static exec(

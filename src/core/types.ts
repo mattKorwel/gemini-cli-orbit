@@ -286,6 +286,7 @@ export interface SyncOptions {
   delete?: boolean;
   exclude?: string[];
   sudo?: boolean;
+  quiet?: boolean;
 }
 
 export interface OrbitStatus {

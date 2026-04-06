@@ -8,6 +8,7 @@ import path from 'node:path';
 import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
+  type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
   type CapsuleInfo,
@@ -288,7 +289,7 @@ export class GceCosProvider extends BaseProvider {
   async sync(
     localPath: string,
     remotePath: string,
-    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+    options: SyncOptions = {},
   ): Promise<number> {
     return this.ssh.syncPath(localPath, remotePath, options);
   }
@@ -296,7 +297,7 @@ export class GceCosProvider extends BaseProvider {
   async syncIfChanged(
     localPath: string,
     remotePath: string,
-    options: { delete?: boolean; exclude?: string[]; sudo?: boolean } = {},
+    options: SyncOptions = {},
   ): Promise<number> {
     return this.ssh.syncPathIfChanged(localPath, remotePath, options);
   }

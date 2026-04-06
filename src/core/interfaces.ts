@@ -149,6 +149,17 @@ export interface IDockerExecutor {
     command: string[],
     options?: IRunOptions,
   ): IProcessResult;
+  run(
+    image: string,
+    command?: string,
+    options?: IRunOptions & {
+      name?: string;
+      mounts?: { host: string; capsule: string; readonly?: boolean }[];
+      label?: string;
+    },
+  ): import('./executors/types.js').Command;
+  stop(container: string): import('./executors/types.js').Command;
+  remove(container: string): import('./executors/types.js').Command;
 }
 
 export interface ITmuxExecutor {

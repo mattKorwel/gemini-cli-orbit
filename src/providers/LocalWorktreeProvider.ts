@@ -18,6 +18,7 @@ import { type MissionContext } from '../utils/MissionUtils.js';
 import {
   type IExecutors,
   type IProcessManager,
+  type IRunOptions,
   type StationReceipt,
 } from '../core/interfaces.js';
 
@@ -135,15 +136,19 @@ export class LocalWorktreeProvider extends BaseProvider {
       env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
     }
 
+    const runOptions: IRunOptions = {
+      stdio: 'pipe',
+      cwd,
+      env,
+    };
+    if (options.quiet !== undefined) {
+      runOptions.quiet = options.quiet;
+    }
+
     const res = this.pm.runSync(
       typeof command === 'string' ? 'sh' : command.bin,
       typeof command === 'string' ? ['-c', command] : command.args,
-      {
-        stdio: 'pipe',
-        cwd,
-        env,
-        quiet: options.quiet,
-      },
+      runOptions,
     );
 
     return res;

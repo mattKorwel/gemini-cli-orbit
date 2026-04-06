@@ -12,6 +12,7 @@ import {
   type IProcessManager,
   type IProcessResult,
 } from '../core/interfaces.js';
+import { type SyncOptions } from '../core/types.js';
 import type { ISshExecutor } from '../core/executors/SshExecutor.js';
 
 /**
@@ -155,12 +156,7 @@ export class GceSSHManager implements SSHManager {
   public async syncPath(
     localPath: string,
     remotePath: string,
-    options: {
-      delete?: boolean;
-      exclude?: string[];
-      sudo?: boolean;
-      quiet?: boolean;
-    } = {},
+    options: SyncOptions = {},
   ): Promise<number> {
     const remote = `${this.getMagicRemote()}:${remotePath}`;
     const res = this.ssh.rsync(localPath, remote, options);
@@ -173,12 +169,7 @@ export class GceSSHManager implements SSHManager {
   public async syncPathIfChanged(
     localPath: string,
     remotePath: string,
-    options: {
-      delete?: boolean;
-      exclude?: string[];
-      sudo?: boolean;
-      quiet?: boolean;
-    } = {},
+    options: SyncOptions = {},
   ): Promise<number> {
     const localHash = this.generateDirectoryHash(localPath);
     const hashFile = `.orbit.${path.basename(localPath)}.hash`;
