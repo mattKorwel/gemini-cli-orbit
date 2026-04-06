@@ -180,7 +180,9 @@ export class ContextResolver {
 
     // Standardized Station Naming (Hub-side)
     if (!infra.stationName) {
-      if (infra.projectId === 'local') {
+      if (infra.instanceName && infra.projectId !== 'local') {
+        infra.stationName = infra.instanceName;
+      } else if (infra.projectId === 'local') {
         infra.stationName = `local-${rName}`;
       } else {
         infra.stationName = rName;
@@ -199,12 +201,16 @@ export class ContextResolver {
     }
 
     if (!infra.workspacesDir) {
-      const primaryRoot = getPrimaryRepoRoot(project.repoRoot);
-      infra.workspacesDir = path.resolve(
-        primaryRoot,
-        '..',
-        'orbit-git-worktrees',
-      );
+      if (infra.projectId && infra.projectId !== 'local') {
+        infra.workspacesDir = '/mnt/disks/data/workspaces';
+      } else {
+        const primaryRoot = getPrimaryRepoRoot(project.repoRoot);
+        infra.workspacesDir = path.resolve(
+          primaryRoot,
+          '..',
+          'orbit-git-worktrees',
+        );
+      }
     }
 
     if (!infra.remoteWorkDir) infra.remoteWorkDir = '/mnt/disks/data/main';

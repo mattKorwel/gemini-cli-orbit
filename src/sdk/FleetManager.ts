@@ -66,6 +66,7 @@ export class FleetManager {
       ...this.infra,
       ...schematic,
       instanceName,
+      stationName: instanceName,
       schematic: sName,
     };
 

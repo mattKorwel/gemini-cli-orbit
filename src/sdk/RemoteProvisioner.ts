@@ -42,7 +42,7 @@ export class RemoteProvisioner {
 
     const { branchName: branch, containerName, workspaceName } = mCtx;
 
-    const remoteWorkspaceDir = `${ORBIT_ROOT}/workspaces/${this.projectCtx.repoName}/${workspaceName}`;
+    const remoteWorkspaceDir = path.join(infra.workspacesDir!, workspaceName);
 
     // RAM-disk secret mount (ADR 14)
     // For generating the ID, we still use PR ID but we'll stick to mCtx
