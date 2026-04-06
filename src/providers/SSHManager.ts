@@ -38,6 +38,7 @@ export interface SSHOptions {
   interactive?: boolean;
   quiet?: boolean;
   timeout?: number;
+  env?: Record<string, string>;
 }
 
 /**

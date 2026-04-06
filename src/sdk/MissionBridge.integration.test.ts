@@ -231,11 +231,26 @@ describe('Mission Bridge Integration', () => {
           args.includes('start')
         ) {
           const manifestJson = options?.env?.GCLI_ORBIT_MANIFEST;
-          if (manifestJson) {
-            // Bridge: Stub the environment and trigger the worker logic using the SAME systemPm.
-            vi.stubEnv('GCLI_ORBIT_MANIFEST', manifestJson);
-            workerPromises.push(workerMain(['start'], systemPm));
-          }
+
+          // Bridge: Run the actual worker entrypoint with a dedicated mock PM.
+          // This verifies the "handoff" is clean.
+          workerPromises.push(
+            (async () => {
+              // Re-simulate process environment locally for the workerMain call
+              const originalEnv = process.env.GCLI_ORBIT_MANIFEST;
+              if (manifestJson) process.env.GCLI_ORBIT_MANIFEST = manifestJson;
+              else delete process.env.GCLI_ORBIT_MANIFEST;
+
+              try {
+                return await workerMain(['start'], systemPm);
+              } finally {
+                // Restore
+                if (originalEnv) process.env.GCLI_ORBIT_MANIFEST = originalEnv;
+                else delete process.env.GCLI_ORBIT_MANIFEST;
+              }
+            })(),
+          );
+
           return { status: 0, stdout: 'Worker triggered', stderr: '' };
         }
 
@@ -285,7 +300,7 @@ describe('Mission Bridge Integration', () => {
 
     // STEP 3: VERIFY the entire cascading chain of commands.
 
-    // A. SDK provisioning commands (using full paths resolved in LocalWorktreeProvider)
+    // A. SDK provisioning commands
     const worktreeAdd = systemCommands.find((c) => c.includes('worktree add'));
     expect(worktreeAdd).toBeDefined();
     expect(worktreeAdd).toContain('pr-123');
@@ -294,10 +309,29 @@ describe('Mission Bridge Integration', () => {
     expect(systemCommands).toContain('git init');
     expect(systemCommands).toContain('git rev-parse --verify pr-123');
 
-    // C. Final Tmux launch (the end of the line for a chat mission)
+    // C. Final Tmux launch
     const tmuxCall = systemCommands.find((c) => c.includes('tmux new-session'));
     expect(tmuxCall).toBeDefined();
     expect(tmuxCall).toContain('GCLI_ORBIT_MANIFEST=');
     expect(tmuxCall).toContain('pr-123');
+  });
+
+  it('should fail if the worker is started without a manifest', async () => {
+    const mockPm: any = {
+      runSync: vi.fn().mockReturnValue({ status: 0, stdout: '', stderr: '' }),
+    };
+
+    // Explicitly clear env
+    const originalEnv = process.env.GCLI_ORBIT_MANIFEST;
+    delete process.env.GCLI_ORBIT_MANIFEST;
+
+    try {
+      // This should throw because getManifestFromEnv() fails
+      await expect(workerMain(['start'], mockPm)).rejects.toThrow(
+        'Missing GCLI_ORBIT_MANIFEST',
+      );
+    } finally {
+      if (originalEnv) process.env.GCLI_ORBIT_MANIFEST = originalEnv;
+    }
   });
 });

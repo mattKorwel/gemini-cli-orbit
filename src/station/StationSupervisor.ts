@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
+import { type IProcessManager } from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
