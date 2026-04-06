@@ -267,7 +267,7 @@ export class GceSSHManager implements SSHManager {
         options.quiet ? 'pipe' : this.infra.verbose ? 'inherit' : 'pipe',
         'pipe',
       ] as any,
-      env: { ...process.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      env: { ...process.env, ...options.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
     });
 
     let stdout = res.stdout?.toString() || '';

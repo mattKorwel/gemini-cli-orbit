@@ -26,7 +26,10 @@ import { type MissionManifest } from '../core/types.js';
  * Responsible for workspace setup and mission spawning.
  */
 export class StationSupervisor {
-  constructor(private readonly dirname: string) {}
+  constructor(
+    private readonly dirname: string,
+    private readonly pm: IProcessManager = new ProcessManager(),
+  ) {}
 
   /**
    * Universal Entrypoint: Orchestrates init, hooks, and mission launch.
@@ -97,7 +100,7 @@ export class StationSupervisor {
       mirrorPath,
     } = manifest;
     const run = (cmd: Command) => {
-      const res = ProcessManager.runSync(cmd.bin, cmd.args, cmd.options);
+      const res = this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       if (res.status !== 0) {
         throw new Error(
           `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n` +
@@ -143,7 +146,7 @@ export class StationSupervisor {
       args: ['rev-parse', '--abbrev-ref', 'HEAD'],
       options: { cwd: targetDir, quiet: true },
     };
-    const currentBranchRes = ProcessManager.runSync(
+    const currentBranchRes = this.pm.runSync(
       currentBranchCmd.bin,
       currentBranchCmd.args,
       currentBranchCmd.options,
@@ -159,7 +162,7 @@ export class StationSupervisor {
     // Try to fetch the branch from origin
     console.log(`   - Attempting to fetch branch '${branch}' from origin...`);
     const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-    const fetchRes = ProcessManager.runSync(
+    const fetchRes = this.pm.runSync(
       fetchCmd.bin,
       fetchCmd.args,
       fetchCmd.options,
@@ -175,7 +178,7 @@ export class StationSupervisor {
       args: ['rev-parse', '--verify', branch],
       options: { cwd: targetDir, quiet: true },
     };
-    const localRes = ProcessManager.runSync(
+    const localRes = this.pm.runSync(
       checkLocalCmd.bin,
       checkLocalCmd.args,
       checkLocalCmd.options,
@@ -192,7 +195,7 @@ export class StationSupervisor {
         args: ['rev-parse', '--verify', remoteRef],
         options: { cwd: targetDir, quiet: true },
       };
-      const remoteRes = ProcessManager.runSync(
+      const remoteRes = this.pm.runSync(
         checkRemoteCmd.bin,
         checkRemoteCmd.args,
         checkRemoteCmd.options,
@@ -270,9 +273,11 @@ export class StationSupervisor {
         const hasSessions =
           fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
 
-        const cmd = hasSessions ? `${geminiBin} --resume latest` : `${geminiBin}`;
+        const cmd = hasSessions
+          ? `${geminiBin} --resume latest`
+          : `${geminiBin}`;
 
-        const res = ProcessManager.runSync('sh', ['-c', cmd], {
+        const res = this.pm.runSync('sh', ['-c', cmd], {
           stdio: 'inherit',
           cwd: targetDir,
         });
@@ -360,11 +365,7 @@ export class StationSupervisor {
     };
 
     // Launch!
-    const res = ProcessManager.runSync(
-      tmuxCmd.bin,
-      tmuxCmd.args,
-      tmuxCmd.options,
-    );
+    const res = this.pm.runSync(tmuxCmd.bin, tmuxCmd.args, tmuxCmd.options);
 
     // Apply Stealth UI Styles and Environment to the session explicitly
     const styleCmds = [
@@ -391,7 +392,7 @@ export class StationSupervisor {
     ];
 
     for (const args of styleCmds) {
-      ProcessManager.runSync('tmux', args, { quiet: true });
+      this.pm.runSync('tmux', args, { quiet: true });
     }
 
     return res.status;

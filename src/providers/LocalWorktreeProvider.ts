@@ -110,61 +110,39 @@ export class LocalWorktreeProvider extends BaseProvider {
     return `cd ${this.shellQuote(capsuleDir)} && ${envPrefix}${command}`;
   }
 
-  async exec(
-    command: string | Command,
-    options: ExecOptions = {},
-  ): Promise<number> {
-    const res = await this.getExecOutput(command, options);
-    return res.status;
-  }
-
-  async execMission(
-    command: string | Command,
-    mCtx: MissionContext,
-    options: ExecOptions = {},
-  ): Promise<number> {
-    const res = await this.getMissionExecOutput(command, mCtx, options);
-    return res.status;
-  }
-
-  async getMissionExecOutput(
-    command: string | Command,
-    mCtx: MissionContext,
-    options: ExecOptions = {},
-  ): Promise<{ status: number; stdout: string; stderr: string }> {
-    return this.getExecOutput(command, {
-      ...options,
-      wrapCapsule: mCtx.workspaceName,
-    });
+  override resolveExecutionCapsule(mCtx: MissionContext): string {
+    return mCtx.workspaceName;
   }
 
   async getExecOutput(
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    let cwd = options.cwd || this.projectCtx.repoRoot;
-    if (options.wrapCapsule) {
+    const mergedOptions = {
+      ...options,
+      ...(typeof command === 'string' ? {} : command.options),
+    };
+
+    let cwd = mergedOptions.cwd || this.projectCtx.repoRoot;
+    if (mergedOptions.wrapCapsule) {
       // Local worktrees are nested: repo/id/action
       cwd = path.join(
         this.workspacesDir,
-        options.wrapCapsule.replace(/-/g, '/'),
+        mergedOptions.wrapCapsule.replace(/-/g, '/'),
       );
     }
 
     const env: any = {
       ...process.env,
-      ...options.env,
+      ...mergedOptions.env,
       GEMINI_AUTO_UPDATE: '0',
     };
-    if (options.manifest) {
-      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
-    }
 
     const res = this.pm.runSync(
       typeof command === 'string' ? 'sh' : command.bin,
       typeof command === 'string' ? ['-c', command] : command.args,
       {
-        stdio: options.quiet ? 'pipe' : 'inherit',
+        stdio: mergedOptions.quiet ? 'pipe' : 'inherit',
         cwd,
         env,
       },

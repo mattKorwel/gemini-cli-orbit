@@ -239,51 +239,40 @@ export class GceCosProvider extends BaseProvider {
     return res.status;
   }
 
-  async execMission(
-    command: string | Command,
-    mCtx: MissionContext,
-    options: ExecOptions = {},
-  ): Promise<number> {
-    const res = await this.getMissionExecOutput(command, mCtx, options);
-    return res.status;
-  }
-
-  async getMissionExecOutput(
-    command: string | Command,
-    mCtx: MissionContext,
-    options: ExecOptions = {},
-  ): Promise<{ status: number; stdout: string; stderr: string }> {
-    return this.getExecOutput(command, {
-      ...options,
-      wrapCapsule: mCtx.containerName,
-    });
+  override resolveExecutionCapsule(mCtx: MissionContext): string {
+    return mCtx.containerName;
   }
 
   async getExecOutput(
     command: string | Command,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
+    const mergedOptions = {
+      ...options,
+      ...(typeof command === 'string' ? {} : command.options),
+    };
+
     const cmdObj: RemoteCommand = {
       bin: '/bin/bash',
       args: ['-c', this.shellQuote(flattenCommand(command))],
-      env: { ...(options.env || {}) },
+      env: { ...(mergedOptions.env || {}) },
     };
 
-    if (options.manifest) {
-      cmdObj.env!.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
-    }
+    if (mergedOptions.cwd) cmdObj.cwd = mergedOptions.cwd;
+    if (mergedOptions.user) cmdObj.user = mergedOptions.user;
 
-    if (options.cwd) cmdObj.cwd = options.cwd;
-    if (options.user) cmdObj.user = options.user;
-
-    if (options.wrapCapsule) {
+    if (mergedOptions.wrapCapsule) {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
       cmdObj.env!.PATH = capsulePath;
-      return this.ssh.runDockerExec(options.wrapCapsule, cmdObj, options);
+      return this.ssh.runDockerExec(
+        mergedOptions.wrapCapsule,
+        cmdObj,
+        mergedOptions,
+      );
     }
 
-    return this.ssh.runHostCommand(cmdObj, options);
+    return this.ssh.runHostCommand(cmdObj, mergedOptions);
   }
 
   async sync(

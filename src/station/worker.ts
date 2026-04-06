@@ -17,6 +17,8 @@ import path from 'node:path';
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
 import { getManifestFromEnv } from '../utils/MissionUtils.js';
+import { type IProcessManager } from '../core/interfaces.js';
+import { ProcessManager } from '../core/ProcessManager.js';
 
 const getDirname = () => {
   try {
@@ -31,14 +33,17 @@ const _dirname = getDirname();
 /**
  * Main entry point for the worker.
  */
-export async function main(argv: string[]) {
-  const station = new StationSupervisor(_dirname);
+export async function main(
+  argv: string[],
+  pm: IProcessManager = new ProcessManager(),
+) {
+  const station = new StationSupervisor(_dirname, pm);
   const aggregator = new StatusAggregator();
 
   const isProcessArgv = argv === process.argv;
   const rawArgs = isProcessArgv ? hideBin(argv) : argv;
 
-  await yargs(rawArgs)
+  const parser = yargs(rawArgs)
     .scriptName('orbit-worker')
     .usage('$0 <command> [args]')
     .command(
@@ -57,7 +62,7 @@ export async function main(argv: string[]) {
       async () => {
         const manifest = getManifestFromEnv();
         const exitCode = await station.start(manifest);
-        process.exit(exitCode);
+        return exitCode;
       },
     )
     .command(
@@ -97,10 +102,10 @@ export async function main(argv: string[]) {
       },
     )
     .demandCommand(1, 'Please specify a command')
-    .help()
-    .parseAsync();
+    .help();
 
-  return 0;
+  const parsed = await parser.parseAsync();
+  return (parsed as any).exitCode || 0;
 }
 
 if (
@@ -109,7 +114,9 @@ if (
     import.meta.url === `file://${process.argv[1]}`)
 ) {
   main(process.argv)
-    .then(() => {})
+    .then((code) => {
+      process.exit(code || 0);
+    })
     .catch((err) => {
       console.error(err);
       process.exit(1);

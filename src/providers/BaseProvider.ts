@@ -101,23 +101,42 @@ export abstract class BaseProvider {
   abstract ensureReady(): Promise<number>;
 
   /**
+   * Returns the canonical capsule identifier used for command wrapping in this environment.
+   */
+  abstract resolveExecutionCapsule(mCtx: MissionContext): string;
+
+  /**
    * Executes a command within the context of a specific mission.
    * Providers handle environment isolation (e.g. Docker wrap, CWD shift).
    */
-  abstract execMission(
+  async execMission(
     command: string | Command,
     mCtx: MissionContext,
-    options?: ExecOptions,
-  ): Promise<number>;
+    options: ExecOptions = {},
+  ): Promise<number> {
+    const res = await this.getMissionExecOutput(command, mCtx, options);
+    return res.status;
+  }
 
   /**
    * Returns output from a command executed within a specific mission.
    */
-  abstract getMissionExecOutput(
+  async getMissionExecOutput(
     command: string | Command,
     mCtx: MissionContext,
-    options?: ExecOptions,
-  ): Promise<{ status: number; stdout: string; stderr: string }>;
+    options: ExecOptions = {},
+  ): Promise<{ status: number; stdout: string; stderr: string }> {
+    const env = { ...options.env };
+    if (options.manifest) {
+      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
+    }
+
+    return this.getExecOutput(command, {
+      ...options,
+      env,
+      wrapCapsule: this.resolveExecutionCapsule(mCtx),
+    });
+  }
 
   /**
    * Shell-safe quoting helper.

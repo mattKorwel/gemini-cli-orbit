@@ -253,7 +253,7 @@ export interface ExecOptions {
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
   user?: string;
-  manifest?: MissionManifest;
+  manifest?: MissionManifest | undefined;
 }
 
 export interface RemoteCommand {
