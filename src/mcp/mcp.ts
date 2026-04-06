@@ -212,32 +212,61 @@ server.registerTool(
 // --- STATION TOOLS (The Hardware) ---
 
 server.registerTool(
-  'station_pulse',
+  'constellation',
   {
-    description:
-      'Check health and active mission capsules for the active station.',
+    description: 'The Fleet View: Unified status and monitoring.',
     inputSchema: z.object({
-      station: z.string().optional().describe('Target station instance'),
+      sync: z.boolean().default(true).describe('Sync hardware health'),
+      pulse: z
+        .boolean()
+        .default(false)
+        .describe('Fetch deep mission telemetry'),
+      all: z.boolean().default(false).describe('Show all registered stations'),
+      repo: z.string().optional().describe('Filter by repository name'),
+      name: z.string().optional().describe('Filter by station name pattern'),
     }).shape,
   },
-  async ({ station }) => {
-    const sdk = getSDK(undefined, station);
-    const pulse = await sdk.getPulse();
-    let text = `Station: ${pulse.stationName} (${pulse.status})\n`;
-    text += `IP: ${pulse.internalIp || 'N/A'} / ${pulse.externalIp || 'N/A'}\n\n`;
-    text +=
-      pulse.capsules.length === 0
-        ? `Capsules: None found.`
-        : `Capsules:\n` +
-          pulse.capsules
-            .map((c) => {
-              let line = ` - ${c.name} [${c.state}] ${c.stats || ''}`;
-              if (c.lastThought) line += `\n   └─ Thought: ${c.lastThought}`;
-              if (c.lastQuestion) line += `\n   └─ Question: ${c.lastQuestion}`;
-              if (c.pendingTool) line += `\n   └─ Blocked on: ${c.pendingTool}`;
-              return line;
-            })
-            .join('\n');
+  async ({ sync, pulse, all, repo, name }) => {
+    const sdk = getSDK();
+    const states = await sdk.getFleetState({
+      syncWithReality: sync,
+      includeMissions: pulse,
+      repoFilter: repo || (all ? undefined : process.env.GCLI_ORBIT_REPO_NAME),
+      nameFilter: name,
+    });
+
+    let text = pulse ? '🌌 ORBIT PULSE\n' : '🌌 ORBIT CONSTELLATION\n';
+
+    if (states.length === 0) {
+      text += 'No provisioned stations found.';
+    } else {
+      text += states
+        .map((s) => {
+          const status = s.reality?.status || s.receipt.status || 'READY';
+          let line = `${s.isActive ? '*' : ' '} [${s.receipt.repo}] ${s.receipt.name} (${s.receipt.type}) - ${status}`;
+
+          if (pulse && s.reality) {
+            line += `\n   IP: ${s.reality.internalIp || 'N/A'} / ${s.reality.externalIp || 'N/A'}`;
+            if (s.reality.missions.length > 0) {
+              line +=
+                '\n   Missions:\n' +
+                s.reality.missions
+                  .map((c) => {
+                    let mLine = `     - ${c.name} [${c.state}] ${c.stats || ''}`;
+                    if (c.lastThought)
+                      mLine += `\n       └─ Thought: ${c.lastThought}`;
+                    return mLine;
+                  })
+                  .join('\n');
+            } else {
+              line += '\n   Missions: None found.';
+            }
+          }
+          return line;
+        })
+        .join('\n\n');
+    }
+
     return { content: [{ type: 'text', text }] };
   },
 );
@@ -245,30 +274,23 @@ server.registerTool(
 server.registerTool(
   'station_manage',
   {
-    description: 'Manage Orbit stations (list, activate, hibernate, delete).',
+    description:
+      'Manage Orbit hardware lifecycle (activate, hibernate, delete).',
     inputSchema: z.object({
-      action: z.enum(['list', 'activate', 'hibernate', 'delete']),
-      name: z.string().optional().describe('The instance name of the station'),
+      action: z.enum(['activate', 'hibernate', 'delete']),
+      name: z.string().describe('The instance name of the station'),
     }).shape,
   },
   async ({ action, name }) => {
     const sdk = getSDK();
     let text = '';
-    if (action === 'list') {
-      const stations = await sdk.listStations({ syncWithReality: true });
-      text = stations
-        .map(
-          (s) =>
-            `${s.isActive ? '*' : ' '} ${s.name} (${s.type}) [${s.repo}] - ${s.status || 'READY'}`,
-        )
-        .join('\n');
-    } else if (action === 'activate' && name) {
+    if (action === 'activate') {
       await sdk.activateStation(name);
       text = `Station ${name} activated.`;
-    } else if (action === 'hibernate' && name) {
+    } else if (action === 'hibernate') {
       await sdk.hibernate({ name });
       text = `Station ${name} hibernated.`;
-    } else if (action === 'delete' && name) {
+    } else if (action === 'delete') {
       await sdk.splashdown({ name, force: true });
       text = `Station ${name} decommissioned.`;
     }

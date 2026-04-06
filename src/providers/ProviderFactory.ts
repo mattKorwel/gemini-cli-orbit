@@ -79,6 +79,7 @@ export class ProviderFactory implements IProviderFactory {
       ssh,
       this.pm,
       this.executors,
+      infra,
       gceConfig,
     );
 

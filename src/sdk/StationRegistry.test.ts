@@ -48,7 +48,7 @@ describe('StationRegistry', () => {
 
     const stations = await registry.listStations();
     expect(stations).toHaveLength(1);
-    expect(stations[0]!.name).toBe('station-1');
+    expect(stations[0]!.receipt.name).toBe('station-1');
   });
 
   it('should discover local stations from settings', async () => {
@@ -62,6 +62,6 @@ describe('StationRegistry', () => {
 
     const stations = await registry.listStations();
     expect(stations).toHaveLength(1);
-    expect(stations[0]!.name).toBe('local-some-repo');
+    expect(stations[0]!.receipt.name).toBe('local-some-repo');
   });
 });

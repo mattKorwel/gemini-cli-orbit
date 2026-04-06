@@ -26,13 +26,13 @@ import {
   type OrbitObserver,
   type JettisonOptions,
   type ReapOptions,
+  type GetLogsOptions,
 } from '../core/types.js';
 import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
 import { SessionManager } from '../utils/SessionManager.js';
-import { getPrimaryRepoRoot } from '../core/Constants.js';
 import { type IExecutors } from '../core/interfaces.js';
 
 /**
@@ -153,7 +153,9 @@ export class MissionManager {
     };
 
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
-    const startCmd = this.executors.node.create(workerPath, ['start']);
+    const startCmd = isLocalWorkspace
+      ? this.executors.node.create(workerPath, ['start'])
+      : this.executors.node.createRemote(workerPath, ['start']);
     const startExitCode = await provider.exec(startCmd, {
       interactive: true,
       manifest,
@@ -373,7 +375,7 @@ export class MissionManager {
   /**
    * Retrieves logs from a mission capsule.
    */
-  async getLogs(options: { identifier: string }): Promise<number> {
+  async getLogs(options: GetLogsOptions): Promise<number> {
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,

@@ -24,10 +24,16 @@ export interface StationReceipt {
   repo: string;
   status?: string;
   backendType?: 'direct-internal' | 'external';
-  schematic?: string;
+  schematic?: string | undefined;
   rootPath?: string | undefined;
   workspacesDir?: string;
+  dnsSuffix?: string | undefined;
+  userSuffix?: string | undefined;
   lastSeen: string;
+}
+export interface HydratedStation {
+  receipt: StationReceipt;
+  provider: import('../providers/BaseProvider.js').OrbitProvider;
 }
 
 /**
@@ -38,8 +44,7 @@ export interface IStationRegistry {
   deleteReceipt(name: string): void;
   listStations(options?: {
     syncWithReality?: boolean;
-  }): Promise<StationReceipt[]>;
-  getMissions(receipt: StationReceipt): Promise<string[]>;
+  }): Promise<HydratedStation[]>;
 }
 
 /**
@@ -49,6 +54,18 @@ export interface ISchematicManager {
   listSchematics(): SchematicInfo[];
   importSchematic(source: string): Promise<string>;
   runWizard(name: string, cliFlags?: Partial<OrbitConfig>): Promise<void>;
+}
+
+/**
+ * Status Manager: High-level aggregator for fleet state.
+ */
+export interface IStatusManager {
+  getPulse(): Promise<import('./types.js').StationState>;
+  getGlobalLocalPulse(): Promise<import('./types.js').StationState[]>;
+  fetchFleetState(
+    stations: HydratedStation[],
+    depth: 'inventory' | 'health' | 'pulse',
+  ): Promise<import('./types.js').StationState[]>;
 }
 
 /**
@@ -150,6 +167,11 @@ export interface ITmuxExecutor {
 
 export interface INodeExecutor {
   create(
+    scriptPath: string,
+    args?: string[],
+    options?: IRunOptions,
+  ): import('./executors/types.js').Command;
+  createRemote(
     scriptPath: string,
     args?: string[],
     options?: IRunOptions,

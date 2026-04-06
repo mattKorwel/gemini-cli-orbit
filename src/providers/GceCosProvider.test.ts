@@ -88,6 +88,7 @@ describe('GceCosProvider', () => {
       mockSsh as any,
       mockPm,
       mockExecutors,
+      { projectId, zone, instanceName } as any,
     );
   });
 

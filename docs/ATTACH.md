@@ -12,7 +12,7 @@ re-attach at any time without losing your state or interrupting the agent.
 Attach to a specific mission by providing the mission ID:
 
 ```bash
-orbit attach 123
+orbit mission attach 123
 ```
 
 ### 1. Unified Interaction
@@ -39,8 +39,8 @@ automatically:
 
 ## 🛠️ Command Reference
 
-- `orbit attach <ID> [action]`: Attach to a specific PR workstream (e.g.,
-  `orbit attach 123 review`).
+- `orbit mission attach <ID> [action]`: Attach to a specific PR workstream
+  (e.g., `orbit mission attach 123 review`).
 - `--local`: (Global Flag) Force local worktree mode.
 
 ## ✨ Key Benefits

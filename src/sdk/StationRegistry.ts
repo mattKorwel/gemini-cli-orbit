@@ -11,13 +11,13 @@ import {
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
-import { detectRepoName } from '../core/ConfigManager.js';
 import { logger } from '../core/Logger.js';
 import {
   type IStationRegistry,
   type IProviderFactory,
   type IConfigManager,
   type StationReceipt,
+  type HydratedStation,
 } from '../core/interfaces.js';
 
 export class StationRegistry implements IStationRegistry {
@@ -66,8 +66,8 @@ export class StationRegistry implements IStationRegistry {
   }
 
   async listStations(
-    options: { syncWithReality?: boolean | undefined } = {},
-  ): Promise<StationReceipt[]> {
+    options: { syncWithReality?: boolean } = {},
+  ): Promise<HydratedStation[]> {
     const settings = this.configManager.loadSettings();
     const files = fs
       .readdirSync(STATIONS_DIR)
@@ -82,29 +82,14 @@ export class StationRegistry implements IStationRegistry {
         path.join(STATIONS_DIR, f),
       ) as StationReceipt;
       if (!receipt) continue;
-
-      if (options.syncWithReality) {
-        const statusRes = await this.fetchRealityStatus(receipt);
-        if (statusRes === 'NOT_FOUND') {
-          logger.info(
-            'STATION',
-            `🗑️  Pruning stale station record: ${receipt.name}`,
-          );
-          this.deleteReceipt(receipt.name);
-          continue;
-        }
-        receipt.status = statusRes;
-      }
       receipts.push(receipt);
       seenNames.add(receipt.name);
     }
 
     // 2. Discover Local Repos (from settings.json)
-    // Every repo entry in settings is effectively a local-worktree station base
     Object.entries(settings.repos).forEach(([repoName, repoCfg]) => {
       const stationName = `local-${repoName}`;
       if (!seenNames.has(stationName)) {
-        // Validate local repo actually exists before listing it
         if (repoCfg.repoRoot && fs.existsSync(repoCfg.repoRoot)) {
           receipts.push({
             name: stationName,
@@ -114,73 +99,63 @@ export class StationRegistry implements IStationRegistry {
             zone: 'localhost',
             repo: repoName,
             rootPath: repoCfg.repoRoot,
+            workspacesDir:
+              repoCfg.workspacesDir || path.dirname(repoCfg.repoRoot),
             lastSeen: new Date().toISOString(),
           });
         }
       }
     });
 
-    return receipts;
+    const stations: HydratedStation[] = receipts.map((r) =>
+      this.hydrateStation(r),
+    );
+
+    if (options.syncWithReality) {
+      for (const s of stations) {
+        try {
+          const reality = await s.provider.getStatus();
+          if (reality.status === 'NOT_FOUND' && s.receipt.type === 'gce') {
+            logger.info(
+              'STATION',
+              `🗑️  Pruning stale station record: ${s.receipt.name}`,
+            );
+            this.deleteReceipt(s.receipt.name);
+          }
+          s.receipt.status = reality.status;
+        } catch (_e: any) {
+          s.receipt.status = 'UNREACHABLE';
+        }
+      }
+    }
+
+    return stations;
   }
 
-  async getMissions(receipt: StationReceipt): Promise<string[]> {
-    const repoRoot = process.cwd();
+  /**
+   * Maps a raw receipt to a functional HydratedStation with a pre-configured provider.
+   */
+  private hydrateStation(receipt: StationReceipt): HydratedStation {
     const projectCtx: ProjectContext = {
-      repoRoot,
-      repoName: receipt.repo || detectRepoName(repoRoot),
+      repoRoot: receipt.rootPath || process.cwd(),
+      repoName: receipt.repo,
     };
+
     const infra: InfrastructureSpec = {
       projectId: receipt.projectId,
       zone: receipt.zone,
       instanceName: receipt.instanceName || receipt.name,
       providerType: receipt.type,
       backendType: receipt.backendType,
-      workspacesDir:
-        receipt.type === 'local-worktree'
-          ? path.dirname(receipt.rootPath || '')
-          : undefined,
-      worktreesDir:
-        receipt.type === 'local-worktree'
-          ? path.dirname(receipt.rootPath || '')
-          : undefined,
-    };
-    const provider = this.providerFactory.getProvider(projectCtx, infra);
-    return provider.listCapsules();
-  }
-
-  private async fetchRealityStatus(receipt: StationReceipt): Promise<string> {
-    const repoRoot = process.cwd();
-    const projectCtx: ProjectContext = {
-      repoRoot,
-      repoName: receipt.repo || detectRepoName(repoRoot),
+      workspacesDir: receipt.workspacesDir,
+      dnsSuffix: receipt.dnsSuffix,
+      userSuffix: receipt.userSuffix,
+      schematic: receipt.schematic,
     };
 
-    if (receipt.type === 'local-worktree') {
-      const alive =
-        !!receipt.rootPath &&
-        fs.existsSync(receipt.rootPath) &&
-        fs.existsSync(path.join(receipt.rootPath, '.git'));
-      return alive ? 'RUNNING' : 'NOT_FOUND';
-    }
-
-    if (receipt.type === 'gce') {
-      const infra: InfrastructureSpec = {
-        projectId: receipt.projectId,
-        zone: receipt.zone,
-        instanceName: receipt.instanceName || receipt.name,
-        providerType: receipt.type,
-        backendType: receipt.backendType,
-      };
-      const provider = this.providerFactory.getProvider(projectCtx, infra);
-
-      const status = await provider.getStatus();
-      return status.status;
-    }
-    return 'UNKNOWN';
-  }
-
-  private async verifyAlive(receipt: StationReceipt): Promise<boolean> {
-    const status = await this.fetchRealityStatus(receipt);
-    return status !== 'NOT_FOUND';
+    return {
+      receipt,
+      provider: this.providerFactory.getProvider(projectCtx, infra),
+    };
   }
 }

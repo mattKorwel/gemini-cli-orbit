@@ -9,8 +9,7 @@ import { logger, LogLevel } from '../core/Logger.js';
 import {
   type OrbitObserver,
   type MissionResult,
-  type PulseInfo,
-  type StationInfo,
+  type StationState,
   type CIStatus,
   type MissionOptions,
   type JettisonOptions,
@@ -120,6 +119,13 @@ export class OrbitSDK implements IOrbitSDK {
       executors,
       stationRegistry,
     );
+    this.status = new StatusManager(
+      this.projectCtx,
+      bundles.infra,
+      providerFactory,
+      executors,
+      stationRegistry,
+    );
     this.fleet = new FleetManager(
       this.projectCtx,
       bundles.infra,
@@ -131,13 +137,7 @@ export class OrbitSDK implements IOrbitSDK {
       configManager,
       dependencyManager,
       executors,
-    );
-    this.status = new StatusManager(
-      this.projectCtx,
-      bundles.infra,
-      providerFactory,
-      executors,
-      stationRegistry,
+      this.status,
     );
     this.ci = new CIManager(
       this.projectCtx,
@@ -152,23 +152,45 @@ export class OrbitSDK implements IOrbitSDK {
   /**
    * Check station health and active mission status.
    */
-  async getPulse(): Promise<PulseInfo> {
+  async getPulse(): Promise<StationState> {
     return this.status.getPulse();
   }
 
   /**
-   * Fetches pulses for multiple stations in parallel.
+   * Parallel aggregator for fleet status.
    */
-  async getFleetPulse(
-    receipts: import('../core/interfaces.js').StationReceipt[],
-  ): Promise<PulseInfo[]> {
-    return this.status.getFleetPulse(receipts);
+  async getFleetState(options: ListStationsOptions): Promise<StationState[]> {
+    const { syncWithReality, includeMissions, repoFilter, nameFilter } =
+      options;
+
+    let stations = await this.status['stationRegistry'].listStations({
+      syncWithReality: false, // We'll sync reality in the next step based on filters
+    });
+
+    // 1. Apply Repository Filter
+    if (repoFilter) {
+      stations = stations.filter((s) => s.receipt.repo === repoFilter);
+    }
+
+    // 2. Apply Name/Pattern Filter
+    if (nameFilter) {
+      const regex = new RegExp(nameFilter.replace(/\*/g, '.*'), 'i');
+      stations = stations.filter(
+        (s) => regex.test(s.receipt.name) || regex.test(s.receipt.instanceName),
+      );
+    }
+
+    // 3. Fetch Reality for the filtered set
+    return this.status.fetchFleetState(
+      stations,
+      includeMissions ? 'pulse' : syncWithReality ? 'health' : 'inventory',
+    );
   }
 
   /**
    * Fetches pulses for ALL local stations registered on this machine.
    */
-  async getGlobalLocalPulse(): Promise<PulseInfo[]> {
+  async getGlobalLocalPulse(): Promise<StationState[]> {
     return this.status.getGlobalLocalPulse();
   }
 
@@ -260,9 +282,9 @@ export class OrbitSDK implements IOrbitSDK {
    * List all provisioned stations and discovered local repos.
    */
   async listStations(
-    options: ListStationsOptions = {},
-  ): Promise<StationInfo[]> {
-    return this.fleet.listStations(options);
+    options: ListStationsOptions = { syncWithReality: true },
+  ): Promise<StationState[]> {
+    return this.getFleetState(options);
   }
 
   /**

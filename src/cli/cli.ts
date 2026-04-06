@@ -9,21 +9,80 @@ import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import yargs, { type Argv } from 'yargs';
-import {
-  OrbitSDK,
-  type IOrbitSDK,
-  type PulseInfo,
-  type CapsuleInfo,
-} from '../sdk/OrbitSDK.js';
+import { OrbitSDK, type IOrbitSDK } from '../sdk/OrbitSDK.js';
+import { type StationState, type CapsuleInfo } from '../core/types.js';
 import { getRepoConfig, detectRepoName } from '../core/ConfigManager.js';
 import { ConsoleObserver } from '../core/Logger.js';
-import { type StationReceipt } from '../core/interfaces.js';
 
 function expandPath(p: string): string {
   if (p.startsWith('~/')) {
     return path.join(os.homedir(), p.slice(2));
   }
   return p;
+}
+
+/**
+ * --- GLOBAL OPTION HELPERS ---
+ * Shared flag groups to ensure consistency across commands.
+ */
+
+function applyGlobalOptions(y: Argv) {
+  return y
+    .group(['verbose', 'json'], 'Global Options:')
+    .option('verbose', {
+      type: 'boolean',
+      description: 'Show detailed infrastructure logs',
+    })
+    .option('json', {
+      type: 'boolean',
+      description: 'Output raw JSON results',
+    });
+}
+
+function applyContextOptions(y: Argv) {
+  return y
+    .group(['local', 'repo', 'repo-dir'], 'Source Context:')
+    .option('local', {
+      alias: 'l',
+      type: 'boolean',
+      description: 'Force local workspace mode',
+    })
+    .option('repo', {
+      alias: 'r',
+      type: 'string',
+      description: 'Override detected repository name',
+    })
+    .option('repo-dir', {
+      type: 'string',
+      description: 'Set target repository directory',
+    });
+}
+
+function applyHardwareOptions(y: Argv) {
+  return y
+    .group(['for-station', 'schematic'], 'Hardware Targets:')
+    .option('for-station', {
+      type: 'string',
+      description: 'Target a specific station instance',
+    })
+    .option('schematic', {
+      type: 'string',
+      description: 'The blueprint to use for liftoff',
+    });
+}
+
+/**
+ * Adds natural language guidance and friendly examples to a command's help.
+ */
+function applyFriendlyUsage(
+  y: Argv,
+  cmd: string,
+  description: string,
+  examples: [string, string][],
+) {
+  y.usage(`Usage: orbit ${cmd} [options]\n\n${description}`);
+  examples.forEach(([example, desc]) => y.example(`orbit ${example}`, desc));
+  return y;
 }
 
 export async function dispatch(argv: string[]): Promise<number> {
@@ -45,7 +104,6 @@ export async function dispatch(argv: string[]): Promise<number> {
     }
     if (args['for-station']) {
       process.env.GCLI_ORBIT_INSTANCE_NAME = args['for-station'];
-      // AUTO-SWITCH: If a station is targeted and no provider is set, use GCE
       if (!process.env.GCLI_ORBIT_PROVIDER) {
         process.env.GCLI_ORBIT_PROVIDER = 'gce';
       }
@@ -63,9 +121,6 @@ export async function dispatch(argv: string[]): Promise<number> {
     return new OrbitSDK(config, consoleObserver, root);
   }
 
-  /**
-   * Shared helper for starting a mission from multiple CLI entry points.
-   */
   async function runStartMission(args: any) {
     const sdk = createSDK(args);
     const action = args.action || args.verb || 'chat';
@@ -79,7 +134,36 @@ export async function dispatch(argv: string[]): Promise<number> {
     args.exitCode = result.exitCode;
   }
 
-  // Shorthand for repo:cmd
+  async function runConstellation(args: any) {
+    const sdk = createSDK(args);
+    const { sync, pulse, all, current, selectByName } = args;
+
+    if ((sync || pulse) && !args.json) {
+      process.stderr.write(
+        `📡 ${pulse ? 'Requesting pulse' : 'Synchronizing'} constellation . . . . .\n`,
+      );
+    }
+
+    let repoFilter: string | undefined = undefined;
+    if (current || (!all && process.env.GCLI_ORBIT_REPO_NAME)) {
+      repoFilter = process.env.GCLI_ORBIT_REPO_NAME;
+    }
+
+    const states = await sdk.getFleetState({
+      syncWithReality: sync,
+      includeMissions: pulse,
+      repoFilter,
+      nameFilter: selectByName,
+    });
+
+    if (args.json) {
+      console.log(JSON.stringify(states, null, 2));
+      return;
+    }
+
+    renderFleet(states, pulse ? 'pulse' : sync ? 'health' : 'inventory');
+  }
+
   if (
     processedArgv[0] &&
     processedArgv[0].includes(':') &&
@@ -90,12 +174,12 @@ export async function dispatch(argv: string[]): Promise<number> {
     processedArgv[0] = actualCmd || '';
   }
 
-  // Top-level Aliases (Plurals & High-velocity)
   const topAliases: Record<string, string> = {
-    stations: 'station list',
+    stations: 'constellation',
+    ls: 'constellation',
     missions: 'mission start',
     schematics: 'infra schematic list',
-    pulses: 'station pulse',
+    pulse: 'constellation --pulse',
     provision: 'infra liftoff',
   };
   if (processedArgv[0]) {
@@ -104,334 +188,261 @@ export async function dispatch(argv: string[]): Promise<number> {
       processedArgv.splice(0, 1, ...alias.split(' '));
     }
   }
+
   const parser = yargs(processedArgv)
     .scriptName('orbit')
     .usage('$0 <command> [args]')
     .demandCommand(1, 'Please specify a command.')
     .strict()
-
-    .demandCommand(1, 'Please specify a command.')
     .showHelpOnFail(true)
     .exitProcess(false)
     .wrap(null)
-    .strict()
     .help()
     .alias('h', 'help')
 
-    // --- GLOBAL FLAGS ---
-    .group(['local', 'repo', 'repo-dir'], 'Source Context:')
-    .option('local', {
-      alias: 'l',
-      type: 'boolean',
-      description: 'Force local workspace mode',
-    })
-    .option('repo', {
-      alias: 'r',
-      type: 'string',
-      description: 'Override detected repository name',
-    })
-    .option('repo-dir', {
-      type: 'string',
-      description: 'Set target repository directory',
-    })
-
-    .group(['for-station', 'schematic'], 'Hardware Targets:')
-    .option('for-station', {
-      type: 'string',
-      description: 'Target a specific station instance',
-    })
-    .option('schematic', {
-      type: 'string',
-      description: 'The blueprint to use for liftoff',
-    })
-
-    .group(['verbose', 'json'], 'Output Options:')
-    .option('verbose', {
-      type: 'boolean',
-      description: 'Show detailed infrastructure logs',
-    })
-    .option('json', {
-      type: 'boolean',
-      description: 'Output raw JSON results',
-    })
-
-    // --- COMMANDS ---
-    // 1. MISSION
     .command(
-      'mission',
-      'The Workflow: Start, uplink, attach, ci, or jettison.',
-      (y: Argv) => {
-        return (
-          y
-            // Default Mission command (Allows 'orbit mission <id> <verb>')
-            .command(
-              '$0 <identifier> [action] [extra..]',
-              false,
-              (y2) =>
-                y2
-                  .positional('identifier', {
-                    type: 'string',
-                    description: 'PR or Issue ID',
-                  })
-                  .positional('action', {
-                    type: 'string',
-                    default: 'chat',
-                    description: 'Verb: chat, fix, review, implement',
-                  }),
-              async (args: any) => {
-                // Safety: If identifier matches a subcommand, yargs should have picked it up.
-                // But $0 is greedy, so we check here.
-                const subcommands = [
-                  'start',
-                  'attach',
-                  'uplink',
-                  'ci',
-                  'jettison',
-                  'shell',
-                  'reap',
-                ];
-                if (subcommands.includes(args.identifier)) {
-                  // This shouldn't happen if yargs is configured correctly, but as a safeguard:
-                  return;
-                }
-                await runStartMission(args);
-              },
-            )
-            .command(
-              'start <identifier> [action] [extra..]',
-              'Start a new PR or Issue mission.',
-              (y2) =>
-                y2
-                  .positional('identifier', {
-                    type: 'string',
-                    description: 'PR or Issue ID',
-                  })
-                  .positional('action', {
-                    type: 'string',
-                    default: 'chat',
-                    description: 'Verb: chat, fix, review, implement',
-                  }),
-              runStartMission,
-            )
-            .command(
-              'exec <identifier> <cmd>',
-              'Execute a one-off command in the mission capsule.',
-              (y2) => {
-                y2.positional('identifier', { type: 'string' });
-                y2.positional('cmd', { type: 'string' });
-              },
-              async (args: any) => {
-                const sdk = createSDK(args);
-                args.exitCode = await sdk.missionExec({
-                  identifier: args.identifier,
-                  command: args.cmd,
-                });
-              },
-            )
-            .command(
-              'attach <identifier> [action]',
-              'Resume an active mission.',
-              (y2) =>
-                y2
-                  .positional('identifier', {
-                    type: 'string',
-                    description: 'PR or Issue ID',
-                  })
-                  .positional('action', {
-                    type: 'string',
-                    description: 'Verb: chat, fix, review, implement',
-                  }),
-              async (args: any) => {
-                const sdk = createSDK(args);
-                args.exitCode = await sdk.attach({
-                  identifier: args.identifier,
-                  action: args.action,
-                });
-              },
-            )
-            .command(
-              'uplink <identifier> [action]',
-              'Inspect mission telemetry.',
-              (y2) =>
-                y2
-                  .positional('identifier', {
-                    type: 'string',
-                    description: 'PR or Issue ID',
-                  })
-                  .positional('action', {
-                    type: 'string',
-                    description: 'Specific playbook action',
-                  }),
-              async (args: any) => {
-                const sdk = createSDK(args);
-                args.exitCode = await sdk.getLogs({
-                  identifier: args.identifier,
-                  action: args.action,
-                });
-              },
-            )
-            .command(
-              'ci <identifier>',
-              'Monitor CI status for a branch.',
-              (y2) =>
-                y2.positional('identifier', {
-                  type: 'string',
-                  description: 'Branch or PR ID',
-                }),
-              async (args: any) => {
-                const sdk = createSDK(args);
-                const status = await sdk.monitorCI({ branch: args.identifier });
-                console.log(
-                  `CI Status: ${status.status} (${status.runs.join(', ')})`,
-                );
-                args.exitCode = status.status === 'FAILED' ? 1 : 0;
-              },
-            )
-            .command(
-              'jettison <identifier> [action]',
-              'Decommission a specific mission.',
-              (y2) =>
-                y2
-                  .positional('identifier', {
-                    type: 'string',
-                    description: 'PR or Issue ID',
-                  })
-                  .positional('action', {
-                    type: 'string',
-                    description: 'Verb: chat, fix, review, implement',
-                  }),
-              async (args: any) => {
-                const sdk = createSDK(args);
-                const res = await sdk.jettisonMission({
-                  identifier: args.identifier,
-                  action: args.action,
-                });
-                args.exitCode = res.exitCode;
-              },
-            )
-            .command(
-              'shell <identifier>',
-              'Drop into a raw shell inside a mission capsule.',
-              (y2) =>
-                y2.positional('identifier', {
-                  type: 'string',
-                  description: 'PR or Issue ID',
-                }),
-              async (args: any) => {
-                const sdk = createSDK(args);
-                args.exitCode = await sdk.missionShell({
-                  identifier: args.identifier,
-                });
-              },
-            )
+      ['constellation', 'ls'],
+      'The Fleet View: Unified status and monitoring.',
+      (y2) => {
+        applyFriendlyUsage(
+          y2,
+          'constellation',
+          "The Constellation is your mission control dashboard. It provides a real-time view of your fleet's health and active mission progress.\n\n💡 Tip: Constellation is context-aware. If you are inside a project folder, it filters to show only that project by default.",
+          [
+            [
+              'constellation --pulse',
+              'Deep dive into active mission logs and resource usage.',
+            ],
+            [
+              'constellation -a',
+              'See every station you have provisioned across all projects.',
+            ],
+          ],
         );
+
+        y2.group(
+          ['sync', 'pulse', 'all', 'current', 'select-by-name'],
+          'Status Options:',
+        )
+          .option('sync', {
+            alias: 's',
+            type: 'boolean',
+            default: true,
+            description: 'Sync hardware health',
+          })
+          .option('pulse', {
+            alias: 'p',
+            type: 'boolean',
+            default: false,
+            description: 'Fetch deep mission telemetry',
+          })
+          .option('all', {
+            alias: 'a',
+            type: 'boolean',
+            default: false,
+            description: 'Show all registered stations',
+          })
+          .option('current', {
+            alias: 'c',
+            type: 'boolean',
+            default: false,
+            description: 'Limit to current repo',
+          })
+          .option('select-by-name', {
+            alias: 'n',
+            type: 'string',
+            description: 'Filter stations by name pattern',
+          });
+
+        return applyGlobalOptions(applyContextOptions(y2));
       },
+      runConstellation,
     )
 
-    // 2. STATION
     .command(
-      'station',
-      'The Hardware: List, activate, hibernate, pulse, or reap.',
+      'mission',
+      'The Workflow: Launch or resume isolated developer presence.',
       (y: Argv) => {
         return y
           .command(
-            ['list', 'ls'],
-            'List all provisioned stations.',
-            (y2) =>
-              y2
-                .option('sync', {
-                  alias: 's',
-                  type: 'boolean',
-                  default: true,
-                  description: 'Sync with reality (status and missions)',
-                })
-                .option('missions', {
-                  alias: 'm',
-                  type: 'boolean',
-                  default: false,
-                  description: 'Show high-fidelity mission status',
-                }),
+            [
+              '$0 <identifier> [action] [extra..]',
+              'start <identifier> [action] [extra..]',
+            ],
+            'Start or resume a mission.',
+            (y2) => {
+              applyFriendlyUsage(
+                y2,
+                'mission start <id>',
+                'Missions are the core of Orbit. They provide the isolation and behavioral proof needed for autonomous work. Launching a mission creates a dedicated workspace and agent container.',
+                [
+                  [
+                    'mission 123 review',
+                    'Start an autonomous PR review for PR #123.',
+                  ],
+                  [
+                    'mission 456 chat',
+                    'Drop into a persistent terminal session with Gemini.',
+                  ],
+                  [
+                    'mission fix-tests fix',
+                    'Start an iterative fix-loop for a specific branch.',
+                  ],
+                ],
+              );
+              y2.positional('identifier', {
+                type: 'string',
+                description: 'PR or Issue ID',
+              }).positional('action', {
+                type: 'string',
+                default: 'chat',
+                description: 'Verb: chat, fix, review, implement',
+              });
+              return applyGlobalOptions(
+                applyHardwareOptions(applyContextOptions(y2)),
+              );
+            },
+            async (args: any) => {
+              const subcommands = [
+                'start',
+                'attach',
+                'uplink',
+                'ci',
+                'jettison',
+                'shell',
+                'reap',
+                'exec',
+              ];
+              if (subcommands.includes(args.identifier)) return;
+              await runStartMission(args);
+            },
+          )
+          .command(
+            'exec <identifier> <cmd>',
+            'Execute a one-off command in the mission capsule.',
+            (y2) => {
+              y2.positional('identifier', { type: 'string' }).positional(
+                'cmd',
+                { type: 'string' },
+              );
+              return applyGlobalOptions(
+                applyHardwareOptions(applyContextOptions(y2)),
+              );
+            },
             async (args: any) => {
               const sdk = createSDK(args);
-              const { sync, missions } = args;
-
-              if (sync && !args.json) {
-                process.stderr.write(
-                  '📡 Synchronizing constellation . . . . .\n',
-                );
-              }
-
-              const stations = await sdk.listStations({
-                syncWithReality: sync,
-                includeMissions: sync || missions,
-              });
-
-              let pulses: PulseInfo[] = [];
-              if (missions && stations.length > 0) {
-                // Convert StationInfo back to Receipts for the engine
-                const receipts: StationReceipt[] = stations.map((s) => ({
-                  name: s.name,
-                  instanceName: s.name,
-                  type: s.type,
-                  projectId: s.projectId || 'local',
-                  zone: s.zone || 'local',
-                  repo: s.repo,
-                  rootPath: s.rootPath,
-                  lastSeen: s.lastSeen || new Date().toISOString(),
-                }));
-                pulses = await sdk.getFleetPulse(receipts);
-              }
-
-              if (args.json) {
-                console.log(
-                  JSON.stringify(missions ? pulses : stations, null, 2),
-                );
-                return;
-              }
-
-              console.log('\n🛰️  ORBIT CONSTELLATION');
-              if (stations.length === 0) {
-                console.log('   ✅ No provisioned stations found.');
-                return;
-              }
-
-              const grouped = stations.reduce(
-                (acc, s) => {
-                  const repo = s.repo || 'unknown';
-                  if (!acc[repo]) acc[repo] = [];
-                  acc[repo].push(s);
-                  return acc;
-                },
-                {} as Record<string, typeof stations>,
-              );
-
-              Object.entries(grouped).forEach(([repo, repoStations]) => {
-                console.log(`\n📦 REPOSITORY: ${repo}`);
-                repoStations.forEach((s) => {
-                  const typeIcon = s.type === 'gce' ? '☁️' : '🏠';
-                  const activeMarker = s.isActive ? '➡️' : '  ';
-                  const status = s.status || 'READY';
-                  const missionCount = (s.missions || []).length;
-                  const project = s.projectId || 'local';
-                  console.log(
-                    `${activeMarker} ${typeIcon}  ${s.name.padEnd(20)} → ${status}, ${missionCount} missions, ${project}`,
-                  );
-
-                  if (missions) {
-                    const pulse = pulses.find((p) => p.stationName === s.name);
-                    if (pulse) {
-                      renderPulseMissions(pulse, '      ');
-                    }
-                  }
-                });
+              args.exitCode = await sdk.missionExec({
+                identifier: args.identifier,
+                command: args.cmd,
               });
             },
           )
           .command(
+            'attach <identifier> [action]',
+            'Resume an active mission.',
+            (y2) => {
+              y2.positional('identifier', { type: 'string' }).positional(
+                'action',
+                { type: 'string' },
+              );
+              return applyGlobalOptions(
+                applyHardwareOptions(applyContextOptions(y2)),
+              );
+            },
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.attach({
+                identifier: args.identifier,
+                action: args.action,
+              });
+            },
+          )
+          .command(
+            'uplink <identifier> [action]',
+            'Inspect mission telemetry.',
+            (y2) => {
+              y2.positional('identifier', { type: 'string' }).positional(
+                'action',
+                { type: 'string' },
+              );
+              return applyGlobalOptions(
+                applyHardwareOptions(applyContextOptions(y2)),
+              );
+            },
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.getLogs({
+                identifier: args.identifier,
+                action: args.action,
+              });
+            },
+          )
+          .command(
+            'jettison <identifier> [action]',
+            'Decommission a specific mission.',
+            (y2) => {
+              y2.positional('identifier', { type: 'string' }).positional(
+                'action',
+                { type: 'string' },
+              );
+              return applyGlobalOptions(
+                applyHardwareOptions(applyContextOptions(y2)),
+              );
+            },
+            async (args: any) => {
+              const sdk = createSDK(args);
+              const res = await sdk.jettisonMission({
+                identifier: args.identifier,
+                action: args.action,
+              });
+              args.exitCode = res.exitCode;
+            },
+          )
+          .command(
+            'shell <identifier>',
+            'Drop into a raw shell inside a mission capsule.',
+            (y2) => {
+              y2.positional('identifier', { type: 'string' });
+              return applyGlobalOptions(
+                applyHardwareOptions(applyContextOptions(y2)),
+              );
+            },
+            async (args: any) => {
+              const sdk = createSDK(args);
+              args.exitCode = await sdk.missionShell({
+                identifier: args.identifier,
+              });
+            },
+          );
+      },
+    )
+
+    .command(
+      'station',
+      'The Hardware: Lifecycle and Management.',
+      (y: Argv) => {
+        return y
+          .command(
             ['activate <name>', 'use <name>'],
             'Set the active target station.',
-            (y2) =>
-              y2.positional('name', { type: 'string', demandOption: true }),
+            (y2) => {
+              applyFriendlyUsage(
+                y2,
+                'station activate <name>',
+                'Targets a specific station for all future missions. This updates your local settings for the current project.',
+                [
+                  [
+                    'station activate my-gce-vm',
+                    'Set your remote VM as the primary mission target.',
+                  ],
+                ],
+              );
+              return applyGlobalOptions(
+                applyContextOptions(
+                  y2.positional('name', { type: 'string', demandOption: true }),
+                ),
+              );
+            },
             async (args: any) => {
               const sdk = createSDK(args);
               await sdk.activateStation(args.name);
@@ -439,57 +450,36 @@ export async function dispatch(argv: string[]): Promise<number> {
           )
           .command(
             ['hibernate <name>', 'stop <name>'],
-            'Stop station hardware without destroying it.',
-            (y2) =>
-              y2.positional('name', { type: 'string', demandOption: true }),
+            'Stop station hardware.',
+            (y2) => {
+              applyFriendlyUsage(
+                y2,
+                'station hibernate <name>',
+                'Safely stops the compute instance to save costs without destroying your data or workspaces.',
+                [['station hibernate my-vm', 'Stop the remote instance.']],
+              );
+              return applyGlobalOptions(
+                applyContextOptions(
+                  y2.positional('name', { type: 'string', demandOption: true }),
+                ),
+              );
+            },
             async (args: any) => {
               const sdk = createSDK(args);
               await sdk.hibernate({ name: args.name });
             },
           )
           .command(
-            'pulse',
-            'Check health and mission status.',
-            () => {},
-            async (args: any) => {
-              const sdk = createSDK(args);
-              if (!args.json) {
-                process.stderr.write('📡 Requesting status . . . . .\n');
-              }
-
-              let pulses: PulseInfo[] = [];
-
-              // GLOBAL LOCAL PULSE: If run with --local and outside a repo
-              if (args.local && !process.env.GCLI_ORBIT_REPO_NAME) {
-                pulses = await sdk.getGlobalLocalPulse();
-              } else {
-                pulses = [await sdk.getPulse()];
-              }
-
-              if (args.json) {
-                console.log(JSON.stringify(pulses, null, 2));
-                return;
-              }
-
-              pulses.forEach((pulse) => {
-                console.log(`\n🛰️  ORBIT PULSE: ${pulse.stationName}`);
-                console.log(`   Repo Context: ${pulse.repoName}`);
-                console.log('-'.repeat(80));
-                console.log(`   - Station State:  ${pulse.status}`);
-                if (pulse.internalIp)
-                  console.log(`   - Internal IP:    ${pulse.internalIp}`);
-                if (pulse.externalIp)
-                  console.log(`   - External IP:    ${pulse.externalIp}`);
-
-                renderPulseMissions(pulse, '   ');
-                console.log('-'.repeat(80));
-              });
-            },
-          )
-          .command(
             'shell [name]',
             'Drop into a raw shell on the hardware host.',
-            (y2) => y2.positional('name', { type: 'string' }),
+            (y2) =>
+              applyGlobalOptions(
+                applyHardwareOptions(
+                  applyContextOptions(
+                    y2.positional('name', { type: 'string' }),
+                  ),
+                ),
+              ),
             async (args: any) => {
               if (args.name) process.env.GCLI_ORBIT_INSTANCE_NAME = args.name;
               const sdk = createSDK(args);
@@ -499,13 +489,31 @@ export async function dispatch(argv: string[]): Promise<number> {
           .command(
             'reap',
             'Identify and remove idle missions.',
-            (y2) =>
-              y2
-                .option('threshold', {
-                  type: 'number',
-                  description: 'Idle hours',
-                })
-                .option('force', { type: 'boolean' }),
+            (y2) => {
+              applyFriendlyUsage(
+                y2,
+                'station reap',
+                'Scans for missions that have been idle for a long period and surgically removes their capsules.',
+                [
+                  [
+                    'station reap --threshold 24',
+                    'Cleanup missions idle for more than a day.',
+                  ],
+                ],
+              );
+              return applyGlobalOptions(
+                applyHardwareOptions(
+                  applyContextOptions(
+                    y2
+                      .option('threshold', {
+                        type: 'number',
+                        description: 'Idle hours',
+                      })
+                      .option('force', { type: 'boolean' }),
+                  ),
+                ),
+              );
+            },
             async (args: any) => {
               const sdk = createSDK(args);
               await sdk.reapMissions({
@@ -517,8 +525,29 @@ export async function dispatch(argv: string[]): Promise<number> {
           .command(
             ['delete <name>', 'rm <name>'],
             'Decommission Orbit hardware.',
-            (y2) =>
-              y2.positional('name', { type: 'string', demandOption: true }),
+            (y2) => {
+              applyFriendlyUsage(
+                y2,
+                'station delete <name>',
+                'PERMANENTLY DELETES all cloud resources (Disks, VPCs, VMs) for the station. This cannot be undone.',
+                [
+                  [
+                    'station delete my-old-vm',
+                    'Full decommissioning of a station.',
+                  ],
+                ],
+              );
+              return applyGlobalOptions(
+                applyHardwareOptions(
+                  applyContextOptions(
+                    y2.positional('name', {
+                      type: 'string',
+                      demandOption: true,
+                    }),
+                  ),
+                ),
+              );
+            },
             async (args: any) => {
               const sdk = createSDK(args);
               await sdk.splashdown({ name: args.name });
@@ -528,7 +557,6 @@ export async function dispatch(argv: string[]): Promise<number> {
       },
     )
 
-    // 3. INFRA
     .command(
       'infra',
       'The Foundation: Liftoff, splashdown, or schematic.',
@@ -537,8 +565,19 @@ export async function dispatch(argv: string[]): Promise<number> {
           .command(
             'liftoff [name]',
             'Build or wake infrastructure.',
-            (y2) =>
-              y2
+            (y2) => {
+              applyFriendlyUsage(
+                y2,
+                'infra liftoff',
+                "Liftoff is idempotent. It creates a new station if it doesn't exist, wakes it if it's hibernating, and ensures it has the latest extension code.",
+                [
+                  [
+                    'infra liftoff my-vm --schematic dev-box',
+                    'Provision a new station using a specific blueprint.',
+                  ],
+                ],
+              );
+              const yLocal = y2
                 .positional('name', { type: 'string' })
                 .option('schematic', {
                   alias: 's',
@@ -548,7 +587,9 @@ export async function dispatch(argv: string[]): Promise<number> {
                 .option('destroy', {
                   type: 'boolean',
                   description: 'Decommission infrastructure',
-                }),
+                });
+              return applyGlobalOptions(applyContextOptions(yLocal));
+            },
             async (args: any) => {
               process.env.GCLI_ORBIT_INSTANCE_NAME = args.name;
               const sdk = createSDK(args);
@@ -559,26 +600,10 @@ export async function dispatch(argv: string[]): Promise<number> {
             },
           )
           .command(
-            'splashdown [name]',
-            'Emergency shutdown of Orbit infrastructure.',
-            (y2) =>
-              y2.positional('name', { type: 'string' }).option('all', {
-                type: 'boolean',
-                description: 'All active remote capsules',
-              }),
-            async (args: any) => {
-              const sdk = createSDK(args);
-              args.exitCode = await sdk.splashdown({
-                name: args.name,
-                all: args.all,
-              });
-            },
-          )
-          .command(
             'schematic <action> [name]',
             'Manage infrastructure blueprints.',
-            (y2) =>
-              y2
+            (y2) => {
+              const yLocal = y2
                 .positional('action', {
                   choices: ['list', 'show', 'import', 'create', 'edit'],
                   demandOption: true,
@@ -586,7 +611,9 @@ export async function dispatch(argv: string[]): Promise<number> {
                 .positional('name', {
                   type: 'string',
                   description: 'Schematic name or source',
-                }),
+                });
+              return applyGlobalOptions(applyContextOptions(yLocal));
+            },
             async (args: any) => {
               const sdk = createSDK(args);
               const sub = args.action;
@@ -642,7 +669,6 @@ export async function dispatch(argv: string[]): Promise<number> {
       },
     )
 
-    // 4. CONFIG
     .command(
       'config',
       'The Local: Setup environment and integrations.',
@@ -650,8 +676,8 @@ export async function dispatch(argv: string[]): Promise<number> {
         return y
           .command(
             'install',
-            'Install Orbit shell aliases and tab-completion.',
-            () => {},
+            'Install Orbit shell aliases.',
+            (y2) => applyGlobalOptions(y2),
             async (args: any) => {
               const sdk = createSDK(args);
               await sdk.installShell();
@@ -659,8 +685,8 @@ export async function dispatch(argv: string[]): Promise<number> {
           )
           .command(
             'show',
-            'Display resolved Orbit configuration.',
-            () => {},
+            'Display resolved configuration.',
+            (y2) => applyGlobalOptions(y2),
             async (args: any) => {
               const config = getRepoConfig();
               if (args.json) {
@@ -697,15 +723,68 @@ async function main() {
 
 const consoleObserver = new ConsoleObserver();
 
-/**
- * Shared formatter for mission status in Pulse/List
- */
-function renderPulseMissions(pulse: PulseInfo, indent = ''): void {
+function renderFleet(
+  states: StationState[],
+  depth: 'inventory' | 'health' | 'pulse',
+) {
+  if (depth === 'pulse') {
+    states.forEach((s) => {
+      console.log(`\n🛰️  ORBIT PULSE: ${s.receipt.name}`);
+      console.log(`   Repo Context: ${s.receipt.repo}`);
+      console.log('-'.repeat(80));
+      if (s.reality) {
+        console.log(`   - Station State:  ${s.reality.status}`);
+        if (s.reality.internalIp)
+          console.log(`   - Internal IP:    ${s.reality.internalIp}`);
+        if (s.reality.externalIp)
+          console.log(`   - External IP:    ${s.reality.externalIp}`);
+        renderMissionList(s.reality.missions, '   ');
+      } else {
+        console.log('   (Status unavailable - No reality sync)');
+      }
+      console.log('-'.repeat(80));
+    });
+  } else {
+    console.log('\n🌌 ORBIT CONSTELLATION');
+    if (states.length === 0) {
+      console.log('   ✅ No provisioned stations found.');
+      return;
+    }
+
+    const grouped = states.reduce(
+      (acc, s) => {
+        const repo = s.receipt.repo || 'unknown';
+        if (!acc[repo]) acc[repo] = [];
+        acc[repo].push(s);
+        return acc;
+      },
+      {} as Record<string, typeof states>,
+    );
+
+    Object.entries(grouped).forEach(([repo, repoStations]) => {
+      console.log(`\n📦 REPOSITORY: ${repo}`);
+      repoStations.forEach((s) => {
+        const typeIcon = s.receipt.type === 'gce' ? '☁️' : '🏠';
+        const activeMarker = s.isActive ? '➡️' : '  ';
+        const status = s.reality?.status || s.receipt.status || 'READY';
+        const project = s.receipt.projectId || 'local';
+        const missionCount =
+          s.reality?.missions.length ?? (depth === 'inventory' ? '?' : 0);
+
+        console.log(
+          `${activeMarker} ${typeIcon}  ${s.receipt.name.padEnd(20)} → ${status}, ${missionCount} missions, ${project}`,
+        );
+      });
+    });
+  }
+}
+
+function renderMissionList(capsules: CapsuleInfo[], indent = ''): void {
   console.log(`\n${indent}📦 ACTIVE MISSION CAPSULES:`);
-  if (pulse.capsules.length === 0) {
+  if (capsules.length === 0) {
     console.log(`${indent}  - No mission capsules found`);
   } else {
-    pulse.capsules.forEach((c: CapsuleInfo) => {
+    capsules.forEach((c) => {
       let stateIcon = '💤';
       let detail = '';
 

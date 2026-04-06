@@ -1,40 +1,71 @@
-# Orbit Mission Control: Pulse (orbit pulse)
+# Orbit Mission Control: Constellation (orbit constellation)
 
-The **Pulse** command provides real-time telemetry and health monitoring for
-your Orbital environment. It gives you a high-level view of your active station
-and all mission capsules.
+The **Constellation** command provides unified fleet-wide telemetry and health
+monitoring. It serves as your primary Mission Control dashboard, showing you
+exactly what is happening across your hardware and active missions.
 
-## 📡 Monitoring Your Orbit
+## 🌌 The Fleet View
 
-Run the command to see the current state of your Mission Control:
+Run the command to see the current state of your constellation:
 
 ```bash
-orbit pulse
+orbit constellation
 ```
 
-### 1. Station Health
+### 🛰️ Intelligent Filtering
 
-Pulse reports the core status of your active outpost:
+By default, **Constellation** is context-aware:
 
-- **Station State**: (RUNNING, STOPPED, PROVISIONING, etc.)
-- **Connectivity**: Internal IP address and active backend.
-- **Station Name**: The identifier for your Cloud or Local host.
+- **Inside a Repository**: Shows only stations and missions associated with that
+  project.
+- **Outside a Repository**: Shows your entire global fleet.
+- **Override**: Use `--all` (or `-a`) to see everything regardless of your
+  current directory.
 
-### 2. Active Mission Capsules
+### 🔍 Search and Filtering
 
-Pulse lists all mission environments currently running. For each active mission,
-it shows:
+- **By Name**: `orbit constellation -n "remote-*"` filters by station name
+  pattern.
+- **Specific Repo**: `orbit constellation -r my-project` targets a specific
+  project.
 
-- **State**: The current status of the Gemini agent (Thinking, Waiting, or
-  Idle).
-- **ID**: The unique identifier for the mission (e.g., `feat-test-1`).
-- **Resource Usage**: Real-time CPU and Memory consumption (Remote only).
+---
+
+## 📡 Monitoring Depths
+
+You can control the amount of "Reality Sync" performed by using different flags:
+
+### 1. Inventory View (Default)
+
+Fast and lightweight. Shows what is registered in your local receipts.
+
+```bash
+orbit constellation
+```
+
+### 2. Health View (`--sync`)
+
+Pings the hardware to verify real-time status (Running, Stopped, etc.) and
+retrieves IPs.
+
+```bash
+orbit constellation --sync
+```
+
+### 3. Monitoring View (`--pulse`)
+
+The deepest dive. Connects to the station to fetch real-time telemetry from
+every active mission capsule.
+
+```bash
+orbit constellation --pulse
+```
 
 ---
 
 ## 🛰️ Mission Intelligence
 
-For active missions, Pulse provides a deeper look into what the Gemini agent is
+When using `--pulse`, you gain insight into exactly what the Gemini agent is
 doing:
 
 - **🧠 [THINKING]**: The agent is actively processing a task or running a build.
@@ -45,17 +76,11 @@ doing:
 
 If a mission environment becomes unresponsive:
 
-1. Identify the mission ID in `orbit pulse`.
-2. Use `orbit jettison <ID>` to surgically remove the resources.
+1. Identify the mission name in `orbit constellation --pulse`.
+2. Use `orbit mission jettison <ID>` to surgically remove the resources.
 3. Re-launch the mission if needed.
-
-## ✨ Use Cases
-
-- **Health Check**: Ensure your station is responsive before launching a complex
-  mission.
-- **Cleanup Identification**: Find old mission worktrees you forgot to jettison.
-- **Telemetry**: Monitor the progress of autonomous maneuvers.
 
 ---
 
-_Note: In the Gemini App, you can also use the `/orbit:pulse` slash command._
+_Note: In the Gemini App, you can also use the `/orbit:constellation` slash
+command._

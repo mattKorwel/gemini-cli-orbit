@@ -9,7 +9,7 @@ your environment clean.
 When you are done with a mission, run:
 
 ```bash
-orbit jettison 123
+orbit mission jettison 123
 ```
 
 ### 1. Resource Disposal
@@ -36,8 +36,8 @@ including terminal logs and agent progress trackers.
 
 ## 🛠️ Command Reference
 
-- `orbit jettison <ID> [action]`: Surgically remove a specific mission
-  workstream (e.g., `orbit jettison 123 fix`).
+- `orbit mission jettison <ID> [action]`: Surgically remove a specific mission
+  workstream (e.g., `orbit mission jettison 123 fix`).
 - `--yes`, `-y`: Bypass the confirmation prompt (useful for automation).
 
 ## ✨ Why Jettison?

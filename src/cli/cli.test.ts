@@ -10,11 +10,11 @@ const mockStartMission = vi
   .fn()
   .mockResolvedValue({ exitCode: 0, missionId: 'test-mission' });
 const mockGetPulse = vi.fn().mockResolvedValue({
-  stationName: 'test-station',
-  repoName: 'test-repo',
-  status: 'RUNNING',
-  capsules: [],
+  receipt: { name: 'test-station', repo: 'test-repo' },
+  reality: { status: 'RUNNING', missions: [] },
 });
+const mockGetFleetState = vi.fn().mockResolvedValue([]);
+const mockGetGlobalLocalPulse = vi.fn().mockResolvedValue([]);
 const mockListStations = vi.fn().mockResolvedValue([]);
 const mockActivateStation = vi.fn().mockResolvedValue(undefined);
 const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
@@ -69,6 +69,8 @@ vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     startMission: mockStartMission,
     getPulse: mockGetPulse,
+    getFleetState: mockGetFleetState,
+    getGlobalLocalPulse: mockGetGlobalLocalPulse,
     listStations: mockListStations,
     activateStation: mockActivateStation,
     hibernate: mockHibernate,
@@ -151,9 +153,39 @@ describe('orbit-cli dispatch()', () => {
     });
   });
 
-  it('routes "station pulse" to OrbitSDK.getPulse', async () => {
-    await dispatch(['station', 'pulse']);
-    expect(mockGetPulse).toHaveBeenCalled();
+  it('routes "constellation" to OrbitSDK.getFleetState', async () => {
+    await dispatch(['constellation']);
+    expect(mockGetFleetState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncWithReality: true,
+        includeMissions: false,
+      }),
+    );
+  });
+
+  it('routes "constellation --pulse" to OrbitSDK.getFleetState with missions', async () => {
+    await dispatch(['constellation', '--pulse']);
+    expect(mockGetFleetState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        syncWithReality: true,
+        includeMissions: true,
+      }),
+    );
+  });
+
+  it('routes "constellation --all" to OrbitSDK.getFleetState without repo filter', async () => {
+    process.env.GCLI_ORBIT_REPO_NAME = 'test-repo';
+    await dispatch(['constellation', '--all']);
+    expect(mockGetFleetState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoFilter: undefined,
+      }),
+    );
+  });
+
+  it('routes "ls" alias to constellation', async () => {
+    await dispatch(['ls']);
+    expect(mockGetFleetState).toHaveBeenCalled();
   });
 
   it('routes "infra schematic list" to OrbitSDK.listSchematics', async () => {

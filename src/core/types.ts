@@ -48,31 +48,17 @@ export interface CapsuleInfo {
 }
 
 /**
- * Structured result for Pulse check.
+ * Unified state model for an Orbit Station (Hardware + Missions).
  */
-export interface PulseInfo {
-  stationName: string;
-  repoName: string;
-  status: string;
-  internalIp?: string | undefined;
-  externalIp?: string | undefined;
-  capsules: CapsuleInfo[];
-}
-
-/**
- * Structured info for a Station.
- */
-export interface StationInfo {
-  name: string;
-  type: 'gce' | 'local-worktree';
-  repo: string;
-  status?: string | undefined;
-  projectId?: string | undefined;
-  zone?: string | undefined;
-  rootPath?: string | undefined;
-  lastSeen?: string | undefined;
-  missions: string[];
+export interface StationState {
+  receipt: import('../core/interfaces.js').StationReceipt;
   isActive: boolean;
+  reality?: {
+    status: string;
+    internalIp?: string;
+    externalIp?: string;
+    missions: CapsuleInfo[];
+  };
 }
 
 /**
@@ -156,6 +142,8 @@ export interface ProvisionOptions {
 export interface ListStationsOptions {
   syncWithReality?: boolean | undefined;
   includeMissions?: boolean | undefined;
+  repoFilter?: string | undefined;
+  nameFilter?: string | undefined;
 }
 
 /**
@@ -203,11 +191,8 @@ export interface MissionExecOptions {
  */
 export interface IOrbitSDK {
   readonly observer: OrbitObserver;
-  getPulse(): Promise<PulseInfo>;
-  getFleetPulse(
-    receipts: import('../core/interfaces.js').StationReceipt[],
-  ): Promise<PulseInfo[]>;
-  getGlobalLocalPulse(): Promise<PulseInfo[]>;
+  getPulse(): Promise<StationState>;
+  getFleetState(options: ListStationsOptions): Promise<StationState[]>;
   startMission(options: MissionOptions): Promise<MissionResult>;
   missionExec(options: MissionExecOptions): Promise<number>;
   jettisonMission(options: JettisonOptions): Promise<MissionResult>;
@@ -219,7 +204,7 @@ export interface IOrbitSDK {
   attach(options: AttachOptions): Promise<number>;
   getLogs(options: GetLogsOptions): Promise<number>;
   installShell(): Promise<void>;
-  listStations(options: ListStationsOptions): Promise<StationInfo[]>;
+  listStations(options: ListStationsOptions): Promise<StationState[]>;
   activateStation(name: string): Promise<void>;
   listSchematics(): SchematicInfo[];
   getSchematic(name: string): OrbitConfig | null;

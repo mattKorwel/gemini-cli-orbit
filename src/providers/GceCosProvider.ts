@@ -59,12 +59,14 @@ export class GceCosProvider extends BaseProvider {
     ssh: SSHManager,
     pm: IProcessManager,
     executors: IExecutors,
+    private readonly infra: InfrastructureSpec,
     config: {
       imageUri?: string;
       stationName?: string;
     } = {},
   ) {
     super(pm, executors);
+    console.log('DEBUG: GceCosProvider infra:', JSON.stringify(infra, null, 2));
     this.projectId = projectId;
     this.zone = zone;
     this.instanceName = instanceName;
@@ -431,16 +433,24 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async listCapsules(): Promise<string[]> {
-    const res = await this.getExecOutput(
-      "sudo docker ps --format '{{.Names}}' | grep '^orbit-'",
-      { quiet: true },
-    );
-    if (res.status !== 0) {
-      throw new Error(
-        `Failed to list capsules: ${res.stderr || 'Connection failed'}`,
+    try {
+      const res = await this.getExecOutput(
+        "sudo docker ps --format '{{.Names}}' | grep '^orbit-'",
+        { quiet: true },
       );
+      if (res.status !== 0) {
+        // grep returns 1 if no matches found, which is fine
+        if (res.status === 1 && !res.stderr) return [];
+
+        throw new Error(
+          `Failed to list capsules: ${res.stderr || 'Connection failed'} (exit ${res.status})`,
+        );
+      }
+      return res.stdout.trim().split('\n').filter(Boolean);
+    } catch (e: any) {
+      logger.debug('FLEET', `Error in listCapsules: ${e.message}`);
+      throw e;
     }
-    return res.stdout.trim().split('\n').filter(Boolean);
   }
 
   async provisionMirror(remoteUrl: string): Promise<number> {
@@ -481,6 +491,10 @@ export class GceCosProvider extends BaseProvider {
       projectId: this.projectId,
       zone: this.zone,
       repo: this.projectCtx.repoName,
+      backendType: this.infra.backendType as any,
+      schematic: this.infra.schematic,
+      dnsSuffix: this.infra.dnsSuffix,
+      userSuffix: this.infra.userSuffix,
       lastSeen: new Date().toISOString(),
     };
   }

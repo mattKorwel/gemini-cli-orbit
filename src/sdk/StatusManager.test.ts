@@ -30,7 +30,6 @@ describe('StatusManager', () => {
       listStations: vi.fn(),
       saveReceipt: vi.fn(),
       deleteReceipt: vi.fn(),
-      getMissions: vi.fn(),
     } as any;
   });
 
@@ -62,7 +61,19 @@ describe('StatusManager', () => {
       type: 'local-worktree',
     };
 
-    providerFactory.getProvider.mockReturnValue(mockProvider as any);
+    const mockReceipt = {
+      name: 'test-station',
+      instanceName: 'test-station',
+      type: 'local-worktree',
+      repo: 'test-repo',
+    };
+
+    stationRegistry.listStations.mockResolvedValue([
+      {
+        receipt: mockReceipt,
+        provider: mockProvider,
+      },
+    ] as any);
 
     const mockExecutors: any = {
       node: {
@@ -82,50 +93,42 @@ describe('StatusManager', () => {
     );
     const pulse = await manager.getPulse();
 
-    expect(pulse.capsules).toHaveLength(1);
-    expect(pulse.capsules[0]!.state).toBe('WAITING_FOR_INPUT');
-    expect(pulse.capsules[0]!.lastQuestion).toBe('How can I help?');
+    expect(pulse.reality!.missions).toHaveLength(1);
+    expect(pulse.reality!.missions[0]!.state).toBe('WAITING_FOR_INPUT');
+    expect(pulse.reality!.missions[0]!.lastQuestion).toBe('How can I help?');
   });
 
   it('getGlobalLocalPulse aggregates all local stations', async () => {
-    const mockReceipts = [
-      {
-        name: 's1',
-        instanceName: 's1',
-        type: 'local-worktree',
-        repo: 'r1',
-        projectId: 'local',
-        zone: 'local',
-      },
-      {
-        name: 's2',
-        instanceName: 's2',
-        type: 'local-worktree',
-        repo: 'r2',
-        projectId: 'local',
-        zone: 'local',
-      },
-      { name: 's3', instanceName: 's3', type: 'gce', repo: 'r3' }, // Should be filtered out
-    ];
-
-    stationRegistry.listStations.mockResolvedValue(mockReceipts as any);
-
     const mockProvider = {
       getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
       listCapsules: vi.fn().mockResolvedValue([]),
-      getExecOutput: vi.fn().mockResolvedValue({ status: 1 }), // Failed aggregator
+      getExecOutput: vi.fn().mockResolvedValue({ status: 1 }),
       type: 'local-worktree',
     };
-    providerFactory.getProvider.mockReturnValue(mockProvider as any);
+
+    const mockStations = [
+      {
+        receipt: { name: 's1', type: 'local-worktree', repo: 'r1' },
+        provider: mockProvider,
+      },
+      {
+        receipt: { name: 's2', type: 'local-worktree', repo: 'r2' },
+        provider: mockProvider,
+      },
+      {
+        receipt: { name: 's3', type: 'gce', repo: 'r3' },
+        provider: mockProvider,
+      },
+    ];
+
+    stationRegistry.listStations.mockResolvedValue(mockStations as any);
 
     const mockExecutors: any = {
       node: {
-        create: vi
-          .fn()
-          .mockImplementation((path, args) => ({
-            bin: 'node',
-            args: [path, ...args],
-          })),
+        create: vi.fn().mockImplementation((path, args) => ({
+          bin: 'node',
+          args: [path, ...args],
+        })),
       },
     };
 
@@ -137,9 +140,9 @@ describe('StatusManager', () => {
       stationRegistry,
     );
 
-    const fleetPulse = await manager.getGlobalLocalPulse();
-    expect(fleetPulse).toHaveLength(2);
-    expect(fleetPulse[0]!.stationName).toBe('s1');
-    expect(fleetPulse[1]!.stationName).toBe('s2');
+    const fleetState = await manager.getGlobalLocalPulse();
+    expect(fleetState).toHaveLength(2);
+    expect(fleetState[0]!.receipt.name).toBe('s1');
+    expect(fleetState[1]!.receipt.name).toBe('s2');
   });
 });

@@ -25,6 +25,17 @@ export class NodeExecutor implements INodeExecutor {
     return NodeExecutor.create(scriptPath, args, options);
   }
 
+  /**
+   * Creates a command to run a Node.js script on a remote host (Generic 'node').
+   */
+  public createRemote(
+    scriptPath: string,
+    args: string[] = [],
+    options: IRunOptions = {},
+  ): Command {
+    return NodeExecutor.createRemote(scriptPath, args, options);
+  }
+
   // --- Static Metadata Helpers ---
 
   /**
@@ -37,6 +48,21 @@ export class NodeExecutor implements INodeExecutor {
   ): Command {
     return {
       bin: process.execPath,
+      args: [scriptPath, ...args],
+      options,
+    };
+  }
+
+  /**
+   * Creates a command to run a Node.js script on a remote host (Generic 'node').
+   */
+  public static createRemote(
+    scriptPath: string,
+    args: string[] = [],
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'node',
       args: [scriptPath, ...args],
       options,
     };

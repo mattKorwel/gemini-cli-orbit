@@ -100,6 +100,7 @@ describe('MissionManager', () => {
     const mockExecutors: any = {
       node: {
         create: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
+        createRemote: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
       },
     };
 

@@ -55,7 +55,6 @@ describe('FleetManager', () => {
       listStations: vi.fn().mockResolvedValue([]),
       saveReceipt: vi.fn(),
       deleteReceipt: vi.fn(),
-      getMissions: vi.fn(),
     } as any;
 
     schematicManager = {
@@ -86,6 +85,9 @@ describe('FleetManager', () => {
     } as any;
 
     const mockExecutors: any = {};
+    const mockStatusManager: any = {
+      fetchFleetState: vi.fn().mockResolvedValue([]),
+    };
 
     fleet = new FleetManager(
       projectCtx as any,
@@ -98,6 +100,7 @@ describe('FleetManager', () => {
       configManager,
       dependencyManager,
       mockExecutors,
+      mockStatusManager,
     );
   });
 
@@ -118,7 +121,9 @@ describe('FleetManager', () => {
       projectId: 'p',
       zone: 'z',
     };
-    stationRegistry.listStations.mockResolvedValue([mockReceipt as any]);
+    stationRegistry.listStations.mockResolvedValue([
+      { receipt: mockReceipt, provider: mockProvider },
+    ] as any);
 
     await fleet.splashdown({ name: 'test-station', force: true });
 
@@ -136,7 +141,9 @@ describe('FleetManager', () => {
       projectId: 'p',
       zone: 'z',
     };
-    stationRegistry.listStations.mockResolvedValue([mockReceipt as any]);
+    stationRegistry.listStations.mockResolvedValue([
+      { receipt: mockReceipt, provider: mockProvider },
+    ] as any);
     mockProvider.listCapsules.mockResolvedValue(['orbit-mission-1']);
 
     await fleet.splashdown({ name: 'test-station', force: true });
