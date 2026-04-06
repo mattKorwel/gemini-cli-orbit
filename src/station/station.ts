@@ -16,6 +16,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { logger } from '../core/Logger.js';
 import { getManifestFromEnv } from '../utils/MissionUtils.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
@@ -45,6 +46,7 @@ export async function main(
   // This allows the SDK to trigger complex flows with a single RPC call.
   try {
     const manifest = getManifestFromEnv();
+    logger.setVerbose(manifest.verbose === true);
 
     // If the manifest exists, we follow its 'action'
     // but we still allow positional overrides for standalone worker testing

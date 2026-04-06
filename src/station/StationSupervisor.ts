@@ -16,6 +16,7 @@ import { ProcessManager } from '../core/ProcessManager.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { type Command } from '../core/executors/types.js';
 import { getRepoConfig } from '../core/ConfigManager.js';
 import { runReviewPlaybook } from '../playbooks/review.js';
 import { runFixPlaybook } from '../playbooks/fix.js';
@@ -23,12 +24,6 @@ import { runReadyPlaybook } from '../playbooks/ready.js';
 import { type MissionManifest } from '../core/types.js';
 import { SessionManager } from '../utils/SessionManager.js';
 import { TempManager } from '../utils/TempManager.js';
-
-export interface Command {
-  bin: string;
-  args: string[];
-  options?: any;
-}
 
 /**
  * StationSupervisor: Remote host management layer.
@@ -63,15 +58,14 @@ export class StationSupervisor {
       const res = this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       if (res.status !== 0) {
         throw new Error(
-          `Git command failed: ${cmd.bin} ${args.join(' ')}\n` +
+          `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n` +
             `Status: ${res.status}\n` +
             `STDOUT: ${res.stdout}\n` +
             `STDERR: ${res.stderr}`,
         );
       }
+      return res;
     };
-
-    const args = ['-C', targetDir];
 
     const r = path.join(targetDir, '.git');
     if (fs.existsSync(r)) {
@@ -93,21 +87,13 @@ export class StationSupervisor {
       }
     }
 
-    const currentBranchCmd: Command = {
-      bin: 'git',
-      args: ['rev-parse', '--abbrev-ref', 'HEAD'],
-      options: { cwd: targetDir, quiet: true },
-    };
-    const currentBranchRes = this.pm.runSync(
-      currentBranchCmd.bin,
-      currentBranchCmd.args,
-      currentBranchCmd.options,
+    const currentBranchRes = run(
+      GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD'], {
+        quiet: true,
+      }),
     );
 
-    if (
-      (currentBranchRes.status === 0 ? currentBranchRes.stdout.trim() : '') ===
-      branch
-    ) {
+    if (currentBranchRes.stdout.trim() === branch) {
       console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }
@@ -125,11 +111,9 @@ export class StationSupervisor {
     }
 
     // 1. Check if branch already exists locally
-    const checkLocalCmd: Command = {
-      bin: 'git',
-      args: ['rev-parse', '--verify', branch],
-      options: { cwd: targetDir, quiet: true },
-    };
+    const checkLocalCmd = GitExecutor.verify(targetDir, branch, {
+      quiet: true,
+    });
     const localRes = this.pm.runSync(
       checkLocalCmd.bin,
       checkLocalCmd.args,
@@ -142,11 +126,9 @@ export class StationSupervisor {
     } else {
       // 2. Try to checkout from origin/branch if we successfully fetched it
       const remoteRef = `origin/${branch}`;
-      const checkRemoteCmd: Command = {
-        bin: 'git',
-        args: ['rev-parse', '--verify', remoteRef],
-        options: { cwd: targetDir, quiet: true },
-      };
+      const checkRemoteCmd = GitExecutor.verify(targetDir, remoteRef, {
+        quiet: true,
+      });
       const remoteRes = this.pm.runSync(
         checkRemoteCmd.bin,
         checkRemoteCmd.args,
@@ -155,19 +137,11 @@ export class StationSupervisor {
 
       if (remoteRes.status === 0) {
         console.log(`   - Creating branch '${branch}' from ${remoteRef}...`);
-        run({
-          bin: 'git',
-          args: ['checkout', '-b', branch, remoteRef],
-          options: { cwd: targetDir },
-        });
+        run(GitExecutor.checkoutNew(targetDir, branch, remoteRef));
       } else {
         // 3. Fallback: Create new branch from current HEAD
         console.log(`   - Creating new branch '${branch}' from HEAD...`);
-        run({
-          bin: 'git',
-          args: ['checkout', '-b', branch],
-          options: { cwd: targetDir },
-        });
+        run(GitExecutor.checkoutNew(targetDir, branch));
       }
     }
 
@@ -223,6 +197,7 @@ export class StationSupervisor {
       cwd: targetDir,
       env: {
         GCLI_ORBIT_MANIFEST: JSON.stringify(manifest),
+        GCLI_ORBIT_VERBOSE: manifest.verbose ? '1' : '0',
       },
     });
 

@@ -78,10 +78,10 @@ export class TmuxExecutor implements ITmuxExecutor {
     // 3. Execution Environment
     const envPrefix = env
       ? Object.entries(env)
-          .map(([k, v]) => `${k}='${v}'`)
+          .map(([k, v]) => `${k}=${TmuxExecutor.shellQuote(v)}`)
           .join(' ') + ' '
       : '';
-    const cdPrefix = cwd ? `cd '${cwd}' && ` : '';
+    const cdPrefix = cwd ? `cd ${TmuxExecutor.shellQuote(cwd)} && ` : '';
 
     // 4. Combined Launch Script
     // If command succeeds (exit 0), the session ends.
@@ -116,10 +116,10 @@ export class TmuxExecutor implements ITmuxExecutor {
     // Build the final command string to run inside tmux
     const envPrefix = env
       ? Object.entries(env)
-          .map(([k, v]) => `${k}='${v}'`)
+          .map(([k, v]) => `${k}=${TmuxExecutor.shellQuote(v)}`)
           .join(' ') + ' '
       : '';
-    const cdPrefix = cwd ? `cd '${cwd}' && ` : '';
+    const cdPrefix = cwd ? `cd ${TmuxExecutor.shellQuote(cwd)} && ` : '';
     const fullInner = `${cdPrefix}${envPrefix}${innerCommand}; exec zsh`;
 
     tmuxArgs.push(fullInner);
@@ -140,5 +140,12 @@ export class TmuxExecutor implements ITmuxExecutor {
       args: ['attach-session', '-t', sessionName],
       options: { interactive: true },
     };
+  }
+
+  /**
+   * Safe shell quoting for environment variables and paths.
+   */
+  private static shellQuote(val: string): string {
+    return `'${val.replace(/'/g, "'\\''")}'`;
   }
 }

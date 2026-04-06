@@ -48,6 +48,9 @@ describe('MissionManager', () => {
   let mockProvider: any;
   let providerFactory: Mocked<IProviderFactory>;
   let configManager: Mocked<IConfigManager>;
+  let mockPm: any;
+  let mockExecutors: any;
+  let mockStationRegistry: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -105,18 +108,18 @@ describe('MissionManager', () => {
         .mockReturnValue('https://github.com/test/test.git'),
     } as any;
 
-    const mockExecutors: any = {
+    mockExecutors = {
       node: {
         create: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
         createRemote: vi.fn().mockReturnValue({ bin: 'node', args: ['start'] }),
       },
     };
 
-    const mockStationRegistry: any = {
+    mockStationRegistry = {
       saveReceipt: vi.fn(),
     };
 
-    const mockPm: any = {
+    mockPm = {
       runSync: vi.fn().mockReturnValue({ status: 0, stdout: '', stderr: '' }),
     };
 
@@ -219,5 +222,32 @@ describe('MissionManager', () => {
       expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
       expect.any(Object),
     );
+  });
+
+  it('should propagate verbose flag to the manifest', async () => {
+    // Create manager with verbose infra
+    const verboseManager = new MissionManager(
+      { repoName: 'test-repo', repoRoot: '/tmp' } as any,
+      { projectId: 'p1', zone: 'z1', verbose: true } as any,
+      { onLog: vi.fn(), onProgress: vi.fn() } as any,
+      providerFactory,
+      configManager,
+      mockPm,
+      mockExecutors,
+      mockStationRegistry,
+    );
+
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+    });
+
+    const manifest = await verboseManager.resolve({
+      identifier: '123',
+      action: 'review',
+    });
+
+    expect(manifest.verbose).toBe(true);
   });
 });

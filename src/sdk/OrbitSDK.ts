@@ -72,6 +72,10 @@ export class DefaultObserver implements OrbitObserver {
   onDivider(title?: string): void {
     logger.divider(title);
   }
+
+  setVerbose(verbose: boolean): void {
+    logger.setVerbose(verbose);
+  }
 }
 
 /**
@@ -94,6 +98,8 @@ export class OrbitSDK implements IOrbitSDK {
 
     // Ensure logger uses the correct repo root for its stream
     logger.setRepoRoot(this.projectCtx.repoRoot);
+    logger.setVerbose(context.infra.verbose === true);
+    this.observer.setVerbose?.(context.infra.verbose === true);
 
     // Foundation
     const processManager = new ProcessManager();

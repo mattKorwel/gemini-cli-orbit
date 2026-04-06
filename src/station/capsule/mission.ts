@@ -39,6 +39,7 @@ const _dirname = getDirname();
 export async function main(pm: IProcessManager = new ProcessManager()) {
   // ADR 0018: Hydrate context from environment manifest
   const manifest = getManifestFromEnv();
+  logger.setVerbose(manifest.verbose === true);
   const { identifier, action, workDir, policyPath } = manifest;
 
   const absWorkDir = path.resolve(workDir);

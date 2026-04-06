@@ -91,6 +91,30 @@ export class GitExecutor implements IGitExecutor {
     };
   }
 
+  public static revParse(
+    cwd: string,
+    args: string[],
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'git',
+      args: ['rev-parse', ...args],
+      options: { ...options, cwd },
+    };
+  }
+
+  public static verify(
+    cwd: string,
+    ref: string,
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'git',
+      args: ['rev-parse', '--verify', ref],
+      options: { ...options, cwd },
+    };
+  }
+
   public static checkout(
     cwd: string,
     branch: string,
@@ -99,6 +123,22 @@ export class GitExecutor implements IGitExecutor {
     return {
       bin: 'git',
       args: ['checkout', branch],
+      options: { ...options, cwd },
+    };
+  }
+
+  public static checkoutNew(
+    cwd: string,
+    branch: string,
+    base?: string,
+    options: IRunOptions = {},
+  ): Command {
+    const args = base
+      ? ['checkout', '-b', branch, base]
+      : ['checkout', '-b', branch];
+    return {
+      bin: 'git',
+      args,
       options: { ...options, cwd },
     };
   }

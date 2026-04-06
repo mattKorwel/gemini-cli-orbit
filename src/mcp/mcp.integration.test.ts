@@ -125,8 +125,8 @@ describe('MCP Server Integration', () => {
         }),
       );
       expect(mockStartMission).toHaveBeenCalled();
-      expect(result.content[0].type).toBe('text');
-      expect((result.content[0] as any).text).toContain(
+      expect((result.content as any)[0].type).toBe('text');
+      expect((result.content as any)[0].text).toContain(
         'Mission: test-mission',
       );
     });
@@ -144,7 +144,7 @@ describe('MCP Server Integration', () => {
           branch: 'feat-1',
         }),
       );
-      expect((result.content[0] as any).text).toContain('Status: PASSED');
+      expect((result.content as any)[0].text).toContain('Status: PASSED');
     });
 
     it('should call mission_jettison correctly', async () => {
@@ -193,7 +193,7 @@ describe('MCP Server Integration', () => {
       });
 
       expect(mockListSchematics).toHaveBeenCalled();
-      expect((result.content[0] as any).text).toContain('test-s (p)');
+      expect((result.content as any)[0].text).toContain('test-s (p)');
     });
   });
 
@@ -240,7 +240,7 @@ describe('MCP Server Integration', () => {
           threshold: 12,
         }),
       );
-      expect((result.content[0] as any).text).toContain('Reaped missions: 2');
+      expect((result.content as any)[0].text).toContain('Reaped missions: 2');
     });
   });
 });

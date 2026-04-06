@@ -24,8 +24,36 @@ describe('MissionUtils', () => {
     expect(ctx.idSlug).toBe('123-debug');
   });
 
-  it('should resolve PR metadata using only the base ID', () => {
-    const ctx = resolveMissionContext('123', 'gemini-cli-orbit');
+  it('should resolve PR metadata using GH CLI for numeric IDs', () => {
+    const mockPm = {
+      runSync: vi.fn().mockReturnValue({
+        status: 0,
+        stdout: JSON.stringify({ headRefName: 'feature-branch' }),
+      }),
+    };
+
+    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm as any);
+
+    expect(mockPm.runSync).toHaveBeenCalledWith(
+      'gh',
+      ['pr', 'view', '123', '--json', 'headRefName'],
+      expect.objectContaining({ quiet: true }),
+    );
+
+    expect(ctx.branchName).toBe('feature-branch');
+    expect(ctx.idSlug).toBe('123');
+  });
+
+  it('should fallback to ID as branch name if GH CLI fails', () => {
+    const mockPm = {
+      runSync: vi.fn().mockReturnValue({
+        status: 1,
+        stderr: 'error',
+      }),
+    };
+
+    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm as any);
+
     expect(ctx.branchName).toBe('123');
     expect(ctx.idSlug).toBe('123');
   });

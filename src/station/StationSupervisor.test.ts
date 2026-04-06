@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StationSupervisor } from './StationSupervisor.js';
 import fs from 'node:fs';
 import { ProcessManager } from '../core/ProcessManager.js';
+import { GitExecutor } from '../core/executors/GitExecutor.js';
 
 vi.mock('node:fs');
 vi.mock('node:path', async () => {
@@ -18,6 +19,8 @@ vi.mock('node:path', async () => {
   };
 });
 vi.mock('../core/ProcessManager.js');
+
+// Mock GitExecutor
 vi.mock('../core/executors/GitExecutor.js', () => ({
   GitExecutor: {
     init: vi.fn().mockReturnValue({ bin: 'git', args: ['init'] }),
@@ -27,13 +30,30 @@ vi.mock('../core/executors/GitExecutor.js', () => ({
     }),
     fetch: vi.fn().mockReturnValue({ bin: 'git', args: ['fetch'] }),
     checkout: vi.fn().mockReturnValue({ bin: 'git', args: ['checkout'] }),
+    revParse: vi.fn().mockReturnValue({ bin: 'git', args: ['rev-parse'] }),
+    verify: vi
+      .fn()
+      .mockReturnValue({ bin: 'git', args: ['rev-parse', '--verify'] }),
+    checkoutNew: vi
+      .fn()
+      .mockReturnValue({ bin: 'git', args: ['checkout', '-b'] }),
   },
 }));
+
 vi.mock('../core/executors/NodeExecutor.js', () => ({
   NodeExecutor: {
     create: vi.fn().mockReturnValue({ bin: 'node', args: ['entrypoint.js'] }),
   },
 }));
+
+vi.mock('../core/executors/TmuxExecutor.js', () => ({
+  TmuxExecutor: vi.fn().mockImplementation(() => ({
+    wrapMission: vi
+      .fn()
+      .mockReturnValue({ bin: 'tmux', args: ['new-session'] }),
+  })),
+}));
+
 vi.mock('../core/ConfigManager.js', () => ({
   getRepoConfig: vi.fn().mockReturnValue({}),
   getPrimaryRepoRoot: vi.fn().mockReturnValue('/tmp/repo'),
@@ -80,16 +100,30 @@ describe('StationSupervisor', () => {
       mirrorPath: '/mnt/disks/data/main',
     });
 
-    expect(mockPm.runSync).toHaveBeenCalledWith(
-      'git',
-      expect.arrayContaining(['init']),
-      undefined,
-    );
-    expect(mockPm.runSync).toHaveBeenCalledWith(
-      'git',
-      expect.arrayContaining(['remote', 'add', 'origin']),
-      undefined,
-    );
+    expect(GitExecutor.init).toHaveBeenCalled();
+    expect(GitExecutor.remoteAdd).toHaveBeenCalled();
+    expect(mockPm.runSync).toHaveBeenCalledTimes(6);
+  });
+
+  it('initGit throws a helpful error on failure', async () => {
+    (fs.existsSync as any).mockReturnValue(false);
+
+    mockPm.runSync.mockReturnValueOnce({
+      status: 128,
+      stdout: '',
+      stderr: 'Permission denied',
+    });
+
+    await expect(
+      manager.initGit({
+        identifier: 'test-id',
+        repoName: 'test-repo',
+        branchName: 'feat-test',
+        action: 'review',
+        workDir: '/test/dir',
+        upstreamUrl: 'https://github.com/org/repo.git',
+      } as any),
+    ).rejects.toThrow(/Git command failed: git init/);
   });
 
   it('setupHooks configures the workspace', async () => {
@@ -141,5 +175,40 @@ describe('StationSupervisor', () => {
     expect(initSpy).toHaveBeenCalledWith(manifest);
     expect(hooksSpy).toHaveBeenCalledWith(manifest);
     expect(runSpy).toHaveBeenCalledWith(manifest);
+  });
+
+  it('runMission injects GCLI_ORBIT_VERBOSE if manifest.verbose is true', async () => {
+    const manifest = {
+      identifier: 'test-id',
+      repoName: 'test-repo',
+      branchName: 'feat-test',
+      action: 'chat',
+      workDir: '/test/dir',
+      containerName: 'orbit-test-repo-test-id',
+      policyPath: '/test/policy',
+      sessionName: 'orbit/test/id',
+      upstreamUrl: 'https://github.com/org/repo.git',
+      verbose: true,
+    };
+
+    const mockTmux = {
+      wrapMission: vi
+        .fn()
+        .mockReturnValue({ bin: 'tmux', args: ['new-session'], options: {} }),
+    };
+    (manager as any).tmux = mockTmux;
+    mockPm.runSync.mockReturnValue({ status: 0 });
+
+    await manager.runMission(manifest);
+
+    expect(mockTmux.wrapMission).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          GCLI_ORBIT_VERBOSE: '1',
+        }),
+      }),
+    );
   });
 });

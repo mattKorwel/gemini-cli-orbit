@@ -15,6 +15,7 @@ export interface OrbitObserver {
   onProgress?(phase: string, message: string, progress?: number): void;
   onLog?(level: LogLevel, tag: string, message: string, ...args: any[]): void;
   onDivider?(title?: string): void;
+  setVerbose?(verbose: boolean): void;
 }
 
 /**
@@ -86,6 +87,7 @@ export interface MissionManifest {
   sessionName: string; // The user-friendly hierarchical session name
   upstreamUrl: string; // The git remote origin URL
   mirrorPath?: string; // Optional path to local git mirror
+  verbose?: boolean | undefined; // Whether to enable detailed logging
 }
 
 /**

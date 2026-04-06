@@ -93,6 +93,7 @@ export class MissionManager {
       policyPath,
       upstreamUrl,
       mirrorPath: provider.resolveMirrorPath(),
+      verbose: this.infra.verbose,
     };
   }
 

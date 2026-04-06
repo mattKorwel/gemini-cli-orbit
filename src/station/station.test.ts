@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { main } from './station.js';
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { logger } from '../core/Logger.js';
 
 vi.mock('./StationSupervisor.js');
 vi.mock('./StatusAggregator.js');
@@ -78,5 +79,20 @@ describe('worker main', () => {
     expect(mockStation.runMission).toHaveBeenCalledWith(
       expect.objectContaining({ identifier: '123' }),
     );
+  });
+
+  it('should hydrate logger verbosity from manifest', async () => {
+    vi.stubEnv(
+      'GCLI_ORBIT_MANIFEST',
+      JSON.stringify({ ...mockManifest, verbose: true }),
+    );
+    const mockStation = { start: vi.fn().mockResolvedValue(0) };
+    (StationSupervisor as any).mockImplementation(() => mockStation);
+
+    const setVerboseSpy = vi.spyOn(logger, 'setVerbose');
+
+    await main(['start']);
+
+    expect(setVerboseSpy).toHaveBeenCalledWith(true);
   });
 });
