@@ -5,6 +5,8 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import {
   type InfrastructureSpec,
   type ProjectContext,
@@ -162,7 +164,10 @@ export class MissionManager {
       '📂 Synchronizing project configurations...',
     );
 
-    // Lazy Sync Project Configs (.gemini)
+    // 1. Sync global user settings (Auth, etc.)
+    await provider.syncGlobalConfig();
+
+    // 2. Lazy Sync Project Configs (.gemini)
     const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
     const targetConfigDir = provider.resolveProjectConfigDir();
     await provider.syncIfChanged(`${localConfigDir}/`, targetConfigDir, {
@@ -170,7 +175,36 @@ export class MissionManager {
     });
 
     // 5. Mission Preparation (Hardware/Container Layer)
-    await provider.prepareMissionWorkspace(mCtx, this.infra);
+    // Gather sensitive credentials from local environment
+    const sensitiveEnv: Record<string, string> = {};
+    const creds = ['GH_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY'];
+    creds.forEach((key) => {
+      if (process.env[key]) sensitiveEnv[key] = process.env[key]!;
+    });
+
+    // ADR: Also try to extract token from gh hosts.yml if not in env
+    if (!sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
+      try {
+        const ghConfigPath = path.join(os.homedir(), '.config/gh/hosts.yml');
+        if (fs.existsSync(ghConfigPath)) {
+          const content = fs.readFileSync(ghConfigPath, 'utf8');
+          const match = content.match(/oauth_token:\s+([^\s\n]+)/);
+          if (match && match[1]) {
+            sensitiveEnv.GH_TOKEN = match[1];
+          }
+        }
+      } catch (_e) {
+        // Fallback or skip
+      }
+    }
+
+    await provider.prepareMissionWorkspace(mCtx, {
+      ...this.infra,
+      sensitiveEnv: {
+        ...(this.infra as any).sensitiveEnv,
+        ...sensitiveEnv,
+      },
+    } as any);
 
     // 6. Worker Handshake (Phases: Init, Hooks, Launch)
     this.observer.onProgress?.(
@@ -180,11 +214,16 @@ export class MissionManager {
 
     const workerPath = provider.resolveWorkerPath();
 
+    // Give the container a moment to settle and mounts to stabilize
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
     const startCmd = provider.createNodeCommand(workerPath, ['start']);
     const startRes = await provider.getMissionExecOutput(startCmd, mCtx, {
       interactive: false,
       manifest,
+      env: sensitiveEnv,
+      sensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
     });
 
     if (startRes.status !== 0) {

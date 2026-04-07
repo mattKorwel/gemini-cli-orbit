@@ -160,7 +160,18 @@ export const LOCAL_BUNDLE_PATH = path.join(EXTENSION_ROOT, 'bundle');
 /**
  * Configuration Paths (Global)
  */
-export const GLOBAL_ORBIT_DIR = path.join(os.homedir(), '.gemini/orbit');
+export const GLOBAL_GEMINI_DIR = path.join(os.homedir(), '.gemini');
+export const GLOBAL_SETTINGS_FILE = path.join(
+  GLOBAL_GEMINI_DIR,
+  'settings.json',
+);
+export const GLOBAL_ACCOUNTS_FILE = path.join(
+  GLOBAL_GEMINI_DIR,
+  'google_accounts.json',
+);
+export const GLOBAL_GH_CONFIG = path.join(os.homedir(), '.config/gh/hosts.yml');
+
+export const GLOBAL_ORBIT_DIR = path.join(GLOBAL_GEMINI_DIR, 'orbit');
 export const GLOBAL_SETTINGS_PATH = path.join(
   GLOBAL_ORBIT_DIR,
   'settings.json',

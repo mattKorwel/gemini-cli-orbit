@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import os from 'node:os';
 import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
@@ -81,6 +82,10 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   override resolveProjectConfigDir(): string {
     return path.join(this.projectCtx.repoRoot, '.gemini');
+  }
+
+  override resolveGlobalConfigDir(): string {
+    return path.join(os.homedir(), '.gemini');
   }
 
   override resolvePolicyPath(repoRoot: string): string {

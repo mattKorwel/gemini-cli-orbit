@@ -155,6 +155,11 @@ export class RemoteProvisioner {
             capsule: '/home/node/.gemini',
             readonly: false,
           },
+          {
+            host: `${ORBIT_ROOT}/gemini-cli-config/.config/gh`,
+            capsule: '/home/node/.config/gh',
+            readonly: false,
+          },
           // RAM-disk secret mount (ADR 14)
           {
             host: secretPath,

@@ -251,6 +251,18 @@ export abstract class BaseProvider {
   abstract provisionMirror(remoteUrl: string): Promise<number>;
 
   /**
+   * Returns the absolute path to the global user configuration directory (~/.gemini) in this environment.
+   */
+  abstract resolveGlobalConfigDir(): string;
+
+  /**
+   * Synchronizes global user configurations (settings, auth) to the station.
+   */
+  async syncGlobalConfig(): Promise<number> {
+    return 0;
+  }
+
+  /**
    * Drops into a raw interactive shell on the hardware host.
    */
   abstract stationShell(): Promise<number>;

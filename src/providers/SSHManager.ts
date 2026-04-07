@@ -167,7 +167,10 @@ export class GceSSHManager implements SSHManager {
     }
 
     dockerArgs.push(container);
-    dockerArgs.push(cmd.bin, ...cmd.args);
+
+    // Wrap the command in bash -c to ensure environment and paths are handled correctly
+    const innerCmd = `${cmd.bin} ${cmd.args.join(' ')}`;
+    dockerArgs.push('/bin/bash', '-c', this.quote(innerCmd));
 
     const dockerCmd: RemoteCommand = {
       bin: 'sudo docker',

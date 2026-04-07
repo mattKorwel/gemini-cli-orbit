@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { BaseProvider } from './BaseProvider.js';
 import {
@@ -26,6 +27,10 @@ import {
   MAIN_REPO_PATH,
   BUNDLE_PATH,
   LOCAL_BUNDLE_PATH,
+  CONFIG_DIR,
+  GLOBAL_SETTINGS_FILE,
+  GLOBAL_ACCOUNTS_FILE,
+  GLOBAL_GH_CONFIG,
 } from '../core/Constants.js';
 import {
   type MissionContext,
@@ -111,6 +116,42 @@ export class GceCosProvider extends BaseProvider {
     return `${ORBIT_ROOT}/project-configs`;
   }
 
+  override resolveGlobalConfigDir(): string {
+    return CONFIG_DIR;
+  }
+
+  override async syncGlobalConfig(): Promise<number> {
+    const targetDir = this.resolveGlobalConfigDir();
+
+    // 1. Sync settings.json (Auth methods, colors, etc.)
+    if (fs.existsSync(GLOBAL_SETTINGS_FILE)) {
+      await this.sync(GLOBAL_SETTINGS_FILE, targetDir, {
+        sudo: true,
+        quiet: true,
+      });
+    }
+
+    // 2. Sync google_accounts.json (Secure credentials)
+    if (fs.existsSync(GLOBAL_ACCOUNTS_FILE)) {
+      await this.sync(GLOBAL_ACCOUNTS_FILE, targetDir, {
+        sudo: true,
+        quiet: true,
+      });
+    }
+
+    // 3. Sync GitHub CLI config (hosts.yml)
+    if (fs.existsSync(GLOBAL_GH_CONFIG)) {
+      const ghTargetDir = `${ORBIT_ROOT}/gemini-cli-config/.config/gh`;
+      await this.exec(`sudo mkdir -p ${ghTargetDir}`, { quiet: true });
+      await this.sync(GLOBAL_GH_CONFIG, ghTargetDir, {
+        sudo: true,
+        quiet: true,
+      });
+    }
+
+    return 0;
+  }
+
   override resolvePolicyPath(_repoRoot: string): string {
     return `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
   }
@@ -178,6 +219,7 @@ export class GceCosProvider extends BaseProvider {
         this.resolveWorkspacesRoot(),
         this.resolveMirrorPath(),
         this.resolveProjectConfigDir(),
+        this.resolveGlobalConfigDir(),
         `${ORBIT_ROOT}/tmp`,
       ];
       const setupRes = await this.exec(
@@ -329,6 +371,11 @@ export class GceCosProvider extends BaseProvider {
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
       remoteCmd.env!.PATH = capsulePath;
 
+      // ADR: Propagate sensitive credentials into the exec environment
+      if (mergedOptions.sensitiveEnv) {
+        Object.assign(remoteCmd.env!, mergedOptions.sensitiveEnv);
+      }
+
       return this.ssh.runDockerExec(
         mergedOptions.isolationId,
         remoteCmd,
@@ -467,8 +514,15 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async attach(identifier: string): Promise<number> {
+    // If identifier already includes the repo slug, don't double-prefix it
+    const cleanId = identifier.startsWith(`${this.projectCtx.repoName}-`)
+      ? identifier.replace(`${this.projectCtx.repoName}-`, '')
+      : identifier.startsWith(`${this.projectCtx.repoName}/`)
+        ? identifier.replace(`${this.projectCtx.repoName}/`, '')
+        : identifier;
+
     const { repoSlug, idSlug, action, containerName } = resolveMissionContext(
-      identifier,
+      cleanId,
       this.projectCtx.repoName,
       this.pm,
     );
