@@ -208,7 +208,7 @@ export class OrbitSDK implements IOrbitSDK {
       states.forEach((s) => {
         if (s.reality) {
           s.reality.missions = s.reality.missions.filter(
-            (m) => regex.test(m.name) || regex.test(m.mission || ''),
+            (m) => regex.test(m.name) || (m.mission && regex.test(m.mission)),
           );
         }
       });

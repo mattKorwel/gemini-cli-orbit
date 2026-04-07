@@ -99,7 +99,12 @@ describe('Mission Bridge Integration', () => {
     // This test ensures that the SDK -> Provider -> Station -> Mission -> Gemini flow
     // is consistent and that the manifest is correctly preserved through the entire pipeline.
 
-    const recordedCommands: { bin: string; args: string[]; env: any }[] = [];
+    const recordedCommands: {
+      bin: string;
+      args: string[];
+      env: any;
+      host: string;
+    }[] = [];
     const executionPromises: Promise<any>[] = [];
 
     // The "System" PM represents the hardware.
@@ -116,14 +121,19 @@ describe('Mission Bridge Integration', () => {
           if (typeof innerCmd === 'string') {
             const parts = innerCmd.split(' ');
             recordedCommands.push({
-              bin: parts[0],
+              bin: parts[0] || 'ssh',
               args: parts.slice(1),
               env: {},
               host: 'remote',
             });
           }
         } else {
-          recordedCommands.push({ bin, args, env: options?.env || {}, host });
+          recordedCommands.push({
+            bin: bin || 'unknown',
+            args,
+            env: options?.env || {},
+            host,
+          });
         }
 
         // --- Mock Logic ---

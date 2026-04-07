@@ -316,6 +316,7 @@ export class MissionManager {
       branchName,
       repoSlug,
       idSlug,
+      action: 'chat', // Fixed missionShell always starts a chat session
       workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
       containerName: provider.resolveContainerName(repoSlug, idSlug, 'chat'),
       sessionName: provider.resolveSessionName(repoSlug, idSlug, 'chat'),

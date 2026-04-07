@@ -100,25 +100,33 @@ export async function beforeTool(input: any) {
 }
 
 // Entry point for command-line hooks
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+  import.meta.url === `file://${process.argv[1]}` ||
+  (process.argv[1] && process.argv[1].endsWith('hooks.js'))
+) {
   const event = process.env.GEMINI_HOOK_EVENT;
   const inputPath = process.env.GEMINI_HOOK_INPUT;
 
   if (event && inputPath && fs.existsSync(inputPath)) {
-    const input = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
-    switch (event) {
-      case 'BeforeAgent':
-        beforeAgent(input);
-        break;
-      case 'AfterAgent':
-        afterAgent(input);
-        break;
-      case 'BeforeTool':
-        beforeTool(input);
-        break;
-      case 'Notification':
-        notification(input);
-        break;
+    try {
+      const input = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+      // Optional: fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Hook: ${event}\n`);
+      switch (event) {
+        case 'BeforeAgent':
+          beforeAgent(input);
+          break;
+        case 'AfterAgent':
+          afterAgent(input);
+          break;
+        case 'BeforeTool':
+          beforeTool(input);
+          break;
+        case 'Notification':
+          notification(input);
+          break;
+      }
+    } catch (e) {
+      // fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Error: ${e}\n`);
     }
   }
 }

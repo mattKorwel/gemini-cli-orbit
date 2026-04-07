@@ -274,11 +274,20 @@ export abstract class BaseProvider {
       const legacyState = await this.resolveLegacyCapsuleState(containerName);
 
       if (missionState) {
-        // If the worker says IDLE but the provider sees activity, prefer the provider
-        const finalState =
-          missionState.status === 'IDLE' && legacyState !== 'IDLE'
-            ? legacyState
-            : missionState.status;
+        // State Hierarchy:
+        // 1. If worker explicitly says WAITING_FOR_APPROVAL, trust it (Notification hook)
+        // 2. If provider sees an approval prompt in the terminal, upgrade it
+        // 3. Otherwise, use worker status unless it says IDLE and provider sees activity
+        let finalState = missionState.status as CapsuleInfo['state'];
+
+        if (
+          legacyState === 'WAITING_FOR_APPROVAL' ||
+          legacyState === 'WAITING_FOR_INPUT'
+        ) {
+          finalState = legacyState;
+        } else if (finalState === 'IDLE' && legacyState !== 'IDLE') {
+          finalState = legacyState;
+        }
 
         capsules.push({
           name: containerName,
@@ -287,7 +296,11 @@ export abstract class BaseProvider {
           lastThought:
             missionState.last_thought ||
             (peek ? await this.capturePane(containerName) : undefined),
-          blocker: missionState.blocker,
+          blocker:
+            missionState.blocker ||
+            (finalState === 'WAITING_FOR_APPROVAL'
+              ? 'Approval needed for tool execution'
+              : undefined),
           progress: missionState.progress,
           pendingTool: missionState.pending_tool,
           lastQuestion: missionState.last_question,
@@ -298,6 +311,10 @@ export abstract class BaseProvider {
           state: legacyState,
           stats,
           lastThought: peek ? await this.capturePane(containerName) : undefined,
+          blocker:
+            legacyState === 'WAITING_FOR_APPROVAL'
+              ? 'Approval needed for tool execution'
+              : undefined,
         });
       }
     }

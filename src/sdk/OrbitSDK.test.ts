@@ -74,8 +74,10 @@ describe('OrbitSDK', () => {
       });
 
       expect(results).toHaveLength(1);
-      expect(results[0].reality!.missions).toHaveLength(1);
-      expect(results[0].reality!.missions[0].name).toBe('m2-fix');
+      const reality = results[0]?.reality;
+      expect(reality).toBeDefined();
+      expect(reality?.missions).toHaveLength(1);
+      expect(reality?.missions?.[0]?.name).toBe('m2-fix');
     });
 
     it('returns empty array if no missions match filter', async () => {

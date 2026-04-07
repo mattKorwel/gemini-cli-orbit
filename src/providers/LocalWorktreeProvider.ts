@@ -397,7 +397,7 @@ export class LocalWorktreeProvider extends BaseProvider {
         return true;
       });
 
-    return lines.slice(-8).join('\n');
+    return lines.slice(-20).join('\n');
   }
 
   async listStations(): Promise<number> {
@@ -490,8 +490,12 @@ export class LocalWorktreeProvider extends BaseProvider {
       const thoughts = await this.capturePane(bestMatch);
       const lines = thoughts.trim().split('\n');
 
-      // Check last few lines for prompt indicators
-      const lastFew = lines.slice(-5).join(' ');
+      // Check last few lines for prompt indicators (larger window for boxes/multi-line prompts)
+      const lastFew = lines.slice(-15).join(' ');
+
+      if (lastFew.toLowerCase().includes('allow execution')) {
+        return 'WAITING_FOR_APPROVAL';
+      }
 
       const isWaiting =
         lastFew.includes('❯') ||
@@ -499,7 +503,6 @@ export class LocalWorktreeProvider extends BaseProvider {
         lastFew.includes('%') ||
         lastFew.includes('>') ||
         lastFew.includes('(y/n)') ||
-        lastFew.includes('Allow execution') ||
         lastFew.trim().endsWith('?');
 
       return isWaiting ? 'WAITING_FOR_INPUT' : 'THINKING';

@@ -33,6 +33,7 @@ export interface MissionResult {
 export interface CapsuleInfo {
   name: string;
   repo?: string;
+  mission?: string;
   state:
     | 'IDLE'
     | 'WAITING'
@@ -42,11 +43,11 @@ export interface CapsuleInfo {
     | 'COMPLETED'
     | 'UNKNOWN';
   stats?: any;
-  lastThought?: string;
-  blocker?: string;
-  progress?: string;
-  pendingTool?: string;
-  lastQuestion?: string;
+  lastThought?: string | undefined;
+  blocker?: string | undefined;
+  progress?: string | undefined;
+  pendingTool?: string | undefined;
+  lastQuestion?: string | undefined;
 }
 
 /**
@@ -152,6 +153,7 @@ export interface ListStationsOptions {
   nameFilter?: string | undefined;
   missionFilter?: string | undefined;
   peek?: boolean | undefined;
+  all?: boolean | undefined;
 }
 
 /**
