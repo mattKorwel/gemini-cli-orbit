@@ -52,7 +52,7 @@ export class MissionManager {
    * Stage 2 Hydration: Resolves user intent into a concrete MissionManifest.
    */
   async resolve(options: MissionOptions): Promise<MissionManifest> {
-    const { identifier, action } = options;
+    const { identifier: rawIdentifier, action: rawAction } = options;
 
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
@@ -60,11 +60,15 @@ export class MissionManager {
     );
 
     // 1. Resolve Raw Metadata
-    const { branchName, repoSlug, idSlug } = resolveMissionContext(
-      identifier,
-      this.projectCtx.repoName,
-      this.pm,
-    );
+    const {
+      branchName,
+      repoSlug,
+      idSlug,
+      action: resolvedAction,
+    } = resolveMissionContext(rawIdentifier, this.projectCtx.repoName, this.pm);
+
+    const action = rawAction === 'chat' ? resolvedAction : rawAction;
+    const identifier = idSlug;
 
     const workspaceName = provider.resolveWorkspaceName(repoSlug, idSlug);
     const containerName = provider.resolveContainerName(
@@ -86,6 +90,7 @@ export class MissionManager {
       repoName: this.projectCtx.repoName,
       branchName,
       action,
+      workspaceName,
       workDir,
       containerName,
       sessionName,
@@ -255,25 +260,25 @@ export class MissionManager {
       this.infra as any,
     );
 
-    const action = options.action || 'chat';
-
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'MISSION',
-      `👋 Resuming existing '${action}' for ${options.identifier}...`,
-    );
-
     // 1. Calculate canonical session name via Provider Hook
-    const { repoSlug, idSlug } = resolveMissionContext(
+    const {
+      repoSlug,
+      idSlug,
+      action: resolvedAction,
+    } = resolveMissionContext(
       options.identifier,
       this.projectCtx.repoName,
       this.pm,
     );
-    const sessionName = provider.resolveSessionName(
-      repoSlug,
-      idSlug,
-      options.action || 'chat',
+    const action = options.action || resolvedAction;
+
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'MISSION',
+      `👋 Resuming existing '${action}' for ${idSlug}...`,
     );
+
+    const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
     // 2. Try direct attach to canonical name first
     const directRes = await provider.attach(sessionName);

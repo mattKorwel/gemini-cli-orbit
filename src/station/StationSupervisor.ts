@@ -79,13 +79,16 @@ export class StationSupervisor {
       }
     }
 
-    const currentBranchRes = run(
-      GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD'], {
-        quiet: true,
-      }),
+    const currentBranchRes = this.pm.runSync(
+      'git',
+      ['-C', targetDir, 'rev-parse', '--abbrev-ref', 'HEAD'],
+      { quiet: true },
     );
 
-    if (currentBranchRes.stdout.trim() === branch) {
+    if (
+      currentBranchRes.status === 0 &&
+      currentBranchRes.stdout.trim() === branch
+    ) {
       console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }

@@ -83,6 +83,7 @@ export interface MissionManifest {
   repoName: string; // The sanitized repository name
   branchName: string; // The resolved git branch
   action: string; // The playbook action (chat, fix, review, etc.)
+  workspaceName: string; // The hierarchical workspace identifier (relative path)
   workDir: string; // The absolute path to the workspace
   containerName: string; // The name of the mission container
   policyPath: string; // The absolute path to the active policy

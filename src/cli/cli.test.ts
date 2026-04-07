@@ -128,6 +128,9 @@ vi.mock('../core/ConfigManager.js', () => ({
   loadJson: vi.fn().mockReturnValue({}),
   saveSettings: vi.fn(),
   saveSchematic: vi.fn(),
+  sanitizeName: vi.fn((n: string) =>
+    n.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
+  ),
 }));
 
 // Mock ContextResolver to return a valid context immediately

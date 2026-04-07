@@ -4,10 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { sanitizeName } from '../core/ConfigManager.js';
 import { type MissionManifest } from '../core/types.js';
-import { type IProcessManager } from '../core/interfaces.js';
-import { ProcessManager } from '../core/ProcessManager.js';
+import {
+  type IProcessManager,
+  type IProcessResult,
+} from '../core/interfaces.js';
+import {
+  CAPSULE_MANIFEST_PATH,
+  LOCAL_MANIFEST_NAME,
+} from '../core/Constants.js';
 
 export interface MissionContext {
   branchName: string;
@@ -20,75 +28,90 @@ export interface MissionContext {
 }
 
 /**
- * Resolves PR/Issue metadata and extracts raw naming components.
- * This is the PURE METADATA source for Orbit missions.
+ * Resolves mission context (slugs and names) based on identifier.
  */
 export function resolveMissionContext(
   identifier: string,
   repoName: string,
-  pm: IProcessManager = new ProcessManager(),
-): { branchName: string; repoSlug: string; idSlug: string } {
-  const parts = identifier.split(':');
-  const prId = parts[0]!;
-  const suffix = parts.length > 1 ? parts.slice(1).join('-') : undefined;
+  pm: IProcessManager,
+): MissionContext {
+  const repoSlug = sanitizeName(repoName);
 
-  let branchName = prId;
-
-  // Try to resolve PR branch name via GH CLI if identifier is numeric
-  if (/^\d+$/.test(prId)) {
-    try {
-      const res = pm.runSync(
-        'gh',
-        ['pr', 'view', prId, '--json', 'headRefName'],
-        {
-          quiet: true,
-        },
-      );
-      if (res.status === 0 && res.stdout.trim()) {
-        const data = JSON.parse(res.stdout);
-        branchName = data.headRefName;
-      }
-    } catch (_e) {
-      // Fallback
+  // 1. Resolve branch name if identifier is numeric
+  const [idPart, actionPart] = identifier.split(':');
+  let branchName = idPart;
+  if (/^\d+$/.test(idPart)) {
+    const res: IProcessResult = pm.runSync('gh', [
+      'pr',
+      'view',
+      idPart,
+      '--json',
+      'headRefName',
+      '--template',
+      '{{.headRefName}}',
+    ]);
+    if (res.status === 0) {
+      branchName = res.stdout.toString().trim();
     }
   }
 
-  const sBranch = sanitizeName(branchName);
-  const sId = sanitizeName(prId);
-  const sSuffix = suffix ? `-${sanitizeName(suffix)}` : '';
-
-  // Total Preservation: No pruning or prefixing here.
-  const repoSlug = sanitizeName(repoName);
-  const idSlug = `${sId}${sSuffix}`;
+  // 2. Handle id:action suffix (e.g. 123:review)
+  const action = actionPart || 'chat';
+  const idSlug = sanitizeName(idPart || 'mission');
 
   return {
-    branchName: sBranch,
+    branchName,
     repoSlug,
     idSlug,
+    action,
+    workspaceName: path.join(repoSlug, idSlug),
+    containerName:
+      action === 'chat'
+        ? `${repoSlug}-${idSlug}`
+        : `${repoSlug}-${idSlug}-${action}`,
+    sessionName:
+      action === 'chat'
+        ? `${repoSlug}/${idSlug}`
+        : `${repoSlug}/${idSlug}/${action}`,
   };
 }
 
 /**
- * Serializes a manifest for environment injection.
+ * Unified loader for Mission Manifests.
+ * Prioritizes local worktree manifest, then global capsule manifest.
  */
-export function serializeManifest(manifest: MissionManifest): string {
-  return JSON.stringify(manifest);
+export function getMissionManifest(): MissionManifest {
+  // 1. Try local worktree manifest (./.orbit-manifest.json)
+  const localManifest = path.resolve(process.cwd(), LOCAL_MANIFEST_NAME);
+  if (fs.existsSync(localManifest)) {
+    try {
+      return JSON.parse(fs.readFileSync(localManifest, 'utf8'));
+    } catch (e: any) {
+      throw new Error(`❌ Failed to parse local manifest: ${e.message}`, {
+        cause: e,
+      });
+    }
+  }
+
+  // 2. Try global capsule manifest (/home/node/.orbit-manifest.json)
+  if (fs.existsSync(CAPSULE_MANIFEST_PATH)) {
+    try {
+      return JSON.parse(fs.readFileSync(CAPSULE_MANIFEST_PATH, 'utf8'));
+    } catch (e: any) {
+      throw new Error(`❌ Failed to parse capsule manifest: ${e.message}`, {
+        cause: e,
+      });
+    }
+  }
+
+  throw new Error(
+    `❌ Mission manifest not found. Looked in ${localManifest} and ${CAPSULE_MANIFEST_PATH}`,
+  );
 }
 
 /**
- * Retrieves and parses the mission manifest from the environment.
+ * @deprecated Use getMissionManifest() instead
  */
 export function getManifestFromEnv(): MissionManifest {
-  const raw = process.env.GCLI_ORBIT_MANIFEST;
-  if (!raw) {
-    throw new Error('❌ Missing GCLI_ORBIT_MANIFEST environment variable.');
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed as MissionManifest;
-  } catch (e: any) {
-    throw new Error(`❌ Failed to parse mission manifest: ${e.message}`, {
-      cause: e,
-    });
-  }
+  return getMissionManifest();
 }

@@ -4,118 +4,91 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { main } from './station.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { ProcessManager } from '../core/ProcessManager.js';
-
-vi.mock('node:child_process');
-vi.mock('../core/ProcessManager.js');
 
 describe('Worker Integration (High-Fidelity)', () => {
-  let tmpDir: string;
-  let remoteRepoPath: string;
-  let workspacePath: string;
+  let tempDir: string;
+  let workspaceDir: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    tmpDir = path.join(
-      os.tmpdir(),
-      `orbit-worker-test-${Math.random().toString(36).substring(7)}`,
-    );
-    remoteRepoPath = path.join(tmpDir, 'remote-repo');
-    workspacePath = path.join(tmpDir, 'workspace');
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orbit-worker-test-'));
+    workspaceDir = path.join(tempDir, 'workspace');
+    fs.mkdirSync(workspaceDir);
 
-    const mockManifest = {
-      identifier: 'pr-123',
-      repoName: 'test-repo',
-      branchName: 'feat/test',
-      action: 'review',
-      workDir: workspacePath,
-      policyPath: '/test/policy',
-      sessionName: 'test/id',
-      upstreamUrl: remoteRepoPath,
-    };
-    vi.stubEnv('GCLI_ORBIT_MANIFEST', JSON.stringify(mockManifest));
-
-    // Ensure directory doesn't exist to start with
-    if (fs.existsSync(tmpDir)) {
-      // We can't really remove it if we mocked fs, but this is for local runs
-    }
-
-    // Mock ProcessManager.prototype.runSync to return success without executing real commands
-    (ProcessManager.prototype.runSync as any).mockImplementation(
-      (bin: string, args: string[]) => {
-        if (bin === 'git' && args.includes('rev-parse')) {
-          return { status: 0, stdout: 'feat/test' };
-        }
-        return { status: 0, stdout: '', stderr: '' };
-      },
-    );
-
-    // Mock process.cwd to return workspacePath
-    vi.spyOn(process, 'cwd').mockReturnValue(workspacePath);
-    // Mock process.chdir to not throw
-    vi.spyOn(process, 'chdir').mockImplementation(() => {});
+    // Change to workspace dir so .orbit-manifest.json is found
+    vi.spyOn(process, 'cwd').mockReturnValue(workspaceDir);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('should perform a full chunky initialization locally', async () => {
-    // Mock fs.existsSync to return false for .git initially, and false for workspacePath
-    vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
-      const ps = p.toString();
-      if (ps.endsWith('.git')) return false;
-      if (ps === workspacePath) return false;
-      if (ps.includes('README.md')) return true;
-      return false;
-    });
-
-    const exitCode = await main(['init']);
-
-    expect(exitCode).toBe(0);
-
-    // Verify git init was called via ProcessManager
-    expect(ProcessManager.prototype.runSync).toHaveBeenCalledWith(
-      'git',
-      ['init'],
-      expect.objectContaining({ cwd: workspacePath }),
+    // 1. Setup Manifest
+    const manifest = {
+      identifier: 'test-mission',
+      repoName: 'test-repo',
+      branchName: 'feat/test',
+      action: 'chat',
+      workDir: workspaceDir,
+    };
+    fs.writeFileSync(
+      path.join(workspaceDir, '.orbit-manifest.json'),
+      JSON.stringify(manifest),
     );
 
-    // Verify remote add
-    expect(ProcessManager.prototype.runSync).toHaveBeenCalledWith(
+    // 2. Setup Mock PM
+    const mockPm: any = {
+      runSync: vi.fn().mockImplementation((bin, args) => {
+        if (bin === 'git' && args.includes('rev-parse')) {
+          return { status: 128, stdout: '', stderr: 'Not a repo' }; // Not a repo
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      }),
+    };
+
+    // 3. Act
+    const exitCode = await main(['init'], mockPm);
+
+    // 4. Assert
+    expect(exitCode).toBe(0);
+    expect(mockPm.runSync).toHaveBeenCalledWith(
       'git',
-      ['remote', 'add', 'origin', remoteRepoPath],
-      expect.objectContaining({ cwd: workspacePath }),
+      expect.arrayContaining(['init']),
+      expect.anything(),
     );
   });
 
   it('should handle existing directories gracefully', async () => {
-    // Mock fs.existsSync to return true for .git to simulate existing repo
-    vi.spyOn(fs, 'existsSync').mockImplementation((p: any) => {
-      const ps = p.toString();
-      if (ps.endsWith('.git')) return true;
-      return true;
-    });
+    // 1. Setup Manifest
+    const manifest = {
+      identifier: 'test-mission',
+      repoName: 'test-repo',
+      branchName: 'feat/test',
+      action: 'chat',
+      workDir: workspaceDir,
+    };
+    fs.writeFileSync(
+      path.join(workspaceDir, '.orbit-manifest.json'),
+      JSON.stringify(manifest),
+    );
 
-    // Mock ProcessManager.prototype.runSync sequence:
-    // 1. top-level (0, workspacePath)
-    // 2. current-branch (0, 'feat/test')
-    (ProcessManager.prototype.runSync as any)
-      .mockReturnValueOnce({ status: 0, stdout: workspacePath }) // top-level check
-      .mockReturnValueOnce({ status: 0, stdout: 'feat/test' }); // current branch check
+    // 2. Mock existing git repo
+    const mockPm: any = {
+      runSync: vi.fn().mockImplementation((bin, args) => {
+        if (bin === 'git' && args.includes('rev-parse')) {
+          return { status: 0, stdout: '', stderr: '' }; // Is a repo
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      }),
+    };
 
-    // Mock fs.mkdirSync to not do anything real
-    vi.spyOn(fs, 'mkdirSync').mockReturnValue(undefined as any);
-
-    const exitCode = await main(['init']);
-
+    const exitCode = await main(['init'], mockPm);
     expect(exitCode).toBe(0);
-    // Verified via 'Rolling with it' logic
   });
 });

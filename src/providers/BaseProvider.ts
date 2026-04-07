@@ -307,14 +307,10 @@ export abstract class BaseProvider {
     mCtx: MissionContext,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    const env = { ...options.env };
-    if (options.manifest) {
-      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
-    }
-
+    // Note: Manifest is now file-based and mounted/written to disk.
+    // We no longer inject GCLI_ORBIT_MANIFEST into the environment.
     return this.getExecOutput(command, {
       ...options,
-      env,
       cwd:
         options.cwd ||
         options.manifest?.workDir ||

@@ -145,6 +145,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
@@ -177,6 +178,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
@@ -209,6 +211,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
     mockProvider.listCapsules.mockResolvedValue(['test-repo-123']);
 
@@ -235,6 +238,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
 
     const manifest = await verboseManager.resolve({

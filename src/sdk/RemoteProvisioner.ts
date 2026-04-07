@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { type OrbitProvider } from '../providers/BaseProvider.js';
-import { SessionManager } from '../utils/SessionManager.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
 import {
   ORBIT_ROOT,
+  CAPSULE_MANIFEST_PATH,
   type InfrastructureSpec,
   type ProjectContext,
 } from '../core/Constants.js';
@@ -28,8 +30,8 @@ export class RemoteProvisioner {
    * Orchestrates the high-level provisioning of a remote mission.
    * Handles:
    * 1. Secret/Token RAM-disk generation (ADR 14).
-   * 2. Docker container (Capsule) setup.
-   * 3. Worktree isolation and remote mount configuration.
+   * 2. Manifest-on-Disk generation and sync.
+   * 3. Docker container (Capsule) setup with volume mounts.
    */
   public async prepareMissionWorkspace(
     mCtx: MissionContext,
@@ -52,15 +54,42 @@ export class RemoteProvisioner {
 
     const remoteWorkspaceDir = path.join(infra.workspacesDir!, workspaceName);
 
-    // RAM-disk secret mount (ADR 14)
+    // RAM-disk paths (ADR 14 + Manifest-on-Disk)
     const secretId = this.provider.resolveSecretId(repoSlug, idSlug, action);
     const secretPath = this.provider.resolveSecretPath(secretId);
+    const remoteManifestPath = `/dev/shm/.orbit-manifest-${containerName}.json`;
+
+    // 1. Sync Manifest to Remote RAM-disk
+    const manifestJson = JSON.stringify({
+      identifier: mCtx.idSlug,
+      repoName: this.projectCtx.repoName,
+      branchName: mCtx.branchName,
+      action: mCtx.action,
+      workDir: remoteWorkspaceDir,
+      containerName,
+      sessionName: mCtx.sessionName,
+      policyPath: this.provider.resolvePolicyPath(remoteWorkspaceDir),
+      upstreamUrl: (infra as any).upstreamUrl,
+      mirrorPath: this.provider.resolveMirrorPath(),
+      tempDir: infra.workspacesDir,
+    });
+
+    const localTempManifest = path.join(
+      os.tmpdir(),
+      `.orbit-manifest-${containerName}.json`,
+    );
+    fs.writeFileSync(localTempManifest, manifestJson);
+    await this.provider.sync(localTempManifest, remoteManifestPath, {
+      sudo: true,
+      quiet: true,
+    });
+    fs.unlinkSync(localTempManifest);
 
     const imageUri =
       infra.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
-    // 1. Ensure the capsule exists
+    // 2. Ensure the capsule exists
     const capsuleStatus = await this.provider.getCapsuleStatus(containerName);
 
     if (!capsuleStatus.exists) {
@@ -75,11 +104,9 @@ export class RemoteProvisioner {
           .map(([k, v]) => `${k}='${(v as string).replace(/'/g, "'\\''")}'`)
           .join('\n');
 
-        // Use printf to handle multi-line content and redirect to secretPath
         const writeSecretCmd = `printf "%s\n" '${envContent.replace(/'/g, "'\\''")}' | sudo tee ${secretPath} > /dev/null && sudo chmod 600 ${secretPath}`;
         await this.provider.exec(writeSecretCmd);
       } else {
-        // Ensure secretPath exists even if empty to satisfy Docker mount
         await this.provider.exec(
           `sudo touch ${secretPath} && sudo chmod 600 ${secretPath}`,
         );
@@ -113,6 +140,12 @@ export class RemoteProvisioner {
           {
             host: secretPath,
             capsule: `${remoteWorkspaceDir}/.env`,
+            readonly: true,
+          },
+          // Manifest-on-Disk mount
+          {
+            host: remoteManifestPath,
+            capsule: CAPSULE_MANIFEST_PATH,
             readonly: true,
           },
         ],

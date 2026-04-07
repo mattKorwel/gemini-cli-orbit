@@ -40,6 +40,7 @@ describe('GceCosProvider Integration Logic', () => {
     setOverrideHost: vi.fn(),
     runDockerExec: vi.fn(),
     getStandardUser: vi.fn().mockReturnValue('node'),
+    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
     withConnectivityRetry: vi.fn().mockImplementation((op) => op()),
   };
 

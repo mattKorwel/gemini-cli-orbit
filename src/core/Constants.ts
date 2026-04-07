@@ -143,6 +143,8 @@ export const CAPSULE_WORKDIR = '/home/node/dev/main';
 export const CAPSULE_CLI_ROOT = '/usr/local/lib/gemini-cli';
 export const CAPSULE_BUNDLE_PATH = `${CAPSULE_CLI_ROOT}/bundle`;
 export const STATION_BUNDLE_PATH = `${BUNDLE_PATH}/station.js`;
+export const CAPSULE_MANIFEST_PATH = '/home/node/.orbit-manifest.json';
+export const LOCAL_MANIFEST_NAME = '.orbit-manifest.json';
 
 /**
  * Standardized paths on the LOCAL machine (The Extension itself)

@@ -51,6 +51,7 @@ describe('GceCosProvider', () => {
     setOverrideHost: vi.fn(),
     attachToTmux: vi.fn().mockResolvedValue(0),
     syncPathIfChanged: vi.fn().mockResolvedValue(0),
+    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
     withConnectivityRetry: vi.fn().mockImplementation((op) => op()), // Unified retry mock
   };
   mockSsh.runDockerExec.mockResolvedValue({
@@ -237,9 +238,6 @@ describe('GceCosProvider', () => {
       expect(mockExecutors.docker.remove).toHaveBeenCalledWith('repo-123-fix');
 
       // Should remove specific secret
-      // 1st call: listCapsules (not in this flow anymore but in jettisonMission)
-      // Actually jettisonMission calls removeCapsule which calls removeSecret.
-      // 1st runHostCommand in jettisonMission(action) is via removeCapsule -> removeSecret
       expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           args: expect.arrayContaining([
@@ -255,13 +253,12 @@ describe('GceCosProvider', () => {
 
       // Verify all commands executed via runHostCommand
       const calls = mockSsh.runHostCommand.mock.calls;
-      // Each call is [remoteCmd, options]. We want to check remoteCmd.args
-      const commands = calls.map((c) => c[0].args.join(' '));
+      const commands = calls.map((c: any) => c[0].args.join(' '));
 
       // 1. Should use Docker list + grep + xargs for bulk cleanup
       expect(
         commands.some(
-          (c) =>
+          (c: string) =>
             c.includes("grep '^repo-123'") ||
             c.includes("grep '\\''^repo-123'\\''"),
         ),

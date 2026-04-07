@@ -15,7 +15,7 @@ import {
 } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
-import { type Command, flattenCommand } from '../core/executors/types.js';
+import { type Command } from '../core/executors/types.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
 import { logger } from '../core/Logger.js';
 import {
@@ -31,7 +31,6 @@ import {
   type MissionContext,
   resolveMissionContext,
 } from '../utils/MissionUtils.js';
-import { SessionManager } from '../utils/SessionManager.js';
 import {
   type IExecutors,
   type IProcessManager,
@@ -135,9 +134,12 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async ensureReady(): Promise<number> {
-    const repoCheck = await this.getExecOutput(`ls -d ${this.repoRoot}/.git`, {
-      quiet: true,
-    });
+    const repoCheck = await this.getExecOutput(
+      `ls -d ${this.resolveMirrorPath()}/.git`,
+      {
+        quiet: true,
+      },
+    );
     if (repoCheck.status !== 0) {
       logger.warn(
         'SETUP',

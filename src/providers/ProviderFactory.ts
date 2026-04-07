@@ -15,17 +15,35 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import path from 'node:path';
+import fs from 'node:fs';
 import {
   type IProviderFactory,
   type IProcessManager,
   type IExecutors,
 } from '../core/interfaces.js';
+import { GitExecutor } from '../core/executors/GitExecutor.js';
+import { DockerExecutor } from '../core/executors/DockerExecutor.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
+import { SshExecutor } from '../core/executors/SshExecutor.js';
 
 export class ProviderFactory implements IProviderFactory {
   constructor(
     private readonly pm: IProcessManager,
     private readonly executors: IExecutors,
   ) {}
+
+  static getExecutors(pm: IProcessManager): IExecutors {
+    return {
+      git: new GitExecutor(pm),
+      docker: new DockerExecutor(pm),
+      tmux: new TmuxExecutor(pm),
+      node: new NodeExecutor(pm),
+      gemini: new GeminiExecutor(pm),
+      ssh: new SshExecutor(pm),
+    };
+  }
 
   getProvider(
     projectCtx: ProjectContext,
@@ -44,9 +62,9 @@ export class ProviderFactory implements IProviderFactory {
     if (effectiveProvider === 'local-worktree') {
       return new LocalWorktreeProvider(
         projectCtx,
+        fs,
         this.pm,
         this.executors,
-        stationName,
         infra.workspacesDir ||
           path.resolve(
             getPrimaryRepoRoot(projectCtx.repoRoot),

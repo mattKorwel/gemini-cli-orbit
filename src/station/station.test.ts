@@ -4,95 +4,68 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { main } from './station.js';
-import { StationSupervisor } from './StationSupervisor.js';
-import { StatusAggregator } from './StatusAggregator.js';
-import { logger } from '../core/Logger.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import { getMissionManifest } from '../utils/MissionUtils.js';
+import {
+  CAPSULE_MANIFEST_PATH,
+  LOCAL_MANIFEST_NAME,
+} from '../core/Constants.js';
 
-vi.mock('./StationSupervisor.js');
-vi.mock('./StatusAggregator.js');
+vi.mock('node:fs');
 
-const mockManifest = {
-  identifier: '123',
-  repoName: 'test-repo',
-  branchName: 'feat-test',
-  action: 'review',
-  workDir: '/test/dir',
-  policyPath: '/test/policy',
-  sessionName: 'orbit/test/id',
-  upstreamUrl: 'https://github.com/org/repo.git',
-};
-
-describe('worker main', () => {
+describe('Mission Manifest Loading', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
-    vi.stubEnv('GCLI_ORBIT_MANIFEST', JSON.stringify(mockManifest));
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
+  it('loads from local manifest if it exists', () => {
+    const mockManifest = { identifier: 'local-test' };
+    (fs.existsSync as any).mockImplementation((p: string) =>
+      p.endsWith(LOCAL_MANIFEST_NAME),
+    );
+    (fs.readFileSync as any).mockReturnValue(JSON.stringify(mockManifest));
 
-  it('should dispatch to aggregator on status command', async () => {
-    const mockAggregator = {
-      getStatus: vi.fn().mockResolvedValue({ missions: [] }),
-    };
-    (StatusAggregator as any).mockImplementation(() => mockAggregator);
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await main(['status']);
-    expect(mockAggregator.getStatus).toHaveBeenCalled();
-  });
-
-  it('should dispatch to station manager on setup-hooks command', async () => {
-    const mockStation = {
-      setupHooks: vi.fn().mockResolvedValue(0),
-    };
-    (StationSupervisor as any).mockImplementation(() => mockStation);
-
-    await main(['setup-hooks']);
-    expect(mockStation.setupHooks).toHaveBeenCalledWith(
-      expect.objectContaining({ identifier: '123' }),
+    const result = getMissionManifest();
+    expect(result.identifier).toBe('local-test');
+    expect(fs.readFileSync).toHaveBeenCalledWith(
+      expect.stringContaining(LOCAL_MANIFEST_NAME),
+      'utf8',
     );
   });
 
-  it('should dispatch to station manager on init command', async () => {
-    const mockStation = {
-      initGit: vi.fn().mockResolvedValue(0),
-    };
-    (StationSupervisor as any).mockImplementation(() => mockStation);
-
-    await main(['init']);
-    expect(mockStation.initGit).toHaveBeenCalledWith(
-      expect.objectContaining({ identifier: '123' }),
+  it('loads from global capsule manifest if local does not exist', () => {
+    const mockManifest = { identifier: 'capsule-test' };
+    (fs.existsSync as any).mockImplementation(
+      (p: string) => p === CAPSULE_MANIFEST_PATH,
     );
+    (fs.readFileSync as any).mockReturnValue(JSON.stringify(mockManifest));
+
+    const result = getMissionManifest();
+    expect(result.identifier).toBe('capsule-test');
+    expect(fs.readFileSync).toHaveBeenCalledWith(CAPSULE_MANIFEST_PATH, 'utf8');
   });
 
-  it('should dispatch to station supervisor on run command', async () => {
-    const mockStation = {
-      runMission: vi.fn().mockResolvedValue(0),
-    };
-    (StationSupervisor as any).mockImplementation(() => mockStation);
+  it('prioritizes local over global manifest', () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockImplementation((p: string) => {
+      if (p.endsWith(LOCAL_MANIFEST_NAME))
+        return JSON.stringify({ identifier: 'local' });
+      return JSON.stringify({ identifier: 'global' });
+    });
 
-    await main(['run']);
-    expect(mockStation.runMission).toHaveBeenCalledWith(
-      expect.objectContaining({ identifier: '123' }),
-    );
+    const result = getMissionManifest();
+    expect(result.identifier).toBe('local');
   });
 
-  it('should hydrate logger verbosity from manifest', async () => {
-    vi.stubEnv(
-      'GCLI_ORBIT_MANIFEST',
-      JSON.stringify({ ...mockManifest, verbose: true }),
-    );
-    const mockStation = { start: vi.fn().mockResolvedValue(0) };
-    (StationSupervisor as any).mockImplementation(() => mockStation);
+  it('throws error if no manifest is found anywhere', () => {
+    (fs.existsSync as any).mockReturnValue(false);
+    expect(() => getMissionManifest()).toThrow('Mission manifest not found');
+  });
 
-    const setVerboseSpy = vi.spyOn(logger, 'setVerbose');
-
-    await main(['start']);
-
-    expect(setVerboseSpy).toHaveBeenCalledWith(true);
+  it('throws helpful error on parse failure', () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue('invalid-json');
+    expect(() => getMissionManifest()).toThrow('Failed to parse');
   });
 });

@@ -21,6 +21,13 @@ vi.mock('../utils/MissionUtils.js', () => ({
   }),
 }));
 vi.mock('../core/Logger.js');
+vi.mock('node:fs', () => ({
+  default: {
+    writeFileSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    existsSync: vi.fn().mockReturnValue(true),
+  },
+}));
 
 describe('RemoteProvisioner', () => {
   const mockProvider = {
@@ -28,8 +35,11 @@ describe('RemoteProvisioner', () => {
     getCapsuleStatus: vi.fn(),
     runCapsule: vi.fn(),
     exec: vi.fn(),
+    sync: vi.fn().mockResolvedValue(0),
     resolveSecretId: vi.fn().mockReturnValue('test-secret-id'),
     resolveSecretPath: vi.fn().mockReturnValue('/dev/shm/.orbit-env-test'),
+    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
+    resolveMirrorPath: vi.fn().mockReturnValue('/mock/mirror'),
   };
 
   const projectCtx: ProjectContext = {
@@ -66,14 +76,27 @@ describe('RemoteProvisioner', () => {
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
     await provisioner.prepareMissionWorkspace(mockCtx, infra);
 
-    // Should touch the secret file even if no secrets
+    // 1. Should sync manifest
+    expect(mockProvider.sync).toHaveBeenCalledWith(
+      expect.stringContaining('.orbit-manifest'),
+      expect.stringContaining('/dev/shm/'),
+      expect.anything(),
+    );
+
+    // 2. Should touch the secret file even if no secrets
     expect(mockProvider.exec).toHaveBeenCalledWith(
       expect.stringContaining('sudo touch /dev/shm/.orbit-env-'),
     );
 
+    // 3. Should run capsule with manifest mount
     expect(mockProvider.runCapsule).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'test-repo-feat-test',
+        mounts: expect.arrayContaining([
+          expect.objectContaining({
+            capsule: '/home/node/.orbit-manifest.json',
+          }),
+        ]),
       }),
     );
   });
@@ -98,12 +121,13 @@ describe('RemoteProvisioner', () => {
     );
   });
 
-  it('should skip provisioning if capsule already exists', async () => {
+  it('should skip provisioning if capsule already exists but still sync manifest', async () => {
     mockProvider.getCapsuleStatus.mockResolvedValue({ exists: true });
 
     const provisioner = new RemoteProvisioner(projectCtx, mockProvider as any);
     await provisioner.prepareMissionWorkspace(mockCtx, infra);
 
+    expect(mockProvider.sync).toHaveBeenCalled();
     expect(mockProvider.runCapsule).not.toHaveBeenCalled();
   });
 });

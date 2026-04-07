@@ -18,9 +18,11 @@ vi.mock('node:os', () => ({
   default: {
     homedir: () => '/home/node',
     platform: () => 'linux',
+    tmpdir: () => '/tmp',
   },
   homedir: () => '/home/node',
   platform: () => 'linux',
+  tmpdir: () => '/tmp',
 }));
 
 describe('Config Propagation Integration', () => {

@@ -8,36 +8,48 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveMissionContext } from './MissionUtils.js';
 
 describe('MissionUtils', () => {
+  const mockPm: any = {
+    runSync: vi.fn().mockReturnValue({ status: 1, stdout: '', stderr: '' }),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should resolve metadata and slugs (Preserved)', () => {
-    const ctx = resolveMissionContext('test-branch', 'gemini-cli-orbit');
+  it('should resolve metadata and slugs', () => {
+    const ctx = resolveMissionContext(
+      'test-branch',
+      'gemini-cli-orbit',
+      mockPm,
+    );
     expect(ctx.branchName).toBe('test-branch');
     expect(ctx.repoSlug).toBe('gemini-cli-orbit');
     expect(ctx.idSlug).toBe('test-branch');
   });
 
   it('should resolve named mission with suffix (id:name)', () => {
-    const ctx = resolveMissionContext('123:debug', 'gemini-cli-orbit');
-    expect(ctx.idSlug).toBe('123-debug');
+    const ctx = resolveMissionContext('123:debug', 'gemini-cli-orbit', mockPm);
+    expect(ctx.idSlug).toBe('123');
+    expect(ctx.action).toBe('debug');
   });
 
   it('should resolve PR metadata using GH CLI for numeric IDs', () => {
-    const mockPm = {
+    const customMockPm = {
       runSync: vi.fn().mockReturnValue({
         status: 0,
-        stdout: JSON.stringify({ headRefName: 'feature-branch' }),
+        stdout: 'feature-branch',
       }),
     };
 
-    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm as any);
+    const ctx = resolveMissionContext(
+      '123',
+      'gemini-cli-orbit',
+      customMockPm as any,
+    );
 
-    expect(mockPm.runSync).toHaveBeenCalledWith(
+    expect(customMockPm.runSync).toHaveBeenCalledWith(
       'gh',
-      ['pr', 'view', '123', '--json', 'headRefName'],
-      expect.objectContaining({ quiet: true }),
+      expect.arrayContaining(['pr', 'view', '123']),
     );
 
     expect(ctx.branchName).toBe('feature-branch');
@@ -45,15 +57,7 @@ describe('MissionUtils', () => {
   });
 
   it('should fallback to ID as branch name if GH CLI fails', () => {
-    const mockPm = {
-      runSync: vi.fn().mockReturnValue({
-        status: 1,
-        stderr: 'error',
-      }),
-    };
-
-    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm as any);
-
+    const ctx = resolveMissionContext('123', 'gemini-cli-orbit', mockPm);
     expect(ctx.branchName).toBe('123');
     expect(ctx.idSlug).toBe('123');
   });

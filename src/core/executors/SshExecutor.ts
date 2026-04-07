@@ -48,12 +48,11 @@ export class SshExecutor implements ISshExecutor {
     command: string,
     options: IRunOptions = {},
   ): Command {
-    const quotedCommand = `'${command.replace(/'/g, "'\\''")}'`;
     const args = [
       ...this.getCommonArgs(),
       options.interactive ? '-t' : '',
       target,
-      quotedCommand,
+      command,
     ].filter(Boolean);
 
     const runOptions: IRunOptions = { ...options };

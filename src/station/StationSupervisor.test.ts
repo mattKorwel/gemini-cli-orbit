@@ -56,6 +56,9 @@ vi.mock('../core/executors/TmuxExecutor.js', () => ({
 vi.mock('../core/ConfigManager.js', () => ({
   getRepoConfig: vi.fn().mockReturnValue({}),
   getPrimaryRepoRoot: vi.fn().mockReturnValue('/tmp/repo'),
+  sanitizeName: vi.fn((n: string) =>
+    n.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
+  ),
 }));
 
 describe('StationSupervisor', () => {

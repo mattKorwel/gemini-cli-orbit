@@ -39,6 +39,9 @@ vi.mock('../../core/executors/GitExecutor.js', () => ({
 
 vi.mock('../../core/ConfigManager.js', () => ({
   getRepoConfig: vi.fn().mockReturnValue({}),
+  sanitizeName: vi.fn((n: string) =>
+    n.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
+  ),
 }));
 
 vi.mock('../../utils/TempManager.js', () => ({
