@@ -261,7 +261,7 @@ export class GceSSHManager implements SSHManager {
       showProgress?: boolean;
     } = {},
   ): Promise<T> {
-    const { maxAttempts = 3, delayMs = 1000, showProgress = false } = options;
+    const { maxAttempts = 5, delayMs = 2000, showProgress = true } = options;
     let lastError: any;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
