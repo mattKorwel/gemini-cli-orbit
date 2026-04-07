@@ -195,6 +195,11 @@ export class StationSupervisor {
 
     // Launch!
     const res = this.pm.runSync(tmuxCmd.bin, tmuxCmd.args, tmuxCmd.options);
+    if (res.status !== 0) {
+      console.error(`❌ Failed to launch mission: tmux returned ${res.status}`);
+      console.error(`STDOUT: ${res.stdout}`);
+      console.error(`STDERR: ${res.stderr}`);
+    }
     return res.status;
   }
 }

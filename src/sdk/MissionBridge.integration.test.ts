@@ -20,8 +20,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-const { createdDirs } = vi.hoisted(() => ({
+const { createdDirs, testState } = vi.hoisted(() => ({
   createdDirs: new Set<string>(),
+  testState: { tempDir: '' },
 }));
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -31,9 +32,12 @@ vi.mock('node:fs', async (importOriginal) => {
     .mockReturnValue(JSON.stringify({ repos: {} }));
   const mockExistsSync = vi.fn().mockImplementation((p) => {
     if (createdDirs.has(p)) return true;
-    if (p.includes('orbit-git-worktrees') || p.includes('real-repo'))
-      return false;
-    return true;
+    if (testState.tempDir && p === testState.tempDir) return true;
+    // Allow the base temp dir, global orbit config, and project config paths to exist
+    if (p.includes('.gemini/orbit') || p.includes('project-configs')) {
+      return true;
+    }
+    return false;
   });
   const mockMkdirSync = vi.fn().mockImplementation((p) => {
     createdDirs.add(p);
@@ -44,6 +48,7 @@ vi.mock('node:fs', async (importOriginal) => {
     end: vi.fn(),
     on: vi.fn(),
     emit: vi.fn(),
+    onProgress: vi.fn(),
   });
   const mockReaddirSync = vi.fn().mockReturnValue([]);
   const mockStatSync = vi.fn().mockReturnValue({
@@ -81,10 +86,13 @@ describe('Mission Bridge Integration', () => {
     vi.clearAllMocks();
     createdDirs.clear();
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orbit-test-'));
+    testState.tempDir = tempDir;
+    createdDirs.add(tempDir);
   });
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
+    testState.tempDir = '';
   });
 
   it('should execute end-to-end from SDK to final Gemini command via double-bridge simulation', async () => {
@@ -97,12 +105,48 @@ describe('Mission Bridge Integration', () => {
     // The "System" PM represents the hardware.
     const systemPm: any = {
       runSync: vi.fn().mockImplementation((bin, args, options) => {
-        // Record all "external" commands
-        recordedCommands.push({ bin, args, env: options?.env || {} });
+        const host = bin === 'ssh' ? 'remote' : 'local';
+        console.log(
+          `INTERCEPT [${host}]: ${bin} ${args.join(' ')} (quiet=${!!options?.quiet})`,
+        );
+
+        // Record for verification
+        if (bin === 'ssh') {
+          const innerCmd = args[args.length - 1];
+          if (typeof innerCmd === 'string') {
+            const parts = innerCmd.split(' ');
+            recordedCommands.push({
+              bin: parts[0],
+              args: parts.slice(1),
+              env: {},
+              host: 'remote',
+            });
+          }
+        } else {
+          recordedCommands.push({ bin, args, env: options?.env || {}, host });
+        }
+
+        // --- Mock Logic ---
+        const res = { status: 0, stdout: '', stderr: '' };
+
+        // MOCK WHICH: If we check for existence of git or tmux, return ok
+        if (bin === 'which') {
+          res.stdout = '/usr/bin/' + args[0];
+          return res;
+        }
 
         // DOCTOR CHECK MOCK: If mission.js checks git health, return success
         if (args.includes('--is-inside-work-tree')) {
-          return { status: 0, stdout: 'true', stderr: '' };
+          res.stdout = 'true';
+          return res;
+        }
+
+        if (
+          args.includes('show-ref') ||
+          (args.includes('worktree') && args.includes('add'))
+        ) {
+          res.stdout = 'ref/ok';
+          return res;
         }
 
         // BRIDGE 1: SDK -> Station (Host Setup)
@@ -221,22 +265,32 @@ describe('Mission Bridge Integration', () => {
 
     // STEP 3: VERIFY the entire cascading chain of commands.
 
-    // A. SDK provisioning commands (using sanitized ID)
-    const provisioning = recordedCommands.find(
-      (c) => c.args.includes('worktree') && c.args.includes('add'),
-    );
-    expect(provisioning).toBeDefined();
-    expect(provisioning?.args).toContain('pr-888');
+    try {
+      // A. SDK provisioning commands (using sanitized ID)
+      const provisioning = recordedCommands.find(
+        (c) => c.bin === 'git' && c.args.join(' ').includes('worktree add'),
+      );
+      expect(provisioning).toBeDefined();
+      expect(provisioning?.args.join(' ')).toContain('pr-888');
 
-    // B. Station Manager commands (Git Setup)
-    const gitInit = recordedCommands.find((c) => c.args.includes('init'));
-    expect(gitInit).toBeDefined();
+      // B. Station Manager commands (Git Setup)
+      const gitInit = recordedCommands.find(
+        (c) => c.bin === 'git' && c.args.includes('init'),
+      );
+      expect(gitInit).toBeDefined();
 
-    // C. Mission Agent commands (Doctor Checks)
-    const gitDoctor = recordedCommands.find((c) =>
-      c.args.includes('--is-inside-work-tree'),
-    );
-    expect(gitDoctor).toBeDefined();
+      // C. Mission Agent commands (Doctor Checks)
+      const gitDoctor = recordedCommands.find(
+        (c) => c.bin === 'git' && c.args.includes('--is-inside-work-tree'),
+      );
+      expect(gitDoctor).toBeDefined();
+    } catch (e) {
+      console.log(
+        'DEBUG: Integration Test Commands:',
+        JSON.stringify(recordedCommands, null, 2),
+      );
+      throw e;
+    }
 
     // D. FINAL EXECUTION: Did Gemini actually get called with the right settings?
     const geminiCall = recordedCommands.find((c) => c.bin === 'gemini');
@@ -482,7 +536,7 @@ describe('Mission Bridge Integration', () => {
 
     // 2. Station Manager executed on "Remote" and called Tmux (in GCE it's direct via station.js)
     const tmuxRun = recordedCommands.find(
-      (c) => c.host === 'remote' && c.bin === 'tmux',
+      (c) => c.host === 'remote' && c.args.join(' ').includes('new-session'),
     );
     expect(tmuxRun).toBeDefined();
     expect(tmuxRun?.args.join(' ')).toContain('real-repo/bridge-test-1');

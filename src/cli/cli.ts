@@ -174,6 +174,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         includeMissions: pulse,
         repoFilter,
         nameFilter: selectByName,
+        peek: args.peek,
       });
 
       if (args.json) {
@@ -181,7 +182,11 @@ export async function dispatch(argv: string[]): Promise<number> {
         return;
       }
 
-      renderFleet(states, pulse ? 'pulse' : sync ? 'health' : 'inventory');
+      renderFleet(
+        states,
+        pulse ? 'pulse' : sync ? 'health' : 'inventory',
+        args.peek,
+      );
     }
 
     // Handle repo:cmd syntax
@@ -245,9 +250,10 @@ QUICK START:
   1. Liftoff:   orbit infra liftoff        (Provision or wake your hardware)
   2. Mission:   orbit mission launch 123   (Start an autonomous maneuver)
   3. Monitor:   orbit constellation -p     (Watch real-time agent thoughts)
-  4. Attach:    orbit mission attach 123   (Work alongside the agent)
-  5. Logs:      orbit mission uplink 123   (Inspect mission telemetry)
-  6. Clean:     orbit mission jettison 123 (Surgically remove resources)`,
+  4. Peek:      orbit mission peek 123     (See exactly what agent sees)
+  5. Attach:    orbit mission attach 123   (Work alongside the agent)
+  6. Logs:      orbit mission uplink 123   (Inspect mission telemetry)
+  7. Clean:     orbit mission jettison 123 (Surgically remove resources)`,
       )
 
       .command(
@@ -285,6 +291,11 @@ QUICK START:
               type: 'boolean',
               default: false,
               description: 'Fetch deep mission telemetry',
+            })
+            .option('peek', {
+              type: 'boolean',
+              default: false,
+              description: 'Include terminal snapshots in pulse',
             })
             .option('all', {
               alias: 'a',
@@ -343,6 +354,10 @@ QUICK START:
                       'mission logs 123',
                       "Inspect the agent's work-in-progress.",
                     ],
+                    [
+                      'mission peek 123',
+                      'See exactly what the agent sees (Terminal snapshot).',
+                    ],
                     ['mission resume 123', 'Jump back into an active session.'],
                     [
                       'mission delete 123',
@@ -368,9 +383,9 @@ QUICK START:
                   'launch',
                   'attach',
                   'resume',
+                  'peek',
                   'uplink',
                   'logs',
-                  'ci',
                   'jettison',
                   'delete',
                   'rm',
@@ -437,6 +452,38 @@ QUICK START:
                   identifier: args.identifier,
                   action: args.action,
                 });
+              },
+            )
+            .command(
+              'peek <identifier> [action]',
+              'Get a terminal snapshot of a mission.',
+              (y2) => {
+                y2.positional('identifier', { type: 'string' }).positional(
+                  'action',
+                  { type: 'string' },
+                );
+                return applyGlobalOptions(
+                  applyHardwareOptions(applyContextOptions(y2)),
+                );
+              },
+              async (args: any) => {
+                const results = await sdk.getFleetState({
+                  missionFilter: `*${args.identifier}*`,
+                  includeMissions: true,
+                  peek: true,
+                  all: true, // Look across all stations
+                });
+
+                if (results.length === 0) {
+                  console.error(
+                    `❌ No mission found matching: ${args.identifier}`,
+                  );
+                  args.exitCode = 1;
+                  return;
+                }
+
+                // Render the specific mission(s)
+                renderFleet(results, 'pulse');
               },
             )
             .command(
@@ -787,6 +834,7 @@ const consoleObserver = new ConsoleObserver();
 function renderFleet(
   states: StationState[],
   depth: 'inventory' | 'health' | 'pulse',
+  peek = false,
 ) {
   if (depth === 'pulse') {
     states.forEach((s) => {
@@ -806,7 +854,7 @@ function renderFleet(
           console.log(`   - Internal IP:    ${s.reality.internalIp}`);
         if (s.reality.externalIp)
           console.log(`   - External IP:    ${s.reality.externalIp}`);
-        renderMissionList(s.reality.missions, '   ');
+        renderMissionList(s.reality.missions, '   ', peek);
       } else {
         console.log('   (Status unavailable - No reality sync)');
       }
@@ -851,7 +899,11 @@ function renderFleet(
   }
 }
 
-function renderMissionList(capsules: CapsuleInfo[], indent = ''): void {
+function renderMissionList(
+  capsules: CapsuleInfo[],
+  indent = '',
+  peek = false,
+): void {
   console.log(`\n${indent}📦 ACTIVE MISSION CAPSULES:`);
   if (capsules.length === 0) {
     console.log(`${indent}  - No mission capsules found`);
@@ -863,13 +915,10 @@ function renderMissionList(capsules: CapsuleInfo[], indent = ''): void {
       switch (c.state) {
         case 'THINKING':
           stateIcon = '🧠';
-          detail = c.lastThought ? `Thought: ${c.lastThought}` : '';
           break;
         case 'WAITING_FOR_INPUT':
+        case 'WAITING':
           stateIcon = '⏳';
-          detail = c.lastQuestion
-            ? `Question: ${c.lastQuestion}`
-            : 'Waiting for input';
           break;
         case 'WAITING_FOR_APPROVAL':
           stateIcon = '🛑';
@@ -879,9 +928,22 @@ function renderMissionList(capsules: CapsuleInfo[], indent = ''): void {
           stateIcon = '✅';
           detail = 'Mission complete';
           break;
-        case 'WAITING':
-          stateIcon = '⏳';
-          break;
+      }
+
+      if (!detail && c.lastThought) {
+        const isSnapshot = c.lastThought.includes('\n');
+        console.log(
+          `DEBUG: render mission=${c.name} isSnapshot=${isSnapshot} peek=${peek}`,
+        );
+        if (peek || !isSnapshot) {
+          detail = isSnapshot
+            ? `Terminal:\n\`\`\`\n${c.lastThought}\n\`\`\``
+            : `Thought: ${c.lastThought}`;
+        }
+      }
+
+      if (!detail && c.lastQuestion) {
+        detail = `Question: ${c.lastQuestion}`;
       }
 
       const statsStr =

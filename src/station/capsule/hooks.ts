@@ -59,7 +59,14 @@ export async function beforeAgent(input: any) {
  */
 export async function afterAgent(input: any) {
   const response = input.prompt_response || '';
-  const isWaitingForInput = !input.stop_hook_active; // Simplistic check for now
+
+  // Improved detection: Check for explicit flag OR prompt patterns
+  const isWaitingForInput =
+    input.is_waiting_for_input === true ||
+    (!input.stop_hook_active &&
+      (response.trim().endsWith('?') ||
+        response.includes('(y/n)') ||
+        response.includes('Allow execution')));
 
   updateState(input.cwd, {
     status: isWaitingForInput ? 'WAITING_FOR_INPUT' : 'IDLE',

@@ -90,12 +90,20 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
       GCLI_ORBIT_ACTION: action,
     };
 
+    // ADR 0017: Inject mission-control hooks
+    const hooksPath = path.resolve(_dirname, 'hooks.js');
+    const hookCmd = `node ${hooksPath}`;
+
     const geminiOpts: any = {
       approvalMode: 'plan',
       policy: policyPath,
       cwd: absWorkDir,
       env,
       interactive: true,
+      hookBeforeAgent: hookCmd,
+      hookAfterAgent: hookCmd,
+      hookBeforeTool: hookCmd,
+      hookNotification: hookCmd,
     };
 
     if (hasSessions) {
@@ -103,6 +111,10 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     }
 
     const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
+    logger.info(
+      'GENERAL',
+      `🏃 Executing: ${geminiCmd.bin} ${geminiCmd.args.join(' ')}`,
+    );
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
     return res.status;
   } else {

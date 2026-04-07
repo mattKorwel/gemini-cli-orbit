@@ -150,6 +150,8 @@ export interface ListStationsOptions {
   includeMissions?: boolean | undefined;
   repoFilter?: string | undefined;
   nameFilter?: string | undefined;
+  missionFilter?: string | undefined;
+  peek?: boolean | undefined;
 }
 
 /**

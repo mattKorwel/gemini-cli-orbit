@@ -76,6 +76,8 @@ describe('MissionManager', () => {
       resolveContainerName: vi
         .fn()
         .mockImplementation((r, i, a) => `${r}-${i}-${a}`),
+      resolveIsolationId: vi.fn().mockReturnValue('mock-container'),
+      jettisonMission: vi.fn().mockResolvedValue(0),
       resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
       resolveProjectConfigDir: vi.fn().mockReturnValue('/tmp/project-configs'),
       resolveWorkerPath: vi.fn().mockReturnValue('/tmp/station.js'),
@@ -212,14 +214,8 @@ describe('MissionManager', () => {
 
     await manager.jettison({ identifier: '123' });
 
-    // Should attempt to remove variants
-    expect(mockProvider.removeCapsule).toHaveBeenCalled();
-
-    // Should cleanup secrets
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
-      expect.any(Object),
-    );
+    // Should delegate to provider
+    expect(mockProvider.jettisonMission).toHaveBeenCalledWith('123', undefined);
   });
 
   it('should propagate verbose flag to the manifest', async () => {

@@ -237,7 +237,7 @@ export abstract class BaseProvider {
    * Fetches deep mission status from inside the station.
    * Centralized logic that uses environment-specific hooks.
    */
-  async getMissionTelemetry(): Promise<CapsuleInfo[]> {
+  async getMissionTelemetry(peek = false): Promise<CapsuleInfo[]> {
     const capsules: CapsuleInfo[] = [];
 
     // 1. Request aggregated status from the worker
@@ -270,24 +270,34 @@ export abstract class BaseProvider {
         (m) => m.mission === containerName || containerName.includes(m.mission),
       );
 
+      // 3. Provider-specific state check (Smarter fallback)
+      const legacyState = await this.resolveLegacyCapsuleState(containerName);
+
       if (missionState) {
+        // If the worker says IDLE but the provider sees activity, prefer the provider
+        const finalState =
+          missionState.status === 'IDLE' && legacyState !== 'IDLE'
+            ? legacyState
+            : missionState.status;
+
         capsules.push({
           name: containerName,
-          state: missionState.status,
+          state: finalState,
           stats,
-          lastThought: missionState.last_thought,
+          lastThought:
+            missionState.last_thought ||
+            (peek ? await this.capturePane(containerName) : undefined),
           blocker: missionState.blocker,
           progress: missionState.progress,
           pendingTool: missionState.pending_tool,
           lastQuestion: missionState.last_question,
         });
       } else {
-        // 3. Provider-specific fallback (e.g. Tmux parsing)
-        const state = await this.resolveLegacyCapsuleState(containerName);
         capsules.push({
           name: containerName,
-          state,
+          state: legacyState,
           stats,
+          lastThought: peek ? await this.capturePane(containerName) : undefined,
         });
       }
     }

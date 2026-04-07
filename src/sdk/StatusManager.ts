@@ -53,6 +53,7 @@ export class StatusManager implements IStatusManager {
   async fetchFleetState(
     stations: HydratedStation[],
     depth: 'inventory' | 'health' | 'pulse',
+    peek = false,
   ): Promise<StationState[]> {
     return Promise.all(
       stations.map(async (s) => {
@@ -72,12 +73,17 @@ export class StatusManager implements IStatusManager {
           if (reality.internalIp) state.reality.internalIp = reality.internalIp;
           if (reality.externalIp) state.reality.externalIp = reality.externalIp;
 
+          // Always fetch missions for local stations (zero-cost)
+          // For remote stations, only fetch if depth is 'pulse'
+          const shouldFetchMissions =
+            depth === 'pulse' || s.receipt.type === 'local-worktree';
+
           if (
-            depth === 'pulse' &&
+            shouldFetchMissions &&
             reality.status === 'RUNNING' &&
             state.reality
           ) {
-            const missions = await s.provider.getMissionTelemetry();
+            const missions = await s.provider.getMissionTelemetry(peek);
             // Standardize repo attribution for scoped aggregation
             missions.forEach((m) => {
               if (m.repo === 'unknown' || !m.repo) m.repo = s.receipt.repo;

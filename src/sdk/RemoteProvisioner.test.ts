@@ -25,10 +25,11 @@ vi.mock('../core/Logger.js');
 describe('RemoteProvisioner', () => {
   const mockProvider = {
     type: 'gce',
-    getStatus: vi.fn(),
     getCapsuleStatus: vi.fn(),
     runCapsule: vi.fn(),
     exec: vi.fn(),
+    resolveSecretId: vi.fn().mockReturnValue('test-secret-id'),
+    resolveSecretPath: vi.fn().mockReturnValue('/dev/shm/.orbit-env-test'),
   };
 
   const projectCtx: ProjectContext = {
@@ -38,12 +39,14 @@ describe('RemoteProvisioner', () => {
 
   const infra: InfrastructureSpec = {
     remoteWorkDir: '/mnt/disks/data/main',
+    workspacesDir: '/mnt/disks/data/workspaces',
   };
 
   const mockCtx = {
     branchName: 'feat-test',
     repoSlug: 'test-repo',
     idSlug: 'feat-test',
+    action: 'chat',
     containerName: 'test-repo-feat-test',
     workspaceName: 'test-repo-feat-test',
     sessionName: 'test-repo/feat-test',

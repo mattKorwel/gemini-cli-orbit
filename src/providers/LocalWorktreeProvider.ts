@@ -373,9 +373,33 @@ export class LocalWorktreeProvider extends BaseProvider {
     return;
   }
 
-  async capturePane(): Promise<string> {
-    return 'N/A (Local)';
+  async capturePane(name: string): Promise<string> {
+    if (!this.hasTmux()) return 'N/A (No Tmux)';
+    const res = await this.getExecOutput(
+      `tmux capture-pane -pt ${this.shellQuote(name)}`,
+      { quiet: true },
+    );
+    console.log(
+      `DEBUG: capturePane(${name}) status=${res.status} outputLength=${res.stdout.length}`,
+    );
+    if (res.status !== 0) return 'N/A (Capture failed)';
+
+    // Sanitize: Get last few meaningful lines to avoid log flooding
+    const lines = res.stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => {
+        if (!l) return false;
+        if (l.includes('ProjectRegistry')) return false; // Filter stack traces
+        if (l.includes('file:///')) return false;
+        if (l.includes('A new version of Gemini CLI')) return false;
+        if (l.includes('orbit-git-worktrees')) return false;
+        return true;
+      });
+
+    return lines.slice(-8).join('\n');
   }
+
   async listStations(): Promise<number> {
     return 0;
   }
@@ -459,11 +483,26 @@ export class LocalWorktreeProvider extends BaseProvider {
     if (listRes.status !== 0) return 'IDLE';
 
     const sessions = listRes.stdout.toString().split('\n');
-    const bestMatch = sessions.find((s) => s.includes(name));
+    const bestMatch = sessions.find((s) => s === name || s.includes(name));
 
     if (bestMatch) {
-      // For local, we just assume it's THINKING if the session exists
-      return 'THINKING';
+      // Smart check: Use capturePane to see if it's waiting at a prompt
+      const thoughts = await this.capturePane(bestMatch);
+      const lines = thoughts.trim().split('\n');
+
+      // Check last few lines for prompt indicators
+      const lastFew = lines.slice(-5).join(' ');
+
+      const isWaiting =
+        lastFew.includes('❯') ||
+        lastFew.includes('$') ||
+        lastFew.includes('%') ||
+        lastFew.includes('>') ||
+        lastFew.includes('(y/n)') ||
+        lastFew.includes('Allow execution') ||
+        lastFew.trim().endsWith('?');
+
+      return isWaiting ? 'WAITING_FOR_INPUT' : 'THINKING';
     }
 
     return 'IDLE';

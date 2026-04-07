@@ -269,7 +269,11 @@ export class MissionManager {
       this.projectCtx.repoName,
       this.pm,
     );
-    const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
+    const sessionName = provider.resolveSessionName(
+      repoSlug,
+      idSlug,
+      options.action || 'chat',
+    );
 
     // 2. Try direct attach to canonical name first
     const directRes = await provider.attach(sessionName);

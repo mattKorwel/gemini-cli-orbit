@@ -47,7 +47,7 @@ export async function main(
     if (action === 'status') {
       const root = argv[1];
       const aggregator = new StatusAggregator(root);
-      const result = await aggregator.getStatus();
+      const result = await aggregator.getStatus(root);
       console.log(JSON.stringify(result, null, 2));
       return 0;
     }

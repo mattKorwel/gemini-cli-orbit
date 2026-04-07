@@ -185,8 +185,8 @@ describe('LocalWorktreeProvider', () => {
       'arg1',
     ]);
 
-    const mCtx = { sessionName: 'ws1' } as any;
-    expect(provider.resolveIsolationId(mCtx)).toBe('ws1');
+    const mCtx = { sessionName: 'repo/id1' } as any;
+    expect(provider.resolveIsolationId(mCtx)).toBe('repo/id1');
   });
 
   describe('Surgical Jettison', () => {

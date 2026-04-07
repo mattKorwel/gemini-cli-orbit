@@ -302,6 +302,30 @@ describe('orbit-cli dispatch()', () => {
     });
   });
 
+  it('routes "mission peek <id>" to OrbitSDK.getFleetState with peek:true', async () => {
+    mockGetFleetState.mockResolvedValueOnce([
+      {
+        receipt: { name: 's1', type: 'local-worktree', repo: 'r1' },
+        reality: {
+          status: 'RUNNING',
+          missions: [{ name: 'm1', state: 'WAITING', lastThought: 'Hello' }],
+        },
+      },
+    ]);
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await dispatch(['mission', 'peek', 'm1']);
+
+    expect(mockGetFleetState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missionFilter: '*m1*',
+        includeMissions: true,
+        peek: true,
+      }),
+    );
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('Thought: Hello'));
+  });
+
   it('--local flag sets providerType=local-worktree', async () => {
     await dispatch(['mission', 'start', '--local', '42']);
     expect(lastSdkContext.infra.providerType).toBe('local-worktree');

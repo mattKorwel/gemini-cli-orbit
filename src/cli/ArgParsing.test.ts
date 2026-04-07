@@ -134,6 +134,32 @@ describe('CLI Argument Parsing', () => {
         }),
       );
     });
+
+    it('should handle "mission peek" with action', async () => {
+      await dispatch(['mission', 'peek', '123', 'fix']);
+
+      expect(mockGetFleetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          missionFilter: '*123*',
+          includeMissions: true,
+          peek: true,
+          all: true,
+        }),
+      );
+    });
+  });
+
+  describe('Constellation Command', () => {
+    it('should pass peek flag to getFleetState', async () => {
+      await dispatch(['constellation', '--pulse', '--peek']);
+
+      expect(mockGetFleetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          includeMissions: true,
+          peek: true,
+        }),
+      );
+    });
   });
 
   describe('Station Commands', () => {
