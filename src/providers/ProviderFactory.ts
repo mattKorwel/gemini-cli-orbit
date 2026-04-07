@@ -71,6 +71,7 @@ export class ProviderFactory implements IProviderFactory {
             '..',
             'orbit-git-worktrees',
           ),
+        infra,
       );
     }
 

@@ -230,6 +230,29 @@ describe('GceCosProvider', () => {
     expect(provider.resolveWorkspacesRoot()).toBe('/mnt/disks/data/workspaces');
   });
 
+  it('should include upstreamUrl in getStationReceipt', () => {
+    const infraWithUrl = {
+      projectId,
+      zone,
+      instanceName,
+      upstreamUrl: 'https://github.com/org/repo.git',
+    };
+    const providerWithUrl = new GceCosProvider(
+      projectCtx,
+      projectId,
+      zone,
+      instanceName,
+      repoRoot,
+      mockSsh as any,
+      mockPm,
+      mockExecutors,
+      infraWithUrl as any,
+    );
+
+    const receipt = providerWithUrl.getStationReceipt();
+    expect(receipt.upstreamUrl).toBe('https://github.com/org/repo.git');
+  });
+
   describe('Surgical Jettison', () => {
     it('should remove only specific container if action provided', async () => {
       await provider.jettisonMission('123', 'fix');

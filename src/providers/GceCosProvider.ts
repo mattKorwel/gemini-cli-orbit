@@ -153,9 +153,42 @@ export class GceCosProvider extends BaseProvider {
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
 
-      // ADR 0018: Ensure the station code is up to date on the host before launching capsules
-      // Ensure parent directory exists before rsync
-      await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`, { quiet: true });
+      // Wait for persistent disk to be mounted (ADR 0016)
+      if (this.isPersistent) {
+        for (let i = 0; i < 15; i++) {
+          const mountCheck = await this.getExecOutput(
+            `grep -q "${ORBIT_ROOT}" /proc/mounts`,
+            { quiet: true },
+          );
+          if (mountCheck.status === 0) break;
+          if (i === 14) {
+            logger.warn(
+              'SETUP',
+              `   - Warning: ${ORBIT_ROOT} is not yet a mount point. Proceeding anyway...`,
+            );
+          }
+          process.stdout.write('.');
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+
+      // Ensure critical directories exist with correct permissions for multi-tenant isolation
+      const criticalDirs = [
+        BUNDLE_PATH,
+        this.resolveWorkspacesRoot(),
+        this.resolveMirrorPath(),
+        this.resolveProjectConfigDir(),
+        `${ORBIT_ROOT}/tmp`,
+      ];
+      const setupRes = await this.exec(
+        `sudo mkdir -p ${criticalDirs.join(' ')} && sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 2775 ${ORBIT_ROOT}`,
+        { quiet: true },
+      );
+      if (setupRes !== 0) {
+        throw new Error(
+          `Failed to initialize ${ORBIT_ROOT} (exit ${setupRes})`,
+        );
+      }
 
       // Note: syncIfChanged now uses SSHManager retries internally
       const syncStatus = await this.syncIfChanged(
@@ -295,6 +328,7 @@ export class GceCosProvider extends BaseProvider {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
       remoteCmd.env!.PATH = capsulePath;
+
       return this.ssh.runDockerExec(
         mergedOptions.isolationId,
         remoteCmd,
@@ -432,8 +466,15 @@ export class GceCosProvider extends BaseProvider {
     return 0;
   }
 
-  async attach(name: string): Promise<number> {
-    return this.ssh.attachToTmux(name, name);
+  async attach(identifier: string): Promise<number> {
+    const { repoSlug, idSlug, action, containerName } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+    const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
+
+    return this.ssh.attachToTmux(containerName, sessionName);
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
@@ -618,6 +659,7 @@ export class GceCosProvider extends BaseProvider {
       projectId: this.projectId,
       zone: this.zone,
       repo: this.projectCtx.repoName,
+      upstreamUrl: this.infra.upstreamUrl,
       backendType: this.infra.backendType as any,
       schematic: this.infra.schematic,
       dnsSuffix: this.infra.dnsSuffix,

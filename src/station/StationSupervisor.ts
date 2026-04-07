@@ -46,6 +46,10 @@ export class StationSupervisor {
     const { workDir, upstreamUrl, branchName: branch, mirrorPath } = manifest;
     const targetDir = path.resolve(workDir);
 
+    console.log(
+      `[DEBUG] initGit starting. upstreamUrl: ${upstreamUrl}, targetDir: ${targetDir}`,
+    );
+
     const run = (cmd: Command) => {
       const res = this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       if (res.status !== 0) {
@@ -62,6 +66,28 @@ export class StationSupervisor {
     const r = path.join(targetDir, '.git');
     if (fs.existsSync(r)) {
       console.log(`✅ Git workspace already initialized at ${targetDir}`);
+
+      // Ensure remote is set up correctly (in case of partial initialization)
+      const remoteCheck = this.pm.runSync(
+        'git',
+        ['-C', targetDir, 'remote', 'get-url', 'origin'],
+        { quiet: true },
+      );
+      const currentUrl = remoteCheck.stdout.toString().trim();
+      if (
+        remoteCheck.status !== 0 ||
+        !currentUrl ||
+        currentUrl === 'undefined'
+      ) {
+        console.log('   - Setting up origin remote...');
+        // Remove potentially broken remote first
+        this.pm.runSync(
+          'git',
+          ['-C', targetDir, 'remote', 'remove', 'origin'],
+          { quiet: true },
+        );
+        run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
+      }
     } else {
       console.log(`📦 Initializing Git workspace at ${targetDir}...`);
       if (!fs.existsSync(targetDir)) {
@@ -69,6 +95,12 @@ export class StationSupervisor {
       }
 
       run(GitExecutor.init(targetDir));
+
+      if (!upstreamUrl) {
+        throw new Error(
+          `❌ Cannot initialize workspace: upstreamUrl is required but missing from manifest.`,
+        );
+      }
       run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
 
       if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
@@ -81,8 +113,11 @@ export class StationSupervisor {
 
     const currentBranchRes = this.pm.runSync(
       'git',
-      ['-C', targetDir, 'rev-parse', '--abbrev-ref', 'HEAD'],
-      { quiet: true },
+      GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD']).args,
+      {
+        ...GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD']).options,
+        quiet: true,
+      },
     );
 
     if (
@@ -106,14 +141,11 @@ export class StationSupervisor {
     }
 
     // 1. Check if branch already exists locally
-    const checkLocalCmd = GitExecutor.verify(targetDir, branch, {
+    const checkLocalCmd = GitExecutor.verify(targetDir, branch);
+    const localRes = this.pm.runSync(checkLocalCmd.bin, checkLocalCmd.args, {
+      ...checkLocalCmd.options,
       quiet: true,
     });
-    const localRes = this.pm.runSync(
-      checkLocalCmd.bin,
-      checkLocalCmd.args,
-      checkLocalCmd.options,
-    );
 
     if (localRes.status === 0) {
       console.log(`   - Branch '${branch}' exists locally. Checking out...`);
@@ -121,13 +153,11 @@ export class StationSupervisor {
     } else {
       // 2. Try to checkout from origin/branch if we successfully fetched it
       const remoteRef = `origin/${branch}`;
-      const checkRemoteCmd = GitExecutor.verify(targetDir, remoteRef, {
-        quiet: true,
-      });
+      const checkRemoteCmd = GitExecutor.verify(targetDir, remoteRef);
       const remoteRes = this.pm.runSync(
         checkRemoteCmd.bin,
         checkRemoteCmd.args,
-        checkRemoteCmd.options,
+        { ...checkRemoteCmd.options, quiet: true },
       );
 
       if (remoteRes.status === 0) {
@@ -191,11 +221,9 @@ export class StationSupervisor {
     const tmuxCmd = this.tmux.wrapMission(sName, innerCommand, {
       cwd: targetDir,
       env: {
-        GCLI_ORBIT_MANIFEST: JSON.stringify(manifest),
         GCLI_ORBIT_VERBOSE: manifest.verbose ? '1' : '0',
       },
     });
-
     // Launch!
     const res = this.pm.runSync(tmuxCmd.bin, tmuxCmd.args, tmuxCmd.options);
     if (res.status !== 0) {

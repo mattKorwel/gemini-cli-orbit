@@ -148,7 +148,8 @@ export class FleetManager {
         'SETUP',
         `✅ Station is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
       );
-      await provider.ensureReady();
+      const readyStatus = await provider.ensureReady();
+      if (readyStatus !== 0) return readyStatus;
 
       // Ensure Main Mirror exists on host for fast clones
       const remoteUrl = this.configManager.detectRemoteUrl(

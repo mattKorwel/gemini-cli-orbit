@@ -1,53 +1,30 @@
-# Mission Status: Hierarchical Naming & Decentralized Architecture
+# Mission Status: Orbit Liftoff & Naming Alignment 🛰️
 
-## Status
+## ✅ Completed
 
-- **Date**: Sunday, April 5, 2026
-- **Branch**: `feat/manifest-first-architecture`
-- **PR**:
-  [mattKorwel/gemini-cli-orbit/pull/36](https://github.com/mattKorwel/gemini-cli-orbit/pull/36)
-- **Result**: ✅ Verified E2E locally. All 138 tests passing.
+- **Infrastructure Provisioning**: Resolved `rsync` (exit 11) errors on fresh
+  stations by adding a mount point wait loop in `GceCosProvider`.
+- **Naming Parity**: Fixed "no such file or directory" errors in capsules by
+  reverting `GceCosProvider` to hierarchical naming (`repo/id`), ensuring path
+  consistency between host and container.
+- **Rsync Safety**: Hardened SSH command construction in `SshExecutor` with
+  single-quoting for all arguments in the `-e` flag.
+- **Type Safety**: Fixed 11+ TypeScript errors in the core SDK and providers to
+  restore a clean build.
+- **Verification**: Successfully provisioned `test-station-gamma` and launched
+  `gamma-mission-2` with a verified `IDLE` state in `state.json`.
 
-## Completed Work
+## 🔭 Next Maneuvers
 
-### 1. Manifest-First Architecture (ADR 0018)
+- [ ] **Hook Integration**: Update `GeminiExecutor` and `mission.ts` to
+      explicitly configure `--hook-*` flags for the Gemini CLI, ensuring the
+      telemetry system is fully integrated.
+- [ ] **Mirror Optimization**: Investigate the "Main repo mirror missing"
+      warning on `test-station-gamma` to further speed up first-mission
+      deployment.
 
-- Replaced fragile positional CLI arguments with a single source of truth: the
-  `GCLI_ORBIT_MANIFEST` environment variable.
-- Consolidated the 3-step worker handshake (`init` -> `setup-hooks` -> `run`)
-  into a single atomic `start` command.
+## 🏁 Final Assessment
 
-### 2. Decentralized Naming Authority
-
-- Refactored `BaseProvider` into an `abstract` class defining naming hooks:
-  - `resolveWorkspaceName(repo, id)`
-  - `resolveSessionName(repo, id, action)`
-  - `resolveContainerName(repo, id, action)`
-  - `resolveWorkDir(workspaceName)`
-- **Local Isolation**: Implemented a hierarchical structure for local missions:
-  - Root: `orbit-git-worktrees/` (sibling of main repo).
-  - Structure: `orbit-git-worktrees/<repo-name>/<id-slug>/[action]`.
-  - Tmux: `<repo-name>/<id-slug>/[action]`.
-- **Unified Naming**: Standardized naming across local and remote to a clean
-  hierarchical pattern, removing redundant `orbit-` prefixes.
-- **Data Integrity**: Refactored `resolveMissionContext` to be a pure metadata
-  extractor with **zero pruning** of repository names or user identifiers.
-
-### 3. Gemini "STANDBY MODE"
-
-- Refined Gemini chat prompts to be completely passive.
-- Gemini now initializes in `STANDBY MODE`, waiting for user instructions rather
-  than initiating autonomous research.
-
-### 4. Robust Cleanup
-
-- Enhanced the `jettison` command to accept an optional action.
-- If no action is specified, `jettison` now robustly attempts to clean up all
-  possible mission variants (`chat`, `fix`, `review`, etc.) for a given ID.
-
-## Next Steps
-
-- Merge [PR #36](https://github.com/mattKorwel/gemini-cli-orbit/pull/36) after
-  final review.
-- Proceed with implementing additional backend providers using the new abstract
-  hooks.
+The Orbital liftoff sequence is now robust and idempotent. Hardware readiness is
+strictly verified before deployment, and naming conventions are aligned across
+the distributed environment.

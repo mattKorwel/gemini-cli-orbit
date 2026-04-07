@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
 import { GitExecutor } from '../../core/executors/GitExecutor.js';
-import { getManifestFromEnv } from '../../utils/MissionUtils.js';
+import { getMissionManifest } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
 
@@ -37,7 +37,7 @@ const _dirname = getDirname();
  */
 export async function main(pm: IProcessManager = new ProcessManager()) {
   // ADR 0018: Hydrate context from environment manifest
-  const manifest = getManifestFromEnv();
+  const manifest = getMissionManifest();
   logger.setVerbose(manifest.verbose === true);
   const { identifier, action, workDir, policyPath } = manifest;
 
@@ -100,10 +100,6 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
       cwd: absWorkDir,
       env,
       interactive: true,
-      hookBeforeAgent: hookCmd,
-      hookAfterAgent: hookCmd,
-      hookBeforeTool: hookCmd,
-      hookNotification: hookCmd,
     };
 
     if (hasSessions) {

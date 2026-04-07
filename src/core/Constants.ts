@@ -55,6 +55,7 @@ export interface InfrastructureSpec {
   backendType?: 'direct-internal' | 'external' | undefined;
   imageUri?: string | undefined;
   upstreamRepo?: string | undefined;
+  upstreamUrl?: string | undefined;
   manageNetworking?: boolean | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;

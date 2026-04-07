@@ -80,10 +80,13 @@ export class MissionManager {
     const workDir = provider.resolveWorkDir(workspaceName);
     const policyPath = provider.resolvePolicyPath(workDir);
 
-    const upstreamUrl = this.infra.upstreamRepo
-      ? `https://github.com/${this.infra.upstreamRepo}.git`
-      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
-        UPSTREAM_REPO_URL;
+    const upstreamUrl =
+      this.infra.upstreamUrl ||
+      (this.infra.upstreamRepo
+        ? `https://github.com/${this.infra.upstreamRepo}.git`
+        : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
+          UPSTREAM_REPO_URL);
+    this.infra.upstreamUrl = upstreamUrl;
 
     return {
       identifier,
@@ -98,7 +101,7 @@ export class MissionManager {
       upstreamUrl,
       mirrorPath: provider.resolveMirrorPath(),
       verbose: this.infra.verbose,
-      tempDir: this.infra.workspacesDir || this.infra.worktreesDir,
+      tempDir: workDir,
     };
   }
 
@@ -126,6 +129,10 @@ export class MissionManager {
       this.projectCtx.repoName,
       this.pm,
     );
+
+    // Ensure infra has the upstreamUrl from manifest for downstream providers
+    this.infra.upstreamUrl = manifest.upstreamUrl;
+
     const mCtx: MissionContext = {
       branchName: manifest.branchName,
       repoSlug,
@@ -134,7 +141,14 @@ export class MissionManager {
       workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
       containerName: manifest.containerName,
       sessionName: manifest.sessionName,
+      upstreamUrl: manifest.upstreamUrl,
     };
+
+    // ADR 0018: Explicitly set tempDir to workDir for log isolation
+    manifest.tempDir = mCtx.workspaceName;
+    const workDir = provider.resolveWorkDir(mCtx.workspaceName);
+    manifest.workDir = workDir;
+    manifest.tempDir = workDir;
 
     // 2. Ensure Hardware/Station is Ready
     await provider.ensureReady();
@@ -142,7 +156,7 @@ export class MissionManager {
     // 3. Standardized Station Registration (Implicit Liftoff)
     this.stationRegistry.saveReceipt(provider.getStationReceipt());
 
-    // 4. Project Configuration Sync
+    // Project Configuration Sync
     this.observer.onProgress?.(
       'PHASE 0',
       '📂 Synchronizing project configurations...',
@@ -168,9 +182,8 @@ export class MissionManager {
 
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
     const startCmd = provider.createNodeCommand(workerPath, ['start']);
-
     const startRes = await provider.getMissionExecOutput(startCmd, mCtx, {
-      interactive: true,
+      interactive: false,
       manifest,
     });
 

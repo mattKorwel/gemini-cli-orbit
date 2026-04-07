@@ -76,7 +76,7 @@ export interface CIStatus {
 
 /**
  * Immutable unit of truth for a mission's state and configuration.
- * Passed via the GCLI_ORBIT_MANIFEST environment variable.
+ * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
  */
 export interface MissionManifest {
   identifier: string; // The user's ID (PR # or branch name)
@@ -264,7 +264,7 @@ export interface ExecOptions {
   quiet?: boolean;
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
-  manifest?: MissionManifest;
+  manifest?: MissionManifest | undefined;
 }
 
 export interface RemoteCommand {

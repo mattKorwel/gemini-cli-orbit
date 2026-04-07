@@ -77,7 +77,10 @@ export class SshExecutor implements ISshExecutor {
       quiet?: boolean;
     } = {},
   ): IProcessResult {
-    const sshCmd = `ssh ${this.getCommonArgs().join(' ')}`;
+    const commonArgs = this.getCommonArgs().map(
+      (a) => `'${a.replace(/'/g, "'\\''")}'`,
+    );
+    const sshCmd = `ssh ${commonArgs.join(' ')}`;
     const args = ['-avz'];
 
     if (options.delete) args.push('--delete');

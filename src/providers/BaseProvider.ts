@@ -307,10 +307,12 @@ export abstract class BaseProvider {
     mCtx: MissionContext,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    // Note: Manifest is now file-based and mounted/written to disk.
-    // We no longer inject GCLI_ORBIT_MANIFEST into the environment.
+    // ADR 0018: Manifest-First execution.
+    // Ensure the manifest is available to the provider so it can be injected
+    // into the environment or workspace.
     return this.getExecOutput(command, {
       ...options,
+      manifest: options.manifest,
       cwd:
         options.cwd ||
         options.manifest?.workDir ||

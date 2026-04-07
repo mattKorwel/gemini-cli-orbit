@@ -17,6 +17,11 @@ describe('LocalWorktreeProvider', () => {
     repoName: 'repo',
   };
 
+  const mockInfra: Constants.InfrastructureSpec = {
+    instanceName: 'local-test',
+    providerType: 'local-worktree',
+  };
+
   const mockPm: any = {
     runSync: vi.fn(),
     runAsync: vi.fn(),
@@ -59,6 +64,7 @@ describe('LocalWorktreeProvider', () => {
       mockPm,
       mockExecutors,
       '/home/node/dev/repo/workspaces',
+      mockInfra,
     );
     expect(provider.resolveWorkspacesRoot()).toBe(
       '/home/node/dev/repo/workspaces/repo',
@@ -72,6 +78,7 @@ describe('LocalWorktreeProvider', () => {
       mockPm,
       mockExecutors,
       '/tmp/workspaces',
+      mockInfra,
     );
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
@@ -85,6 +92,7 @@ describe('LocalWorktreeProvider', () => {
       mockPm,
       mockExecutors,
       '/tmp/workspaces',
+      mockInfra,
     );
     const cmd = provider.getRunCommand('ls');
     expect(cmd).toContain('tmux new-session');
@@ -98,6 +106,7 @@ describe('LocalWorktreeProvider', () => {
       mockPm,
       mockExecutors,
       '/tmp/workspaces',
+      mockInfra,
     );
     const cmd = provider.getRunCommand('ls');
     expect(cmd).not.toContain('tmux');
@@ -115,6 +124,7 @@ describe('LocalWorktreeProvider', () => {
         mockPm,
         mockExecutors,
         '/tmp/workspaces',
+        mockInfra,
         { stationName: 'test-station' },
       );
 
@@ -160,6 +170,7 @@ describe('LocalWorktreeProvider', () => {
         mockPm,
         mockExecutors,
         '/tmp/workspaces',
+        mockInfra,
       );
 
       // We need to call with an action to trigger the surgical path
@@ -180,6 +191,7 @@ describe('LocalWorktreeProvider', () => {
         mockPm,
         mockExecutors,
         '/tmp/workspaces',
+        mockInfra,
       );
 
       await provider.jettisonMission('id1');

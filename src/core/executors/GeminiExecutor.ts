@@ -56,11 +56,6 @@ export class GeminiExecutor implements IGeminiExecutor {
     if (promptInteractive) args.push('--prompt-interactive', promptInteractive);
     if (prompt) args.push('--prompt', prompt);
 
-    if (hookBeforeAgent) args.push('--hook-before-agent', hookBeforeAgent);
-    if (hookAfterAgent) args.push('--hook-after-agent', hookAfterAgent);
-    if (hookBeforeTool) args.push('--hook-before-tool', hookBeforeTool);
-    if (hookNotification) args.push('--hook-notification', hookNotification);
-
     return {
       bin,
       args,

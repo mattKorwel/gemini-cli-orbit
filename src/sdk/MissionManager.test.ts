@@ -248,4 +248,23 @@ describe('MissionManager', () => {
 
     expect(manifest.verbose).toBe(true);
   });
+
+  it('should populate upstreamUrl in manifest and infra', async () => {
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+      action: 'chat',
+    });
+
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'chat',
+    });
+
+    expect(manifest.upstreamUrl).toBe('https://github.com/test/test.git');
+    expect((manager as any).infra.upstreamUrl).toBe(
+      'https://github.com/test/test.git',
+    );
+  });
 });

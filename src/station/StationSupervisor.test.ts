@@ -22,20 +22,55 @@ vi.mock('../core/ProcessManager.js');
 // Mock GitExecutor
 vi.mock('../core/executors/GitExecutor.js', () => ({
   GitExecutor: {
-    init: vi.fn().mockReturnValue({ bin: 'git', args: ['init'] }),
-    remoteAdd: vi.fn().mockReturnValue({
+    init: vi
+      .fn()
+      .mockImplementation((cwd) => ({
+        bin: 'git',
+        args: ['init'],
+        options: { cwd },
+      })),
+    remoteAdd: vi.fn().mockImplementation((cwd, name, url) => ({
       bin: 'git',
-      args: ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
-    }),
-    fetch: vi.fn().mockReturnValue({ bin: 'git', args: ['fetch'] }),
-    checkout: vi.fn().mockReturnValue({ bin: 'git', args: ['checkout'] }),
-    revParse: vi.fn().mockReturnValue({ bin: 'git', args: ['rev-parse'] }),
+      args: ['remote', 'add', name, url],
+      options: { cwd },
+    })),
+    fetch: vi
+      .fn()
+      .mockImplementation((cwd, remote, branch) => ({
+        bin: 'git',
+        args: ['fetch', '--depth=1', remote, branch],
+        options: { cwd },
+      })),
+    checkout: vi
+      .fn()
+      .mockImplementation((cwd, branch) => ({
+        bin: 'git',
+        args: ['checkout', branch],
+        options: { cwd },
+      })),
+    revParse: vi
+      .fn()
+      .mockImplementation((cwd, args) => ({
+        bin: 'git',
+        args: ['rev-parse', ...args],
+        options: { cwd },
+      })),
     verify: vi
       .fn()
-      .mockReturnValue({ bin: 'git', args: ['rev-parse', '--verify'] }),
+      .mockImplementation((cwd, ref) => ({
+        bin: 'git',
+        args: ['rev-parse', '--verify', ref],
+        options: { cwd },
+      })),
     checkoutNew: vi
       .fn()
-      .mockReturnValue({ bin: 'git', args: ['checkout', '-b'] }),
+      .mockImplementation((cwd, branch, base) => ({
+        bin: 'git',
+        args: base
+          ? ['checkout', '-b', branch, base]
+          : ['checkout', '-b', branch],
+        options: { cwd },
+      })),
   },
 }));
 
@@ -94,6 +129,7 @@ describe('StationSupervisor', () => {
       repoName: 'test-repo',
       branchName: 'feat-test',
       action: 'review',
+      workspaceName: 'test-repo/test-id',
       workDir: '/test/dir',
       containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
@@ -105,6 +141,73 @@ describe('StationSupervisor', () => {
     expect(GitExecutor.init).toHaveBeenCalled();
     expect(GitExecutor.remoteAdd).toHaveBeenCalled();
     expect(mockPm.runSync).toHaveBeenCalledTimes(6);
+  });
+
+  describe('initGit validation', () => {
+    const mockManifest = {
+      identifier: 'test-123',
+      repoName: 'test-repo',
+      branchName: 'feat-test',
+      action: 'chat',
+      workspaceName: 'test-repo/test-123',
+      workDir: '/test/dir',
+      upstreamUrl: 'https://github.com/org/repo.git',
+      containerName: 'c1',
+      sessionName: 's1',
+      policyPath: '/p1',
+    };
+
+    it('should configure remote origin if missing even if .git exists', async () => {
+      // Mock .git exists but no remote configured
+      (fs.existsSync as any).mockImplementation((p: string) =>
+        p.endsWith('.git'),
+      );
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        if (bin === 'git' && args.includes('get-url')) {
+          return { status: 1, stdout: '', stderr: 'No remote origin' };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      });
+
+      await manager.initGit(mockManifest as any);
+
+      // The command should use the original structure (no -C)
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        ['remote', 'add', 'origin', 'https://github.com/org/repo.git'],
+        expect.objectContaining({ cwd: '/test/dir' }),
+      );
+    });
+
+    it('should fail gracefully if upstreamUrl is missing', async () => {
+      const brokenManifest = { ...mockManifest, upstreamUrl: undefined };
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        if (p.includes('.git')) return false; // Force initialization logic
+        return true;
+      });
+      mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+
+      await expect(manager.initGit(brokenManifest as any)).rejects.toThrow(
+        'upstreamUrl is required',
+      );
+    });
+
+    it('should setup git alternates if mirrorPath exists', async () => {
+      const manifestWithMirror = { ...mockManifest, mirrorPath: '/mirror' };
+      (fs.existsSync as any).mockImplementation((p: string) => {
+        if (p.includes('.git')) return false; // Initial init
+        if (p === '/mirror/config') return true;
+        return false;
+      });
+      mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+
+      await manager.initGit(manifestWithMirror as any);
+
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('alternates'),
+        expect.stringContaining('/mirror/objects'),
+      );
+    });
   });
 
   it('initGit throws a helpful error on failure', async () => {
@@ -122,6 +225,7 @@ describe('StationSupervisor', () => {
         repoName: 'test-repo',
         branchName: 'feat-test',
         action: 'review',
+        workspaceName: 'test-repo/test-id',
         workDir: '/test/dir',
         upstreamUrl: 'https://github.com/org/repo.git',
       } as any),
@@ -136,6 +240,7 @@ describe('StationSupervisor', () => {
       repoName: 'test-repo',
       branchName: 'feat-test',
       action: 'review',
+      workspaceName: 'test-repo/test-id',
       workDir: '/test/dir',
       containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
@@ -159,6 +264,7 @@ describe('StationSupervisor', () => {
       repoName: 'test-repo',
       branchName: 'feat-test',
       action: 'chat',
+      workspaceName: 'test-repo/test-id',
       workDir: '/test/dir',
       containerName: 'test-repo-test-id',
       policyPath: '/test/policy',
@@ -185,6 +291,7 @@ describe('StationSupervisor', () => {
       repoName: 'test-repo',
       branchName: 'feat-test',
       action: 'chat',
+      workspaceName: 'test-repo/test-id',
       workDir: '/test/dir',
       containerName: 'test-repo-test-id',
       policyPath: '/test/policy',

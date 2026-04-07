@@ -69,9 +69,9 @@ export class RemoteProvisioner {
       containerName,
       sessionName: mCtx.sessionName,
       policyPath: this.provider.resolvePolicyPath(remoteWorkspaceDir),
-      upstreamUrl: (infra as any).upstreamUrl,
+      upstreamUrl: mCtx.upstreamUrl || (infra as any).upstreamUrl,
       mirrorPath: this.provider.resolveMirrorPath(),
-      tempDir: infra.workspacesDir,
+      tempDir: remoteWorkspaceDir,
     });
 
     const localTempManifest = path.join(
@@ -94,6 +94,21 @@ export class RemoteProvisioner {
 
     if (!capsuleStatus.exists) {
       logger.info(`   - Provisioning isolated workspace for '${branch}'...`);
+
+      // Ensure specific mission directory exists and is private to the container user (1000)
+      // ADR 0018: Strict chmod 700 isolation ensures no cross-mission data access.
+      const setupRes = await this.provider.exec(
+        `sudo mkdir -p ${remoteWorkspaceDir} && sudo chown -R 1000:1000 ${remoteWorkspaceDir} && sudo chmod 700 ${remoteWorkspaceDir}`,
+        {
+          quiet: true,
+        },
+      );
+
+      if (setupRes !== 0) {
+        throw new Error(
+          `Failed to initialize mission workspace at ${remoteWorkspaceDir} (exit ${setupRes})`,
+        );
+      }
 
       // ADR 14: Populate RAM-disk secret file before launching capsule
       const sensitiveEnv = (infra as any).sensitiveEnv || {};
@@ -123,14 +138,18 @@ export class RemoteProvisioner {
           {
             host: infra.remoteWorkDir!,
             capsule: infra.remoteWorkDir!,
-            readonly: false,
+            readonly: true,
           },
           {
             host: remoteWorkspaceDir,
             capsule: remoteWorkspaceDir,
             readonly: false,
           },
-          { host: ORBIT_ROOT, capsule: ORBIT_ROOT, readonly: false },
+          {
+            host: `${ORBIT_ROOT}/bundle`,
+            capsule: `${ORBIT_ROOT}/bundle`,
+            readonly: true,
+          },
           {
             host: `${ORBIT_ROOT}/gemini-cli-config/.gemini`,
             capsule: '/home/node/.gemini',

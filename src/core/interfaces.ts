@@ -22,6 +22,7 @@ export interface StationReceipt {
   projectId: string;
   zone: string;
   repo: string;
+  upstreamUrl?: string | undefined;
   status?: string;
   backendType?: 'direct-internal' | 'external';
   schematic?: string | undefined;

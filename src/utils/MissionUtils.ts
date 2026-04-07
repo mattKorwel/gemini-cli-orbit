@@ -25,6 +25,7 @@ export interface MissionContext {
   workspaceName: string;
   containerName: string;
   sessionName: string;
+  upstreamUrl?: string | undefined;
 }
 
 /**
@@ -38,7 +39,10 @@ export function resolveMissionContext(
   const repoSlug = sanitizeName(repoName);
 
   // 1. Resolve branch name if identifier is numeric
-  const [idPart, actionPart] = identifier.split(':');
+  const parts = identifier.split(':');
+  const idPart = parts[0] || 'mission';
+  const actionPart = parts[1];
+
   let branchName = idPart;
   if (/^\d+$/.test(idPart)) {
     const res: IProcessResult = pm.runSync('gh', [
@@ -81,7 +85,20 @@ export function resolveMissionContext(
  * Prioritizes local worktree manifest, then global capsule manifest.
  */
 export function getMissionManifest(): MissionManifest {
-  // 1. Try local worktree manifest (./.orbit-manifest.json)
+  // 1. Try global capsule manifest (/home/node/.orbit-manifest.json)
+  // ADR 0018: This is the primary manifest location for Agent Capsules
+  if (fs.existsSync(CAPSULE_MANIFEST_PATH)) {
+    try {
+      return JSON.parse(fs.readFileSync(CAPSULE_MANIFEST_PATH, 'utf8'));
+    } catch (e: any) {
+      throw new Error(`❌ Failed to parse capsule manifest: ${e.message}`, {
+        cause: e,
+      });
+    }
+  }
+
+  // 2. Try local worktree manifest (./.orbit-manifest.json)
+  // Fallback for local development or manual worker testing
   const localManifest = path.resolve(process.cwd(), LOCAL_MANIFEST_NAME);
   if (fs.existsSync(localManifest)) {
     try {
@@ -93,19 +110,8 @@ export function getMissionManifest(): MissionManifest {
     }
   }
 
-  // 2. Try global capsule manifest (/home/node/.orbit-manifest.json)
-  if (fs.existsSync(CAPSULE_MANIFEST_PATH)) {
-    try {
-      return JSON.parse(fs.readFileSync(CAPSULE_MANIFEST_PATH, 'utf8'));
-    } catch (e: any) {
-      throw new Error(`❌ Failed to parse capsule manifest: ${e.message}`, {
-        cause: e,
-      });
-    }
-  }
-
   throw new Error(
-    `❌ Mission manifest not found. Looked in ${localManifest} and ${CAPSULE_MANIFEST_PATH}`,
+    `❌ Mission manifest not found. Looked in ${CAPSULE_MANIFEST_PATH} and ${localManifest}`,
   );
 }
 

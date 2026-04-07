@@ -51,6 +51,7 @@ export class LocalWorktreeProvider extends BaseProvider {
     pm: IProcessManager,
     executors: IExecutors,
     workspacesDir: string,
+    private readonly infra: InfrastructureSpec,
     config: { stationName?: string } = {},
   ) {
     super(pm, executors);
@@ -441,6 +442,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       projectId: 'local',
       zone: 'local',
       repo: this.projectCtx.repoName,
+      upstreamUrl: this.infra.upstreamUrl,
       backendType: 'direct-internal',
       lastSeen: new Date().toISOString(),
     };
