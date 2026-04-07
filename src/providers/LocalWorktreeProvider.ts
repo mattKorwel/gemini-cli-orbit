@@ -370,6 +370,20 @@ export class LocalWorktreeProvider extends BaseProvider {
     return res;
   }
 
+  async splashdown(
+    options: {
+      all?: boolean;
+      clearSecrets?: boolean;
+    } = {},
+  ): Promise<number> {
+    // Local splashdown: Remove all local mission capsules
+    const capsules = await this.listCapsules();
+    for (const capsule of capsules) {
+      await this.removeCapsule(capsule);
+    }
+    return 0;
+  }
+
   async removeSecret(): Promise<void> {
     // Local provider does not use isolated secrets
     return;

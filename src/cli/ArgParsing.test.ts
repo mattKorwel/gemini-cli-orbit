@@ -160,6 +160,17 @@ describe('CLI Argument Parsing', () => {
         }),
       );
     });
+    it('should handle infra splashdown', async () => {
+      await dispatch(['infra', 'splashdown', 'old-box', '--force', '--all']);
+
+      expect(mockSplashdown).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'old-box',
+          force: true,
+          all: true,
+        }),
+      );
+    });
   });
 
   describe('Station Commands', () => {

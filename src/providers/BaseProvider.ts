@@ -111,12 +111,180 @@ export abstract class BaseProvider {
    */
   abstract createNodeCommand(scriptPath: string, args?: string[]): Command;
 
+  /**
+   * Ensures the backend is ready for mission orchestration.
+   */
   abstract ensureReady(): Promise<number>;
 
   /**
    * Returns the canonical isolation identifier (session/container name) for this environment.
    */
   abstract resolveIsolationId(mCtx: MissionContext): string;
+
+  /**
+   * Executes a raw command in the environment.
+   */
+  abstract getExecOutput(
+    command: string | Command,
+    options?: ExecOptions,
+  ): Promise<{ status: number; stdout: string; stderr: string }>;
+
+  /**
+   * Returns the formatted run command for this environment.
+   */
+  abstract getRunCommand(command: string, options?: ExecOptions): string;
+
+  /**
+   * Syncs files between local and remote.
+   */
+  abstract sync(
+    localPath: string,
+    remotePath: string,
+    options?: SyncOptions,
+  ): Promise<number>;
+
+  /**
+   * Syncs files only if changed.
+   */
+  abstract syncIfChanged(
+    localPath: string,
+    remotePath: string,
+    options?: SyncOptions,
+  ): Promise<number>;
+
+  /**
+   * Returns hardware health and basic identification.
+   */
+  abstract getStatus(): Promise<OrbitStatus>;
+
+  /**
+   * Safe wake of a hibernated station.
+   */
+  abstract start(): Promise<number>;
+
+  /**
+   * Safe stop of Orbit hardware.
+   */
+  abstract stop(): Promise<number>;
+
+  /**
+   * Status of a specific capsule.
+   */
+  abstract getCapsuleStatus(
+    name: string,
+  ): Promise<{ running: boolean; exists: boolean }>;
+
+  /**
+   * Resource usage stats for a capsule.
+   */
+  abstract getCapsuleStats(name: string): Promise<string>;
+
+  /**
+   * Time since last activity in a capsule.
+   */
+  abstract getCapsuleIdleTime(name: string): Promise<number>;
+
+  /**
+   * Attaches to an active mission.
+   */
+  abstract attach(name: string): Promise<number>;
+
+  /**
+   * Launches a specific capsule configuration.
+   */
+  abstract runCapsule(config: CapsuleConfig): Promise<number>;
+
+  /**
+   * Signal-safe stop of a capsule.
+   */
+  abstract stopCapsule(name: string): Promise<number>;
+
+  /**
+   * Permanent removal of a capsule.
+   */
+  abstract removeCapsule(name: string): Promise<number>;
+
+  /**
+   * Surgical removal of a mission's resources.
+   */
+  abstract jettisonMission(
+    identifier: string,
+    action?: string,
+  ): Promise<number>;
+
+  /**
+   * Decommissions all active missions and optionally their secrets.
+   */
+  abstract splashdown(options?: {
+    all?: boolean;
+    clearSecrets?: boolean;
+  }): Promise<number>;
+
+  /**
+   * Permanent removal of a specific mission secret.
+   */
+  abstract removeSecret(sessionId: string): Promise<void>;
+
+  /**
+   * Real-time terminal capture.
+   */
+  abstract capturePane(capsuleName: string): Promise<string>;
+
+  /**
+   * Lists all Orbit-managed stations (cloud only).
+   */
+  abstract listStations(): Promise<number>;
+
+  /**
+   * Permanent destruction of Orbit hardware.
+   */
+  abstract destroy(): Promise<number>;
+
+  /**
+   * Lists all active capsules on this station.
+   */
+  abstract listCapsules(): Promise<string[]>;
+
+  /**
+   * Provisions a high-performance git mirror.
+   */
+  abstract provisionMirror(remoteUrl: string): Promise<number>;
+
+  /**
+   * Drops into a raw interactive shell on the hardware host.
+   */
+  abstract stationShell(): Promise<number>;
+
+  /**
+   * Drops into a raw interactive shell inside a mission capsule.
+   */
+  abstract missionShell(capsuleName: string): Promise<number>;
+
+  /**
+   * Generates the immutable receipt for this station.
+   */
+  abstract getStationReceipt(): StationReceipt;
+
+  /**
+   * Prepares the workspace for a new mission.
+   */
+  abstract prepareMissionWorkspace(
+    mCtx: MissionContext,
+    infra: InfrastructureSpec,
+  ): Promise<void>;
+
+  /**
+   * Injects dynamic state into the provider.
+   */
+  injectState?(state: InfrastructureState): void;
+
+  /**
+   * Environment-specific fallback for determining capsule state when
+   * no manifest is found.
+   */
+  protected abstract resolveLegacyCapsuleState(
+    name: string,
+  ): Promise<CapsuleInfo['state']>;
 
   /**
    * Executes a command within the context of a specific mission.
@@ -170,68 +338,12 @@ export abstract class BaseProvider {
     return res.status;
   }
 
-  abstract getExecOutput(
-    command: string | Command,
-    options?: ExecOptions,
-  ): Promise<{ status: number; stdout: string; stderr: string }>;
-
-  abstract getRunCommand(command: string, options?: ExecOptions): string;
-  abstract sync(
-    localPath: string,
-    remotePath: string,
-    options?: SyncOptions,
-  ): Promise<number>;
-  abstract syncIfChanged(
-    localPath: string,
-    remotePath: string,
-    options?: SyncOptions,
-  ): Promise<number>;
-  abstract getStatus(): Promise<OrbitStatus>;
-
-  /**
-   * Safe wake of a hibernated station.
-   */
-  abstract start(): Promise<number>;
-
-  abstract stop(): Promise<number>;
-  abstract getCapsuleStatus(
-    name: string,
-  ): Promise<{ running: boolean; exists: boolean }>;
-  abstract getCapsuleStats(name: string): Promise<string>;
-  abstract getCapsuleIdleTime(name: string): Promise<number>;
-  abstract attach(name: string): Promise<number>;
-  abstract runCapsule(config: CapsuleConfig): Promise<number>;
-  abstract stopCapsule(name: string): Promise<number>;
-  abstract removeCapsule(name: string): Promise<number>;
-  abstract jettisonMission(
-    identifier: string,
-    action?: string,
-  ): Promise<number>;
-  abstract removeSecret(sessionId: string): Promise<void>;
-
   /**
    * Resolves the canonical RAM-disk secret path for a session.
    */
   resolveSecretPath(secretId: string): string {
     return `/dev/shm/.orbit-env-${secretId}`;
   }
-
-  abstract capturePane(capsuleName: string): Promise<string>;
-  abstract listStations(): Promise<number>;
-  abstract destroy(): Promise<number>;
-  abstract listCapsules(): Promise<string[]>;
-  abstract provisionMirror(remoteUrl: string): Promise<number>;
-  abstract stationShell(): Promise<number>;
-  abstract missionShell(capsuleName: string): Promise<number>;
-
-  abstract getStationReceipt(): StationReceipt;
-
-  injectState?(state: InfrastructureState): void;
-
-  abstract prepareMissionWorkspace(
-    mCtx: MissionContext,
-    infra: InfrastructureSpec,
-  ): Promise<void>;
 
   /**
    * Fetches deep mission status from inside the station.
@@ -321,14 +433,6 @@ export abstract class BaseProvider {
 
     return capsules;
   }
-
-  /**
-   * Environment-specific fallback for determining capsule state when
-   * no manifest is found.
-   */
-  protected abstract resolveLegacyCapsuleState(
-    name: string,
-  ): Promise<CapsuleInfo['state']>;
 }
 
 /**

@@ -635,7 +635,7 @@ QUICK START:
               },
             )
             .command(
-              ['delete <name>', 'rm <name>'],
+              ['delete <name>', 'rm <name>', 'splashdown <name>'],
               'Decommission Orbit hardware.',
               (y2) => {
                 applyFriendlyUsage(
@@ -773,6 +773,46 @@ QUICK START:
                   if (!sName) throw new Error('Schematic name required.');
                   await sdk.runSchematicWizard(sName, args);
                 }
+              },
+            )
+            .command(
+              'splashdown [name]',
+              'Decommission Orbital Station hardware.',
+              (y2) => {
+                applyFriendlyUsage(
+                  y2,
+                  'infra splashdown',
+                  'Emergency shutdown or full decommissioning of Orbit hardware.',
+                  [
+                    [
+                      'infra splashdown my-vm --force',
+                      'Force decommissioning of a specific station.',
+                    ],
+                  ],
+                );
+                return applyGlobalOptions(
+                  applyHardwareOptions(
+                    applyContextOptions(
+                      y2
+                        .positional('name', { type: 'string' })
+                        .option('force', {
+                          type: 'boolean',
+                          description: 'Skip confirmation',
+                        })
+                        .option('all', {
+                          type: 'boolean',
+                          description: 'Shutdown all active missions',
+                        }),
+                    ),
+                  ),
+                );
+              },
+              async (args: any) => {
+                await sdk.splashdown({
+                  name: args.name,
+                  force: args.force,
+                  all: args.all,
+                });
               },
             );
         },

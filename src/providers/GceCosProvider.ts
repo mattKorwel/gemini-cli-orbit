@@ -434,7 +434,10 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async removeCapsule(name: string): Promise<number> {
-    return this.exec(this.executors.docker.remove(name));
+    const res = await this.exec(this.executors.docker.remove(name));
+    // Also remove any associated secret for this capsule
+    await this.removeSecret(name);
+    return res;
   }
 
   async jettisonMission(identifier: string, action?: string): Promise<number> {
@@ -447,11 +450,7 @@ export class GceCosProvider extends BaseProvider {
     if (action) {
       // 1. Surgical Action Cleanup: Remove specific Docker container and its secret
       const containerName = this.resolveContainerName(repoSlug, idSlug, action);
-      const res = await this.removeCapsule(containerName);
-
-      const secretId = this.resolveSecretId(repoSlug, idSlug, action);
-      await this.removeSecret(secretId);
-      return res;
+      return await this.removeCapsule(containerName);
     }
 
     // 2. Full Mission Cleanup: Remove all containers matching repoSlug-idSlug-*
@@ -459,11 +458,33 @@ export class GceCosProvider extends BaseProvider {
     const cleanupCmd = `sudo docker ps -a --format '{{.Names}}' | grep '^${namePrefix}' | xargs -r sudo docker rm -f`;
     const res = await this.exec(cleanupCmd, { quiet: true });
 
-    // Bulk Secret Cleanup
+    // Bulk Secret Cleanup for this mission
     const secretPattern = this.resolveSecretPath(`${namePrefix}-*`);
     await this.exec(`sudo rm -f ${secretPattern}`, { quiet: true });
 
     return res;
+  }
+
+  async splashdown(
+    options: {
+      all?: boolean;
+      clearSecrets?: boolean;
+    } = {},
+  ): Promise<number> {
+    const { clearSecrets } = options;
+
+    // 1. Remove all mission capsules (removeCapsule also cleans up individual secrets)
+    const capsules = await this.listCapsules();
+    for (const capsule of capsules) {
+      await this.removeCapsule(capsule);
+    }
+
+    // 2. Clear ALL mission secrets from RAM-disk if requested (Nuclear option)
+    if (clearSecrets) {
+      await this.exec('sudo rm -f /dev/shm/.orbit-env-*', { quiet: true });
+    }
+
+    return 0;
   }
 
   async removeSecret(secretId: string): Promise<void> {
