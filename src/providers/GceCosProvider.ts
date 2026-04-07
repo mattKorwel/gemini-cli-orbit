@@ -152,11 +152,10 @@ export class GceCosProvider extends BaseProvider {
       );
 
       // ADR 0018: Ensure the station code is up to date on the host before launching capsules
-      // Note: Trailing slash on localPath ensures only the contents are synced
-
       // Ensure parent directory exists before rsync
       await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`, { quiet: true });
 
+      // Note: syncIfChanged now uses SSHManager retries internally
       const syncStatus = await this.syncIfChanged(
         `${LOCAL_BUNDLE_PATH}/`,
         BUNDLE_PATH,
@@ -173,6 +172,7 @@ export class GceCosProvider extends BaseProvider {
         );
       }
 
+      // Polling Loop: Wait for supervisor to be running
       let check: { exists: boolean; running: boolean } | null = null;
       let lastErr: any = null;
 
@@ -180,9 +180,13 @@ export class GceCosProvider extends BaseProvider {
         try {
           check = await this.getCapsuleStatus(this.instanceName);
           break;
-        } catch (err) {
-          if (err instanceof ConnectivityError) {
-            lastErr = err;
+        } catch (err: any) {
+          lastErr = err;
+          // Only retry on connectivity errors (SSH failures)
+          if (
+            err instanceof ConnectivityError ||
+            err.message?.includes('exit code 255')
+          ) {
             process.stdout.write('.');
             await new Promise((r) => setTimeout(r, 3000));
             continue;
@@ -194,19 +198,19 @@ export class GceCosProvider extends BaseProvider {
       if (!check) {
         throw lastErr || new Error('Failed to establish SSH connection.');
       }
-      if (lastErr) process.stdout.write('\n');
 
       if (!check.exists || !check.running) {
         logger.info(
           '   - Supervisor capsule missing or stopped. Refreshing...',
         );
+        const innerCmd = `ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done`;
         const refreshCmd = `
             sudo docker pull ${this.imageUri}
             sudo docker rm -f ${this.instanceName} 2>/dev/null || true
             sudo docker run -d --name ${this.instanceName} --restart always --user root \\
               -v /mnt/disks/data:/mnt/disks/data:rw \\
               -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
-              ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
+              ${this.imageUri} /bin/bash -c "${innerCmd}"
           `;
         await this.exec(refreshCmd, { quiet: true });
       }
@@ -223,12 +227,9 @@ export class GceCosProvider extends BaseProvider {
         await new Promise((r) => setTimeout(r, 2000));
       }
       process.stdout.write('\n');
-    } catch (err) {
-      if (err instanceof ConnectivityError) {
-        console.error(`\n❌ Connectivity Error: ${err.message}`);
-        return 255;
-      }
-      throw err;
+    } catch (err: any) {
+      console.error(`\n❌ Readiness Error: ${err.message}`);
+      return 255;
     }
 
     logger.error(`❌ Station "${this.stationName}" failed to respond.`);
@@ -267,11 +268,23 @@ export class GceCosProvider extends BaseProvider {
       ...(cmdObj.options || {}),
     };
 
-    const remoteCmd: RemoteCommand = {
-      bin: '/bin/bash',
-      args: ['-c', this.shellQuote(flattenCommand(command))],
-      env: { ...(mergedOptions.env || {}) },
-    };
+    let remoteCmd: RemoteCommand;
+
+    if (typeof command === 'string') {
+      // For raw strings, we use bash -c
+      remoteCmd = {
+        bin: '/bin/bash',
+        args: ['-c', this.shellQuote(command)],
+        env: { ...(mergedOptions.env || {}) },
+      };
+    } else {
+      // For Command objects, pass through to avoid double-nesting
+      remoteCmd = {
+        bin: cmdObj.bin,
+        args: cmdObj.args,
+        env: { ...(mergedOptions.env || {}) },
+      };
+    }
 
     if (mergedOptions.cwd) remoteCmd.cwd = mergedOptions.cwd;
     if (mergedOptions.user) remoteCmd.user = mergedOptions.user;
@@ -399,7 +412,7 @@ export class GceCosProvider extends BaseProvider {
       { quiet: true },
     );
     if (res.status === 255) {
-      throw new ConnectivityError(res.stderr || 'SSH connection failed');
+      throw new ConnectivityError(res.stderr || 'SSH connection failed (255)');
     }
     if (res.status !== 0) return { running: false, exists: false };
     return { running: res.stdout.trim() === 'true', exists: true };

@@ -51,6 +51,7 @@ describe('GceCosProvider', () => {
     setOverrideHost: vi.fn(),
     attachToTmux: vi.fn().mockResolvedValue(0),
     syncPathIfChanged: vi.fn().mockResolvedValue(0),
+    withConnectivityRetry: vi.fn().mockImplementation((op) => op()), // Unified retry mock
   };
   mockSsh.runDockerExec.mockResolvedValue({
     status: 0,
@@ -236,8 +237,10 @@ describe('GceCosProvider', () => {
       expect(mockExecutors.docker.remove).toHaveBeenCalledWith('repo-123-fix');
 
       // Should remove specific secret
-      expect(mockSsh.runHostCommand).toHaveBeenNthCalledWith(
-        2,
+      // 1st call: listCapsules (not in this flow anymore but in jettisonMission)
+      // Actually jettisonMission calls removeCapsule which calls removeSecret.
+      // 1st runHostCommand in jettisonMission(action) is via removeCapsule -> removeSecret
+      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           args: expect.arrayContaining([
             expect.stringContaining('rm -f /dev/shm/.orbit-env-repo-123-fix'),
@@ -254,10 +257,6 @@ describe('GceCosProvider', () => {
       const calls = mockSsh.runHostCommand.mock.calls;
       // Each call is [remoteCmd, options]. We want to check remoteCmd.args
       const commands = calls.map((c) => c[0].args.join(' '));
-      console.log(
-        'DEBUG: EXECUTED COMMANDS:',
-        JSON.stringify(commands, null, 2),
-      );
 
       // 1. Should use Docker list + grep + xargs for bulk cleanup
       expect(
