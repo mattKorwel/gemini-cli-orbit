@@ -307,7 +307,9 @@ export class LocalWorktreeProvider extends BaseProvider {
 
     // Cleanup session if name represents a session-safe slug
     if (this.hasTmux()) {
+      // Try both slashed and hyphenated names for robust cleanup
       this.pm.runSync('tmux', ['kill-session', '-t', name.replace(/\//g, '-')]);
+      this.pm.runSync('tmux', ['kill-session', '-t', name]);
     }
     return 0;
   }
