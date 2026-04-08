@@ -5,6 +5,8 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import {
   type InfrastructureSpec,
   type ProjectContext,
@@ -30,7 +32,6 @@ import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
-import { SessionManager } from '../utils/SessionManager.js';
 import { type IExecutors } from '../core/interfaces.js';
 
 /**
@@ -53,7 +54,7 @@ export class MissionManager {
    * Stage 2 Hydration: Resolves user intent into a concrete MissionManifest.
    */
   async resolve(options: MissionOptions): Promise<MissionManifest> {
-    const { identifier, action } = options;
+    const { identifier: rawIdentifier, action: rawAction } = options;
 
     const provider = this.providerFactory.getProvider(
       this.projectCtx,
@@ -61,11 +62,15 @@ export class MissionManager {
     );
 
     // 1. Resolve Raw Metadata
-    const { branchName, repoSlug, idSlug } = resolveMissionContext(
-      identifier,
-      this.projectCtx.repoName,
-      this.pm,
-    );
+    const {
+      branchName,
+      repoSlug,
+      idSlug,
+      action: resolvedAction,
+    } = resolveMissionContext(rawIdentifier, this.projectCtx.repoName, this.pm);
+
+    const action = rawAction === 'chat' ? resolvedAction : rawAction;
+    const identifier = idSlug;
 
     const workspaceName = provider.resolveWorkspaceName(repoSlug, idSlug);
     const containerName = provider.resolveContainerName(
@@ -77,24 +82,29 @@ export class MissionManager {
     const workDir = provider.resolveWorkDir(workspaceName);
     const policyPath = provider.resolvePolicyPath(workDir);
 
-    const upstreamUrl = this.infra.upstreamRepo
-      ? `https://github.com/${this.infra.upstreamRepo}.git`
-      : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
-        UPSTREAM_REPO_URL;
+    const upstreamUrl =
+      this.infra.upstreamUrl ||
+      (this.infra.upstreamRepo
+        ? `https://github.com/${this.infra.upstreamRepo}.git`
+        : this.configManager.detectRemoteUrl(this.projectCtx.repoRoot) ||
+          UPSTREAM_REPO_URL);
+    this.infra.upstreamUrl = upstreamUrl;
 
     return {
       identifier,
       repoName: this.projectCtx.repoName,
       branchName,
       action,
+      workspaceName,
       workDir,
       containerName,
       sessionName,
       policyPath,
       upstreamUrl,
       mirrorPath: provider.resolveMirrorPath(),
+      bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
-      tempDir: this.infra.workspacesDir || this.infra.worktreesDir,
+      tempDir: workDir,
     };
   }
 
@@ -122,14 +132,26 @@ export class MissionManager {
       this.projectCtx.repoName,
       this.pm,
     );
+
+    // Ensure infra has the upstreamUrl from manifest for downstream providers
+    this.infra.upstreamUrl = manifest.upstreamUrl;
+
     const mCtx: MissionContext = {
       branchName: manifest.branchName,
       repoSlug,
       idSlug,
+      action: manifest.action,
       workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
       containerName: manifest.containerName,
       sessionName: manifest.sessionName,
+      upstreamUrl: manifest.upstreamUrl,
     };
+
+    // ADR 0018: Explicitly set tempDir to workDir for log isolation
+    manifest.tempDir = mCtx.workspaceName;
+    const workDir = provider.resolveWorkDir(mCtx.workspaceName);
+    manifest.workDir = workDir;
+    manifest.tempDir = workDir;
 
     // 2. Ensure Hardware/Station is Ready
     await provider.ensureReady();
@@ -137,13 +159,16 @@ export class MissionManager {
     // 3. Standardized Station Registration (Implicit Liftoff)
     this.stationRegistry.saveReceipt(provider.getStationReceipt());
 
-    // 4. Project Configuration Sync
+    // Project Configuration Sync
     this.observer.onProgress?.(
       'PHASE 0',
       '📂 Synchronizing project configurations...',
     );
 
-    // Lazy Sync Project Configs (.gemini)
+    // 1. Sync global user settings (Auth, etc.)
+    await provider.syncGlobalConfig();
+
+    // 2. Lazy Sync Project Configs (.gemini)
     const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
     const targetConfigDir = provider.resolveProjectConfigDir();
     await provider.syncIfChanged(`${localConfigDir}/`, targetConfigDir, {
@@ -151,7 +176,48 @@ export class MissionManager {
     });
 
     // 5. Mission Preparation (Hardware/Container Layer)
-    await provider.prepareMissionWorkspace(mCtx, this.infra);
+    // Gather sensitive credentials from local environment
+    const sensitiveEnv: Record<string, string> = {};
+    const creds = ['GH_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY'];
+    creds.forEach((key) => {
+      if (process.env[key]) sensitiveEnv[key] = process.env[key]!;
+    });
+
+    // ADR: Also try to extract token from gh hosts.yml if not in env
+    if (!sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
+      try {
+        const ghConfigPath = path.join(os.homedir(), '.config/gh/hosts.yml');
+        if (fs.existsSync(ghConfigPath)) {
+          const content = fs.readFileSync(ghConfigPath, 'utf8');
+          // Match any token under github.com or other hosts
+          const match = content.match(/oauth_token:\s+([^\s\n]+)/);
+          if (match && match[1]) {
+            sensitiveEnv.GH_TOKEN = match[1];
+          }
+        }
+      } catch (e: any) {
+        this.observer.onLog?.(
+          LogLevel.DEBUG,
+          'MISSION',
+          `Failed to read GH config: ${e.message}`,
+        );
+      }
+    }
+
+    // Ensure at least one is set if found
+    if (sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
+      sensitiveEnv.GITHUB_TOKEN = sensitiveEnv.GH_TOKEN;
+    } else if (sensitiveEnv.GITHUB_TOKEN && !sensitiveEnv.GH_TOKEN) {
+      sensitiveEnv.GH_TOKEN = sensitiveEnv.GITHUB_TOKEN;
+    }
+
+    await provider.prepareMissionWorkspace(mCtx, {
+      ...this.infra,
+      sensitiveEnv: {
+        ...(this.infra as any).sensitiveEnv,
+        ...sensitiveEnv,
+      },
+    } as any);
 
     // 6. Worker Handshake (Phases: Init, Hooks, Launch)
     this.observer.onProgress?.(
@@ -161,12 +227,17 @@ export class MissionManager {
 
     const workerPath = provider.resolveWorkerPath();
 
+    // Give the container a moment to settle and mounts to stabilize
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     // SINGLE RPC CALL: Start the entire mission lifecycle in the environment
     const startCmd = provider.createNodeCommand(workerPath, ['start']);
-
     const startRes = await provider.getMissionExecOutput(startCmd, mCtx, {
-      interactive: true,
+      interactive: false,
       manifest,
+      stream: true, // Provide real-time feedback during initialization
+      env: sensitiveEnv,
+      sensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
     });
 
     if (startRes.status !== 0) {
@@ -255,20 +326,24 @@ export class MissionManager {
       this.infra as any,
     );
 
-    const action = options.action || 'chat';
-
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'MISSION',
-      `👋 Resuming existing '${action}' for ${options.identifier}...`,
-    );
-
     // 1. Calculate canonical session name via Provider Hook
-    const { repoSlug, idSlug } = resolveMissionContext(
+    const {
+      repoSlug,
+      idSlug,
+      action: resolvedAction,
+    } = resolveMissionContext(
       options.identifier,
       this.projectCtx.repoName,
       this.pm,
     );
+    const action = options.action || resolvedAction;
+
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'MISSION',
+      `👋 Resuming existing '${action}' for ${idSlug}...`,
+    );
+
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
     // 2. Try direct attach to canonical name first
@@ -312,6 +387,7 @@ export class MissionManager {
       branchName,
       repoSlug,
       idSlug,
+      action: 'chat', // Fixed missionShell always starts a chat session
       workspaceName: provider.resolveWorkspaceName(repoSlug, idSlug),
       containerName: provider.resolveContainerName(repoSlug, idSlug, 'chat'),
       sessionName: provider.resolveSessionName(repoSlug, idSlug, 'chat'),
@@ -331,30 +407,11 @@ export class MissionManager {
       this.infra as any,
     );
 
-    const actionsToCleanup = action
-      ? [action]
-      : ['chat', 'fix', 'review', 'implement', 'ready'];
+    // Delegate ALL cleanup (sessions, worktrees, and secrets) to the provider.
+    // This ensures surgical cleanup for specific actions vs. full mission cleanup.
+    const exitCode = await provider.jettisonMission(identifier, action);
 
-    const { repoSlug, idSlug } = resolveMissionContext(
-      identifier,
-      this.projectCtx.repoName,
-      this.pm,
-    );
-
-    for (const act of actionsToCleanup) {
-      const containerName = provider.resolveContainerName(
-        repoSlug,
-        idSlug,
-        act,
-      );
-      await provider.removeCapsule(containerName);
-
-      const sessionId = SessionManager.generateMissionId(identifier, act);
-      const secretPath = `/dev/shm/.orbit-env-${sessionId}`;
-      await provider.exec(`sudo rm -f ${secretPath}`, { quiet: true });
-    }
-
-    return { missionId: identifier, exitCode: 0 };
+    return { missionId: identifier, exitCode };
   }
 
   /**

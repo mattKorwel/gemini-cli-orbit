@@ -186,17 +186,38 @@ export class OrbitSDK implements IOrbitSDK {
 
     // 2. Apply Name/Pattern Filter
     if (nameFilter) {
-      const regex = new RegExp(nameFilter.replace(/\*/g, '.*'), 'i');
+      const regex = new RegExp(`^${nameFilter.replace(/\*/g, '.*')}$`, 'i');
       stations = stations.filter(
         (s) => regex.test(s.receipt.name) || regex.test(s.receipt.instanceName),
       );
     }
 
     // 3. Fetch Reality for the filtered set
-    return this.status.fetchFleetState(
+    const states = await this.status.fetchFleetState(
       stations,
       includeMissions ? 'pulse' : syncWithReality ? 'health' : 'inventory',
+      options.peek,
     );
+
+    // 4. Mission-level Filtering (Surgical prune)
+    const missionFilt =
+      options.missionFilter ||
+      (options.nameFilter && includeMissions ? options.nameFilter : undefined);
+    if (missionFilt) {
+      const regex = new RegExp(`^${missionFilt.replace(/\*/g, '.*')}$`, 'i');
+      states.forEach((s) => {
+        if (s.reality) {
+          s.reality.missions = s.reality.missions.filter(
+            (m) => regex.test(m.name) || (m.mission && regex.test(m.mission)),
+          );
+        }
+      });
+
+      // Only return stations that still have matching missions
+      return states.filter((s) => s.reality && s.reality.missions.length > 0);
+    }
+
+    return states;
   }
 
   /**

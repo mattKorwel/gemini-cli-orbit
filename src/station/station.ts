@@ -16,8 +16,13 @@ import path from 'node:path';
 
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { logger } from '../core/Logger.js';
-import { getManifestFromEnv } from '../utils/MissionUtils.js';
+import {
+  CAPSULE_MANIFEST_PATH,
+  LOCAL_MANIFEST_NAME,
+} from '../core/Constants.js';
+import { getMissionManifest } from '../utils/MissionUtils.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 
@@ -39,7 +44,8 @@ export async function main(
   pm: IProcessManager = new ProcessManager(),
 ) {
   try {
-    const station = new StationSupervisor(_dirname, pm);
+    const tmux = new TmuxExecutor(pm);
+    const station = new StationSupervisor(_dirname, pm, tmux);
 
     const action = argv[0] || 'start';
 
@@ -47,24 +53,26 @@ export async function main(
     if (action === 'status') {
       const root = argv[1];
       const aggregator = new StatusAggregator(root);
-      const result = await aggregator.getStatus();
+      const result = await aggregator.getStatus(root);
       console.log(JSON.stringify(result, null, 2));
       return 0;
     }
 
     // ADR 0018: Manifest-First execution
-    // If we have a manifest in the environment, we use it to determine the action.
-    // This allows the SDK to trigger complex flows with a single RPC call.
-    const manifest = getManifestFromEnv();
+    // Mission parameters are read from the mounted manifest file.
+    const manifest = getMissionManifest();
+    logger.debug('STATION', `Loaded manifest for ${manifest.identifier}`);
     logger.setVerbose(manifest.verbose === true);
 
-    // If the manifest exists, we follow its 'action'
-    // but we still allow positional overrides for standalone worker testing
+    // The manifest 'action' determines what the worker does (start, run, etc.)
     const currentAction = argv[0] || manifest.action || 'start';
+    logger.debug('STATION', `Executing action: ${currentAction}`);
 
     switch (currentAction) {
       case 'start': {
-        return await station.start(manifest);
+        const code = await station.start(manifest);
+        logger.debug('STATION', `Start command finished with code: ${code}`);
+        return code;
       }
       case 'setup-hooks': {
         await station.setupHooks(manifest);
@@ -75,7 +83,7 @@ export async function main(
         return 0;
       }
       case 'run': {
-        return await station.runMission(manifest);
+        return await station.launchMission(manifest);
       }
       case 'help':
       case '--help': {
@@ -99,7 +107,10 @@ function printHelp() {
 Orbit Station: Universal Mission Orchestrator
 
 Usage:
-  GCLI_ORBIT_MANIFEST='{...}' node station.js [action]
+  node station.js [action]
+
+Note: Mission parameters are read from the mounted manifest file:
+  ${CAPSULE_MANIFEST_PATH} or ${LOCAL_MANIFEST_NAME}
 
 Actions (determined by manifest.action if omitted):
   start          Unified mission start (init + hooks + run)

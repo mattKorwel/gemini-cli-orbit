@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { BaseProvider } from './BaseProvider.js';
 import {
@@ -15,7 +16,7 @@ import {
 } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type SSHManager, type RemoteCommand } from './SSHManager.js';
-import { type Command, flattenCommand } from '../core/executors/types.js';
+import { type Command } from '../core/executors/types.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
 import { logger } from '../core/Logger.js';
 import {
@@ -26,8 +27,15 @@ import {
   MAIN_REPO_PATH,
   BUNDLE_PATH,
   LOCAL_BUNDLE_PATH,
+  CONFIG_DIR,
+  GLOBAL_SETTINGS_FILE,
+  GLOBAL_ACCOUNTS_FILE,
+  GLOBAL_GH_CONFIG,
 } from '../core/Constants.js';
-import { type MissionContext } from '../utils/MissionUtils.js';
+import {
+  type MissionContext,
+  resolveMissionContext,
+} from '../utils/MissionUtils.js';
 import {
   type IExecutors,
   type IProcessManager,
@@ -100,12 +108,52 @@ export class GceCosProvider extends BaseProvider {
     return `${ORBIT_ROOT}/workspaces`;
   }
 
+  override resolveBundlePath(): string {
+    return BUNDLE_PATH;
+  }
+
   override resolveWorkerPath(): string {
     return STATION_BUNDLE_PATH;
   }
 
   override resolveProjectConfigDir(): string {
     return `${ORBIT_ROOT}/project-configs`;
+  }
+
+  override resolveGlobalConfigDir(): string {
+    return CONFIG_DIR;
+  }
+
+  override async syncGlobalConfig(): Promise<number> {
+    const targetDir = this.resolveGlobalConfigDir();
+
+    // 1. Sync settings.json (Auth methods, colors, etc.)
+    if (fs.existsSync(GLOBAL_SETTINGS_FILE)) {
+      await this.sync(GLOBAL_SETTINGS_FILE, targetDir, {
+        sudo: true,
+        quiet: true,
+      });
+    }
+
+    // 2. Sync google_accounts.json (Secure credentials)
+    if (fs.existsSync(GLOBAL_ACCOUNTS_FILE)) {
+      await this.sync(GLOBAL_ACCOUNTS_FILE, targetDir, {
+        sudo: true,
+        quiet: true,
+      });
+    }
+
+    // 3. Sync GitHub CLI config (hosts.yml)
+    if (fs.existsSync(GLOBAL_GH_CONFIG)) {
+      const ghTargetDir = `${ORBIT_ROOT}/gemini-cli-config/.config/gh`;
+      await this.exec(`sudo mkdir -p ${ghTargetDir}`, { quiet: true });
+      await this.sync(GLOBAL_GH_CONFIG, ghTargetDir, {
+        sudo: true,
+        quiet: true,
+      });
+    }
+
+    return 0;
   }
 
   override resolvePolicyPath(_repoRoot: string): string {
@@ -131,9 +179,12 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async ensureReady(): Promise<number> {
-    const repoCheck = await this.getExecOutput(`ls -d ${this.repoRoot}/.git`, {
-      quiet: true,
-    });
+    const repoCheck = await this.getExecOutput(
+      `ls -d ${this.resolveMirrorPath()}/.git`,
+      {
+        quiet: true,
+      },
+    );
     if (repoCheck.status !== 0) {
       logger.warn(
         'SETUP',
@@ -147,12 +198,45 @@ export class GceCosProvider extends BaseProvider {
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
 
-      // ADR 0018: Ensure the station code is up to date on the host before launching capsules
-      // Note: Trailing slash on localPath ensures only the contents are synced
+      // Wait for persistent disk to be mounted (ADR 0016)
+      if (this.isPersistent) {
+        for (let i = 0; i < 15; i++) {
+          const mountCheck = await this.getExecOutput(
+            `grep -q "${ORBIT_ROOT}" /proc/mounts`,
+            { quiet: true },
+          );
+          if (mountCheck.status === 0) break;
+          if (i === 14) {
+            logger.warn(
+              'SETUP',
+              `   - Warning: ${ORBIT_ROOT} is not yet a mount point. Proceeding anyway...`,
+            );
+          }
+          process.stdout.write('.');
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
 
-      // Ensure parent directory exists before rsync
-      await this.exec(`sudo mkdir -p ${BUNDLE_PATH}`, { quiet: true });
+      // Ensure critical directories exist with correct permissions for multi-tenant isolation
+      const criticalDirs = [
+        BUNDLE_PATH,
+        this.resolveWorkspacesRoot(),
+        this.resolveMirrorPath(),
+        this.resolveProjectConfigDir(),
+        this.resolveGlobalConfigDir(),
+        `${ORBIT_ROOT}/tmp`,
+      ];
+      const setupRes = await this.exec(
+        `sudo mkdir -p ${criticalDirs.join(' ')} && sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 2775 ${ORBIT_ROOT}`,
+        { quiet: true },
+      );
+      if (setupRes !== 0) {
+        throw new Error(
+          `Failed to initialize ${ORBIT_ROOT} (exit ${setupRes})`,
+        );
+      }
 
+      // Note: syncIfChanged now uses SSHManager retries internally
       const syncStatus = await this.syncIfChanged(
         `${LOCAL_BUNDLE_PATH}/`,
         BUNDLE_PATH,
@@ -169,6 +253,7 @@ export class GceCosProvider extends BaseProvider {
         );
       }
 
+      // Polling Loop: Wait for supervisor to be running
       let check: { exists: boolean; running: boolean } | null = null;
       let lastErr: any = null;
 
@@ -176,9 +261,13 @@ export class GceCosProvider extends BaseProvider {
         try {
           check = await this.getCapsuleStatus(this.instanceName);
           break;
-        } catch (err) {
-          if (err instanceof ConnectivityError) {
-            lastErr = err;
+        } catch (err: any) {
+          lastErr = err;
+          // Only retry on connectivity errors (SSH failures)
+          if (
+            err instanceof ConnectivityError ||
+            err.message?.includes('exit code 255')
+          ) {
             process.stdout.write('.');
             await new Promise((r) => setTimeout(r, 3000));
             continue;
@@ -190,19 +279,19 @@ export class GceCosProvider extends BaseProvider {
       if (!check) {
         throw lastErr || new Error('Failed to establish SSH connection.');
       }
-      if (lastErr) process.stdout.write('\n');
 
       if (!check.exists || !check.running) {
         logger.info(
           '   - Supervisor capsule missing or stopped. Refreshing...',
         );
+        const innerCmd = `ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done`;
         const refreshCmd = `
             sudo docker pull ${this.imageUri}
             sudo docker rm -f ${this.instanceName} 2>/dev/null || true
             sudo docker run -d --name ${this.instanceName} --restart always --user root \\
               -v /mnt/disks/data:/mnt/disks/data:rw \\
               -v /mnt/disks/data/gemini-cli-config/.gemini:/home/node/.gemini:rw \\
-              ${this.imageUri} /bin/bash -c "ln -sfn /mnt/disks/data /home/node/.orbit && while true; do sleep 1000; done"
+              ${this.imageUri} /bin/bash -c "${innerCmd}"
           `;
         await this.exec(refreshCmd, { quiet: true });
       }
@@ -219,12 +308,9 @@ export class GceCosProvider extends BaseProvider {
         await new Promise((r) => setTimeout(r, 2000));
       }
       process.stdout.write('\n');
-    } catch (err) {
-      if (err instanceof ConnectivityError) {
-        console.error(`\n❌ Connectivity Error: ${err.message}`);
-        return 255;
-      }
-      throw err;
+    } catch (err: any) {
+      console.error(`\n❌ Readiness Error: ${err.message}`);
+      return 255;
     }
 
     logger.error(`❌ Station "${this.stationName}" failed to respond.`);
@@ -263,11 +349,23 @@ export class GceCosProvider extends BaseProvider {
       ...(cmdObj.options || {}),
     };
 
-    const remoteCmd: RemoteCommand = {
-      bin: '/bin/bash',
-      args: ['-c', this.shellQuote(flattenCommand(command))],
-      env: { ...(mergedOptions.env || {}) },
-    };
+    let remoteCmd: RemoteCommand;
+
+    if (typeof command === 'string') {
+      // For raw strings, we use bash -c
+      remoteCmd = {
+        bin: '/bin/bash',
+        args: ['-c', this.shellQuote(command)],
+        env: { ...(mergedOptions.env || {}) },
+      };
+    } else {
+      // For Command objects, pass through to avoid double-nesting
+      remoteCmd = {
+        bin: cmdObj.bin,
+        args: cmdObj.args,
+        env: { ...(mergedOptions.env || {}) },
+      };
+    }
 
     if (mergedOptions.cwd) remoteCmd.cwd = mergedOptions.cwd;
     if (mergedOptions.user) remoteCmd.user = mergedOptions.user;
@@ -276,6 +374,12 @@ export class GceCosProvider extends BaseProvider {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
       remoteCmd.env!.PATH = capsulePath;
+
+      // ADR: Propagate sensitive credentials into the exec environment
+      if (mergedOptions.sensitiveEnv) {
+        Object.assign(remoteCmd.env!, mergedOptions.sensitiveEnv);
+      }
+
       return this.ssh.runDockerExec(
         mergedOptions.isolationId,
         remoteCmd,
@@ -395,7 +499,7 @@ export class GceCosProvider extends BaseProvider {
       { quiet: true },
     );
     if (res.status === 255) {
-      throw new ConnectivityError(res.stderr || 'SSH connection failed');
+      throw new ConnectivityError(res.stderr || 'SSH connection failed (255)');
     }
     if (res.status !== 0) return { running: false, exists: false };
     return { running: res.stdout.trim() === 'true', exists: true };
@@ -413,8 +517,22 @@ export class GceCosProvider extends BaseProvider {
     return 0;
   }
 
-  async attach(name: string): Promise<number> {
-    return this.ssh.attachToTmux(name, name);
+  async attach(identifier: string): Promise<number> {
+    // If identifier already includes the repo slug, don't double-prefix it
+    const cleanId = identifier.startsWith(`${this.projectCtx.repoName}-`)
+      ? identifier.replace(`${this.projectCtx.repoName}-`, '')
+      : identifier.startsWith(`${this.projectCtx.repoName}/`)
+        ? identifier.replace(`${this.projectCtx.repoName}/`, '')
+        : identifier;
+
+    const { repoSlug, idSlug, action, containerName } = resolveMissionContext(
+      cleanId,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+    const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
+
+    return this.ssh.attachToTmux(containerName, sessionName);
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
@@ -430,7 +548,62 @@ export class GceCosProvider extends BaseProvider {
   }
 
   async removeCapsule(name: string): Promise<number> {
-    return this.exec(this.executors.docker.remove(name));
+    const res = await this.exec(this.executors.docker.remove(name));
+    // Also remove any associated secret for this capsule
+    await this.removeSecret(name);
+    return res;
+  }
+
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    const { repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    if (action) {
+      // 1. Surgical Action Cleanup: Remove specific Docker container and its secret
+      const containerName = this.resolveContainerName(repoSlug, idSlug, action);
+      return await this.removeCapsule(containerName);
+    }
+
+    // 2. Full Mission Cleanup: Remove all containers matching repoSlug-idSlug-*
+    const namePrefix = `${repoSlug}-${idSlug}`;
+    const cleanupCmd = `sudo docker ps -a --format '{{.Names}}' | grep '^${namePrefix}' | xargs -r sudo docker rm -f`;
+    const res = await this.exec(cleanupCmd, { quiet: true });
+
+    // Bulk Secret Cleanup for this mission
+    const secretPattern = this.resolveSecretPath(`${namePrefix}-*`);
+    await this.exec(`sudo rm -f ${secretPattern}`, { quiet: true });
+
+    return res;
+  }
+
+  async splashdown(
+    options: {
+      all?: boolean;
+      clearSecrets?: boolean;
+    } = {},
+  ): Promise<number> {
+    const { clearSecrets } = options;
+
+    // 1. Remove all mission capsules (removeCapsule also cleans up individual secrets)
+    const capsules = await this.listCapsules();
+    for (const capsule of capsules) {
+      await this.removeCapsule(capsule);
+    }
+
+    // 2. Clear ALL mission secrets from RAM-disk if requested (Nuclear option)
+    if (clearSecrets) {
+      await this.exec('sudo rm -f /dev/shm/.orbit-env-*', { quiet: true });
+    }
+
+    return 0;
+  }
+
+  async removeSecret(secretId: string): Promise<void> {
+    const secretPath = this.resolveSecretPath(secretId);
+    await this.exec(`sudo rm -f ${secretPath}`, { quiet: true });
   }
 
   async capturePane(capsuleName: string): Promise<string> {
@@ -519,7 +692,11 @@ export class GceCosProvider extends BaseProvider {
     ];
 
     for (const cmd of cmds) {
-      const res = await this.exec(cmd, { quiet: true });
+      const isClone = cmd.includes('git clone');
+      const res = await this.exec(cmd, {
+        quiet: !isClone,
+        stream: isClone, // Stream git clone output to show progress
+      });
       if (res !== 0) return res;
     }
     return 0;
@@ -544,6 +721,7 @@ export class GceCosProvider extends BaseProvider {
       projectId: this.projectId,
       zone: this.zone,
       repo: this.projectCtx.repoName,
+      upstreamUrl: this.infra.upstreamUrl,
       backendType: this.infra.backendType as any,
       schematic: this.infra.schematic,
       dnsSuffix: this.infra.dnsSuffix,

@@ -66,6 +66,7 @@ export class FleetManager {
       ...this.infra,
       ...schematic,
       instanceName,
+      stationName: instanceName,
       schematic: sName,
     };
 
@@ -147,7 +148,8 @@ export class FleetManager {
         'SETUP',
         `✅ Station is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
       );
-      await provider.ensureReady();
+      const readyStatus = await provider.ensureReady();
+      if (readyStatus !== 0) return readyStatus;
 
       // Ensure Main Mirror exists on host for fast clones
       const remoteUrl = this.configManager.detectRemoteUrl(
@@ -307,27 +309,11 @@ export class FleetManager {
       `🌊 SPLASHDOWN INITIATED: ${receipt.name} (${receipt.type})`,
     );
 
-    // 4. Mission Cleanup (Capsules/Workspaces)
-    const capsules = await provider.listCapsules();
-    for (const capsule of capsules) {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'CLEANUP',
-        `   🔥 Decommissioning mission: ${capsule}`,
-      );
-      await provider.stopCapsule(capsule);
-      await provider.removeCapsule(capsule);
-    }
-
-    // ADR 14: Clear mission secrets from RAM-disk
-    if (capsules.length > 0 || all || name) {
-      this.observer.onLog?.(
-        LogLevel.INFO,
-        'CLEANUP',
-        '   🧹 Clearing mission secrets from RAM-disk...',
-      );
-      await provider.exec('sudo rm -f /dev/shm/.orbit-env-*');
-    }
+    // 4. Mission Cleanup (Capsules/Workspaces/Secrets)
+    await provider.splashdown({
+      all: all || false,
+      clearSecrets: true,
+    });
 
     // 5. Destructive Hardware Decommissioning (--all or named)
     // If a name was provided, we assume they want to decommission that station

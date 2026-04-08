@@ -14,7 +14,7 @@ vi.mock('node:fs');
 vi.mock('node:child_process');
 vi.mock('../core/ConfigManager.js', () => ({
   sanitizeName: vi.fn((n: string) =>
-    n.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+    n.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
   ),
 }));
 vi.mock('../core/Logger.js');

@@ -47,6 +47,7 @@ describe('FleetManager', () => {
       listCapsules: vi.fn().mockResolvedValue([]),
       stopCapsule: vi.fn().mockResolvedValue(0),
       removeCapsule: vi.fn().mockResolvedValue(0),
+      splashdown: vi.fn().mockResolvedValue(0),
       exec: vi.fn().mockResolvedValue(0),
       getStationReceipt: vi.fn().mockReturnValue({ name: 'test-station' }),
     };
@@ -148,9 +149,11 @@ describe('FleetManager', () => {
 
     await fleet.splashdown({ name: 'test-station', force: true });
 
-    // Should cleanup secrets
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
+    // Should call provider.splashdown with clearSecrets: true
+    expect(mockProvider.splashdown).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clearSecrets: true,
+      }),
     );
   });
 });

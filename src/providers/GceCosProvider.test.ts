@@ -51,6 +51,8 @@ describe('GceCosProvider', () => {
     setOverrideHost: vi.fn(),
     attachToTmux: vi.fn().mockResolvedValue(0),
     syncPathIfChanged: vi.fn().mockResolvedValue(0),
+    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
+    withConnectivityRetry: vi.fn().mockImplementation((op) => op()), // Unified retry mock
   };
   mockSsh.runDockerExec.mockResolvedValue({
     status: 0,
@@ -146,19 +148,25 @@ describe('GceCosProvider', () => {
       stdout: '',
       stderr: '',
     });
-    // 2. mkdir -p check
+    // 2. mount check
+    mockSsh.runHostCommand.mockResolvedValueOnce({
+      status: 0,
+      stdout: '/mnt/disks/data',
+      stderr: '',
+    });
+    // 3. mkdir -p check
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: '',
       stderr: '',
     });
-    // 3. initial capsule check (exists)
+    // 4. initial capsule check (exists)
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',
       stderr: '',
     });
-    // 4. Signal lock loop check
+    // 5. Signal lock loop check
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',
@@ -226,5 +234,74 @@ describe('GceCosProvider', () => {
       '/mnt/disks/data/workspaces/repo/ws1',
     );
     expect(provider.resolveWorkspacesRoot()).toBe('/mnt/disks/data/workspaces');
+  });
+
+  it('should include upstreamUrl in getStationReceipt', () => {
+    const infraWithUrl = {
+      projectId,
+      zone,
+      instanceName,
+      upstreamUrl: 'https://github.com/org/repo.git',
+    };
+    const providerWithUrl = new GceCosProvider(
+      projectCtx,
+      projectId,
+      zone,
+      instanceName,
+      repoRoot,
+      mockSsh as any,
+      mockPm,
+      mockExecutors,
+      infraWithUrl as any,
+    );
+
+    const receipt = providerWithUrl.getStationReceipt();
+    expect(receipt.upstreamUrl).toBe('https://github.com/org/repo.git');
+  });
+
+  describe('Surgical Jettison', () => {
+    it('should remove only specific container if action provided', async () => {
+      await provider.jettisonMission('123', 'fix');
+
+      // Should call removeCapsule for specific container
+      expect(mockExecutors.docker.remove).toHaveBeenCalledWith('repo-123-fix');
+
+      // Should remove specific secret
+      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          args: expect.arrayContaining([
+            expect.stringContaining('rm -f /dev/shm/.orbit-env-repo-123-fix'),
+          ]),
+        }),
+        expect.objectContaining({ quiet: true }),
+      );
+    });
+
+    it('should remove all containers for mission if no action provided', async () => {
+      await provider.jettisonMission('123');
+
+      // Verify all commands executed via runHostCommand
+      const calls = mockSsh.runHostCommand.mock.calls;
+      const commands = calls.map((c: any) => c[0].args.join(' '));
+
+      // 1. Should use Docker list + grep + xargs for bulk cleanup
+      expect(
+        commands.some(
+          (c: string) =>
+            c.includes("grep '^repo-123'") ||
+            c.includes("grep '\\''^repo-123'\\''"),
+        ),
+      ).toBe(true);
+      expect(
+        commands.some((c) => c.includes('xargs -r sudo docker rm -f')),
+      ).toBe(true);
+
+      // 2. Should use wildcard for secret cleanup
+      expect(
+        commands.some((c) =>
+          c.includes('rm -f /dev/shm/.orbit-env-repo-123-*'),
+        ),
+      ).toBe(true);
+    });
   });
 });

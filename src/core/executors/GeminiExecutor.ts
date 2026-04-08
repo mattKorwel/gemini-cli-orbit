@@ -18,6 +18,10 @@ export interface GeminiOptions extends IRunOptions {
   prompt?: string;
   yolo?: boolean;
   resume?: string;
+  hookBeforeAgent?: string;
+  hookAfterAgent?: string;
+  hookBeforeTool?: string;
+  hookNotification?: string;
 }
 
 export class GeminiExecutor implements IGeminiExecutor {

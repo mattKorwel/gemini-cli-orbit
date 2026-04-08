@@ -22,6 +22,7 @@ export interface StationReceipt {
   projectId: string;
   zone: string;
   repo: string;
+  upstreamUrl?: string | undefined;
   status?: string;
   backendType?: 'direct-internal' | 'external';
   schematic?: string | undefined;
@@ -100,7 +101,14 @@ export interface IRunOptions {
   env?: Record<string, string>;
   interactive?: boolean;
   quiet?: boolean;
-  stdio?: 'inherit' | 'pipe' | 'ignore' | ('inherit' | 'pipe' | 'ignore')[];
+  stream?: boolean; // Real-time streaming to console
+  onStdout?: (data: string) => void;
+  onStderr?: (data: string) => void;
+  stdio?:
+    | 'inherit'
+    | 'pipe'
+    | 'ignore'
+    | ('inherit' | 'pipe' | 'ignore' | number | any)[];
 }
 
 /**
@@ -108,6 +116,11 @@ export interface IRunOptions {
  */
 export interface IProcessManager {
   runSync(bin: string, args: string[], options?: IRunOptions): IProcessResult;
+  run(
+    bin: string,
+    args: string[],
+    options?: IRunOptions,
+  ): Promise<IProcessResult>;
   runAsync(
     bin: string,
     args: string[],

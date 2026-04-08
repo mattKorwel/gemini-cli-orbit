@@ -7,47 +7,66 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
-import {
-  type IProcessManager,
-  type ITmuxExecutor,
-} from '../core/interfaces.js';
-import { ProcessManager } from '../core/ProcessManager.js';
-import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { type IProcessManager } from '../core/interfaces.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
-import { NodeExecutor } from '../core/executors/NodeExecutor.js';
-import { type Command } from '../core/executors/types.js';
 import { type MissionManifest } from '../core/types.js';
-/**
- * StationSupervisor: Remote host management layer.
- * Responsible for workspace setup and mission spawning.
- */
+import { type Command } from '../core/executors/types.js';
+
+export interface ITmuxExecutor {
+  wrapMission(
+    sessionName: string,
+    command: string,
+    options?: import('../core/interfaces.js').IRunOptions,
+  ): import('../core/executors/types.js').Command;
+}
+
 export class StationSupervisor {
   constructor(
-    private readonly dirname: string,
-    private readonly pm: IProcessManager = new ProcessManager(),
-    private readonly tmux: ITmuxExecutor = new TmuxExecutor(pm),
+    private readonly baseDir: string,
+    private readonly pm: IProcessManager,
+    private readonly tmux: ITmuxExecutor,
   ) {}
 
   /**
-   * Universal Entrypoint: Orchestrates init, hooks, and mission launch.
-   * This is the single RPC call from the SDK to start a mission.
+   * Orchestrates the initialization and launch of a mission.
    */
-  async start(manifest: MissionManifest) {
-    await this.initGit(manifest);
-    await this.setupHooks(manifest);
+  async start(manifest: MissionManifest): Promise<number> {
+    try {
+      // 1. Prepare Git workspace
+      await this.initGit(manifest);
 
-    return this.runMission(manifest);
+      // 2. Setup session hooks and status
+      await this.setupHooks(manifest);
+
+      // 3. Launch mission worker in tmux
+      return await this.launchMission(manifest);
+    } catch (err: any) {
+      console.error(`❌ Station Failure: ${err.message}`);
+      return 1;
+    }
   }
 
   /**
-   * Initializes the mission workspace on the host.
+   * Ensures the Git workspace exists and is on the correct branch.
    */
   async initGit(manifest: MissionManifest) {
-    const { workDir, upstreamUrl, branchName: branch, mirrorPath } = manifest;
+    const { upstreamUrl, branchName: branch, workDir, mirrorPath } = manifest;
     const targetDir = path.resolve(workDir);
 
+    console.log(
+      `[DEBUG] initGit starting. upstreamUrl: ${upstreamUrl}, targetDir: ${targetDir}`,
+    );
+
     const run = (cmd: Command) => {
-      const res = this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+      const options = {
+        ...cmd.options,
+        env: {
+          ...cmd.options?.env,
+          GIT_TERMINAL_PROMPT: '0', // Prevent hanging on credentials
+          GIT_ASKPASS: 'true', // Disable askpass
+        },
+      };
+      const res = this.pm.runSync(cmd.bin, cmd.args, options);
       if (res.status !== 0) {
         throw new Error(
           `Git command failed: ${cmd.bin} ${cmd.args.join(' ')}\n` +
@@ -59,16 +78,27 @@ export class StationSupervisor {
       return res;
     };
 
-    const r = path.join(targetDir, '.git');
-    if (fs.existsSync(r)) {
-      console.log(`✅ Git workspace already initialized at ${targetDir}`);
-    } else {
+    // 1. Repo existence check
+    const isRepoRes = this.pm.runSync(
+      'git',
+      GitExecutor.revParse(targetDir, ['--is-inside-work-tree']).args,
+      {
+        ...GitExecutor.revParse(targetDir, ['--is-inside-work-tree']).options,
+        quiet: true,
+      },
+    );
+
+    if (isRepoRes.status !== 0) {
       console.log(`📦 Initializing Git workspace at ${targetDir}...`);
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
-
       run(GitExecutor.init(targetDir));
+      if (!upstreamUrl) {
+        throw new Error(
+          `❌ Cannot initialize workspace: upstreamUrl is required but missing from manifest.`,
+        );
+      }
       run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl));
 
       if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
@@ -77,62 +107,84 @@ export class StationSupervisor {
         fs.mkdirSync(path.dirname(alternates), { recursive: true });
         fs.writeFileSync(alternates, objects);
       }
+    } else {
+      console.log(`✅ Git workspace already initialized at ${targetDir}`);
+      // Ensure origin remote exists and matches
+      const remoteCheck = this.pm.runSync(
+        'git',
+        ['-C', targetDir, 'remote', 'get-url', 'origin'],
+        { quiet: true },
+      );
+      if (remoteCheck.status !== 0) {
+        console.log('   - Setting up origin remote...');
+        run(GitExecutor.remoteAdd(targetDir, 'origin', upstreamUrl!));
+      }
     }
 
-    const currentBranchRes = run(
-      GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD'], {
+    // 2. Branch management
+    const currentBranchRes = this.pm.runSync(
+      'git',
+      GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD']).args,
+      {
+        ...GitExecutor.revParse(targetDir, ['--abbrev-ref', 'HEAD']).options,
+        env: { GIT_TERMINAL_PROMPT: '0' },
         quiet: true,
-      }),
+      },
     );
 
-    if (currentBranchRes.stdout.trim() === branch) {
+    if (
+      currentBranchRes.status === 0 &&
+      currentBranchRes.stdout.trim() === branch
+    ) {
       console.log(`   ✨ Already on branch '${branch}'. Rolling with it...`);
       return 0;
     }
 
     // Try to fetch the branch from origin
-    console.log(`   - Attempting to fetch branch '${branch}' from origin...`);
+    console.log(`   - Fetching branch '${branch}' from origin...`);
     const fetchCmd = GitExecutor.fetch(targetDir, 'origin', branch);
-    const fetchRes = this.pm.runSync(
-      fetchCmd.bin,
-      fetchCmd.args,
-      fetchCmd.options,
-    );
+    const fetchRes = this.pm.runSync(fetchCmd.bin, fetchCmd.args, {
+      ...fetchCmd.options,
+      env: { ...fetchCmd.options?.env, GIT_TERMINAL_PROMPT: '0' },
+    });
     if (fetchRes.status !== 0) {
-      console.log(`   ⚠️  Branch '${branch}' not found on origin.`);
+      console.log(`   ⚠️  Branch '${branch}' fetch failed or not found.`);
+      console.log(`      (Git: ${fetchRes.stderr.trim()})`);
     }
 
-    // 1. Check if branch already exists locally
-    const checkLocalCmd = GitExecutor.verify(targetDir, branch, {
-      quiet: true,
-    });
+    // Verify local vs origin/remote existence
     const localRes = this.pm.runSync(
-      checkLocalCmd.bin,
-      checkLocalCmd.args,
-      checkLocalCmd.options,
+      'git',
+      GitExecutor.verify(targetDir, branch).args,
+      {
+        ...GitExecutor.verify(targetDir, branch).options,
+        env: { GIT_TERMINAL_PROMPT: '0' },
+        quiet: true,
+      },
     );
 
     if (localRes.status === 0) {
       console.log(`   - Branch '${branch}' exists locally. Checking out...`);
       run(GitExecutor.checkout(targetDir, branch));
     } else {
-      // 2. Try to checkout from origin/branch if we successfully fetched it
       const remoteRef = `origin/${branch}`;
-      const checkRemoteCmd = GitExecutor.verify(targetDir, remoteRef, {
-        quiet: true,
-      });
       const remoteRes = this.pm.runSync(
-        checkRemoteCmd.bin,
-        checkRemoteCmd.args,
-        checkRemoteCmd.options,
+        'git',
+        GitExecutor.verify(targetDir, remoteRef).args,
+        {
+          ...GitExecutor.verify(targetDir, remoteRef).options,
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          quiet: true,
+        },
       );
 
       if (remoteRes.status === 0) {
         console.log(`   - Creating branch '${branch}' from ${remoteRef}...`);
         run(GitExecutor.checkoutNew(targetDir, branch, remoteRef));
       } else {
-        // 3. Fallback: Create new branch from current HEAD
-        console.log(`   - Creating new branch '${branch}' from HEAD...`);
+        console.log(
+          `   - Branch '${branch}' not found anywhere. Creating fresh from HEAD...`,
+        );
         run(GitExecutor.checkoutNew(targetDir, branch));
       }
     }
@@ -160,41 +212,35 @@ export class StationSupervisor {
         JSON.stringify(
           {
             status: 'INITIALIZING',
-            mission: manifest.identifier,
-            timestamp: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
           null,
           2,
         ),
       );
     }
-
-    return 0;
   }
 
   /**
-   * Spawns a mission using the unified Tmux wrapper.
+   * Spawns the mission worker inside a tmux session.
    */
-  async runMission(manifest: MissionManifest) {
-    const { workDir, sessionName: sName } = manifest;
-    const targetDir = path.resolve(workDir);
-    const missionPath = path.join(this.dirname, 'mission.js');
+  async launchMission(manifest: MissionManifest): Promise<number> {
+    const { sessionName, workDir, bundleDir } = manifest;
 
-    // ADR 0018: The Mission binary is our sole authority in the session
-    const nodeCmd = NodeExecutor.create(missionPath, []);
-    const innerCommand = `${nodeCmd.bin} ${nodeCmd.args.join(' ')}`;
+    // ADR 0018: Use the bundleDir provided in the manifest (Resolved by ContextResolver)
+    const workerScript = path.join(
+      bundleDir || '/mnt/disks/data/bundle',
+      'mission.js',
+    );
 
-    // Use the dedicated TmuxExecutor to build the session wrapper
-    const tmuxCmd = this.tmux.wrapMission(sName, innerCommand, {
-      cwd: targetDir,
-      env: {
-        GCLI_ORBIT_MANIFEST: JSON.stringify(manifest),
-        GCLI_ORBIT_VERBOSE: manifest.verbose ? '1' : '0',
-      },
+    console.log(`🚀 Launching mission worker: ${sessionName}`);
+    const cmd = this.tmux.wrapMission(sessionName, `node ${workerScript}`, {
+      cwd: workDir,
     });
 
-    // Launch!
-    const res = this.pm.runSync(tmuxCmd.bin, tmuxCmd.args, tmuxCmd.options);
-    return res.status;
+    // ADR 0017: Mission worker runs in a persistent tmux session.
+    this.pm.runAsync(cmd.bin, cmd.args, cmd.options);
+
+    return 0;
   }
 }

@@ -5,16 +5,24 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
+import os from 'node:os';
 import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
   type OrbitStatus,
   type CapsuleInfo,
 } from '../core/types.js';
-import { type ProjectContext, LOCAL_BUNDLE_PATH } from '../core/Constants.js';
+import {
+  type ProjectContext,
+  type InfrastructureSpec,
+  LOCAL_BUNDLE_PATH,
+  LOCAL_MANIFEST_NAME,
+} from '../core/Constants.js';
 import { type Command } from '../core/executors/types.js';
-import { type MissionContext } from '../utils/MissionUtils.js';
+import {
+  type MissionContext,
+  resolveMissionContext,
+} from '../utils/MissionUtils.js';
 import {
   type IExecutors,
   type IProcessManager,
@@ -22,28 +30,33 @@ import {
   type StationReceipt,
 } from '../core/interfaces.js';
 
+import type fsNamespace from 'node:fs';
+
 /**
- * LocalWorktreeProvider: Hierarchical local workspace management.
- * Uses standard hierarchical naming policy from BaseProvider.
+ * Local Worktree Execution Provider.
+ * Orchestrates missions on the local machine using 'git worktree'.
  */
 export class LocalWorktreeProvider extends BaseProvider {
   public readonly type = 'local-worktree';
-  public readonly isPersistent = false;
-  public projectId = 'local';
-  public zone = 'localhost';
-  public stationName: string;
-  public workspacesDir: string;
-  protected fs = fs;
+  public readonly isPersistent = true;
+
+  public readonly projectId = 'local';
+  public readonly zone = 'local';
+  public readonly stationName: string;
+
+  private readonly workspacesDir: string;
 
   constructor(
     private readonly projectCtx: ProjectContext,
+    private readonly fs: typeof fsNamespace,
     pm: IProcessManager,
     executors: IExecutors,
-    stationName = 'local',
     workspacesDir: string,
+    private readonly infra: InfrastructureSpec,
+    config: { stationName?: string } = {},
   ) {
     super(pm, executors);
-    this.stationName = stationName;
+    this.stationName = config.stationName || `local-${projectCtx.repoName}`;
     this.workspacesDir = workspacesDir;
   }
 
@@ -63,12 +76,20 @@ export class LocalWorktreeProvider extends BaseProvider {
     return path.join(this.workspacesDir, this.projectCtx.repoName);
   }
 
+  override resolveBundlePath(): string {
+    return LOCAL_BUNDLE_PATH;
+  }
+
   override resolveWorkerPath(): string {
     return `${LOCAL_BUNDLE_PATH}/station.js`;
   }
 
   override resolveProjectConfigDir(): string {
     return path.join(this.projectCtx.repoRoot, '.gemini');
+  }
+
+  override resolveGlobalConfigDir(): string {
+    return path.join(os.homedir(), '.gemini');
   }
 
   override resolvePolicyPath(repoRoot: string): string {
@@ -88,27 +109,15 @@ export class LocalWorktreeProvider extends BaseProvider {
   }
 
   getRunCommand(command: string, options: ExecOptions = {}): string {
-    const envObj = { ...options.env };
-    if (options.manifest) {
-      envObj.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
-    }
-
-    const envPrefix =
-      Object.keys(envObj).length > 0
-        ? Object.entries(envObj)
-            .map(([k, v]) => `${k}=${this.shellQuote(v as string)}`)
-            .join(' ') + ' '
-        : '';
-
     const capsuleDir = options.cwd || this.projectCtx.repoRoot;
 
     if (this.hasTmux()) {
       const sessionName = options.isolationId || 'orbit-local';
       const tip =
         'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
-      return `tmux new-session -d -A -s ${this.shellQuote(sessionName)} "cd ${this.shellQuote(capsuleDir)} && ${tip}; ${envPrefix}${command} || exec zsh"`;
+      return `tmux new-session -d -A -s ${this.shellQuote(sessionName)} "cd ${this.shellQuote(capsuleDir)} && ${tip}; ${command} || exec zsh"`;
     }
-    return `cd ${this.shellQuote(capsuleDir)} && ${envPrefix}${command}`;
+    return `cd ${this.shellQuote(capsuleDir)} && ${command}`;
   }
 
   override resolveIsolationId(mCtx: MissionContext): string {
@@ -132,10 +141,6 @@ export class LocalWorktreeProvider extends BaseProvider {
       GEMINI_AUTO_UPDATE: '0',
     };
 
-    if (options.manifest) {
-      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
-    }
-
     const runOptions: IRunOptions = {
       stdio: 'pipe',
       cwd,
@@ -145,13 +150,11 @@ export class LocalWorktreeProvider extends BaseProvider {
       runOptions.quiet = options.quiet;
     }
 
-    const res = this.pm.runSync(
-      typeof command === 'string' ? 'sh' : command.bin,
-      typeof command === 'string' ? ['-c', command] : command.args,
-      runOptions,
-    );
+    if (typeof command === 'string') {
+      return this.pm.runSync('/bin/bash', ['-c', command], runOptions);
+    }
 
-    return res;
+    return this.pm.runSync(command.bin, command.args, runOptions);
   }
 
   async sync(): Promise<number> {
@@ -161,57 +164,84 @@ export class LocalWorktreeProvider extends BaseProvider {
     return 0;
   }
 
-  async prepareMissionWorkspace(mCtx: MissionContext): Promise<void> {
+  async prepareMissionWorkspace(
+    mCtx: MissionContext,
+    infra: InfrastructureSpec,
+  ): Promise<void> {
     const { branchName, workspaceName } = mCtx;
     const sourceDir = this.projectCtx.repoRoot;
     const wtPath = path.join(this.workspacesDir, workspaceName);
 
-    if (this.fs.existsSync(wtPath)) return;
-
-    console.log(
-      `   🌿 Orbit: Provisioning local workspace for '${branchName}'...`,
-    );
-
-    // Ensure the parent directory exists (e.g. orbit-workspaces/repo/)
-    this.fs.mkdirSync(path.dirname(wtPath), { recursive: true });
-
-    this.pm.runSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
-      quiet: true,
-    });
-
-    const localCheck = this.pm.runSync(
-      'git',
-      ['-C', sourceDir, 'show-ref', '--verify', `refs/heads/${branchName}`],
-      { quiet: true },
-    );
-    const remoteCheck = this.pm.runSync(
-      'git',
-      [
-        '-C',
-        sourceDir,
-        'show-ref',
-        '--verify',
-        `refs/remotes/origin/${branchName}`,
-      ],
-      { quiet: true },
-    );
-
-    const args: string[] = ['-C', sourceDir, 'worktree', 'add'];
-
-    if (localCheck.status === 0) {
-      args.push(wtPath, branchName);
-    } else if (remoteCheck.status === 0) {
-      args.push('-b', branchName, wtPath, `origin/${branchName}`);
-    } else {
-      console.warn(
-        `   ⚠️  Branch '${branchName}' not found. Creating from HEAD.`,
+    if (!this.fs.existsSync(wtPath)) {
+      console.log(
+        `   🌿 Orbit: Provisioning local workspace for '${branchName}'...`,
       );
-      args.push('-b', branchName, wtPath);
+
+      // 1. Safe Directory Creation
+      try {
+        this.fs.mkdirSync(path.dirname(wtPath), { recursive: true });
+      } catch (_e) {}
+
+      this.pm.runSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
+        quiet: true,
+      });
+
+      const localCheck = this.pm.runSync(
+        'git',
+        ['-C', sourceDir, 'show-ref', '--verify', `refs/heads/${branchName}`],
+        { quiet: true },
+      );
+      const remoteCheck = this.pm.runSync(
+        'git',
+        [
+          '-C',
+          sourceDir,
+          'show-ref',
+          '--verify',
+          `refs/remotes/origin/${branchName}`,
+        ],
+        { quiet: true },
+      );
+
+      const args: string[] = ['-C', sourceDir, 'worktree', 'add'];
+
+      if (localCheck.status === 0) {
+        args.push(wtPath, branchName);
+      } else if (remoteCheck.status === 0) {
+        args.push('-b', branchName, wtPath, `origin/${branchName}`);
+      } else {
+        console.warn(
+          `   ⚠️  Branch '${branchName}' not found. Creating from HEAD.`,
+        );
+        args.push('-b', branchName, wtPath);
+      }
+
+      const res = this.pm.runSync('git', args, { quiet: true });
+
+      if (res.status !== 0 && !this.fs.existsSync(wtPath)) {
+        throw new Error(
+          `Failed to create workspace: exit code ${res.status}\n${res.stderr}`,
+        );
+      }
     }
 
-    const res = this.pm.runSync('git', args);
-    if (res.status !== 0)
-      throw new Error(`Failed to create workspace: exit code ${res.status}`);
+    // 2. Write Manifest-on-Disk (replaces environment variable)
+    const manifestJson = JSON.stringify({
+      identifier: mCtx.idSlug,
+      repoName: this.projectCtx.repoName,
+      branchName: mCtx.branchName,
+      action: mCtx.action,
+      workDir: wtPath,
+      containerName: mCtx.containerName,
+      sessionName: mCtx.sessionName,
+      policyPath: this.resolvePolicyPath(wtPath),
+      upstreamUrl: (infra as any).upstreamUrl,
+      mirrorPath: sourceDir,
+      bundleDir: this.resolveBundlePath(),
+      tempDir: this.workspacesDir,
+    });
+
+    this.fs.writeFileSync(path.join(wtPath, LOCAL_MANIFEST_NAME), manifestJson);
   }
 
   async getStatus(): Promise<OrbitStatus> {
@@ -233,155 +263,226 @@ export class LocalWorktreeProvider extends BaseProvider {
   async getCapsuleStatus(
     name: string,
   ): Promise<{ running: boolean; exists: boolean }> {
-    const wtPath = path.join(this.workspacesDir, name.replace(/-/g, '/'));
-    const exists = fs.existsSync(wtPath);
-    return { exists, running: exists };
+    // For local, we check tmux sessions
+    if (!this.hasTmux()) return { running: false, exists: false };
+    const res = this.pm.runSync('tmux', ['has-session', '-t', name], {
+      quiet: true,
+    });
+    return { running: res.status === 0, exists: res.status === 0 };
   }
 
   async getCapsuleStats(): Promise<string> {
     return 'N/A (Local)';
   }
+
   async getCapsuleIdleTime(): Promise<number> {
     return 0;
   }
 
   async attach(name: string): Promise<number> {
-    if (!this.hasTmux()) return 1;
-    const res = this.executors.tmux.attach(name);
-    if (res.status === 0) return 0;
-
-    const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
-      quiet: true,
-    });
-    if (listRes.status === 0) {
-      const sessions = listRes.stdout.toString().split('\n');
-      const bestMatch = sessions.find((s) => s.includes(name));
-      if (bestMatch) {
-        return this.executors.tmux.attach(bestMatch).status;
-      }
-    }
-    return this.missionShell(name);
+    if (!this.hasTmux()) throw new Error('tmux is required for local missions');
+    return this.pm.runSync('tmux', ['attach-session', '-t', name], {
+      stdio: 'inherit',
+    }).status;
   }
 
   async runCapsule(): Promise<number> {
-    throw new Error('Not supported');
-  }
-  async stopCapsule(name: string): Promise<number> {
-    if (this.hasTmux()) this.pm.runSync('tmux', ['kill-session', '-t', name]);
+    // Local capsules are tmux sessions, handled by getRunCommand
     return 0;
+  }
+
+  async stopCapsule(name: string): Promise<number> {
+    if (!this.hasTmux()) return 0;
+    return this.pm.runSync('tmux', ['kill-session', '-t', name], {
+      quiet: true,
+    }).status;
   }
 
   async removeCapsule(name: string): Promise<number> {
-    const sourceDir = this.projectCtx.repoRoot;
-    const wtPath = path.join(this.workspacesDir, name.replace(/-/g, '/'));
-    if (!fs.existsSync(wtPath)) return 0;
+    const wtPath = path.join(this.workspacesDir, name);
 
-    if (path.resolve(wtPath) === path.resolve(sourceDir)) return 1;
+    // 1. Remove the worktree
+    this.pm.runSync(
+      'git',
+      ['-C', this.projectCtx.repoRoot, 'worktree', 'remove', wtPath, '--force'],
+      { quiet: true },
+    );
 
-    console.log(`   🔥 Orbit: Removing local workspace: ${name}`);
-    this.pm.runSync('git', [
-      '-C',
-      sourceDir,
-      'worktree',
-      'remove',
-      wtPath,
-      '--force',
-    ]);
-    if (this.hasTmux()) this.pm.runSync('tmux', ['kill-session', '-t', name]);
+    // 2. Kill associated tmux sessions
+    // Cleanup session if name represents a session-safe slug
+    if (this.hasTmux()) {
+      // Try both slashed and hyphenated names for robust cleanup
+      this.pm.runSync('tmux', ['kill-session', '-t', name.replace(/\//g, '-')]);
+      this.pm.runSync('tmux', ['kill-session', '-t', name]);
+    }
     return 0;
   }
 
-  async capturePane(): Promise<string> {
-    return 'N/A (Local)';
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    const { repoSlug, idSlug } = resolveMissionContext(
+      identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+
+    if (action) {
+      // 1. Surgical Action Cleanup: Kill only the specific session
+      const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
+      if (this.hasTmux()) {
+        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
+          quiet: true,
+        });
+      }
+
+      // ADR: If this was the LAST session for this mission ID, clean up the worktree too
+      if (this.hasTmux()) {
+        const missionPrefix = `${repoSlug}/${idSlug}/`; // Trailing slash is key
+        const chatSession = this.resolveSessionName(repoSlug, idSlug, 'chat'); // The non-action one
+
+        const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
+          quiet: true,
+        });
+        const sessions = (listRes.stdout || '').split('\n');
+
+        const otherSessions = sessions.filter((s) => {
+          if (s === sessionName) return false;
+          return s === chatSession || s.startsWith(missionPrefix);
+        });
+
+        if (otherSessions.length === 0) {
+          const workspaceName = this.resolveWorkspaceName(repoSlug, idSlug);
+          await this.removeCapsule(workspaceName);
+        }
+      }
+      return 0;
+    }
+
+    // 2. Full Mission Cleanup: Remove worktree AND all associated sessions
+    const workspaceName = this.resolveWorkspaceName(repoSlug, idSlug);
+    const res = await this.removeCapsule(workspaceName);
+
+    if (this.hasTmux()) {
+      const actions = ['chat', 'fix', 'review', 'implement'];
+      for (const act of actions) {
+        const sessionName = this.resolveSessionName(repoSlug, idSlug, act);
+        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
+          quiet: true,
+        });
+      }
+    }
+
+    return res;
   }
+
+  async splashdown(): Promise<number> {
+    // Local splashdown: Remove all local mission capsules
+    const capsules = await this.listCapsules();
+    for (const capsule of capsules) {
+      await this.removeCapsule(capsule);
+    }
+    return 0;
+  }
+
+  async removeSecret(): Promise<void> {
+    // Local provider does not use isolated secrets
+    return;
+  }
+
+  async capturePane(name: string): Promise<string> {
+    if (!this.hasTmux()) return 'N/A (No Tmux)';
+    const res = this.pm.runSync(
+      'tmux',
+      ['capture-pane', '-pt', this.shellQuote(name)],
+      { quiet: true },
+    );
+    if (res.status !== 0) return 'N/A (Capture failed)';
+
+    const lines = (res.stdout || '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => {
+        if (!l) return false;
+        if (l.includes('ProjectRegistry')) return false;
+        if (l.includes('file:///')) return false;
+        if (l.includes('A new version of Gemini CLI')) return false;
+        if (l.includes('orbit-git-worktrees')) return false;
+        return true;
+      });
+
+    return lines.slice(-20).join('\n');
+  }
+
   async listStations(): Promise<number> {
     return 0;
   }
+
   async destroy(): Promise<number> {
     return 0;
   }
+
+  async listCapsules(): Promise<string[]> {
+    if (!this.hasTmux()) return [];
+    const res = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
+      quiet: true,
+    });
+    if (res.status !== 0) return [];
+
+    const sessions = (res.stdout || '').split('\n').filter(Boolean);
+    // Find sessions that look like Orbit sessions (repo/id or repo/id/action)
+    return sessions.filter((s) => s.includes('/'));
+  }
+
   async provisionMirror(): Promise<number> {
     return 0;
   }
+
   async stationShell(): Promise<number> {
-    return this.pm.runSync('zsh', [], { interactive: true }).status;
+    return this.pm.runSync('/bin/zsh', [], { stdio: 'inherit' }).status;
   }
 
   async missionShell(name: string): Promise<number> {
-    const wtPath = path.join(this.workspacesDir, name.replace(/-/g, '/'));
-    return this.pm.runSync('zsh', [], { interactive: true, cwd: wtPath })
-      .status;
+    return this.attach(name);
   }
 
   getStationReceipt(): StationReceipt {
     return {
       name: this.stationName,
-      instanceName: this.stationName,
+      instanceName: 'local',
       type: 'local-worktree',
       projectId: 'local',
-      zone: 'localhost',
+      zone: 'local',
       repo: this.projectCtx.repoName,
-      rootPath: this.projectCtx.repoRoot,
-      workspacesDir: this.workspacesDir,
+      upstreamUrl: this.infra.upstreamUrl,
+      backendType: 'direct-internal',
       lastSeen: new Date().toISOString(),
     };
   }
 
-  async listCapsules(): Promise<string[]> {
-    const sourceDir = this.projectCtx.repoRoot;
-    const capsules: string[] = [];
-
-    // Use git worktree list for accuracy
-    const res = this.pm.runSync(
-      'git',
-      ['-C', sourceDir, 'worktree', 'list', '--porcelain'],
-      { quiet: true },
-    );
-
-    if (res.status === 0) {
-      const lines = res.stdout.split('\n');
-      for (const line of lines) {
-        if (line.startsWith('worktree ')) {
-          const wtPath = line.replace('worktree ', '').trim();
-
-          // SKIP the main repo root itself
-          if (path.resolve(wtPath) === path.resolve(this.projectCtx.repoRoot)) {
-            continue;
-          }
-
-          // Only include if it's within our workspacesDir
-          if (wtPath.startsWith(this.workspacesDir)) {
-            const relPath = path.relative(this.workspacesDir, wtPath);
-            if (relPath && relPath !== '.') {
-              // Convert filesystem path back to mission ID slug (repo/id)
-              capsules.push(relPath);
-            }
-          }
-        }
-      }
-    }
-
-    return capsules;
-  }
-
-  injectState(): void {}
-
   protected override async resolveLegacyCapsuleState(
     name: string,
   ): Promise<CapsuleInfo['state']> {
-    if (!this.hasTmux()) return 'IDLE';
+    const isRunning = await this.getCapsuleStatus(name);
 
-    const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
-      quiet: true,
-    });
-    if (listRes.status !== 0) return 'IDLE';
+    if (isRunning.running) {
+      const thoughts = await this.capturePane(name);
+      const lines = thoughts.trim().split('\n');
 
-    const sessions = listRes.stdout.toString().split('\n');
-    const bestMatch = sessions.find((s) => s.includes(name));
+      // Check last few lines for prompt indicators (larger window for boxes/multi-line prompts)
+      const lastFew = lines.slice(-15).join(' ');
 
-    if (bestMatch) {
-      // For local, we just assume it's THINKING if the session exists
-      return 'THINKING';
+      if (lastFew.toLowerCase().includes('allow execution')) {
+        return 'WAITING_FOR_APPROVAL';
+      }
+
+      const isWaiting =
+        lastFew.includes('❯') ||
+        lastFew.includes('$') ||
+        lastFew.includes('%') ||
+        lastFew.includes('>') ||
+        lastFew.includes('(y/n)') ||
+        lastFew.trim().endsWith('?');
+
+      return isWaiting ? 'WAITING_FOR_INPUT' : 'THINKING';
     }
 
     return 'IDLE';

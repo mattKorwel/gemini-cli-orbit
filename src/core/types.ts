@@ -33,6 +33,7 @@ export interface MissionResult {
 export interface CapsuleInfo {
   name: string;
   repo?: string;
+  mission?: string;
   state:
     | 'IDLE'
     | 'WAITING'
@@ -42,11 +43,11 @@ export interface CapsuleInfo {
     | 'COMPLETED'
     | 'UNKNOWN';
   stats?: any;
-  lastThought?: string;
-  blocker?: string;
-  progress?: string;
-  pendingTool?: string;
-  lastQuestion?: string;
+  lastThought?: string | undefined;
+  blocker?: string | undefined;
+  progress?: string | undefined;
+  pendingTool?: string | undefined;
+  lastQuestion?: string | undefined;
 }
 
 /**
@@ -75,19 +76,21 @@ export interface CIStatus {
 
 /**
  * Immutable unit of truth for a mission's state and configuration.
- * Passed via the GCLI_ORBIT_MANIFEST environment variable.
+ * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
  */
 export interface MissionManifest {
   identifier: string; // The user's ID (PR # or branch name)
   repoName: string; // The sanitized repository name
   branchName: string; // The resolved git branch
   action: string; // The playbook action (chat, fix, review, etc.)
+  workspaceName: string; // The hierarchical workspace identifier (relative path)
   workDir: string; // The absolute path to the workspace
   containerName: string; // The name of the mission container
   policyPath: string; // The absolute path to the active policy
   sessionName: string; // The user-friendly hierarchical session name
   upstreamUrl: string; // The git remote origin URL
   mirrorPath?: string; // Optional path to local git mirror
+  bundleDir?: string; // Root directory for orbit bundles (station.js, mission.js)
   verbose?: boolean | undefined; // Whether to enable detailed logging
   tempDir?: string | undefined; // Root directory for temporary logs and artifacts
 }
@@ -150,6 +153,9 @@ export interface ListStationsOptions {
   includeMissions?: boolean | undefined;
   repoFilter?: string | undefined;
   nameFilter?: string | undefined;
+  missionFilter?: string | undefined;
+  peek?: boolean | undefined;
+  all?: boolean | undefined;
 }
 
 /**
@@ -257,9 +263,10 @@ export interface ExecOptions {
   isolationId?: string; // Strictly for the isolation handle (Tmux session or Docker container name)
   user?: string; // Unix user for remote execution
   quiet?: boolean;
+  stream?: boolean; // Real-time streaming to local console
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
-  manifest?: MissionManifest;
+  manifest?: MissionManifest | undefined;
 }
 
 export interface RemoteCommand {

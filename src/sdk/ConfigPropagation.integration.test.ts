@@ -18,9 +18,11 @@ vi.mock('node:os', () => ({
   default: {
     homedir: () => '/home/node',
     platform: () => 'linux',
+    tmpdir: () => '/tmp',
   },
   homedir: () => '/home/node',
   platform: () => 'linux',
+  tmpdir: () => '/tmp',
 }));
 
 describe('Config Propagation Integration', () => {
@@ -47,6 +49,11 @@ describe('Config Propagation Integration', () => {
         exec: vi
           .fn()
           .mockImplementation((target, command, options) =>
+            mockPm.runSync('ssh', [target, command], options),
+          ),
+        execAsync: vi
+          .fn()
+          .mockImplementation(async (target, command, options) =>
             mockPm.runSync('ssh', [target, command], options),
           ),
         rsync: vi

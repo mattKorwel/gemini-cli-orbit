@@ -20,6 +20,7 @@ vi.mock('../../core/Logger.js', () => ({
 }));
 
 vi.mock('../../utils/MissionUtils.js', () => ({
+  getMissionManifest: vi.fn(),
   getManifestFromEnv: vi.fn(),
   SessionManager: {
     getSessionIdFromEnv: vi.fn().mockReturnValue(null),
@@ -39,6 +40,9 @@ vi.mock('../../core/executors/GitExecutor.js', () => ({
 
 vi.mock('../../core/ConfigManager.js', () => ({
   getRepoConfig: vi.fn().mockReturnValue({}),
+  sanitizeName: vi.fn((n: string) =>
+    n.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
+  ),
 }));
 
 vi.mock('../../utils/TempManager.js', () => ({
@@ -68,7 +72,7 @@ describe('mission entrypoint', () => {
   });
 
   it('should hydrate logger verbosity from manifest', async () => {
-    (MissionUtils.getManifestFromEnv as any).mockReturnValue({
+    (MissionUtils.getMissionManifest as any).mockReturnValue({
       identifier: '123',
       action: 'review',
       workDir: '/test/dir',
@@ -83,7 +87,7 @@ describe('mission entrypoint', () => {
   });
 
   it('should dispatch to review playbook', async () => {
-    (MissionUtils.getManifestFromEnv as any).mockReturnValue({
+    (MissionUtils.getMissionManifest as any).mockReturnValue({
       identifier: '123',
       action: 'review',
       workDir: '/test/dir',

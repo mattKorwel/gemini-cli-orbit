@@ -8,7 +8,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ContextResolver } from './ContextResolver.js';
 import * as ConfigManager from './ConfigManager.js';
 
-vi.mock('./ConfigManager.js');
+vi.mock('./ConfigManager.js', () => ({
+  sanitizeName: vi.fn((n: string) =>
+    n.replace(/[^a-zA-Z0-9\-_]/g, '-').toLowerCase(),
+  ),
+  getProjectConfigPath: vi.fn(),
+  loadSettings: vi.fn(),
+  loadProjectConfig: vi.fn(),
+  getRepoConfig: vi.fn(),
+  detectRepoName: vi.fn(),
+  loadJson: vi.fn(),
+  loadSchematic: vi.fn(),
+}));
 vi.mock('node:fs');
 
 describe('ContextResolver', () => {

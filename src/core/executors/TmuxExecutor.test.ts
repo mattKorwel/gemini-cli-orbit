@@ -30,14 +30,14 @@ describe('TmuxExecutor', () => {
   it('wraps a mission correctly with wrapMission', () => {
     const cmd = TmuxExecutor.wrapMission('mysession', 'node mission.js', {
       cwd: '/tmp',
-      env: { GCLI_ORBIT_MANIFEST: '{"id":"123"}' },
+      env: { VERBOSE: '1' },
     });
     expect(cmd.bin).toBe('tmux');
     expect(cmd.args).toContain('mysession');
     const lastArg = cmd.args[cmd.args.length - 1];
     expect(lastArg).toContain('🛰️  ORBIT');
     expect(lastArg).toContain("cd '/tmp'");
-    expect(lastArg).toContain('GCLI_ORBIT_MANIFEST=\'{"id":"123"}\'');
+    expect(lastArg).toContain("VERBOSE='1'");
     expect(lastArg).toContain('node mission.js');
   });
 

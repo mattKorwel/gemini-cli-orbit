@@ -67,7 +67,9 @@ describe('MissionManager', () => {
       exec: vi.fn().mockResolvedValue(0),
       sync: vi.fn().mockResolvedValue(0),
       syncIfChanged: vi.fn().mockResolvedValue(0),
+      syncGlobalConfig: vi.fn().mockResolvedValue(0),
       ensureReady: vi.fn().mockResolvedValue(0),
+      resolveBundlePath: vi.fn().mockReturnValue('/mock/bundle'),
       removeCapsule: vi.fn().mockResolvedValue(0),
       capturePane: vi.fn().mockResolvedValue('mock-logs'),
       getCapsuleIdleTime: vi.fn().mockResolvedValue(0),
@@ -76,6 +78,8 @@ describe('MissionManager', () => {
       resolveContainerName: vi
         .fn()
         .mockImplementation((r, i, a) => `${r}-${i}-${a}`),
+      resolveIsolationId: vi.fn().mockReturnValue('mock-container'),
+      jettisonMission: vi.fn().mockResolvedValue(0),
       resolveWorkDir: vi.fn().mockReturnValue('/tmp/workdir'),
       resolveProjectConfigDir: vi.fn().mockReturnValue('/tmp/project-configs'),
       resolveWorkerPath: vi.fn().mockReturnValue('/tmp/station.js'),
@@ -143,6 +147,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
@@ -175,6 +180,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
     mockProvider.listCapsules.mockResolvedValue([fullName]);
 
@@ -207,19 +213,14 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
     mockProvider.listCapsules.mockResolvedValue(['test-repo-123']);
 
     await manager.jettison({ identifier: '123' });
 
-    // Should attempt to remove variants
-    expect(mockProvider.removeCapsule).toHaveBeenCalled();
-
-    // Should cleanup secrets
-    expect(mockProvider.exec).toHaveBeenCalledWith(
-      expect.stringContaining('rm -f /dev/shm/.orbit-env-'),
-      expect.any(Object),
-    );
+    // Should delegate to provider
+    expect(mockProvider.jettisonMission).toHaveBeenCalledWith('123', undefined);
   });
 
   it('should propagate verbose flag to the manifest', async () => {
@@ -239,6 +240,7 @@ describe('MissionManager', () => {
       branchName: 'feat',
       repoSlug: 'test-repo',
       idSlug: '123',
+      action: 'chat',
     });
 
     const manifest = await verboseManager.resolve({
@@ -247,5 +249,24 @@ describe('MissionManager', () => {
     });
 
     expect(manifest.verbose).toBe(true);
+  });
+
+  it('should populate upstreamUrl in manifest and infra', async () => {
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+      action: 'chat',
+    });
+
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'chat',
+    });
+
+    expect(manifest.upstreamUrl).toBe('https://github.com/test/test.git');
+    expect((manager as any).infra.upstreamUrl).toBe(
+      'https://github.com/test/test.git',
+    );
   });
 });

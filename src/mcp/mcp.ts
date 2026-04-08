@@ -173,6 +173,52 @@ export function createOrbitMcpServer() {
   );
 
   server.registerTool(
+    'mission_peek',
+    {
+      description: 'Get a real-time terminal snapshot of an active mission.',
+      inputSchema: z.object({
+        identifier: z.string().describe('PR number or branch name'),
+        station: z.string().optional().describe('Target station instance'),
+        action: z.string().default('chat'),
+      }).shape,
+    },
+    async ({ identifier, station, action: _action }) => {
+      const sdk = await getSDK(undefined, station);
+      const results = await sdk.getFleetState({
+        missionFilter: identifier,
+        includeMissions: true,
+        peek: true,
+        all: true,
+      });
+
+      if (results.length === 0) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `❌ No mission found matching: ${identifier}`,
+            },
+          ],
+        };
+      }
+
+      // Format the result nicely for the LLM
+      let text = '🔭 Mission Terminal Snapshot:\n\n';
+      results.forEach((s) => {
+        s.reality?.missions.forEach((m) => {
+          text += `Mission: ${m.name} [${m.state}]\n`;
+          if (m.lastThought) {
+            text += `Terminal:\n\`\`\`\n${m.lastThought}\n\`\`\`\n`;
+          }
+        });
+      });
+
+      return { content: [{ type: 'text', text }] };
+    },
+  );
+
+  server.registerTool(
     'mission_jettison',
     {
       description:

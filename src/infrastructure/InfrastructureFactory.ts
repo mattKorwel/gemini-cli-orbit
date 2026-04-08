@@ -21,7 +21,7 @@ export class InfrastructureFactory implements IInfrastructureFactory {
     schematicName: string,
     config: OrbitConfig,
   ): InfrastructureProvisioner {
-    const providerType = config.providerType || 'gce';
+    const providerType = config.providerType || (config as any).type || 'gce';
 
     switch (providerType) {
       case 'gce':

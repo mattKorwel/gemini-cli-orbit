@@ -132,4 +132,28 @@ describe('StatusManager', () => {
     expect(fleetState[0]!.receipt.name).toBe('s1');
     expect(fleetState[1]!.receipt.name).toBe('s2');
   });
+
+  it('fetchFleetState propagates peek flag to provider', async () => {
+    const mockProvider = {
+      getStatus: vi.fn().mockResolvedValue({ status: 'RUNNING' }),
+      getMissionTelemetry: vi.fn().mockResolvedValue([]),
+      type: 'local-worktree',
+    };
+
+    const mockStation = {
+      receipt: { name: 's1', type: 'local-worktree', repo: 'r1' },
+      provider: mockProvider,
+    };
+
+    const manager = new StatusManager(
+      mockProjectCtx as any,
+      mockInfra as any,
+      providerFactory,
+      {} as any,
+      stationRegistry,
+    );
+
+    await manager.fetchFleetState([mockStation] as any, 'pulse', true);
+    expect(mockProvider.getMissionTelemetry).toHaveBeenCalledWith(true);
+  });
 });

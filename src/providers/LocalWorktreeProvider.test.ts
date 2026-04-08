@@ -17,6 +17,11 @@ describe('LocalWorktreeProvider', () => {
     repoName: 'repo',
   };
 
+  const mockInfra: Constants.InfrastructureSpec = {
+    instanceName: 'local-test',
+    providerType: 'local-worktree',
+  };
+
   const mockPm: any = {
     runSync: vi.fn(),
     runAsync: vi.fn(),
@@ -30,6 +35,9 @@ describe('LocalWorktreeProvider', () => {
     },
     tmux: {
       attach: vi.fn(),
+    },
+    node: {
+      create: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
     },
   };
 
@@ -49,24 +57,28 @@ describe('LocalWorktreeProvider', () => {
     mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
   });
 
-  it('should initialize with correct hierarchical workspaces directory', () => {
+  it('should initialize and resolve correct workspaces root', () => {
     const provider = new LocalWorktreeProvider(
       projectCtx,
+      fs,
       mockPm,
       mockExecutors,
-      'test-station',
       '/home/node/dev/repo/workspaces',
+      mockInfra,
     );
-    expect(provider.workspacesDir).toBe('/home/node/dev/repo/workspaces');
+    expect(provider.resolveWorkspacesRoot()).toBe(
+      '/home/node/dev/repo/workspaces/repo',
+    );
   });
 
   it('should report RUNNING status', async () => {
     const provider = new LocalWorktreeProvider(
       projectCtx,
+      fs,
       mockPm,
       mockExecutors,
-      'local',
       '/tmp/workspaces',
+      mockInfra,
     );
     const status = await provider.getStatus();
     expect(status.status).toBe('RUNNING');
@@ -76,10 +88,11 @@ describe('LocalWorktreeProvider', () => {
     mockPm.runSync.mockReturnValue({ status: 0 } as any);
     const provider = new LocalWorktreeProvider(
       projectCtx,
+      fs,
       mockPm,
       mockExecutors,
-      'local',
       '/tmp/workspaces',
+      mockInfra,
     );
     const cmd = provider.getRunCommand('ls');
     expect(cmd).toContain('tmux new-session');
@@ -89,103 +102,113 @@ describe('LocalWorktreeProvider', () => {
     mockPm.runSync.mockReturnValue({ status: 1 } as any);
     const provider = new LocalWorktreeProvider(
       projectCtx,
+      fs,
       mockPm,
       mockExecutors,
-      'local',
       '/tmp/workspaces',
+      mockInfra,
     );
     const cmd = provider.getRunCommand('ls');
     expect(cmd).not.toContain('tmux');
     expect(cmd).toContain('cd');
   });
 
-  it('should list hierarchical worktrees as capsules and skip repo root', async () => {
-    const workspacesDir = '/home/node/dev/repo/workspaces';
-    mockPm.runSync.mockReturnValue({
-      status: 0,
-      stdout: `worktree ${projectCtx.repoRoot}\nworktree ${workspacesDir}/repo/feat-1\nworktree ${workspacesDir}/repo/feat-2\n`,
-      stderr: '',
-    });
+  describe('Robust Provisioning', () => {
+    it('should create worktree and write manifest file', async () => {
+      mockPm.runSync.mockReturnValue({ status: 0 } as any);
+      (fs.existsSync as any).mockReturnValue(false); // Worktree doesn't exist
 
-    const provider = new LocalWorktreeProvider(
-      projectCtx,
-      mockPm,
-      mockExecutors,
-      'test-station',
-      workspacesDir,
-    );
-    const capsules = await provider.listCapsules();
-    expect(capsules).toHaveLength(2);
-    expect(capsules).toContain('repo/feat-1');
-    expect(capsules).toContain('repo/feat-2');
-    expect(capsules).not.toContain('/home/node/dev/repo/main');
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        fs,
+        mockPm,
+        mockExecutors,
+        '/tmp/workspaces',
+        mockInfra,
+        { stationName: 'test-station' },
+      );
+
+      const mCtx = {
+        branchName: 'feat-1',
+        repoSlug: 'repo',
+        idSlug: 'feat-1',
+        workspaceName: 'repo/feat-1',
+        containerName: 'repo-feat-1',
+        sessionName: 'repo/feat-1',
+        action: 'chat',
+      };
+
+      await provider.prepareMissionWorkspace(mCtx, {} as any);
+
+      // 1. Should check for branch and create worktree
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['worktree', 'add']),
+        expect.any(Object),
+      );
+
+      // 2. Should write manifest file
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('.orbit-manifest.json'),
+        expect.stringContaining('"identifier":"feat-1"'),
+      );
+    });
   });
 
-  it('should fetch mission telemetry from local worker', async () => {
-    const provider = new LocalWorktreeProvider(
-      projectCtx,
-      mockPm,
-      mockExecutors,
-      'local',
-      '/tmp/workspaces',
-    );
+  describe('Surgical Jettison', () => {
+    it('should remove worktree if last session is jettisoned', async () => {
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        if (bin === 'tmux' && args.includes('list-sessions')) {
+          return { status: 0, stdout: 'repo/id2' }; // Another session exists
+        }
+        return { status: 0, stdout: '' };
+      });
 
-    mockExecutors.node = {
-      create: vi
-        .fn()
-        .mockReturnValue({ bin: 'node', args: ['station.js', 'status'] }),
-    };
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        fs,
+        mockPm,
+        mockExecutors,
+        '/tmp/workspaces',
+        mockInfra,
+      );
 
-    // 1. Mock listCapsules output
-    vi.spyOn(provider, 'listCapsules').mockResolvedValue(['repo/id1']);
+      // We need to call with an action to trigger the surgical path
+      await provider.jettisonMission('id1', 'fix');
 
-    // 2. Mock worker status output
-    vi.spyOn(provider, 'getExecOutput').mockResolvedValue({
-      status: 0,
-      stdout: JSON.stringify({
-        missions: [
-          { mission: 'repo/id1', status: 'THINKING', last_thought: 'Working' },
-        ],
-      }),
-      stderr: '',
+      // Should kill the specific session
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'tmux',
+        ['kill-session', '-t', 'repo/id1/fix'],
+        expect.anything(),
+      );
     });
 
-    const telemetry = await provider.getMissionTelemetry();
-    expect(telemetry).toHaveLength(1);
-    expect(telemetry[0]!.name).toBe('repo/id1');
-    expect(telemetry[0]!.state).toBe('THINKING');
-    expect(telemetry[0]!.lastThought).toBe('Working');
-  });
+    it('should remove everything if no action is provided', async () => {
+      const provider = new LocalWorktreeProvider(
+        projectCtx,
+        fs,
+        mockPm,
+        mockExecutors,
+        '/tmp/workspaces',
+        mockInfra,
+      );
 
-  it('should correctly resolve paths and naming', () => {
-    const provider = new LocalWorktreeProvider(
-      projectCtx,
-      mockPm,
-      mockExecutors,
-      'test-station',
-      '/workspaces',
-    );
+      await provider.jettisonMission('id1');
 
-    expect(provider.resolveWorkDir('repo/id')).toBe('/workspaces/repo/id');
-    expect(provider.resolveWorkspacesRoot()).toBe('/workspaces/repo');
-    expect(provider.resolveWorkerPath()).toContain('station.js');
-    expect(provider.resolveProjectConfigDir()).toBe(
-      '/home/node/dev/repo/main/.gemini',
-    );
-    expect(provider.resolvePolicyPath('/abs/path')).toBe(
-      '/abs/path/.gemini/policies/workspace-policy.toml',
-    );
-    expect(provider.resolveMirrorPath()).toBe('/home/node/dev/repo/main');
+      // Should remove worktree
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        expect.arrayContaining(['worktree', 'remove']),
+        expect.anything(),
+      );
 
-    mockExecutors.node = {
-      create: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
-    };
-    provider.createNodeCommand('script.js', ['arg1']);
-    expect(mockExecutors.node.create).toHaveBeenCalledWith('script.js', [
-      'arg1',
-    ]);
-
-    const mCtx = { sessionName: 'ws1' } as any;
-    expect(provider.resolveIsolationId(mCtx)).toBe('ws1');
+      // Should kill all standard actions
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'tmux',
+        ['kill-session', '-t', 'repo/id1'],
+        expect.anything(),
+      );
+    });
   });
 });

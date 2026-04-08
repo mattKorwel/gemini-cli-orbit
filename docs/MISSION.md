@@ -53,6 +53,8 @@ interrupting an active agent session.
 
 - `orbit mission launch <PR> [action]`: Launch a mission (chat, fix, review,
   etc).
+- `orbit mission peek <PR>`: Get a real-time terminal snapshot (text-based) of
+  the mission.
 - `orbit mission shell <PR>`: Enter a raw side-terminal in the mission capsule.
 - `orbit mission ci <PR>`: Monitor GitHub Actions status for the PR.
 - `orbit mission jettison <PR>`: Purge remote container and workspace.

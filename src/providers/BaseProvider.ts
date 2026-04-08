@@ -66,6 +66,13 @@ export abstract class BaseProvider {
   }
 
   /**
+   * Resolves the ID used for RAM-disk secrets.
+   */
+  resolveSecretId(repoSlug: string, idSlug: string, action: string): string {
+    return this.resolveContainerName(repoSlug, idSlug, action);
+  }
+
+  /**
    * Abstract Hooks: Must be unique per backend environment.
    */
 
@@ -78,6 +85,11 @@ export abstract class BaseProvider {
    * Returns the absolute path to the directory containing all mission workspaces.
    */
   abstract resolveWorkspacesRoot(): string;
+
+  /**
+   * Returns the absolute path to the directory containing Orbit bundles (station.js, mission.js).
+   */
+  abstract resolveBundlePath(): string;
 
   /**
    * Returns the absolute path to the Orbit worker (station.js) in this environment.
@@ -104,12 +116,192 @@ export abstract class BaseProvider {
    */
   abstract createNodeCommand(scriptPath: string, args?: string[]): Command;
 
+  /**
+   * Ensures the backend is ready for mission orchestration.
+   */
   abstract ensureReady(): Promise<number>;
 
   /**
    * Returns the canonical isolation identifier (session/container name) for this environment.
    */
   abstract resolveIsolationId(mCtx: MissionContext): string;
+
+  /**
+   * Executes a raw command in the environment.
+   */
+  abstract getExecOutput(
+    command: string | Command,
+    options?: ExecOptions,
+  ): Promise<{ status: number; stdout: string; stderr: string }>;
+
+  /**
+   * Returns the formatted run command for this environment.
+   */
+  abstract getRunCommand(command: string, options?: ExecOptions): string;
+
+  /**
+   * Syncs files between local and remote.
+   */
+  abstract sync(
+    localPath: string,
+    remotePath: string,
+    options?: SyncOptions,
+  ): Promise<number>;
+
+  /**
+   * Syncs files only if changed.
+   */
+  abstract syncIfChanged(
+    localPath: string,
+    remotePath: string,
+    options?: SyncOptions,
+  ): Promise<number>;
+
+  /**
+   * Returns hardware health and basic identification.
+   */
+  abstract getStatus(): Promise<OrbitStatus>;
+
+  /**
+   * Safe wake of a hibernated station.
+   */
+  abstract start(): Promise<number>;
+
+  /**
+   * Safe stop of Orbit hardware.
+   */
+  abstract stop(): Promise<number>;
+
+  /**
+   * Status of a specific capsule.
+   */
+  abstract getCapsuleStatus(
+    name: string,
+  ): Promise<{ running: boolean; exists: boolean }>;
+
+  /**
+   * Resource usage stats for a capsule.
+   */
+  abstract getCapsuleStats(name: string): Promise<string>;
+
+  /**
+   * Time since last activity in a capsule.
+   */
+  abstract getCapsuleIdleTime(name: string): Promise<number>;
+
+  /**
+   * Attaches to an active mission.
+   */
+  abstract attach(name: string): Promise<number>;
+
+  /**
+   * Launches a specific capsule configuration.
+   */
+  abstract runCapsule(config: CapsuleConfig): Promise<number>;
+
+  /**
+   * Signal-safe stop of a capsule.
+   */
+  abstract stopCapsule(name: string): Promise<number>;
+
+  /**
+   * Permanent removal of a capsule.
+   */
+  abstract removeCapsule(name: string): Promise<number>;
+
+  /**
+   * Surgical removal of a mission's resources.
+   */
+  abstract jettisonMission(
+    identifier: string,
+    action?: string,
+  ): Promise<number>;
+
+  /**
+   * Decommissions all active missions and optionally their secrets.
+   */
+  abstract splashdown(options?: {
+    all?: boolean;
+    clearSecrets?: boolean;
+  }): Promise<number>;
+
+  /**
+   * Permanent removal of a specific mission secret.
+   */
+  abstract removeSecret(sessionId: string): Promise<void>;
+
+  /**
+   * Real-time terminal capture.
+   */
+  abstract capturePane(capsuleName: string): Promise<string>;
+
+  /**
+   * Lists all Orbit-managed stations (cloud only).
+   */
+  abstract listStations(): Promise<number>;
+
+  /**
+   * Permanent destruction of Orbit hardware.
+   */
+  abstract destroy(): Promise<number>;
+
+  /**
+   * Lists all active capsules on this station.
+   */
+  abstract listCapsules(): Promise<string[]>;
+
+  /**
+   * Provisions a high-performance git mirror.
+   */
+  abstract provisionMirror(remoteUrl: string): Promise<number>;
+
+  /**
+   * Returns the absolute path to the global user configuration directory (~/.gemini) in this environment.
+   */
+  abstract resolveGlobalConfigDir(): string;
+
+  /**
+   * Synchronizes global user configurations (settings, auth) to the station.
+   */
+  async syncGlobalConfig(): Promise<number> {
+    return 0;
+  }
+
+  /**
+   * Drops into a raw interactive shell on the hardware host.
+   */
+  abstract stationShell(): Promise<number>;
+
+  /**
+   * Drops into a raw interactive shell inside a mission capsule.
+   */
+  abstract missionShell(capsuleName: string): Promise<number>;
+
+  /**
+   * Generates the immutable receipt for this station.
+   */
+  abstract getStationReceipt(): StationReceipt;
+
+  /**
+   * Prepares the workspace for a new mission.
+   */
+  abstract prepareMissionWorkspace(
+    mCtx: MissionContext,
+    infra: InfrastructureSpec,
+  ): Promise<void>;
+
+  /**
+   * Injects dynamic state into the provider.
+   */
+  injectState?(state: InfrastructureState): void;
+
+  /**
+   * Environment-specific fallback for determining capsule state when
+   * no manifest is found.
+   */
+  protected abstract resolveLegacyCapsuleState(
+    name: string,
+  ): Promise<CapsuleInfo['state']>;
 
   /**
    * Executes a command within the context of a specific mission.
@@ -132,14 +324,12 @@ export abstract class BaseProvider {
     mCtx: MissionContext,
     options: ExecOptions = {},
   ): Promise<{ status: number; stdout: string; stderr: string }> {
-    const env = { ...options.env };
-    if (options.manifest) {
-      env.GCLI_ORBIT_MANIFEST = JSON.stringify(options.manifest);
-    }
-
+    // ADR 0018: Manifest-First execution.
+    // Ensure the manifest is available to the provider so it can be injected
+    // into the environment or workspace.
     return this.getExecOutput(command, {
       ...options,
-      env,
+      manifest: options.manifest,
       cwd:
         options.cwd ||
         options.manifest?.workDir ||
@@ -163,61 +353,18 @@ export abstract class BaseProvider {
     return res.status;
   }
 
-  abstract getExecOutput(
-    command: string | Command,
-    options?: ExecOptions,
-  ): Promise<{ status: number; stdout: string; stderr: string }>;
-
-  abstract getRunCommand(command: string, options?: ExecOptions): string;
-  abstract sync(
-    localPath: string,
-    remotePath: string,
-    options?: SyncOptions,
-  ): Promise<number>;
-  abstract syncIfChanged(
-    localPath: string,
-    remotePath: string,
-    options?: SyncOptions,
-  ): Promise<number>;
-  abstract getStatus(): Promise<OrbitStatus>;
-
   /**
-   * Safe wake of a hibernated station.
+   * Resolves the canonical RAM-disk secret path for a session.
    */
-  abstract start(): Promise<number>;
-
-  abstract stop(): Promise<number>;
-  abstract getCapsuleStatus(
-    name: string,
-  ): Promise<{ running: boolean; exists: boolean }>;
-  abstract getCapsuleStats(name: string): Promise<string>;
-  abstract getCapsuleIdleTime(name: string): Promise<number>;
-  abstract attach(name: string): Promise<number>;
-  abstract runCapsule(config: CapsuleConfig): Promise<number>;
-  abstract stopCapsule(name: string): Promise<number>;
-  abstract removeCapsule(name: string): Promise<number>;
-  abstract capturePane(capsuleName: string): Promise<string>;
-  abstract listStations(): Promise<number>;
-  abstract destroy(): Promise<number>;
-  abstract listCapsules(): Promise<string[]>;
-  abstract provisionMirror(remoteUrl: string): Promise<number>;
-  abstract stationShell(): Promise<number>;
-  abstract missionShell(capsuleName: string): Promise<number>;
-
-  abstract getStationReceipt(): StationReceipt;
-
-  injectState?(state: InfrastructureState): void;
-
-  abstract prepareMissionWorkspace(
-    mCtx: MissionContext,
-    infra: InfrastructureSpec,
-  ): Promise<void>;
+  resolveSecretPath(secretId: string): string {
+    return `/dev/shm/.orbit-env-${secretId}`;
+  }
 
   /**
    * Fetches deep mission status from inside the station.
    * Centralized logic that uses environment-specific hooks.
    */
-  async getMissionTelemetry(): Promise<CapsuleInfo[]> {
+  async getMissionTelemetry(peek = false): Promise<CapsuleInfo[]> {
     const capsules: CapsuleInfo[] = [];
 
     // 1. Request aggregated status from the worker
@@ -250,38 +397,57 @@ export abstract class BaseProvider {
         (m) => m.mission === containerName || containerName.includes(m.mission),
       );
 
+      // 3. Provider-specific state check (Smarter fallback)
+      const legacyState = await this.resolveLegacyCapsuleState(containerName);
+
       if (missionState) {
+        // State Hierarchy:
+        // 1. If worker explicitly says WAITING_FOR_APPROVAL, trust it (Notification hook)
+        // 2. If provider sees an approval prompt in the terminal, upgrade it
+        // 3. Otherwise, use worker status unless it says IDLE and provider sees activity
+        let finalState = missionState.status as CapsuleInfo['state'];
+
+        if (
+          legacyState === 'WAITING_FOR_APPROVAL' ||
+          legacyState === 'WAITING_FOR_INPUT'
+        ) {
+          finalState = legacyState;
+        } else if (finalState === 'IDLE' && legacyState !== 'IDLE') {
+          finalState = legacyState;
+        }
+
         capsules.push({
           name: containerName,
-          state: missionState.status,
+          state: finalState,
           stats,
-          lastThought: missionState.last_thought,
-          blocker: missionState.blocker,
+          lastThought:
+            missionState.last_thought ||
+            (peek ? await this.capturePane(containerName) : undefined),
+          blocker:
+            missionState.blocker ||
+            (finalState === 'WAITING_FOR_APPROVAL'
+              ? 'Approval needed for tool execution'
+              : undefined),
           progress: missionState.progress,
           pendingTool: missionState.pending_tool,
           lastQuestion: missionState.last_question,
         });
       } else {
-        // 3. Provider-specific fallback (e.g. Tmux parsing)
-        const state = await this.resolveLegacyCapsuleState(containerName);
         capsules.push({
           name: containerName,
-          state,
+          state: legacyState,
           stats,
+          lastThought: peek ? await this.capturePane(containerName) : undefined,
+          blocker:
+            legacyState === 'WAITING_FOR_APPROVAL'
+              ? 'Approval needed for tool execution'
+              : undefined,
         });
       }
     }
 
     return capsules;
   }
-
-  /**
-   * Environment-specific fallback for determining capsule state when
-   * no manifest is found.
-   */
-  protected abstract resolveLegacyCapsuleState(
-    name: string,
-  ): Promise<CapsuleInfo['state']>;
 }
 
 /**

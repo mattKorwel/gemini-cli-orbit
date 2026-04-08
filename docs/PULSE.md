@@ -54,11 +54,20 @@ orbit constellation --sync
 
 ### 3. Monitoring View (`--pulse`)
 
-The deepest dive. Connects to the station to fetch real-time telemetry from
-every active mission capsule.
+The deepest dive. Connects to the station to fetch real-time telemetry and agent
+intent from every active mission capsule.
 
 ```bash
 orbit constellation --pulse
+```
+
+### 4. Live Terminal View (`--pulse --peek`)
+
+Adds a text-based **Terminal Snapshot** to the pulse output, showing you exactly
+what is currently visible on the agent's screen.
+
+```bash
+orbit constellation --pulse --peek
 ```
 
 ---

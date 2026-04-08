@@ -11,13 +11,12 @@ import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
 import { GitExecutor } from '../../core/executors/GitExecutor.js';
-import { getManifestFromEnv } from '../../utils/MissionUtils.js';
+import { getMissionManifest } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
 
 import { runReviewPlaybook } from '../../playbooks/review.js';
 import { runFixPlaybook } from '../../playbooks/fix.js';
-import { runReadyPlaybook } from '../../playbooks/ready.js';
 import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
@@ -38,7 +37,7 @@ const _dirname = getDirname();
  */
 export async function main(pm: IProcessManager = new ProcessManager()) {
   // ADR 0018: Hydrate context from environment manifest
-  const manifest = getManifestFromEnv();
+  const manifest = getMissionManifest();
   logger.setVerbose(manifest.verbose === true);
   const { identifier, action, workDir, policyPath } = manifest;
 
@@ -91,6 +90,9 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
       GCLI_ORBIT_ACTION: action,
     };
 
+    // ADR 0017: Inject mission-control hooks
+    // const hooksPath = path.resolve(_dirname, 'hooks.js');
+
     const geminiOpts: any = {
       approvalMode: 'plan',
       policy: policyPath,
@@ -104,6 +106,10 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     }
 
     const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
+    logger.info(
+      'GENERAL',
+      `🏃 Executing: ${geminiCmd.bin} ${geminiCmd.args.join(' ')}`,
+    );
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
     return res.status;
   } else {
@@ -123,16 +129,6 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
         );
       case 'fix':
         return runFixPlaybook(
-          identifier,
-          absWorkDir,
-          policyPath,
-          'gemini',
-          logDir,
-          missionHeader,
-          pm,
-        );
-      case 'ready':
-        return runReadyPlaybook(
           identifier,
           absWorkDir,
           policyPath,

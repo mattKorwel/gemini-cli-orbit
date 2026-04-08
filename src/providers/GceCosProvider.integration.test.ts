@@ -22,7 +22,7 @@ vi.mock('../core/Logger.js', () => ({
   },
 }));
 
-describe('GceCosProvider Regression Test: Bundle Sync', () => {
+describe('GceCosProvider Integration Logic', () => {
   const projectId = 'test-p';
   const zone = 'us-west1-a';
   const instanceName = 'test-i';
@@ -40,6 +40,8 @@ describe('GceCosProvider Regression Test: Bundle Sync', () => {
     setOverrideHost: vi.fn(),
     runDockerExec: vi.fn(),
     getStandardUser: vi.fn().mockReturnValue('node'),
+    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
+    withConnectivityRetry: vi.fn().mockImplementation((op) => op()),
   };
 
   const mockPm: any = {
@@ -64,42 +66,76 @@ describe('GceCosProvider Regression Test: Bundle Sync', () => {
     );
   });
 
-  it('should sync the extension bundle to the remote host during ensureReady', async () => {
-    // 1. Setup: Simulate a running station but missing bundle
-    mockSsh.runHostCommand.mockImplementation(async (cmd) => {
-      if (!cmd || !cmd.args) return { status: 0, stdout: '', stderr: '' };
+  describe('ensureReady & Sync', () => {
+    it('should sync the extension bundle to the remote host during ensureReady', async () => {
+      mockSsh.runHostCommand.mockResolvedValue({
+        status: 0,
+        stdout: 'true',
+        stderr: '',
+      });
 
-      const fullCmd = cmd.args.join(' ');
+      await provider.ensureReady();
 
-      // Mock repo check
-      if (fullCmd.includes('ls -d')) {
-        return { status: 0, stdout: '/repo/.git', stderr: '' };
-      }
-      // Mock docker inspect (capsule exists and is running)
-      if (fullCmd.includes('docker inspect')) {
-        return { status: 0, stdout: 'true', stderr: '' };
-      }
-      return { status: 0, stdout: '', stderr: '' };
+      expect(mockSsh.syncPathIfChanged).toHaveBeenCalledWith(
+        `${LOCAL_BUNDLE_PATH}/`,
+        BUNDLE_PATH,
+        expect.objectContaining({ delete: true, sudo: true }),
+      );
     });
 
-    // 2. Act: Run ensureReady
-    await provider.ensureReady();
-
-    // 3. Assert: Verify that syncPathIfChanged was called for the bundle directory WITH a trailing slash
-    expect(mockSsh.syncPathIfChanged).toHaveBeenCalledWith(
-      `${LOCAL_BUNDLE_PATH}/`,
-      BUNDLE_PATH,
-      expect.objectContaining({ delete: true, sudo: true }),
-    );
+    it('should return 255 if bundle sync fails', async () => {
+      mockSsh.syncPathIfChanged.mockResolvedValue(1);
+      const res = await provider.ensureReady();
+      expect(res).toBe(255);
+    });
   });
 
-  it('should throw an error if bundle sync fails', async () => {
-    // 1. Setup: Simulate rsync failure (non-zero exit code)
-    mockSsh.syncPathIfChanged.mockResolvedValue(1); // Error code
+  describe('getExecOutput Quoting Logic', () => {
+    it('should wrap raw string commands in bash -c with proper quoting', async () => {
+      const rawCmd = "echo 'hello world' && ls";
+      await provider.getExecOutput(rawCmd);
 
-    // 2. Act & Assert: ensureReady should throw
-    await expect(provider.ensureReady()).rejects.toThrow(
-      'Failed to synchronize extension bundle',
-    );
+      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bin: '/bin/bash',
+          args: ['-c', "'echo '\\''hello world'\\'' && ls'"],
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('should NOT double-wrap Command objects in bash -c', async () => {
+      const cmdObj = { bin: 'node', args: ['bundle.js', 'start'] };
+      await provider.getExecOutput(cmdObj);
+
+      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bin: 'node',
+          args: ['bundle.js', 'start'],
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('should pass environment variables through to SSHManager', async () => {
+      await provider.getExecOutput('ls', { env: { FOO: 'bar' } });
+
+      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          env: expect.objectContaining({ FOO: 'bar' }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('should route to runDockerExec if isolationId is provided', async () => {
+      await provider.getExecOutput('ls', { isolationId: 'my-capsule' });
+
+      expect(mockSsh.runDockerExec).toHaveBeenCalledWith(
+        'my-capsule',
+        expect.objectContaining({ bin: '/bin/bash' }),
+        expect.anything(),
+      );
+    });
   });
 });

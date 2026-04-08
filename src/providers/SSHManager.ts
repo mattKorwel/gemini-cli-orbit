@@ -78,6 +78,18 @@ export interface SSHManager {
     },
   ): Promise<number>;
   attachToTmux(container: string, sessionName?: string): Promise<number>;
+
+  /**
+   * Executes a function with retries for transient connectivity issues.
+   */
+  withConnectivityRetry<T>(
+    operation: () => Promise<T>,
+    options?: {
+      maxAttempts?: number;
+      delayMs?: number;
+      showProgress?: boolean;
+    },
+  ): Promise<T>;
 }
 
 /**
@@ -121,12 +133,20 @@ export class GceSSHManager implements SSHManager {
     const fullCmdStr = this.commandToString(cmd);
     const target = this.getMagicRemote();
 
-    const res = this.ssh.exec(target, fullCmdStr, {
-      ...options,
-      env: { ...options.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
-    });
+    return this.withConnectivityRetry(async () => {
+      const res = await this.ssh.execAsync(target, fullCmdStr, {
+        ...options,
+        env: { ...options.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
+      });
 
-    return this.processResult(res, options);
+      const result = this.processResult(res, options);
+      if (result.status === 255) {
+        throw new Error(
+          `SSH Command failed with exit code 255: ${result.stderr}`,
+        );
+      }
+      return result;
+    });
   }
 
   public async runDockerExec(
@@ -134,16 +154,23 @@ export class GceSSHManager implements SSHManager {
     cmd: RemoteCommand,
     options: SSHOptions = {},
   ): Promise<ExecResult> {
-    const dockerArgs = [
-      'exec',
-      options.interactive ? '-it' : '',
-      cmd.user ? `-u ${cmd.user}` : '',
-      cmd.cwd ? `-w ${cmd.cwd}` : '',
-      container,
-      '/bin/bash',
-      '-c',
-      this.quote(this.commandToString(cmd)),
-    ].filter(Boolean);
+    const dockerArgs = ['exec'];
+    if (options.interactive) dockerArgs.push('-it');
+    if (cmd.user) dockerArgs.push('-u', cmd.user);
+    if (cmd.cwd) dockerArgs.push('-w', cmd.cwd);
+
+    // ADR 0018: Pass manifest and other env vars via native -e flags
+    if (cmd.env) {
+      Object.entries(cmd.env).forEach(([k, v]) => {
+        dockerArgs.push('-e', `${k}=${this.quote(v)}`);
+      });
+    }
+
+    dockerArgs.push(container);
+
+    // Wrap the command in bash -c to ensure environment and paths are handled correctly
+    const innerCmd = `${cmd.bin} ${cmd.args.join(' ')}`;
+    dockerArgs.push('/bin/bash', '-c', this.quote(innerCmd));
 
     const dockerCmd: RemoteCommand = {
       bin: 'sudo docker',
@@ -159,8 +186,16 @@ export class GceSSHManager implements SSHManager {
     options: SyncOptions = {},
   ): Promise<number> {
     const remote = `${this.getMagicRemote()}:${remotePath}`;
-    const res = this.ssh.rsync(localPath, remote, options);
-    return res.status;
+
+    return this.withConnectivityRetry(async () => {
+      const res = this.ssh.rsync(localPath, remote, options);
+      if (res.status !== 0) {
+        throw new Error(
+          `Rsync failed with exit code ${res.status}: ${res.stderr}`,
+        );
+      }
+      return res.status;
+    });
   }
 
   /**
@@ -175,14 +210,21 @@ export class GceSSHManager implements SSHManager {
     const hashFile = `.orbit.${path.basename(localPath)}.hash`;
     const remoteHashPath = `/tmp/${hashFile}`;
 
-    // Read remote hash
-    const remoteHashRes = await this.runHostCommand(
-      {
-        bin: 'cat',
-        args: [remoteHashPath],
-      },
-      { quiet: true },
-    );
+    // Read remote hash (with retry)
+    const remoteHashRes = await this.withConnectivityRetry(async () => {
+      const res = await this.runHostCommand(
+        {
+          bin: 'cat',
+          args: [remoteHashPath],
+        },
+        { quiet: true },
+      );
+      // cat returning 1 (missing file) is NOT an SSH failure, don't retry based on that
+      if (res.status !== 0 && res.status !== 1) {
+        throw new Error(`SSH Command failed with exit code ${res.status}`);
+      }
+      return res;
+    });
 
     if (
       remoteHashRes.status === 0 &&
@@ -194,17 +236,62 @@ export class GceSSHManager implements SSHManager {
     // Perform sync
     const status = await this.syncPath(localPath, remotePath, options);
     if (status === 0) {
-      // Update remote hash
-      await this.runHostCommand(
-        {
-          bin: 'sh',
-          args: ['-c', this.quote(`echo ${localHash} > ${remoteHashPath}`)],
-        },
-        { quiet: true },
-      );
+      // Update remote hash (with retry)
+      await this.withConnectivityRetry(async () => {
+        const res = await this.runHostCommand(
+          {
+            bin: 'sh',
+            args: ['-c', this.quote(`echo ${localHash} > ${remoteHashPath}`)],
+          },
+          { quiet: true },
+        );
+        if (res.status !== 0) {
+          throw new Error(`SSH Command failed with exit code ${res.status}`);
+        }
+        return res;
+      });
     }
 
     return status;
+  }
+
+  /**
+   * Executes a function with retries for transient connectivity issues.
+   */
+  public async withConnectivityRetry<T>(
+    operation: () => Promise<T>,
+    options: {
+      maxAttempts?: number;
+      delayMs?: number;
+      showProgress?: boolean;
+    } = {},
+  ): Promise<T> {
+    const { maxAttempts = 5, delayMs = 2000, showProgress = true } = options;
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await operation();
+      } catch (err: any) {
+        lastError = err;
+        const msg = err.message || '';
+        // Only retry on potential connection/SSO issues (exit 255 is common for SSH failures)
+        const isTransient =
+          msg.includes('code 255') ||
+          msg.includes('Connection closed') ||
+          msg.includes('Connection reset') ||
+          msg.includes('timeout') ||
+          msg.includes('SSO');
+
+        if (!isTransient || attempt === maxAttempts) {
+          throw err;
+        }
+
+        if (showProgress) process.stdout.write('.');
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
+    throw lastError;
   }
 
   public async attachToTmux(
@@ -292,7 +379,9 @@ export class GceSSHManager implements SSHManager {
           .map(([k, v]) => `${k}=${this.quote(v)}`)
           .join(' ') + ' '
       : '';
-    return `${envPrefix}${cmd.bin} ${cmd.args.join(' ')}`;
+    const bin = cmd.bin;
+    const args = cmd.args.map((a) => this.quote(a)).join(' ');
+    return `${envPrefix}${bin} ${args}`;
   }
 
   private quote(str: string): string {

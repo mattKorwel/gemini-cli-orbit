@@ -19,8 +19,8 @@ export class StatusAggregator {
     private readonly workspacesRoot: string = SATELLITE_WORKSPACES_PATH,
   ) {}
 
-  async getStatus() {
-    const root = this.workspacesRoot;
+  async getStatus(overrideRoot?: string) {
+    const root = overrideRoot || this.workspacesRoot;
     if (!fs.existsSync(root)) {
       return { missions: [] };
     }
