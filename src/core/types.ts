@@ -4,8 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { z } from 'zod';
 import { type OrbitConfig } from './Constants.js';
 import { type LogLevel } from './Logger.js';
+
+/**
+ * Zod schema for MissionManifest to ensure strict validation across the wire.
+ */
+export const MissionManifestSchema = z.object({
+  identifier: z.string(), // The user's ID (PR # or branch name)
+  repoName: z.string(), // The sanitized repository name
+  branchName: z.string(), // The resolved git branch
+  action: z.string(), // The playbook action (chat, fix, review, etc.)
+  workspaceName: z.string(), // The hierarchical workspace identifier (relative path)
+  workDir: z.string(), // The absolute path to the workspace
+  containerName: z.string(), // The name of the mission container
+  policyPath: z.string(), // The absolute path to the active policy
+  sessionName: z.string(), // The user-friendly hierarchical session name
+  upstreamUrl: z.string(), // The git remote origin URL
+  mirrorPath: z.string().optional(), // Optional path to local git mirror
+  bundleDir: z.string().optional(), // Root directory for orbit bundles
+  verbose: z.boolean().optional(), // Whether to enable detailed logging
+  tempDir: z.string().optional(), // Root directory for temporary logs
+  isDev: z.boolean().optional(), // Whether to use Shadow Mode (Dev override)
+});
+
+/**
+ * Immutable unit of truth for a mission's state and configuration.
+ * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
+ */
+export type MissionManifest = z.infer<typeof MissionManifestSchema>;
 
 /**
  * Interface for observing SDK activities.
@@ -72,27 +100,6 @@ export interface CIStatus {
   status: 'PENDING' | 'PASSED' | 'FAILED' | 'NOT_FOUND';
   failures?: Map<string, Set<string>>;
   testCommand?: string;
-}
-
-/**
- * Immutable unit of truth for a mission's state and configuration.
- * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
- */
-export interface MissionManifest {
-  identifier: string; // The user's ID (PR # or branch name)
-  repoName: string; // The sanitized repository name
-  branchName: string; // The resolved git branch
-  action: string; // The playbook action (chat, fix, review, etc.)
-  workspaceName: string; // The hierarchical workspace identifier (relative path)
-  workDir: string; // The absolute path to the workspace
-  containerName: string; // The name of the mission container
-  policyPath: string; // The absolute path to the active policy
-  sessionName: string; // The user-friendly hierarchical session name
-  upstreamUrl: string; // The git remote origin URL
-  mirrorPath?: string; // Optional path to local git mirror
-  bundleDir?: string; // Root directory for orbit bundles (station.js, mission.js)
-  verbose?: boolean | undefined; // Whether to enable detailed logging
-  tempDir?: string | undefined; // Root directory for temporary logs and artifacts
 }
 
 /**

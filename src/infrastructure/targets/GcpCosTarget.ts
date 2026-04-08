@@ -267,6 +267,30 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             chown -R 1000:1000 "$MOUNT_PATH"
             chmod -R 2775 "$MOUNT_PATH"
             
+            echo "Orbit: Starting Starfleet Bootstrap..."
+            IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:latest"
+            CONTAINER_NAME="station-supervisor"
+            
+            # Prepare ground truth filesystem
+            mkdir -p $MOUNT_PATH/workspaces
+            mkdir -p $MOUNT_PATH/mirror
+            mkdir -p $MOUNT_PATH/project-configs
+            mkdir -p $MOUNT_PATH/bin
+            mkdir -p $MOUNT_PATH/dev
+            chown -R 1000:1000 $MOUNT_PATH
+            
+            # Pull and Start Supervisor
+            docker pull $IMAGE
+            docker run -d \
+              --name $CONTAINER_NAME \
+              --restart always \
+              -p 8080:8080 \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v $MOUNT_PATH:/home/node/data \
+              -v /dev/shm:/dev/shm \
+              -e ORBIT_SERVER_PORT=8080 \
+              $IMAGE
+
             echo "Orbit: Startup-script complete."
           `,
         },

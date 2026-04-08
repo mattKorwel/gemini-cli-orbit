@@ -6,6 +6,8 @@
 
 import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
+import { StarfleetProvider } from './StarfleetProvider.js';
+import { StarfleetClient } from '../sdk/StarfleetClient.js';
 import type { OrbitProvider } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { GceSSHManager } from './SSHManager.js';
@@ -58,6 +60,17 @@ export class ProviderFactory implements IProviderFactory {
       infra.providerType || (isLocal ? 'local-worktree' : 'gce');
 
     const stationName = infra.stationName || `station-${projectCtx.repoName}`;
+
+    if (effectiveProvider === 'starfleet') {
+      const client = new StarfleetClient(
+        (infra as any).apiUrl || 'http://localhost:8080',
+      );
+      return new StarfleetProvider(client, this.pm, this.executors, {
+        projectId: infra.projectId || 'starfleet',
+        zone: infra.zone || 'starfleet',
+        stationName: infra.instanceName || stationName,
+      });
+    }
 
     if (effectiveProvider === 'local-worktree') {
       return new LocalWorktreeProvider(

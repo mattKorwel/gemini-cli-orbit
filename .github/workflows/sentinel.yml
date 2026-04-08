@@ -1,0 +1,61 @@
+name: Starfleet Sentinel
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Every hour
+  workflow_dispatch:      # Manual trigger
+
+jobs:
+  check-freshness:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - name: Authenticate to GCP
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Check Image Digest
+        id: check
+        run: |
+          REMOTE_IMAGE="us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest"
+          
+          # Get current digest from registry
+          CURRENT_DIGEST=$(gcloud artifacts docker images describe $REMOTE_IMAGE --format='value(image_summary.digest)')
+          echo "Current Digest: $CURRENT_DIGEST"
+
+          # Restore last known digest from cache
+          mkdir -p .sentinel
+          echo "unknown" > .sentinel/last-digest
+          
+          # We use a simple file-based approach for the check logic
+          if [ -f .sentinel/last-digest ]; then
+            LAST_DIGEST=$(cat .sentinel/last-digest)
+          else
+            LAST_DIGEST="none"
+          fi
+
+          if [ "$CURRENT_DIGEST" != "$LAST_DIGEST" ]; then
+            echo "🚀 Freshness detected! Triggering rebuild..."
+            echo "$CURRENT_DIGEST" > .sentinel/last-digest
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Image is still current."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Cache Digest
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .sentinel/last-digest
+          key: starfleet-sentinel-${{ github.run_id }}
+
+  trigger-rebuild:
+    needs: check-freshness
+    if: needs.check-freshness.outputs.changed == 'true'
+    uses: ./.github/workflows/starfleet-image.yml
