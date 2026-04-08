@@ -289,6 +289,11 @@ export class GcpCosTarget implements InfrastructureProvisioner {
               sleep 10
             done
 
+            # SEED THE DISK: Copy the bundle from the image to the persistent disk
+            # This allows the --dev flag to overwrite it later for rapid dev.
+            echo "Orbit: Seeding logic to disk..."
+            docker run --rm -v $MOUNT_PATH/bin:/target $IMAGE cp -r /usr/local/lib/orbit/bundle/. /target/
+
             docker run -d \
               --name $CONTAINER_NAME \
               --restart always \
@@ -297,7 +302,8 @@ export class GcpCosTarget implements InfrastructureProvisioner {
               -v $MOUNT_PATH:$MOUNT_PATH \
               -v /dev/shm:/dev/shm \
               -e ORBIT_SERVER_PORT=8080 \
-              $IMAGE
+              $IMAGE \
+              node $MOUNT_PATH/bin/orbit-server.js
 
             echo "Orbit: Startup-script complete."
           `,

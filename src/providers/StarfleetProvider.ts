@@ -214,7 +214,15 @@ export class StarfleetProvider extends BaseProvider {
 
   async launchMission(manifest: MissionManifest): Promise<number> {
     const res = await this.client.launchMission(manifest);
-    return res.status === 'ACCEPTED' ? 0 : 1;
+    if (res.status === 'ACCEPTED' && res.receipt) {
+      console.log(`\n✨ Starfleet Mission Ignited!`);
+      console.log(`   ID:        ${res.receipt.missionId}`);
+      console.log(`   Capsule:   ${res.receipt.containerName}`);
+      console.log(`   Workspace: ${res.receipt.workspacePath}`);
+      console.log(`   Time:      ${res.receipt.ignitedAt}`);
+      return 0;
+    }
+    return 1;
   }
 
   /**

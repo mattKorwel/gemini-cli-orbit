@@ -105,6 +105,8 @@ export class MissionManager {
       bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
       tempDir: workDir,
+      env: this.infra.env,
+      sensitiveEnv: this.infra.sensitiveEnv,
     };
   }
 

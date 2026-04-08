@@ -8,13 +8,25 @@ import http from 'node:http';
 import { MissionManifestSchema } from '../core/types.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
+import { GitExecutor } from '../core/executors/GitExecutor.js';
+import { WorkspaceManager } from './WorkspaceManager.js';
+import { DockerManager } from './DockerManager.js';
+import { MissionOrchestrator } from './MissionOrchestrator.js';
 
 const PORT = process.env.ORBIT_SERVER_PORT || 8080;
-// In Starfleet, the supervisor runs in a container and should NOT use sudo for internal commands.
 const USE_SUDO = process.env.USE_SUDO === '1';
 
+// --- Initialize Components ---
 const pm = new ProcessManager({}, USE_SUDO);
-const docker = new DockerExecutor(pm, USE_SUDO ? 'sudo docker' : 'docker');
+const dockerExecutor = new DockerExecutor(
+  pm,
+  USE_SUDO ? 'sudo docker' : 'docker',
+);
+const gitExecutor = new GitExecutor(pm);
+
+const workspace = new WorkspaceManager(gitExecutor);
+const docker = new DockerManager(dockerExecutor, pm);
+const orchestrator = new MissionOrchestrator(workspace, docker);
 
 async function getJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -31,7 +43,7 @@ async function getJsonBody(req: http.IncomingMessage): Promise<any> {
 }
 
 /**
- * Station Supervisor: Remote orchestration daemon.
+ * Station Supervisor: Pure API Routing Layer.
  */
 const server = http.createServer(async (req, res) => {
   const { method, url } = req;
@@ -44,31 +56,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 2. Exec Command (Remote Execution)
+  // 2. Exec Command (Remote execution on host or in container)
   if (url === '/exec' && method === 'POST') {
     try {
       const { command, options } = await getJsonBody(req);
       const bin = typeof command === 'string' ? command : command.bin;
       const args = typeof command === 'string' ? [] : command.args;
 
-      console.log(`🏃 Executing: ${bin} ${args.join(' ')}`);
+      const execRes = await pm.run(bin, args, options);
 
-      let execRes;
-      if (options?.isolationId) {
-        console.log(`   Isolation: ${options.isolationId}`);
-        const dockerCmd = DockerExecutor.exec(options.isolationId, args, {
-          ...options,
-          bin: bin,
-        } as any);
-        execRes = await pm.run(
-          USE_SUDO ? 'sudo docker' : 'docker',
-          dockerCmd.args,
-        );
-      } else {
-        execRes = await pm.run(bin, args, options);
-      }
-
-      console.log(`   Result: ${execRes.status}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -78,58 +74,31 @@ const server = http.createServer(async (req, res) => {
         }),
       );
     } catch (err: any) {
-      console.error(`❌ Exec Error: ${err.message}`);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'EXEC_FAILED', message: err.message }));
     }
     return;
   }
 
-  // 3. Mission Launch
+  // 3. Mission Launch (The Order Form)
   if (url === '/missions' && method === 'POST') {
     try {
       const body = await getJsonBody(req);
       const manifest = MissionManifestSchema.parse(body);
 
-      console.log(`🚀 Spawning mission: ${manifest.identifier}`);
+      const receipt = await orchestrator.orchestrate(manifest);
 
-      const missionImage =
-        (manifest as any).image || 'ghcr.io/mattkorwel/gemini-cli-orbit:latest';
-      const cmd = docker.run(missionImage, undefined, {
-        name: manifest.containerName,
-        label: 'orbit-mission',
-        mounts: [{ host: manifest.workDir, capsule: '/home/node/dev/main' }],
-      });
-
-      const spawnRes = await pm.run(cmd.bin, cmd.args, cmd.options);
-
-      if (spawnRes.status === 0) {
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(
-          JSON.stringify({
-            status: 'ACCEPTED',
-            container: manifest.containerName,
-          }),
-        );
-      } else {
-        console.error(`❌ Spawn Failed: ${spawnRes.stderr}`);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(
-          JSON.stringify({
-            error: 'SPAWN_FAILED',
-            stderr: spawnRes.stderr,
-          }),
-        );
-      }
+      res.writeHead(202, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ACCEPTED', receipt }));
     } catch (err: any) {
-      console.error(`❌ Invalid Manifest: ${err.message}`);
+      console.error(`❌ Launch Failure: ${err.message}`);
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'INVALID', message: err.message }));
+      res.end(JSON.stringify({ error: 'INVALID_ORDER', message: err.message }));
     }
     return;
   }
 
-  // 4. List Missions
+  // 4. List Active Missions
   if (url === '/missions' && method === 'GET') {
     try {
       const resObj = await pm.run(USE_SUDO ? 'sudo docker' : 'docker', [
@@ -153,5 +122,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Station Supervisor (API Mode) on 0.0.0.0:${PORT}`);
+  console.log(`🚀 Station Supervisor (Starfleet API) on 0.0.0.0:${PORT}`);
 });

@@ -29,7 +29,16 @@ export class WorkspaceManager {
     const { workDir, upstreamUrl, branchName, mirrorPath } = options;
     const targetDir = path.resolve(workDir);
 
+    if (process.env.GCLI_ORBIT_SKIP_GIT === '1') {
+      if (!fs.existsSync(targetDir))
+        fs.mkdirSync(targetDir, { recursive: true });
+      return;
+    }
+
     // 1. Check if it's already a git repo
+    const isRepo = this.git.revParse(targetDir, ['--is-inside-work-tree'], {
+      quiet: true,
+    });
     const res = this.git.init(targetDir);
 
     // If init succeeded and we need to add remote/mirror

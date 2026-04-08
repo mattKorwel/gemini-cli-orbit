@@ -6,11 +6,10 @@
 
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
-import { GitExecutor } from '../../core/executors/GitExecutor.js';
 import { getMissionManifest } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
@@ -21,51 +20,24 @@ import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
 
-const getDirname = () => {
-  try {
-    return path.dirname(fileURLToPath(import.meta.url));
-  } catch {
-    return __dirname;
-  }
-};
-
-const _dirname = getDirname();
-
 /**
- * Entrypoint for Orbit missions inside the capsule/worktree.
- * Orchestrates doctor checks and dispatches to either a playbook or chat.
+ * Entrypoint for Orbit missions inside the capsule.
+ * Pure Workflow Dispatcher: Assumes environment is already prepared by the Supervisor.
  */
 export async function main(pm: IProcessManager = new ProcessManager()) {
-  // ADR 0018: Hydrate context from environment manifest
   const manifest = getMissionManifest();
   logger.setVerbose(manifest.verbose === true);
   const { identifier, action, workDir, policyPath } = manifest;
 
   const absWorkDir = path.resolve(workDir);
-  logger.divider('ORBIT DOCTOR');
 
-  // 1. Doctor Checks
-  logger.info('GENERAL', '🩺 Running Orbit Doctor...');
-  if (!fs.existsSync(absWorkDir)) {
-    logger.error('GENERAL', `❌ Work directory missing: ${absWorkDir}`);
-    return 1;
-  }
+  // Note: Redundant "Doctor Checks" (Git/FS) have been removed.
+  // The Starfleet Supervisor handles infrastructure health before spawning this container.
 
-  const gitCheck = pm.runSync(
-    'git',
-    GitExecutor.revParse(absWorkDir, ['--is-inside-work-tree']).args,
-    { cwd: absWorkDir, quiet: true },
-  );
-  if (gitCheck.status !== 0) {
-    logger.error('GENERAL', '❌ Work directory is not a valid git worktree.');
-    return 1;
-  }
-  logger.info('GENERAL', '   ✅ Git worktree health verified.');
-
-  // Transition from INITIALIZING to IDLE
+  // Transition to IDLE state
   updateState(absWorkDir, { status: 'IDLE' });
 
-  // Resolve log directory and other mission-specific paths
+  // Resolve mission-specific paths
   const tempManager = new TempManager({ tempDir: manifest.tempDir });
   const sessionId =
     SessionManager.getSessionIdFromEnv() ||
@@ -74,7 +46,7 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
 
   const missionHeader = `🚀 Mission: ${identifier} | Action: ${action}`;
 
-  // 2. Dispatching
+  // Dispatching Logic
   if (action === 'chat') {
     logger.info('GENERAL', '✨ Orbit ready. Joining interactive session...');
 
@@ -82,20 +54,16 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     const hasSessions =
       fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
 
-    const geminiBin = 'gemini';
-    const env = {
-      ...process.env,
-      GEMINI_AUTO_UPDATE: '0',
-      GCLI_ORBIT_MISSION_ID: identifier,
-      GCLI_ORBIT_ACTION: action,
-    };
-
-    // ADR 0017: Inject mission-control hooks
     const geminiOpts: any = {
       approvalMode: 'plan',
       policy: policyPath,
       cwd: absWorkDir,
-      env,
+      env: {
+        ...process.env,
+        GEMINI_AUTO_UPDATE: '0',
+        GCLI_ORBIT_MISSION_ID: identifier,
+        GCLI_ORBIT_ACTION: action,
+      },
       interactive: true,
     };
 
@@ -103,15 +71,10 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
       geminiOpts.resume = 'latest';
     }
 
-    const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
-    logger.info(
-      'GENERAL',
-      `🏃 Executing: ${geminiCmd.bin} ${geminiCmd.args.join(' ')}`,
-    );
+    const geminiCmd = GeminiExecutor.create('gemini', geminiOpts);
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
     return res.status;
   } else {
-    // Playbook Dispatch
     logger.info('GENERAL', `🏃 Launching ${action} playbook...`);
 
     switch (action) {
@@ -161,9 +124,7 @@ if (
     import.meta.url === `file://${process.argv[1]}`)
 ) {
   main()
-    .then((code) => {
-      process.exit(code);
-    })
+    .then((code) => process.exit(code))
     .catch((err) => {
       console.error(err);
       process.exit(1);

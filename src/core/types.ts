@@ -27,6 +27,8 @@ export const MissionManifestSchema = z.object({
   verbose: z.boolean().optional(), // Whether to enable detailed logging
   tempDir: z.string().optional(), // Root directory for temporary logs
   isDev: z.boolean().optional(), // Whether to use Shadow Mode (Dev override)
+  env: z.record(z.string()).optional(), // Standard environment variables
+  sensitiveEnv: z.record(z.string()).optional(), // Secret environment variables (not logged)
 });
 
 /**

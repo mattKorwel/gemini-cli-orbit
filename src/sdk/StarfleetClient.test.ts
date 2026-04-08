@@ -17,7 +17,12 @@ describe('StarfleetClient Integration', () => {
     // Start the daemon on a test port
     const serverPath = path.resolve('bundle/orbit-server.js');
     daemon = spawn('node', [serverPath], {
-      env: { ...process.env, ORBIT_SERVER_PORT: '8081', NO_SUDO: '1' },
+      env: {
+        ...process.env,
+        ORBIT_SERVER_PORT: '8081',
+        NO_SUDO: '1',
+        GCLI_ORBIT_SKIP_GIT: '1',
+      },
     });
 
     // Wait for it to wake up
@@ -49,5 +54,8 @@ describe('StarfleetClient Integration', () => {
     } as any);
 
     expect(res.status).toBe('ACCEPTED');
+    expect(res.receipt).toBeDefined();
+    expect(res.receipt.missionId).toBe('test-123');
+    expect(res.receipt.containerName).toBe('orbit-test-busybox');
   });
 });

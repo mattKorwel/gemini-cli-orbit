@@ -40,6 +40,7 @@ import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { SchematicManager } from './SchematicManager.js';
 import { StarfleetClient } from './StarfleetClient.js';
+import { ShadowManager } from './ShadowManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { ProcessManager } from '../core/ProcessManager.js';
@@ -90,6 +91,7 @@ export class OrbitSDK implements IOrbitSDK {
   private readonly status: StatusManager;
   private readonly ci: CIManager;
   private readonly integrations: IntegrationManager;
+  private readonly shadow: ShadowManager;
 
   constructor(
     public readonly context: OrbitContext,
@@ -124,6 +126,14 @@ export class OrbitSDK implements IOrbitSDK {
     const starfleetClient = new StarfleetClient(
       (this.context.infra as any).apiUrl || 'http://localhost:8080',
     );
+
+    // Initializing transport early for Shadow management
+    const provider = providerFactory.getProvider(
+      this.projectCtx,
+      this.context.infra as any,
+    );
+    const ssh = (provider as any).ssh;
+    this.shadow = new ShadowManager(ssh, this.observer);
 
     this.missions = new MissionManager(
       this.projectCtx,
@@ -236,6 +246,9 @@ export class OrbitSDK implements IOrbitSDK {
    * Launch or resume an isolated developer presence.
    */
   async startMission(manifest: MissionManifest): Promise<MissionResult> {
+    // Perform surgical shadow sync if --dev is enabled
+    await this.shadow.syncIfRequested({ dev: manifest.isDev });
+
     return this.missions.start(manifest);
   }
 
@@ -243,7 +256,14 @@ export class OrbitSDK implements IOrbitSDK {
    * Resolve user intent into a concrete MissionManifest.
    */
   async resolveMission(options: MissionOptions): Promise<MissionManifest> {
-    return this.missions.resolve(options);
+    const manifest = await this.missions.resolve(options);
+
+    // Inject the isDev flag from the CLI options into the manifest
+    if ((options as any).dev) {
+      manifest.isDev = true;
+    }
+
+    return manifest;
   }
 
   /**
@@ -382,7 +402,7 @@ export class OrbitSDK implements IOrbitSDK {
    */
   async runSchematicWizard(
     name: string,
-    cliFlags: Partial<OrbitConfig> = {},
+    cliFlags?: Partial<OrbitConfig>,
   ): Promise<void> {
     return this.fleet.runSchematicWizard(name, cliFlags);
   }

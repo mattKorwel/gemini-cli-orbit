@@ -12,8 +12,14 @@ import {
   type IProcessResult,
 } from '../interfaces.js';
 
+/**
+ * DockerExecutor: High-level wrapper for Docker commands.
+ */
 export class DockerExecutor implements IDockerExecutor {
-  constructor(private readonly pm: IProcessManager) {}
+  constructor(
+    private readonly pm: IProcessManager,
+    private readonly binName: string = 'sudo docker',
+  ) {}
 
   public exec(
     container: string,
@@ -21,7 +27,7 @@ export class DockerExecutor implements IDockerExecutor {
     options: IRunOptions = {},
   ): IProcessResult {
     const cmd = DockerExecutor.exec(container, innerCommand, options);
-    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+    return this.pm.runSync(this.binName, cmd.args, cmd.options);
   }
 
   public run(
@@ -62,7 +68,7 @@ export class DockerExecutor implements IDockerExecutor {
     }
 
     return {
-      bin: 'sudo docker',
+      bin: this.binName,
       args,
       options: runOptions,
     };
@@ -70,14 +76,14 @@ export class DockerExecutor implements IDockerExecutor {
 
   public stop(container: string): Command {
     return {
-      bin: 'sudo docker',
+      bin: this.binName,
       args: ['stop', container],
     };
   }
 
   public remove(container: string): Command {
     return {
-      bin: 'sudo docker',
+      bin: this.binName,
       args: ['rm', '-f', container],
     };
   }
@@ -89,17 +95,8 @@ export class DockerExecutor implements IDockerExecutor {
     innerCommand: string[],
     options: IRunOptions = {},
   ): Command {
-    const { interactive, cwd, env } = options;
     const args = ['exec'];
-
-    if (interactive) args.push('-it');
-    if (cwd) args.push('-w', cwd);
-    if (env) {
-      Object.entries(env).forEach(([k, v]) => {
-        args.push('-e', `${k}=${v}`);
-      });
-    }
-
+    if (options.interactive) args.push('-it');
     args.push(container, ...innerCommand);
 
     const runOptions: IRunOptions = { ...options };
