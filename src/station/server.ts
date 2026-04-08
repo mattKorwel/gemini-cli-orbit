@@ -152,6 +152,6 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404).end();
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 Station Supervisor (API Mode) on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Station Supervisor (API Mode) on 0.0.0.0:${PORT}`);
 });
