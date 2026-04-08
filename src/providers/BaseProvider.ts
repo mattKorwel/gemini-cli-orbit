@@ -87,6 +87,11 @@ export abstract class BaseProvider {
   abstract resolveWorkspacesRoot(): string;
 
   /**
+   * Returns the absolute path to the directory containing Orbit bundles (station.js, mission.js).
+   */
+  abstract resolveBundlePath(): string;
+
+  /**
    * Returns the absolute path to the Orbit worker (station.js) in this environment.
    */
   abstract resolveWorkerPath(): string;

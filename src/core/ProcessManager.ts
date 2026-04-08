@@ -113,13 +113,31 @@ export class ProcessManager implements IProcessManager {
     args: string[],
     options: IRunOptions = {},
   ): Promise<IProcessResult> {
+    const mergedOptions = { ...this.defaultOptions, ...options };
+    const { onStdout, onStderr } = mergedOptions;
+
     return new Promise((resolve) => {
       const child = this.spawn(bin, args, { ...options, stdio: 'pipe' });
       let stdout = '';
       let stderr = '';
 
-      child.stdout?.on('data', (data) => (stdout += data.toString()));
-      child.stderr?.on('data', (data) => (stderr += data.toString()));
+      child.stdout?.on('data', (data) => {
+        const str = data.toString();
+        stdout += str;
+        if (mergedOptions.stream) {
+          process.stdout.write(str);
+        }
+        onStdout?.(str);
+      });
+
+      child.stderr?.on('data', (data) => {
+        const str = data.toString();
+        stderr += str;
+        if (mergedOptions.stream) {
+          process.stderr.write(str);
+        }
+        onStderr?.(str);
+      });
 
       child.on('close', (status) => {
         resolve({

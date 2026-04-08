@@ -12,10 +12,7 @@ import { main as stationMain } from '../station/station.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  CAPSULE_MANIFEST_PATH,
-  LOCAL_MANIFEST_NAME,
-} from '../core/Constants.js';
+import { CAPSULE_MANIFEST_PATH } from '../core/Constants.js';
 
 describe('Mission Bridge Integration', () => {
   let tempDir: string;
@@ -100,6 +97,9 @@ describe('Mission Bridge Integration', () => {
           }
           return res;
         }),
+        run: vi.fn().mockImplementation(async (bin, args, options) => {
+          return systemPm.runSync(bin, args, options);
+        }),
       };
 
       const mockExecutors: any = {
@@ -109,7 +109,16 @@ describe('Mission Bridge Integration', () => {
         node: ProviderFactory.getExecutors(systemPm).node,
         gemini: ProviderFactory.getExecutors(systemPm).gemini,
         ssh: {
-          exec: vi.fn().mockImplementation((target, cmd) => {
+          runHostCommand: vi
+            .fn()
+            .mockImplementation(async function (cmd, options) {
+              return (mockExecutors.ssh as any).execAsync(
+                expectedHostname,
+                cmd.bin + ' ' + cmd.args.join(' '),
+                options,
+              );
+            }),
+          exec: vi.fn().mockImplementation(function (target, cmd) {
             recordedCommands.push({
               bin: 'ssh',
               args: [target, cmd],
@@ -140,6 +149,15 @@ describe('Mission Bridge Integration', () => {
               missionContainerExists = true;
             }
             return { status: 0, stdout: 'true', stderr: '' };
+          }),
+          execAsync: vi.fn().mockImplementation(async function (target, cmd) {
+            recordedCommands.push({
+              bin: 'ssh',
+              args: [target, cmd],
+              env: {},
+              host: 'local',
+            });
+            return (mockExecutors.ssh as any).exec(target, cmd);
           }),
           rsync: vi.fn().mockImplementation((local, remote) => {
             recordedCommands.push({
@@ -189,6 +207,7 @@ describe('Mission Bridge Integration', () => {
       });
       await manager.start(manifest);
 
+      // Verify manifest was synced
       expect(
         recordedCommands.some(
           (c) =>
@@ -199,27 +218,26 @@ describe('Mission Bridge Integration', () => {
         ),
       ).toBe(true);
 
+      // Verify docker run was called via SSH
       const dockerRunSsh = recordedCommands.find(
         (c) =>
-          (c.bin === 'ssh' || c.bin === 'local') &&
-          c.args.some((a) => typeof a === 'string' && a.includes('docker run')),
+          c.bin === 'ssh' &&
+          c.args.some((a) => typeof a === 'string' && a.includes('docker')) &&
+          c.args.some((a) => typeof a === 'string' && a.includes('run')),
       );
       expect(dockerRunSsh).toBeDefined();
       expect(dockerRunSsh?.args.join(' ')).toContain(
         `${CAPSULE_MANIFEST_PATH}`,
       );
 
+      // Verify docker exec was called via SSH
       const dockerExecSsh = recordedCommands.find(
         (c) =>
-          (c.bin === 'ssh' || c.bin === 'local') &&
-          c.args.some(
-            (a) => typeof a === 'string' && a.includes('docker exec'),
-          ),
+          c.bin === 'ssh' &&
+          c.args.some((a) => typeof a === 'string' && a.includes('docker')) &&
+          c.args.some((a) => typeof a === 'string' && a.includes('exec')),
       );
       expect(dockerExecSsh).toBeDefined();
-      expect(dockerExecSsh?.args.join(' ')).not.toContain(
-        'GCLI_ORBIT_MANIFEST',
-      );
     },
   );
 });

@@ -40,6 +40,7 @@ describe('RemoteProvisioner', () => {
     resolveSecretPath: vi.fn().mockReturnValue('/dev/shm/.orbit-env-test'),
     resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
     resolveMirrorPath: vi.fn().mockReturnValue('/mock/mirror'),
+    resolveBundlePath: vi.fn().mockReturnValue('/mock/bundle'),
   };
 
   const projectCtx: ProjectContext = {

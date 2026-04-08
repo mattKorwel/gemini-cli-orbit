@@ -51,6 +51,11 @@ describe('Config Propagation Integration', () => {
           .mockImplementation((target, command, options) =>
             mockPm.runSync('ssh', [target, command], options),
           ),
+        execAsync: vi
+          .fn()
+          .mockImplementation(async (target, command, options) =>
+            mockPm.runSync('ssh', [target, command], options),
+          ),
         rsync: vi
           .fn()
           .mockImplementation((local, remote, options) =>

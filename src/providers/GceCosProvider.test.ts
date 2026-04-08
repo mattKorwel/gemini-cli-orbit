@@ -148,19 +148,25 @@ describe('GceCosProvider', () => {
       stdout: '',
       stderr: '',
     });
-    // 2. mkdir -p check
+    // 2. mount check
+    mockSsh.runHostCommand.mockResolvedValueOnce({
+      status: 0,
+      stdout: '/mnt/disks/data',
+      stderr: '',
+    });
+    // 3. mkdir -p check
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: '',
       stderr: '',
     });
-    // 3. initial capsule check (exists)
+    // 4. initial capsule check (exists)
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',
       stderr: '',
     });
-    // 4. Signal lock loop check
+    // 5. Signal lock loop check
     mockSsh.runHostCommand.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',

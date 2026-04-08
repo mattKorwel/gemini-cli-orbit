@@ -102,6 +102,7 @@ export class MissionManager {
       policyPath,
       upstreamUrl,
       mirrorPath: provider.resolveMirrorPath(),
+      bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
       tempDir: workDir,
     };
@@ -188,14 +189,26 @@ export class MissionManager {
         const ghConfigPath = path.join(os.homedir(), '.config/gh/hosts.yml');
         if (fs.existsSync(ghConfigPath)) {
           const content = fs.readFileSync(ghConfigPath, 'utf8');
+          // Match any token under github.com or other hosts
           const match = content.match(/oauth_token:\s+([^\s\n]+)/);
           if (match && match[1]) {
             sensitiveEnv.GH_TOKEN = match[1];
           }
         }
-      } catch (_e) {
-        // Fallback or skip
+      } catch (e: any) {
+        this.observer.onLog?.(
+          LogLevel.DEBUG,
+          'MISSION',
+          `Failed to read GH config: ${e.message}`,
+        );
       }
+    }
+
+    // Ensure at least one is set if found
+    if (sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
+      sensitiveEnv.GITHUB_TOKEN = sensitiveEnv.GH_TOKEN;
+    } else if (sensitiveEnv.GITHUB_TOKEN && !sensitiveEnv.GH_TOKEN) {
+      sensitiveEnv.GH_TOKEN = sensitiveEnv.GITHUB_TOKEN;
     }
 
     await provider.prepareMissionWorkspace(mCtx, {
@@ -222,6 +235,7 @@ export class MissionManager {
     const startRes = await provider.getMissionExecOutput(startCmd, mCtx, {
       interactive: false,
       manifest,
+      stream: true, // Provide real-time feedback during initialization
       env: sensitiveEnv,
       sensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
     });

@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { logger } from '../core/Logger.js';
 import {
   CAPSULE_MANIFEST_PATH,
@@ -43,7 +44,8 @@ export async function main(
   pm: IProcessManager = new ProcessManager(),
 ) {
   try {
-    const station = new StationSupervisor(_dirname, pm);
+    const tmux = new TmuxExecutor(pm);
+    const station = new StationSupervisor(_dirname, pm, tmux);
 
     const action = argv[0] || 'start';
 
@@ -81,7 +83,7 @@ export async function main(
         return 0;
       }
       case 'run': {
-        return await station.runMission(manifest);
+        return await station.launchMission(manifest);
       }
       case 'help':
       case '--help': {

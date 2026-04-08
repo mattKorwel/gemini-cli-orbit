@@ -108,6 +108,10 @@ export class GceCosProvider extends BaseProvider {
     return `${ORBIT_ROOT}/workspaces`;
   }
 
+  override resolveBundlePath(): string {
+    return BUNDLE_PATH;
+  }
+
   override resolveWorkerPath(): string {
     return STATION_BUNDLE_PATH;
   }
@@ -688,7 +692,11 @@ export class GceCosProvider extends BaseProvider {
     ];
 
     for (const cmd of cmds) {
-      const res = await this.exec(cmd, { quiet: true });
+      const isClone = cmd.includes('git clone');
+      const res = await this.exec(cmd, {
+        quiet: !isClone,
+        stream: isClone, // Stream git clone output to show progress
+      });
       if (res !== 0) return res;
     }
     return 0;

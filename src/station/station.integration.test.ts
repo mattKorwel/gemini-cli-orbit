@@ -34,6 +34,7 @@ describe('Worker Integration (High-Fidelity)', () => {
       identifier: 'test-mission',
       repoName: 'test-repo',
       branchName: 'feat/test',
+      upstreamUrl: 'https://github.com/org/repo.git',
       action: 'chat',
       workDir: workspaceDir,
     };
@@ -70,6 +71,7 @@ describe('Worker Integration (High-Fidelity)', () => {
       identifier: 'test-mission',
       repoName: 'test-repo',
       branchName: 'feat/test',
+      upstreamUrl: 'https://github.com/org/repo.git',
       action: 'chat',
       workDir: workspaceDir,
     };

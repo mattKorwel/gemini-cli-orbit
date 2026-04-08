@@ -134,7 +134,7 @@ export class GceSSHManager implements SSHManager {
     const target = this.getMagicRemote();
 
     return this.withConnectivityRetry(async () => {
-      const res = this.ssh.exec(target, fullCmdStr, {
+      const res = await this.ssh.execAsync(target, fullCmdStr, {
         ...options,
         env: { ...options.env, CLOUDSDK_CORE_VERBOSITY: 'error' },
       });
@@ -190,7 +190,9 @@ export class GceSSHManager implements SSHManager {
     return this.withConnectivityRetry(async () => {
       const res = this.ssh.rsync(localPath, remote, options);
       if (res.status !== 0) {
-        throw new Error(`Rsync failed with exit code ${res.status}`);
+        throw new Error(
+          `Rsync failed with exit code ${res.status}: ${res.stderr}`,
+        );
       }
       return res.status;
     });
@@ -377,7 +379,9 @@ export class GceSSHManager implements SSHManager {
           .map(([k, v]) => `${k}=${this.quote(v)}`)
           .join(' ') + ' '
       : '';
-    return `${envPrefix}${cmd.bin} ${cmd.args.join(' ')}`;
+    const bin = cmd.bin;
+    const args = cmd.args.map((a) => this.quote(a)).join(' ');
+    return `${envPrefix}${bin} ${args}`;
   }
 
   private quote(str: string): string {

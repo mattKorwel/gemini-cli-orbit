@@ -76,6 +76,10 @@ export class LocalWorktreeProvider extends BaseProvider {
     return path.join(this.workspacesDir, this.projectCtx.repoName);
   }
 
+  override resolveBundlePath(): string {
+    return LOCAL_BUNDLE_PATH;
+  }
+
   override resolveWorkerPath(): string {
     return `${LOCAL_BUNDLE_PATH}/station.js`;
   }
@@ -233,6 +237,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       policyPath: this.resolvePolicyPath(wtPath),
       upstreamUrl: (infra as any).upstreamUrl,
       mirrorPath: sourceDir,
+      bundleDir: this.resolveBundlePath(),
       tempDir: this.workspacesDir,
     });
 

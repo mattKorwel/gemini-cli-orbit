@@ -71,6 +71,7 @@ export class RemoteProvisioner {
       policyPath: this.provider.resolvePolicyPath(remoteWorkspaceDir),
       upstreamUrl: mCtx.upstreamUrl || (infra as any).upstreamUrl,
       mirrorPath: this.provider.resolveMirrorPath(),
+      bundleDir: this.provider.resolveBundlePath(),
       tempDir: remoteWorkspaceDir,
     });
 

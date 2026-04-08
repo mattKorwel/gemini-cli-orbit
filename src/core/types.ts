@@ -90,6 +90,7 @@ export interface MissionManifest {
   sessionName: string; // The user-friendly hierarchical session name
   upstreamUrl: string; // The git remote origin URL
   mirrorPath?: string; // Optional path to local git mirror
+  bundleDir?: string; // Root directory for orbit bundles (station.js, mission.js)
   verbose?: boolean | undefined; // Whether to enable detailed logging
   tempDir?: string | undefined; // Root directory for temporary logs and artifacts
 }
@@ -262,6 +263,7 @@ export interface ExecOptions {
   isolationId?: string; // Strictly for the isolation handle (Tmux session or Docker container name)
   user?: string; // Unix user for remote execution
   quiet?: boolean;
+  stream?: boolean; // Real-time streaming to local console
   env?: Record<string, string>;
   sensitiveEnv?: Record<string, string>;
   manifest?: MissionManifest | undefined;

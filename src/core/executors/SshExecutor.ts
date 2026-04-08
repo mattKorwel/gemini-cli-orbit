@@ -18,6 +18,11 @@ import {
  */
 export interface ISshExecutor {
   exec(target: string, command: string, options?: IRunOptions): IProcessResult;
+  execAsync(
+    target: string,
+    command: string,
+    options?: IRunOptions,
+  ): Promise<IProcessResult>;
   create(target: string, command: string, options?: IRunOptions): Command;
   rsync(
     local: string,
@@ -41,6 +46,15 @@ export class SshExecutor implements ISshExecutor {
   ): IProcessResult {
     const cmd = this.create(target, command, options);
     return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public async execAsync(
+    target: string,
+    command: string,
+    options: IRunOptions = {},
+  ): Promise<IProcessResult> {
+    const cmd = this.create(target, command, options);
+    return this.pm.run(cmd.bin, cmd.args, cmd.options);
   }
 
   public create(
