@@ -10,7 +10,8 @@ import { ProcessManager } from '../core/ProcessManager.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 
 const PORT = process.env.ORBIT_SERVER_PORT || 8080;
-const USE_SUDO = process.env.NO_SUDO !== '1';
+// In Starfleet, the supervisor runs in a container and should NOT use sudo for internal commands.
+const USE_SUDO = process.env.USE_SUDO === '1';
 
 const pm = new ProcessManager({}, USE_SUDO);
 const docker = new DockerExecutor(pm, USE_SUDO ? 'sudo docker' : 'docker');

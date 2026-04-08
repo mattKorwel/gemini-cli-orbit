@@ -34,7 +34,7 @@ RUN ln -s /usr/local/lib/orbit/bundle/orbit-cli.js /usr/local/bin/orbit && chmod
 RUN chown -R node:node /usr/local/lib/orbit
 
 USER node
-WORKDIR /home/node/data
+WORKDIR /mnt/disks/data
 
 # Default to running the Supervisor Daemon
 CMD ["node", "/usr/local/lib/orbit/bundle/orbit-server.js"]

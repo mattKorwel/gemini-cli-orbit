@@ -4,7 +4,7 @@
 
 set -e
 
-IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:22937d2"
+IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:latest"
 CONTAINER_NAME="station-supervisor"
 DATA_DISK="/mnt/disks/data"
 
@@ -40,7 +40,7 @@ docker run -d \
   --restart always \
   -p 8080:8080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v ${DATA_DISK}:/home/node/data \
+  -v ${DATA_DISK}:${DATA_DISK} \
   -v /dev/shm:/dev/shm \
   -e ORBIT_SERVER_PORT=8080 \
   ${IMAGE}

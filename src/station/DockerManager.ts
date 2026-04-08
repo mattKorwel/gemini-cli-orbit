@@ -41,8 +41,9 @@ export class DockerManager {
     const mounts = [
       {
         host: workDir,
-        capsule: '/home/node/dev/main',
+        capsule: workDir, // Symmetric path
       },
+
       // Inject only the minimal mission logic needed for the capsule to report state
       {
         host: '/usr/local/lib/orbit/bundle/mission.js',
