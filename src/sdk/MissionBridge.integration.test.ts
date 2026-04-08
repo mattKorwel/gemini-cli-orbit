@@ -219,24 +219,45 @@ describe('Mission Bridge Integration', () => {
       ).toBe(true);
 
       // Verify docker run was called via SSH
-      const dockerRunSsh = recordedCommands.find(
-        (c) =>
-          c.bin === 'ssh' &&
-          c.args.some((a) => typeof a === 'string' && a.includes('docker')) &&
-          c.args.some((a) => typeof a === 'string' && a.includes('run')),
-      );
+      let dockerRunSsh;
+      for (let i = 0; i < 10; i++) {
+        dockerRunSsh = recordedCommands.find(
+          (c) =>
+            c.bin === 'ssh' &&
+            c.args.some(
+              (a) =>
+                typeof a === 'string' &&
+                a.includes('docker') &&
+                a.includes('run'),
+            ),
+        );
+        if (dockerRunSsh) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       expect(dockerRunSsh).toBeDefined();
-      expect(dockerRunSsh?.args.join(' ')).toContain(
-        `${CAPSULE_MANIFEST_PATH}`,
+      const runCmdArg = dockerRunSsh?.args.find(
+        (a) =>
+          typeof a === 'string' && a.includes('docker') && a.includes('run'),
       );
+      expect(runCmdArg).toContain(`${CAPSULE_MANIFEST_PATH}`);
 
       // Verify docker exec was called via SSH
-      const dockerExecSsh = recordedCommands.find(
-        (c) =>
-          c.bin === 'ssh' &&
-          c.args.some((a) => typeof a === 'string' && a.includes('docker')) &&
-          c.args.some((a) => typeof a === 'string' && a.includes('exec')),
-      );
+      let dockerExecSsh;
+      for (let i = 0; i < 10; i++) {
+        dockerExecSsh = recordedCommands.find(
+          (c) =>
+            c.bin === 'ssh' &&
+            c.args.some(
+              (a) =>
+                typeof a === 'string' &&
+                a.includes('docker') &&
+                a.includes('exec'),
+            ),
+        );
+        if (dockerExecSsh) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(dockerExecSsh).toBeDefined();
       expect(dockerExecSsh).toBeDefined();
     },
   );
