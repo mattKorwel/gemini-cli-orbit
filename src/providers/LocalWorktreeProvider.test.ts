@@ -35,6 +35,7 @@ describe('LocalWorktreeProvider', () => {
     },
     tmux: {
       attach: vi.fn(),
+      wrapMission: vi.fn(),
     },
     node: {
       create: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
@@ -86,6 +87,11 @@ describe('LocalWorktreeProvider', () => {
 
   it('should check for tmux existence', () => {
     mockPm.runSync.mockReturnValue({ status: 0 } as any);
+    mockExecutors.tmux.wrapMission.mockReturnValue({
+      bin: 'tmux',
+      args: ['new-session', 'COLORTERM=truecolor', 'ls'],
+    });
+
     const provider = new LocalWorktreeProvider(
       projectCtx,
       fs,
@@ -95,7 +101,9 @@ describe('LocalWorktreeProvider', () => {
       mockInfra,
     );
     const cmd = provider.getRunCommand('ls');
-    expect(cmd).toContain('tmux new-session');
+    expect(cmd).toContain('tmux');
+    expect(cmd).toContain('COLORTERM=truecolor');
+    expect(mockExecutors.tmux.wrapMission).toHaveBeenCalled();
   });
 
   it('should fallback to raw shell if tmux is missing', () => {
@@ -111,6 +119,30 @@ describe('LocalWorktreeProvider', () => {
     const cmd = provider.getRunCommand('ls');
     expect(cmd).not.toContain('tmux');
     expect(cmd).toContain('cd');
+  });
+
+  it('should propagate TrueColor environment variables in getExecOutput', async () => {
+    const provider = new LocalWorktreeProvider(
+      projectCtx,
+      fs,
+      mockPm,
+      mockExecutors,
+      '/tmp/workspaces',
+      mockInfra,
+    );
+    await provider.getExecOutput('ls');
+
+    expect(mockPm.runSync).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          COLORTERM: 'truecolor',
+          FORCE_COLOR: '3',
+          TERM: 'xterm-256color',
+        }),
+      }),
+    );
   });
 
   describe('Robust Provisioning', () => {

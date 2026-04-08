@@ -9,25 +9,35 @@ import { TmuxExecutor } from './TmuxExecutor.js';
 
 describe('TmuxExecutor', () => {
   it('wraps a command correctly', () => {
+    process.env.TERM_PROGRAM = 'myterm';
     const cmd = TmuxExecutor.wrap('mysession', 'ls -la', { cwd: '/tmp' });
     expect(cmd.bin).toBe('tmux');
     expect(cmd.args).toContain('mysession');
-    expect(cmd.args[cmd.args.length - 1]).toContain(
-      "cd '/tmp' && ls -la; exec zsh",
-    );
+    const lastArg = cmd.args[cmd.args.length - 1];
+    expect(lastArg).toContain("cd '/tmp'");
+    expect(lastArg).toContain("export COLORTERM='truecolor'");
+    expect(lastArg).toContain("export FORCE_COLOR='3'");
+    expect(lastArg).toContain("export TERM='xterm-256color'");
+    expect(lastArg).toContain("export TERM_PROGRAM='myterm'");
+    expect(lastArg).toContain('ls -la; exec zsh');
   });
 
   it('handles shell quoting in wrap', () => {
+    process.env.TERM_PROGRAM = 'myterm';
     const cmd = TmuxExecutor.wrap('mysession', 'ls', {
       cwd: "/path/with'quotes",
       env: { VAR: "val'with'quotes" },
     });
     const lastArg = cmd.args[cmd.args.length - 1];
     expect(lastArg).toContain("cd '/path/with'\\''quotes'");
-    expect(lastArg).toContain("VAR='val'\\''with'\\''quotes'");
+    expect(lastArg).toContain("export VAR='val'\\''with'\\''quotes'");
+    expect(lastArg).toContain("export COLORTERM='truecolor'");
+    expect(lastArg).toContain("export FORCE_COLOR='3'");
+    expect(lastArg).toContain("export TERM_PROGRAM='myterm'");
   });
 
   it('wraps a mission correctly with wrapMission', () => {
+    process.env.TERM_PROGRAM = 'myterm';
     const cmd = TmuxExecutor.wrapMission('mysession', 'node mission.js', {
       cwd: '/tmp',
       env: { VERBOSE: '1' },
@@ -36,8 +46,17 @@ describe('TmuxExecutor', () => {
     expect(cmd.args).toContain('mysession');
     const lastArg = cmd.args[cmd.args.length - 1];
     expect(lastArg).toContain('🛰️  ORBIT');
+    expect(lastArg).toContain('terminal-overrides');
+    expect(lastArg).toContain('terminal-features');
+    expect(lastArg).toContain('RGB');
+    expect(lastArg).toContain('Tc');
+    expect(lastArg).not.toContain('set-environment');
+    expect(lastArg).toContain("export COLORTERM='truecolor'");
+    expect(lastArg).toContain("export FORCE_COLOR='3'");
+    expect(lastArg).toContain("export TERM='xterm-256color'");
+    expect(lastArg).toContain("export TERM_PROGRAM='myterm'");
     expect(lastArg).toContain("cd '/tmp'");
-    expect(lastArg).toContain("VERBOSE='1'");
+    expect(lastArg).toContain("export VERBOSE='1'");
     expect(lastArg).toContain('node mission.js');
   });
 

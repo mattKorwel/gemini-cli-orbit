@@ -98,7 +98,7 @@ describe('GceCosProvider Integration Logic', () => {
       expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           bin: '/bin/bash',
-          args: ['-c', "'echo '\\''hello world'\\'' && ls'"],
+          args: ['-c', "echo 'hello world' && ls"],
         }),
         expect.anything(),
       );

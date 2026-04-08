@@ -1,0 +1,14 @@
+{
+  "identifier": "fix-remote",
+  "repoName": "gemini-cli-orbit",
+  "branchName": "fix-remote",
+  "action": "chat",
+  "workDir": "/Users/mattkorwel/dev/gemini-cli-orbit/orbit-git-worktrees/gemini-cli-orbit/fix-remote",
+  "containerName": "gemini-cli-orbit-fix-remote",
+  "sessionName": "gemini-cli-orbit/fix-remote",
+  "policyPath": "/Users/mattkorwel/dev/gemini-cli-orbit/orbit-git-worktrees/gemini-cli-orbit/fix-remote/.gemini/policies/workspace-policy.toml",
+  "upstreamUrl": "https://github.com/mattKorwel/gemini-cli-orbit.git",
+  "mirrorPath": "/Users/mattkorwel/dev/gemini-cli-orbit/main",
+  "bundleDir": "/Users/mattkorwel/dev/gemini-cli-orbit/main/bundle",
+  "tempDir": "/Users/mattkorwel/dev/gemini-cli-orbit/orbit-git-worktrees"
+}
