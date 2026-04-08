@@ -275,8 +275,23 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             mkdir -p $MOUNT_PATH/mirror
             mkdir -p $MOUNT_PATH/project-configs
             mkdir -p $MOUNT_PATH/bin
-            mkdir -p $MOUNT_PATH/dev
-            chown -R 1000:1000 $MOUNT_PATH
+            
+            # --- STARFLEET HARDWARE LOCK ---
+            # Default: Locked (No dev folder, limited node permissions)
+            if [ "${this.config.allowDevUpdates || 'false'}" == "true" ]; then
+              echo "Orbit: UNLOCKING station for development updates..."
+              mkdir -p $MOUNT_PATH/dev/bundle
+              touch $MOUNT_PATH/.starfleet-dev-unlocked
+              chown -R 1000:1000 $MOUNT_PATH
+              chmod -R 775 $MOUNT_PATH
+            else
+              echo "Orbit: Station is LOCKED (Production mode)."
+              rm -f $MOUNT_PATH/.starfleet-dev-unlocked
+              chown -R 1000:1000 $MOUNT_PATH
+              # Restrict write access to sensitive areas if possible
+              chmod -R 755 $MOUNT_PATH
+              chmod -R 775 $MOUNT_PATH/workspaces # Missions still need to write
+            fi
             
             # Pull and Start Supervisor with Retry
             echo "Orbit: Pulling $IMAGE..."

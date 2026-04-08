@@ -236,6 +236,7 @@ export interface OrbitConfig extends InfrastructureSpec {
   forStation?: string | undefined;
   local?: boolean | undefined;
   manageNetworking?: boolean | undefined;
+  allowDevUpdates?: boolean | undefined;
   tempDir?: string | undefined;
   autoClean?: boolean | undefined;
   verbose?: boolean | undefined;

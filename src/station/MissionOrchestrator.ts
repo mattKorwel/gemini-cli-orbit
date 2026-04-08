@@ -26,6 +26,7 @@ export class MissionOrchestrator {
   constructor(
     private readonly workspace: WorkspaceManager,
     private readonly docker: DockerManager,
+    private readonly isUnlocked: boolean = false,
   ) {}
 
   /**
@@ -62,7 +63,9 @@ export class MissionOrchestrator {
     // 3. Launch Container (DooD)
     const image =
       (manifest as any).image || 'ghcr.io/mattkorwel/gemini-cli-orbit:latest';
-    const bundlePath = '/mnt/disks/data/bin/mission.js';
+
+    // BACK TO IMMUTABLE: Use the bundle inside the image for production
+    const bundlePath = '/usr/local/lib/orbit/bundle/mission.js';
 
     // Inject both standard and sensitive environment
     const fullEnv = {
@@ -78,6 +81,7 @@ export class MissionOrchestrator {
       workDir,
       env: fullEnv,
       command: `node ${bundlePath}`,
+      isDev: this.isUnlocked && manifest.isDev, // Only allow dev if hardware lock is open
     });
 
     return {

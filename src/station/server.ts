@@ -5,6 +5,7 @@
  */
 
 import http from 'node:http';
+import fs from 'node:fs';
 import { MissionManifestSchema } from '../core/types.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
@@ -16,6 +17,10 @@ import { MissionOrchestrator } from './MissionOrchestrator.js';
 const PORT = process.env.ORBIT_SERVER_PORT || 8080;
 const USE_SUDO = process.env.USE_SUDO === '1';
 
+// --- Boot Checks ---
+const UNLOCKED_PATH = '/mnt/disks/data/.starfleet-dev-unlocked';
+const IS_UNLOCKED = fs.existsSync(UNLOCKED_PATH);
+
 // --- Initialize Components ---
 const pm = new ProcessManager({}, USE_SUDO);
 const dockerExecutor = new DockerExecutor(
@@ -26,7 +31,7 @@ const gitExecutor = new GitExecutor(pm);
 
 const workspace = new WorkspaceManager(gitExecutor);
 const docker = new DockerManager(dockerExecutor, pm);
-const orchestrator = new MissionOrchestrator(workspace, docker);
+const orchestrator = new MissionOrchestrator(workspace, docker, IS_UNLOCKED);
 
 async function getJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -52,7 +57,13 @@ const server = http.createServer(async (req, res) => {
   // 1. Health Check
   if (url === '/health' && method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'OK', version: '0.0.34-starfleet' }));
+    res.end(
+      JSON.stringify({
+        status: 'OK',
+        version: '0.0.34-starfleet',
+        mode: IS_UNLOCKED ? 'dev' : 'prod',
+      }),
+    );
     return;
   }
 
@@ -123,4 +134,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Station Supervisor (Starfleet API) on 0.0.0.0:${PORT}`);
+  console.log(
+    `🔒 Security Status: ${IS_UNLOCKED ? 'UNRESTRAINED (Dev Mode)' : 'ENFORCED (Production Mode)'}`,
+  );
 });
