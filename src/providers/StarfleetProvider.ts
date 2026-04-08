@@ -6,12 +6,14 @@
 
 import { BaseProvider } from './BaseProvider.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
+import { LogLevel } from '../core/Logger.js';
 import {
   type ExecOptions,
   type SyncOptions,
   type OrbitStatus,
   type CapsuleConfig,
   type CapsuleInfo,
+  type MissionManifest,
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
 import { type MissionContext } from '../utils/MissionUtils.js';
@@ -207,6 +209,91 @@ export class StarfleetProvider extends BaseProvider {
       repo: 'unknown',
       lastSeen: new Date().toISOString(),
     };
+  }
+
+  async launchMission(manifest: MissionManifest): Promise<number> {
+    const res = await this.client.launchMission(manifest);
+    return res.status === 'ACCEPTED' ? 0 : 1;
+  }
+
+  /**
+   * Performs deep verification of a Starfleet Station (SSH, FS, API).
+   */
+  async verifyIgnition(
+    observer: import('../core/types.js').OrbitObserver,
+  ): Promise<boolean> {
+    const startTime = Date.now();
+    const timeout = 5 * 60 * 1000;
+    let sshVerified = false;
+    let apiVerified = false;
+    let fsVerified = false;
+
+    observer.onLog?.(
+      LogLevel.INFO,
+      'SETUP',
+      '🛸 Verification sequence started...',
+    );
+
+    while (Date.now() - startTime < timeout) {
+      // 1. Check SSH
+      if (!sshVerified) {
+        const readyStatus = await this.ensureReady();
+        if (readyStatus === 0) {
+          sshVerified = true;
+          observer.onLog?.(
+            LogLevel.INFO,
+            'SETUP',
+            '   ✅ [1/3] SSH: Connection established.',
+          );
+        } else {
+          observer.onLog?.(LogLevel.DEBUG, 'SETUP', '   ... waiting for SSH');
+        }
+      }
+
+      // 2. Check API (Must be alive before we can check FS via API)
+      if (sshVerified && !apiVerified) {
+        const alive = await this.client.ping();
+        if (alive) {
+          apiVerified = true;
+          observer.onLog?.(
+            LogLevel.INFO,
+            'SETUP',
+            '   ✅ [2/3] API: Supervisor is responding.',
+          );
+        } else {
+          observer.onLog?.(
+            LogLevel.DEBUG,
+            'SETUP',
+            '   ... waiting for API response',
+          );
+        }
+      }
+
+      // 3. Check Filesystem (using the API we just verified)
+      if (apiVerified && !fsVerified) {
+        try {
+          const res = await this.getExecOutput('ls -F /mnt/disks/data');
+          if (res.status === 0 && res.stdout.includes('workspaces/')) {
+            fsVerified = true;
+            observer.onLog?.(
+              LogLevel.INFO,
+              'SETUP',
+              '   ✅ [3/3] FS: Data disk is mounted and ready.',
+            );
+            return true;
+          }
+        } catch (e: any) {
+          observer.onLog?.(
+            LogLevel.DEBUG,
+            'SETUP',
+            `   ... FS check pending API stability: ${e.message}`,
+          );
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+    return false;
   }
 
   async prepareMissionWorkspace(mCtx: MissionContext): Promise<void> {}

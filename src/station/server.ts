@@ -47,34 +47,27 @@ const server = http.createServer(async (req, res) => {
   if (url === '/exec' && method === 'POST') {
     try {
       const { command, options } = await getJsonBody(req);
-      console.log(
-        `🏃 Executing: ${typeof command === 'string' ? command : command.bin}`,
-      );
+      const bin = typeof command === 'string' ? command : command.bin;
+      const args = typeof command === 'string' ? [] : command.args;
+
+      console.log(`🏃 Executing: ${bin} ${args.join(' ')}`);
 
       let execRes;
       if (options?.isolationId) {
-        // Run inside a container
-        const cmdObj =
-          typeof command === 'string' ? { bin: command, args: [] } : command;
-        const dockerCmd = DockerExecutor.exec(
-          options.isolationId,
-          cmdObj.args,
-          {
-            ...options,
-            bin: cmdObj.bin,
-          } as any,
-        );
+        console.log(`   Isolation: ${options.isolationId}`);
+        const dockerCmd = DockerExecutor.exec(options.isolationId, args, {
+          ...options,
+          bin: bin,
+        } as any);
         execRes = await pm.run(
           USE_SUDO ? 'sudo docker' : 'docker',
           dockerCmd.args,
         );
       } else {
-        // Run on host
-        const cmdObj =
-          typeof command === 'string' ? { bin: command, args: [] } : command;
-        execRes = await pm.run(cmdObj.bin, cmdObj.args, options);
+        execRes = await pm.run(bin, args, options);
       }
 
+      console.log(`   Result: ${execRes.status}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -84,6 +77,7 @@ const server = http.createServer(async (req, res) => {
         }),
       );
     } catch (err: any) {
+      console.error(`❌ Exec Error: ${err.message}`);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'EXEC_FAILED', message: err.message }));
     }
@@ -99,15 +93,14 @@ const server = http.createServer(async (req, res) => {
       console.log(`🚀 Spawning mission: ${manifest.identifier}`);
 
       const missionImage =
-        (manifest as any).image ||
-        'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
+        (manifest as any).image || 'ghcr.io/mattkorwel/gemini-cli-orbit:latest';
       const cmd = docker.run(missionImage, undefined, {
         name: manifest.containerName,
         label: 'orbit-mission',
         mounts: [{ host: manifest.workDir, capsule: '/home/node/dev/main' }],
       });
 
-      const spawnRes = pm.runSync(cmd.bin, cmd.args, cmd.options);
+      const spawnRes = await pm.run(cmd.bin, cmd.args, cmd.options);
 
       if (spawnRes.status === 0) {
         res.writeHead(202, { 'Content-Type': 'application/json' });
@@ -118,6 +111,7 @@ const server = http.createServer(async (req, res) => {
           }),
         );
       } else {
+        console.error(`❌ Spawn Failed: ${spawnRes.stderr}`);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
@@ -127,6 +121,7 @@ const server = http.createServer(async (req, res) => {
         );
       }
     } catch (err: any) {
+      console.error(`❌ Invalid Manifest: ${err.message}`);
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'INVALID', message: err.message }));
     }

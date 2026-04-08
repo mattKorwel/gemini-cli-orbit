@@ -4,7 +4,7 @@
 
 set -e
 
-IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:latest"
+IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:22937d2"
 CONTAINER_NAME="station-supervisor"
 DATA_DISK="/mnt/disks/data"
 

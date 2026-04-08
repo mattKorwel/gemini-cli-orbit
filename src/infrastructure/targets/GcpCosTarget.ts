@@ -268,7 +268,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             chmod -R 2775 "$MOUNT_PATH"
             
             echo "Orbit: Starting Starfleet Bootstrap..."
-            IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:latest"
+            IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:22937d2"
             CONTAINER_NAME="station-supervisor"
             
             # Prepare ground truth filesystem

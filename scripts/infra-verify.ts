@@ -31,61 +31,54 @@ async function main() {
   const project = config.projectId;
   const zone = config.zone;
   const host = `nic0.${instanceName}.${zone}.c.${project}.internal.gcpnode.com`;
-  const user = process.env.USER + '_google_com'; // Standard corporate pattern
 
   console.log(`🔍 Verifying Starfleet Station: ${instanceName} (${host})...`);
 
-  // 2. Connectivity Test
-  const sshCmd = (remoteCmd: string) => [
-    '-i',
-    '~/.ssh/google_compute_engine',
-    '-o',
-    'StrictHostKeyChecking=no',
-    '-o',
-    'UserKnownHostsFile=/dev/null',
-    '-o',
-    'ConnectTimeout=5',
-    `${user}@${host}`,
-    remoteCmd,
-  ];
+  // 2. Initialize SDK components
+  const { GitExecutor } = await import('../src/core/executors/GitExecutor.js');
+  const { DockerExecutor } =
+    await import('../src/core/executors/DockerExecutor.js');
+  const { SshExecutor } = await import('../src/core/executors/SshExecutor.js');
+  const { TmuxExecutor } =
+    await import('../src/core/executors/TmuxExecutor.js');
+  const { NodeExecutor } =
+    await import('../src/core/executors/NodeExecutor.js');
+  const { GeminiExecutor } =
+    await import('../src/core/executors/GeminiExecutor.js');
+  const { StarfleetClient } = await import('../src/sdk/StarfleetClient.js');
+  const { StarfleetProvider } =
+    await import('../src/providers/StarfleetProvider.js');
 
-  console.log('📡 Testing SSH Connectivity...');
-  const ping = await pm.run('ssh', sshCmd('echo pong'));
-  if (ping.status !== 0) {
-    console.error(
-      '❌ SSH Connection Failed. Station might be down or unreachable.',
-    );
-    process.exit(1);
-  }
-  console.log('✅ SSH Connection established.');
+  const executors = {
+    git: new GitExecutor(pm),
+    docker: new DockerExecutor(pm),
+    ssh: new SshExecutor(pm),
+    tmux: new TmuxExecutor(pm),
+    node: new NodeExecutor(pm),
+    gemini: new GeminiExecutor(pm),
+  };
 
-  // 3. Check Filesystem
-  console.log('📂 Checking Data Disk (/mnt/disks/data)...');
-  const fsCheck = await pm.run('ssh', sshCmd('ls -F /mnt/disks/data'));
-  const dirs = fsCheck.stdout.split('\n');
-  const required = ['bin/', 'mirror/', 'workspaces/', 'project-configs/'];
-  const missing = required.filter((r) => !dirs.includes(r));
+  const client = new StarfleetClient('http://localhost:8080');
+  const provider = new StarfleetProvider(client, pm, executors as any, {
+    projectId: project,
+    zone: zone,
+    stationName: instanceName,
+  });
 
-  if (missing.length === 0) {
-    console.log('✅ Filesystem layout is correct.');
+  // 3. Perform Deep Verification via SDK
+  const observer = {
+    onLog: (level: any, tag: string, message: string) => {
+      console.log(`[${tag}] ${message}`);
+    },
+  };
+
+  console.log('🧪 Starting SDK-level ignition verification...');
+  const success = await provider.verifyIgnition(observer as any);
+
+  if (success) {
+    console.log('\n✅ Starfleet Station is fully operational.');
   } else {
-    console.warn(`⚠️  Filesystem incomplete. Missing: ${missing.join(', ')}`);
-  }
-
-  // 4. Check Docker Containers
-  console.log('🧠 Checking Station Supervisor...');
-  const dockerCheck = await pm.run(
-    'ssh',
-    sshCmd(
-      'sudo docker ps --filter name=station-supervisor --format "{{.Status}}"',
-    ),
-  );
-  if (dockerCheck.stdout.trim()) {
-    console.log(
-      `✅ Station Supervisor is RUNNING (${dockerCheck.stdout.trim()}).`,
-    );
-  } else {
-    console.error('❌ Station Supervisor is MISSING or STOPPED.');
+    console.error('\n❌ Verification failed or timed out.');
 
     console.log(
       '\n📋 DIAGNOSTIC: Fetching Serial Port Output (Startup Logs)...',
@@ -101,30 +94,14 @@ async function main() {
       zone,
     ]);
 
-    // Look for Starfleet Bootstrap errors
     const bootstrapLogs = logs.stdout
       .split('\n')
       .filter((l) => l.includes('Orbit:') || l.includes('Starfleet:'));
     if (bootstrapLogs.length > 0) {
       console.log('--- Relevant Startup Logs ---');
       bootstrapLogs.forEach((l) => console.log(`   ${l}`));
-    } else {
-      console.log(
-        'ℹ️  No Orbit-specific bootstrap logs found in first 100 lines.',
-      );
     }
-  }
-
-  // 5. Check API Availability (Internal)
-  console.log('🌐 Testing Supervisor API (localhost:8080)...');
-  const apiCheck = await pm.run(
-    'ssh',
-    sshCmd('curl -s http://localhost:8080/health'),
-  );
-  if (apiCheck.status === 0 && apiCheck.stdout.includes('OK')) {
-    console.log('✅ Supervisor API is responsive.');
-  } else {
-    console.error('❌ Supervisor API is UNREACHABLE from the host.');
+    process.exit(1);
   }
 }
 

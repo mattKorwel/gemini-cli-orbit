@@ -153,6 +153,20 @@ export class MissionManager {
     manifest.workDir = workDir;
     manifest.tempDir = workDir;
 
+    // --- STARFLEET FAST-PATH ---
+    if ((provider as any).launchMission) {
+      this.observer.onProgress?.(
+        'PHASE 1',
+        '🚀 Launching Starfleet Mission...',
+      );
+      const exitCode = await (provider as any).launchMission(manifest);
+      if (exitCode === 0) {
+        this.stationRegistry.saveReceipt(provider.getStationReceipt());
+        return { missionId: manifest.identifier, exitCode: 0 };
+      }
+      throw new Error(`Starfleet launch failed for ${manifest.identifier}`);
+    }
+
     // 2. Ensure Hardware/Station is Ready
     await provider.ensureReady();
 

@@ -146,10 +146,12 @@ export class FleetManager {
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
-        `✅ Station is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
+        `✅ Station hardware is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
       );
-      const readyStatus = await provider.ensureReady();
-      if (readyStatus !== 0) return readyStatus;
+
+      // --- STARFLEET VERIFICATION ---
+      const verified = await this.waitForSupervisor(provider, instanceName);
+      if (!verified) return 1;
 
       // Ensure Main Mirror exists on host for fast clones
       const remoteUrl = this.configManager.detectRemoteUrl(
@@ -357,6 +359,38 @@ export class FleetManager {
 
     this.observer.onLog?.(LogLevel.INFO, 'CLEANUP', '✅ Splashdown complete.');
     return 0;
+  }
+
+  private async waitForSupervisor(
+    provider: any,
+    name: string,
+  ): Promise<boolean> {
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'SETUP',
+      `🧪 Waiting for Station '${name}' to ignite...`,
+    );
+
+    // Capability Check: If provider has its own ignition logic, use it
+    if (provider.verifyIgnition) {
+      return provider.verifyIgnition(this.observer);
+    }
+
+    // Fallback: Simple ensureReady loop
+    const startTime = Date.now();
+    const timeout = 5 * 60 * 1000;
+    while (Date.now() - startTime < timeout) {
+      const readyStatus = await provider.ensureReady();
+      if (readyStatus === 0) return true;
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+
+    this.observer.onLog?.(
+      LogLevel.ERROR,
+      'SETUP',
+      `❌ Station verification timed out for '${name}'.`,
+    );
+    return false;
   }
 
   private async confirm(query: string): Promise<boolean> {

@@ -16,6 +16,7 @@
     "infra:install": "GCLI_ORBIT_AUTO_APPROVE=1 tsx scripts/ensure-pulumi.ts",
     "infra:up": "GCLI_ORBIT_AUTO_APPROVE=1 tsx scripts/infra-up.ts",
     "infra:verify": "tsx scripts/infra-verify.ts",
+    "infra:push": "tsx scripts/infra-push.ts",
     "build:bundle": "tsx tools/bundle.ts",
     "build:typecheck": "npm run typecheck",
     "build": "npm run build:typecheck && npm run build:bundle"

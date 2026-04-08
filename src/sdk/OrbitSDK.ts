@@ -39,6 +39,7 @@ import { IntegrationManager } from './IntegrationManager.js';
 import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { SchematicManager } from './SchematicManager.js';
+import { StarfleetClient } from './StarfleetClient.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { ProcessManager } from '../core/ProcessManager.js';
@@ -120,6 +121,9 @@ export class OrbitSDK implements IOrbitSDK {
     const dependencyManager = new DependencyManager(processManager);
     const stationRegistry = new StationRegistry(providerFactory, configManager);
     const schematicManager = new SchematicManager(configManager);
+    const starfleetClient = new StarfleetClient(
+      (this.context.infra as any).apiUrl || 'http://localhost:8080',
+    );
 
     this.missions = new MissionManager(
       this.projectCtx,
@@ -130,6 +134,7 @@ export class OrbitSDK implements IOrbitSDK {
       processManager,
       executors,
       stationRegistry,
+      starfleetClient,
     );
     this.status = new StatusManager(
       this.projectCtx,
