@@ -169,11 +169,12 @@ orbit mission launch <ISSUE_NUMBER> implement
 
 _Unified status, health, and monitoring across your entire constellation._
 
-| Maneuver         | Command                       | Description                                     |
-| :--------------- | :---------------------------- | :---------------------------------------------- |
-| **Inventory**    | `orbit constellation`         | View registered stations (fast).                |
-| **Reality Sync** | `orbit constellation --sync`  | Health check of hardware (ping).                |
-| **Telemetry**    | `orbit constellation --pulse` | Deep dive into mission logs and resource stats. |
+| Maneuver         | Command                         | Description                                     |
+| :--------------- | :------------------------------ | :---------------------------------------------- |
+| **Inventory**    | `orbit constellation`           | View registered stations (fast).                |
+| **Reality Sync** | `orbit constellation --sync`    | Health check of hardware (ping).                |
+| **Telemetry**    | `orbit pulse`                   | Deep dive into mission logs and resource stats. |
+| **Surgical**     | `orbit constellation -n <name>` | Target a specific station by name.              |
 
 ### 2. Mission (The Workflow)
 
