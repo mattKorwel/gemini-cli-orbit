@@ -12,8 +12,20 @@ import path from 'node:path';
 import { SCHEMATICS_DIR } from '../src/core/Constants.js';
 
 async function main() {
-  const schematicName = 'korwel-orbit-fresh';
+  const schematicName = process.argv[2];
+  const instanceName = process.argv[3];
+
+  if (!schematicName) {
+    console.error(
+      '❌ Usage: npm run infra:up <schematic-name> [instance-name]',
+    );
+    process.exit(1);
+  }
+
   console.log(`🚀 Starfleet Ignition: Provisioning '${schematicName}'...`);
+  if (instanceName) {
+    console.log(`   Instance Name Override: ${instanceName}`);
+  }
 
   // 1. Setup Environment
   const pm = new ProcessManager();
@@ -31,9 +43,13 @@ async function main() {
     throw new Error(`Schematic not found: ${schematicPath}`);
   }
 
+  // Apply overrides
+  if (instanceName) {
+    config.instanceName = instanceName;
+  }
+
   // Ensure verbose is on for testing
   config.verbose = true;
-
   // 3. Launch PNI
   const target = new GcpCosTarget(schematicName, config);
 
