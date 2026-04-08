@@ -24,8 +24,8 @@ model:
   `FleetManager`, etc.).
 - **`src/core/`**: The stateless functional core (Constants, Types, TaskRunner,
   Logger).
-- **`src/capsule/`**: Logic that runs _inside_ remote environments
-  (`entrypoint.ts`, `worker.ts`).
+- **`src/station/capsule/`**: Logic that runs _inside_ remote environments
+  (`mission.ts`, `hooks.ts`).
 - **`src/playbooks/`**: Complex multi-phase mission definitions.
 
 ## 🛠️ Development Workflow

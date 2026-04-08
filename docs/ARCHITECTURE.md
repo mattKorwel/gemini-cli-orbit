@@ -17,23 +17,25 @@ The local SDK uses Pulumi to provision the cloud resources.
 
 ### Tier 2: Execution & Mission Start (`mission start`)
 
-The local SDK performs a lightweight handshake with the remote **Worker**.
+The local SDK performs a lightweight handshake with the remote **Station
+Supervisor**.
 
 1.  **Capsule Provisioning**: A fresh, isolated container is started for the PR.
 2.  **Chunky Handshake**: The SDK sends exactly **one** "init" command and
     **one** "run" command to the worker.
-3.  **The Worker (`station.js`)**:
-    - **Init Phase**: The worker (running inside the capsule) initializes the
-      Git workspace from the host mirror using `--reference`.
-    - **Run Phase**: The worker executes the mission playbook (`review`, `fix`,
-      etc.).
+3.  **The Station Supervisor (`src/station/station.ts`)**:
+    - **Init Phase**: The supervisor (running inside the capsule) initializes
+      the Git workspace from the host mirror using `--reference`.
+    - **Run Phase**: The supervisor executes the mission playbook (`review`,
+      `fix`, etc.).
 
 ## 🔄 Self-Healing & Lazy Sync
 
 Orbit automatically detects if your local extension code or project policies
 have changed. It performs a content-hash check against the remote host before
-every mission start. If they match, zero bytes are transferred. If they differ,
-only the changed files are `rsync`'d.
+every mission start. This logic is managed by the `OrbitSDK` (in `src/sdk/`). If
+they match, zero bytes are transferred. If they differ, only the changed files
+are `rsync`'d.
 
 ## 💾 Data Persistence
 
