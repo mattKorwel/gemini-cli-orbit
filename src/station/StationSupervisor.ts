@@ -7,10 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
-import {
-  type IProcessManager,
-  type IProcessResult,
-} from '../core/interfaces.js';
+import { type IProcessManager } from '../core/interfaces.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { type MissionManifest } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';

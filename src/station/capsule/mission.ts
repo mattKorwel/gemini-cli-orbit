@@ -91,8 +91,7 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     };
 
     // ADR 0017: Inject mission-control hooks
-    const hooksPath = path.resolve(_dirname, 'hooks.js');
-    const hookCmd = `node ${hooksPath}`;
+    // const hooksPath = path.resolve(_dirname, 'hooks.js');
 
     const geminiOpts: any = {
       approvalMode: 'plan',

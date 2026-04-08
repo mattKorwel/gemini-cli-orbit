@@ -125,7 +125,7 @@ if (
           notification(input);
           break;
       }
-    } catch (e) {
+    } catch (_e) {
       // fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Error: ${e}\n`);
     }
   }

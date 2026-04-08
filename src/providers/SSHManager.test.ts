@@ -6,7 +6,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GceSSHManager } from './SSHManager.js';
-import os from 'node:os';
 
 vi.mock('../core/Logger.js', () => ({
   logger: {

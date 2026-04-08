@@ -41,10 +41,6 @@ export class GeminiExecutor implements IGeminiExecutor {
       prompt,
       yolo,
       resume,
-      hookBeforeAgent,
-      hookAfterAgent,
-      hookBeforeTool,
-      hookNotification,
       ...runOpts
     } = options;
     const args: string[] = [];

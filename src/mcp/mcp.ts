@@ -182,7 +182,7 @@ export function createOrbitMcpServer() {
         action: z.string().default('chat'),
       }).shape,
     },
-    async ({ identifier, station, action }) => {
+    async ({ identifier, station, action: _action }) => {
       const sdk = await getSDK(undefined, station);
       const results = await sdk.getFleetState({
         missionFilter: identifier,
