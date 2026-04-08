@@ -40,7 +40,13 @@ export class DependencyManager implements IDependencyManager {
         'SETUP',
         '☁️  Pulumi CLI is required for cloud provisioning.',
       );
-      const confirmed = await this.confirmInstallation();
+
+      let confirmed = process.env.GCLI_ORBIT_AUTO_APPROVE === '1';
+      if (!confirmed) {
+        confirmed = await this.confirmInstallation();
+      } else {
+        logger.info('SETUP', '👉 Auto-approving installation...');
+      }
 
       if (!confirmed) {
         throw new Error(
