@@ -200,13 +200,13 @@ export class GceCosProvider extends BaseProvider {
 
       // Wait for persistent disk to be mounted (ADR 0016)
       if (this.isPersistent) {
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < 30; i++) {
           const mountCheck = await this.getExecOutput(
             `grep -q "${ORBIT_ROOT}" /proc/mounts`,
             { quiet: true },
           );
           if (mountCheck.status === 0) break;
-          if (i === 14) {
+          if (i === 29) {
             logger.warn(
               'SETUP',
               `   - Warning: ${ORBIT_ROOT} is not yet a mount point. Proceeding anyway...`,
@@ -226,13 +226,13 @@ export class GceCosProvider extends BaseProvider {
         this.resolveGlobalConfigDir(),
         `${ORBIT_ROOT}/tmp`,
       ];
-      const setupRes = await this.exec(
+      const setupRes = await this.getExecOutput(
         `sudo mkdir -p ${criticalDirs.join(' ')} && sudo chown -R 1000:1000 ${ORBIT_ROOT} && sudo chmod -R 2775 ${ORBIT_ROOT}`,
         { quiet: true },
       );
-      if (setupRes !== 0) {
+      if (setupRes.status !== 0) {
         throw new Error(
-          `Failed to initialize ${ORBIT_ROOT} (exit ${setupRes})`,
+          `Failed to initialize ${ORBIT_ROOT} (exit ${setupRes.status}): ${setupRes.stdout} ${setupRes.stderr}`,
         );
       }
 
@@ -355,7 +355,7 @@ export class GceCosProvider extends BaseProvider {
       // For raw strings, we use bash -c
       remoteCmd = {
         bin: '/bin/bash',
-        args: ['-c', this.shellQuote(command)],
+        args: ['-c', command],
         env: { ...(mergedOptions.env || {}) },
       };
     } else {
@@ -374,6 +374,10 @@ export class GceCosProvider extends BaseProvider {
       const capsulePath =
         '/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
       remoteCmd.env!.PATH = capsulePath;
+      remoteCmd.env!.COLORTERM = 'truecolor';
+      remoteCmd.env!.FORCE_COLOR = '3';
+      remoteCmd.env!.TERM = 'xterm-256color';
+      remoteCmd.env!.TERM_PROGRAM = process.env.TERM_PROGRAM || 'iTerm.app';
 
       // ADR: Propagate sensitive credentials into the exec environment
       if (mergedOptions.sensitiveEnv) {

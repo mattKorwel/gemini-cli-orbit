@@ -53,9 +53,7 @@ export class DockerExecutor implements IDockerExecutor {
 
     args.push(image);
     if (command) {
-      // Quote the inner command so it's a single argument for bash -c
-      const quotedInner = `'${command.replace(/'/g, "'\\''")}'`;
-      args.push('/bin/bash', '-c', quotedInner);
+      args.push('/bin/bash', '-c', command);
     }
 
     const runOptions: IRunOptions = {};

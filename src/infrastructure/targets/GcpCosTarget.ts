@@ -245,7 +245,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
 
             # Format if unformatted
             if ! blkid "$DEVICE_PATH"; then
-              mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard "$DEVICE_PATH"
+              mkfs.ext4 -m 0 -E lazy_itable_init=1,lazy_journal_init=0,discard "$DEVICE_PATH"
             fi
 
             mkdir -p "$MOUNT_PATH"

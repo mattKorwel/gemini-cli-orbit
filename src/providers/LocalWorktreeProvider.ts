@@ -113,9 +113,11 @@ export class LocalWorktreeProvider extends BaseProvider {
 
     if (this.hasTmux()) {
       const sessionName = options.isolationId || 'orbit-local';
-      const tip =
-        'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
-      return `tmux new-session -d -A -s ${this.shellQuote(sessionName)} "cd ${this.shellQuote(capsuleDir)} && ${tip}; ${command} || exec zsh"`;
+      const tmuxCmd = this.executors.tmux.wrapMission(sessionName, command, {
+        cwd: capsuleDir,
+        ...(options.env ? { env: options.env } : {}),
+      });
+      return `${tmuxCmd.bin} ${tmuxCmd.args.join(' ')}`;
     }
     return `cd ${this.shellQuote(capsuleDir)} && ${command}`;
   }
@@ -138,6 +140,10 @@ export class LocalWorktreeProvider extends BaseProvider {
     const env: any = {
       ...process.env,
       ...mergedOptions.env,
+      COLORTERM: 'truecolor',
+      FORCE_COLOR: '3',
+      TERM: 'xterm-256color',
+      TERM_PROGRAM: process.env.TERM_PROGRAM || 'iTerm.app',
       GEMINI_AUTO_UPDATE: '0',
     };
 

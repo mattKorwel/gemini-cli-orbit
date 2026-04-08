@@ -169,8 +169,8 @@ export class GceSSHManager implements SSHManager {
     dockerArgs.push(container);
 
     // Wrap the command in bash -c to ensure environment and paths are handled correctly
-    const innerCmd = `${cmd.bin} ${cmd.args.join(' ')}`;
-    dockerArgs.push('/bin/bash', '-c', this.quote(innerCmd));
+    const innerCmd = `${this.quote(cmd.bin)} ${cmd.args.map((a) => this.quote(a)).join(' ')}`;
+    dockerArgs.push('/bin/bash', '-c', innerCmd);
 
     const dockerCmd: RemoteCommand = {
       bin: 'sudo docker',
@@ -241,7 +241,7 @@ export class GceSSHManager implements SSHManager {
         const res = await this.runHostCommand(
           {
             bin: 'sh',
-            args: ['-c', this.quote(`echo ${localHash} > ${remoteHashPath}`)],
+            args: ['-c', `echo ${localHash} > ${remoteHashPath}`],
           },
           { quiet: true },
         );

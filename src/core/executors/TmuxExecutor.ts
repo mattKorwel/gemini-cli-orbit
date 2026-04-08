@@ -67,6 +67,9 @@ export class TmuxExecutor implements ITmuxExecutor {
       'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
       'set-option status-right "#[fg=colour244] #H "',
       'set-option window-status-current-format "#[fg=colour45,bold] #S "',
+      'set-option -ga terminal-overrides ",xterm-256color:Tc"',
+      'set-option -as terminal-features ",xterm-256color:RGB"',
+      'set-option -g default-terminal "xterm-256color"',
     ]
       .map((s) => `tmux ${s}`)
       .join('; ');
@@ -76,11 +79,20 @@ export class TmuxExecutor implements ITmuxExecutor {
       'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
 
     // 3. Execution Environment
-    const envPrefix = env
-      ? Object.entries(env)
-          .map(([k, v]) => `${k}=${TmuxExecutor.shellQuote(v)}`)
-          .join(' ') + ' '
-      : '';
+    const mergedEnv = {
+      COLORTERM: 'truecolor',
+      FORCE_COLOR: '3',
+      TERM: 'xterm-256color',
+      ...(process.env.TERM_PROGRAM
+        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
+        : {}),
+      ...(env || {}),
+    };
+
+    const envPrefix =
+      Object.entries(mergedEnv)
+        .map(([k, v]) => `export ${k}=${TmuxExecutor.shellQuote(v as string)}`)
+        .join('; ') + '; ';
     const cdPrefix = cwd ? `cd ${TmuxExecutor.shellQuote(cwd)} && ` : '';
 
     // 4. Combined Launch Script
@@ -114,11 +126,20 @@ export class TmuxExecutor implements ITmuxExecutor {
     ].filter(Boolean);
 
     // Build the final command string to run inside tmux
-    const envPrefix = env
-      ? Object.entries(env)
-          .map(([k, v]) => `${k}=${TmuxExecutor.shellQuote(v)}`)
-          .join(' ') + ' '
-      : '';
+    const mergedEnv = {
+      COLORTERM: 'truecolor',
+      FORCE_COLOR: '3',
+      TERM: 'xterm-256color',
+      ...(process.env.TERM_PROGRAM
+        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
+        : {}),
+      ...(env || {}),
+    };
+
+    const envPrefix =
+      Object.entries(mergedEnv)
+        .map(([k, v]) => `export ${k}=${TmuxExecutor.shellQuote(v as string)}`)
+        .join('; ') + '; ';
     const cdPrefix = cwd ? `cd ${TmuxExecutor.shellQuote(cwd)} && ` : '';
     const fullInner = `${cdPrefix}${envPrefix}${innerCommand}; exec zsh`;
 

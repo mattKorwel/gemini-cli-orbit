@@ -141,6 +141,22 @@ describe('GceCosProvider', () => {
     expect(capsules).toEqual(['c1', 'c2']);
   });
 
+  it('should propagate TrueColor environment variables to capsules', async () => {
+    await provider.getExecOutput('ls', { isolationId: 'my-capsule' });
+
+    expect(mockSsh.runDockerExec).toHaveBeenCalledWith(
+      'my-capsule',
+      expect.objectContaining({
+        env: expect.objectContaining({
+          COLORTERM: 'truecolor',
+          FORCE_COLOR: '3',
+          TERM: 'xterm-256color',
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
   it('should execute ensureReady and refresh capsule if missing', async () => {
     // 1. repo check
     mockSsh.runHostCommand.mockResolvedValueOnce({
