@@ -27,13 +27,14 @@ import {
   BUNDLE_PATH,
   STATION_BUNDLE_PATH,
 } from '../core/Constants.js';
+import { type SSHManager } from './SSHManager.js';
 
 /**
  * StarfleetProvider: A remote-first provider that delegates all actions to
- * the Station Supervisor API.
+ * the Station Supervisor API over an SSH transport.
  */
 export class StarfleetProvider extends BaseProvider {
-  public readonly type = 'gce'; // Starfleet typically runs on GCE
+  public readonly type = 'gce';
   public readonly isPersistent = true;
 
   public projectId: string;
@@ -42,6 +43,7 @@ export class StarfleetProvider extends BaseProvider {
 
   constructor(
     private readonly client: StarfleetClient,
+    private readonly ssh: SSHManager,
     pm: IProcessManager,
     executors: IExecutors,
     config: {
@@ -93,8 +95,17 @@ export class StarfleetProvider extends BaseProvider {
   // --- Core Lifecycle (API Delegated) ---
 
   async ensureReady(): Promise<number> {
-    const alive = await this.client.ping();
-    return alive ? 0 : 1;
+    // ensureReady for Starfleet strictly checks if the TRANSPORT (SSH) is ready.
+    // The API check is a higher-level concern.
+    try {
+      const ping = await this.ssh.runHostCommand(
+        { bin: 'echo', args: ['pong'] },
+        { quiet: true },
+      );
+      return ping.status === 0 ? 0 : 1;
+    } catch {
+      return 1;
+    }
   }
 
   async getExecOutput(command: string | Command, options?: ExecOptions) {
@@ -224,9 +235,7 @@ export class StarfleetProvider extends BaseProvider {
   ): Promise<boolean> {
     const startTime = Date.now();
     const timeout = 5 * 60 * 1000;
-    let sshVerified = false;
-    let apiVerified = false;
-    let fsVerified = false;
+    let step = 0;
 
     observer.onLog?.(
       LogLevel.INFO,
@@ -235,60 +244,105 @@ export class StarfleetProvider extends BaseProvider {
     );
 
     while (Date.now() - startTime < timeout) {
-      // 1. Check SSH
-      if (!sshVerified) {
-        const readyStatus = await this.ensureReady();
-        if (readyStatus === 0) {
-          sshVerified = true;
-          observer.onLog?.(
-            LogLevel.INFO,
-            'SETUP',
-            '   ✅ [1/3] SSH: Connection established.',
+      try {
+        // Step 1: SSH Connectivity
+        if (step === 0) {
+          const res = await this.ssh.runHostCommand(
+            { bin: 'echo', args: ['pong'] },
+            { quiet: true },
           );
-        } else {
-          observer.onLog?.(LogLevel.DEBUG, 'SETUP', '   ... waiting for SSH');
-        }
-      }
-
-      // 2. Check API (Must be alive before we can check FS via API)
-      if (sshVerified && !apiVerified) {
-        const alive = await this.client.ping();
-        if (alive) {
-          apiVerified = true;
-          observer.onLog?.(
-            LogLevel.INFO,
-            'SETUP',
-            '   ✅ [2/3] API: Supervisor is responding.',
-          );
-        } else {
-          observer.onLog?.(
-            LogLevel.DEBUG,
-            'SETUP',
-            '   ... waiting for API response',
-          );
-        }
-      }
-
-      // 3. Check Filesystem (using the API we just verified)
-      if (apiVerified && !fsVerified) {
-        try {
-          const res = await this.getExecOutput('ls -F /mnt/disks/data');
-          if (res.status === 0 && res.stdout.includes('workspaces/')) {
-            fsVerified = true;
+          if (res.status === 0) {
             observer.onLog?.(
               LogLevel.INFO,
               'SETUP',
-              '   ✅ [3/3] FS: Data disk is mounted and ready.',
+              '   ✅ [1/5] SSH: Connection established.',
+            );
+            step = 1;
+          }
+        }
+
+        // Step 2: Disk Mount
+        if (step === 1) {
+          const res = await this.ssh.runHostCommand(
+            { bin: 'df', args: ['-h', '/mnt/disks/data'] },
+            { quiet: true },
+          );
+          if (res.status === 0) {
+            observer.onLog?.(
+              LogLevel.INFO,
+              'SETUP',
+              '   ✅ [2/5] DISK: Data disk is mounted.',
+            );
+            step = 2;
+          }
+        }
+
+        // Step 3: Valid Paths
+        if (step === 2) {
+          const res = await this.ssh.runHostCommand(
+            { bin: 'ls', args: ['-d', '/mnt/disks/data/workspaces'] },
+            { quiet: true },
+          );
+          if (res.status === 0) {
+            observer.onLog?.(
+              LogLevel.INFO,
+              'SETUP',
+              '   ✅ [3/5] PATHS: Ground truth directories exist.',
+            );
+            step = 3;
+          }
+        }
+
+        // Step 4: Docker Container
+        if (step === 3) {
+          const res = await this.ssh.runHostCommand(
+            {
+              bin: 'sudo',
+              args: [
+                'docker',
+                'ps',
+                '--filter',
+                'name=station-supervisor',
+                '--format',
+                '{{.Status}}',
+              ],
+            },
+            { quiet: true },
+          );
+          if (res.stdout.includes('Up')) {
+            observer.onLog?.(
+              LogLevel.INFO,
+              'SETUP',
+              `   ✅ [4/5] DOCKER: Station Supervisor is running (${res.stdout.trim()}).`,
+            );
+            step = 4;
+          }
+        }
+
+        // Step 5: API Ping (Localhost via tunnel)
+        if (step === 4) {
+          const alive = await this.client.ping();
+          if (alive) {
+            observer.onLog?.(
+              LogLevel.INFO,
+              'SETUP',
+              '   ✅ [5/5] API: Station Supervisor is RESPONDING.',
             );
             return true;
+          } else {
+            observer.onLog?.(
+              LogLevel.DEBUG,
+              'SETUP',
+              '   ... [5/5] waiting for API (Is your tunnel open?)',
+            );
           }
-        } catch (e: any) {
-          observer.onLog?.(
-            LogLevel.DEBUG,
-            'SETUP',
-            `   ... FS check pending API stability: ${e.message}`,
-          );
         }
+      } catch (e: any) {
+        observer.onLog?.(
+          LogLevel.DEBUG,
+          'SETUP',
+          `   ... step ${step + 1} pending: ${e.message}`,
+        );
       }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));

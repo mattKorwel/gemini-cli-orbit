@@ -48,7 +48,6 @@ async function main() {
   const { StarfleetClient } = await import('../src/sdk/StarfleetClient.js');
   const { StarfleetProvider } =
     await import('../src/providers/StarfleetProvider.js');
-
   const executors = {
     git: new GitExecutor(pm),
     docker: new DockerExecutor(pm),
@@ -58,8 +57,18 @@ async function main() {
     gemini: new GeminiExecutor(pm),
   };
 
+  const { GceSSHManager } = await import('../src/providers/SSHManager.js');
+  const ssh = new GceSSHManager(
+    project,
+    zone,
+    instanceName,
+    config as any,
+    pm,
+    executors.ssh,
+  );
+
   const client = new StarfleetClient('http://localhost:8080');
-  const provider = new StarfleetProvider(client, pm, executors as any, {
+  const provider = new StarfleetProvider(client, ssh, pm, executors as any, {
     projectId: project,
     zone: zone,
     stationName: instanceName,

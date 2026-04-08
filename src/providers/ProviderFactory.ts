@@ -61,11 +61,20 @@ export class ProviderFactory implements IProviderFactory {
 
     const stationName = infra.stationName || `station-${projectCtx.repoName}`;
 
-    if (effectiveProvider === 'starfleet') {
+    // --- Starfleet Path (Primary for GCE) ---
+    if (effectiveProvider === 'gce' && (infra as any).starfleet !== false) {
+      const ssh = new GceSSHManager(
+        infra.projectId!,
+        infra.zone!,
+        infra.instanceName!,
+        infra,
+        this.pm,
+        this.executors.ssh,
+      );
       const client = new StarfleetClient(
         (infra as any).apiUrl || 'http://localhost:8080',
       );
-      return new StarfleetProvider(client, this.pm, this.executors, {
+      return new StarfleetProvider(client, ssh, this.pm, this.executors, {
         projectId: infra.projectId || 'starfleet',
         zone: infra.zone || 'starfleet',
         stationName: infra.instanceName || stationName,
