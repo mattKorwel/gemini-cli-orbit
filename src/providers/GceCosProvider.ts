@@ -180,7 +180,7 @@ export class GceCosProvider extends BaseProvider {
 
   async ensureReady(): Promise<number> {
     const repoCheck = await this.getExecOutput(
-      `ls -d ${this.resolveMirrorPath()}/.git`,
+      `ls -d ${this.resolveMirrorPath()}`,
       {
         quiet: true,
       },

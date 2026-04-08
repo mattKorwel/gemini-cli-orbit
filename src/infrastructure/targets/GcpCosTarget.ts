@@ -262,7 +262,11 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             echo "Mounting $DEVICE_PATH to $MOUNT_PATH..."
             mount -o discard,defaults "$DEVICE_PATH" "$MOUNT_PATH" || echo "Warning: Mount failed, possibly already mounted."
             
-            chmod 777 "$MOUNT_PATH"
+            # Ensure proper ownership and permissions for the data disk
+            # 1000 is the standard 'node' user UID in most containers
+            chown -R 1000:1000 "$MOUNT_PATH"
+            chmod -R 2775 "$MOUNT_PATH"
+            
             echo "Orbit: Startup-script complete."
           `,
         },
