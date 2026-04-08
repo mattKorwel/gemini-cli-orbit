@@ -231,7 +231,6 @@ export class GcpCosTarget implements InfrastructureProvisioner {
           },
         ],
         metadata: {
-          'gce-container-declaration': '',
           'enable-oslogin': 'TRUE',
           'startup-script': `#!/bin/bash
             echo "Orbit: Starting startup-script..."

@@ -80,6 +80,11 @@ export interface SSHManager {
   attachToTmux(container: string, sessionName?: string): Promise<number>;
 
   /**
+   * Ensures a port forward tunnel is active.
+   */
+  ensureTunnel(localPort: number, remotePort: number): Promise<void>;
+
+  /**
    * Executes a function with retries for transient connectivity issues.
    */
   withConnectivityRetry<T>(
@@ -97,6 +102,7 @@ export interface SSHManager {
  */
 export class GceSSHManager implements SSHManager {
   private overrideHost: string | null = null;
+  private activeTunnels: Set<number> = new Set();
 
   constructor(
     private readonly projectId: string,
@@ -159,7 +165,6 @@ export class GceSSHManager implements SSHManager {
     if (cmd.user) dockerArgs.push('-u', cmd.user);
     if (cmd.cwd) dockerArgs.push('-w', cmd.cwd);
 
-    // ADR 0018: Pass manifest and other env vars via native -e flags
     if (cmd.env) {
       Object.entries(cmd.env).forEach(([k, v]) => {
         dockerArgs.push('-e', `${k}=${this.quote(v)}`);
@@ -167,8 +172,6 @@ export class GceSSHManager implements SSHManager {
     }
 
     dockerArgs.push(container);
-
-    // Wrap the command in bash -c to ensure environment and paths are handled correctly
     const innerCmd = `${this.quote(cmd.bin)} ${cmd.args.map((a) => this.quote(a)).join(' ')}`;
     dockerArgs.push('/bin/bash', '-c', innerCmd);
 
@@ -198,9 +201,6 @@ export class GceSSHManager implements SSHManager {
     });
   }
 
-  /**
-   * Syncs a path ONLY if the local content hash has changed.
-   */
   public async syncPathIfChanged(
     localPath: string,
     remotePath: string,
@@ -210,16 +210,11 @@ export class GceSSHManager implements SSHManager {
     const hashFile = `.orbit.${path.basename(localPath)}.hash`;
     const remoteHashPath = `/tmp/${hashFile}`;
 
-    // Read remote hash (with retry)
     const remoteHashRes = await this.withConnectivityRetry(async () => {
       const res = await this.runHostCommand(
-        {
-          bin: 'cat',
-          args: [remoteHashPath],
-        },
+        { bin: 'cat', args: [remoteHashPath] },
         { quiet: true },
       );
-      // cat returning 1 (missing file) is NOT an SSH failure, don't retry based on that
       if (res.status !== 0 && res.status !== 1) {
         throw new Error(`SSH Command failed with exit code ${res.status}`);
       }
@@ -230,19 +225,14 @@ export class GceSSHManager implements SSHManager {
       remoteHashRes.status === 0 &&
       remoteHashRes.stdout.trim() === localHash
     ) {
-      return 0; // Identical, skip sync
+      return 0;
     }
 
-    // Perform sync
     const status = await this.syncPath(localPath, remotePath, options);
     if (status === 0) {
-      // Update remote hash (with retry)
       await this.withConnectivityRetry(async () => {
         const res = await this.runHostCommand(
-          {
-            bin: 'sh',
-            args: ['-c', `echo ${localHash} > ${remoteHashPath}`],
-          },
+          { bin: 'sh', args: ['-c', `echo ${localHash} > ${remoteHashPath}`] },
           { quiet: true },
         );
         if (res.status !== 0) {
@@ -255,9 +245,43 @@ export class GceSSHManager implements SSHManager {
     return status;
   }
 
-  /**
-   * Executes a function with retries for transient connectivity issues.
-   */
+  public async ensureTunnel(
+    localPort: number,
+    remotePort: number,
+  ): Promise<void> {
+    if (this.activeTunnels.has(localPort)) return;
+
+    const target = this.getMagicRemote();
+
+    // We use a background SSH command to establish the tunnel
+    // It leverages ControlMaster (auto-multiplexed if available)
+    await this.pm.runAsync(
+      'ssh',
+      [
+        '-i',
+        '~/.ssh/google_compute_engine',
+        '-o',
+        'StrictHostKeyChecking=no',
+        '-o',
+        'UserKnownHostsFile=/dev/null',
+        '-o',
+        'ControlMaster=auto',
+        '-o',
+        'ControlPath=~/.ssh/orbit-%C',
+        '-o',
+        'ControlPersist=10m',
+        '-L',
+        `${localPort}:localhost:${remotePort}`,
+        '-N',
+        '-f',
+        target,
+      ],
+      { detached: true },
+    );
+
+    this.activeTunnels.add(localPort);
+  }
+
   public async withConnectivityRetry<T>(
     operation: () => Promise<T>,
     options: {
@@ -275,7 +299,6 @@ export class GceSSHManager implements SSHManager {
       } catch (err: any) {
         lastError = err;
         const msg = err.message || '';
-        // Only retry on potential connection/SSO issues (exit 255 is common for SSH failures)
         const isTransient =
           msg.includes('code 255') ||
           msg.includes('Connection closed') ||
@@ -334,11 +357,7 @@ export class GceSSHManager implements SSHManager {
       process.stderr.write(stderr + '\n');
     }
 
-    return {
-      status: res.status,
-      stdout,
-      stderr,
-    };
+    return { status: res.status, stdout, stderr };
   }
 
   private generateDirectoryHash(dirPath: string): string {
@@ -357,10 +376,7 @@ export class GceSSHManager implements SSHManager {
       for (const file of files) {
         const fullPath = path.join(currentPath, file);
         const fstats = fs.statSync(fullPath);
-
-        // Add relative path to hash to detect renames/moves
         hash.update(path.relative(dirPath, fullPath));
-
         if (fstats.isDirectory()) {
           processDir(fullPath);
         } else if (fstats.isFile()) {

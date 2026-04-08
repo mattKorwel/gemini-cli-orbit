@@ -236,6 +236,7 @@ export class StarfleetProvider extends BaseProvider {
     const startTime = Date.now();
     const timeout = 5 * 60 * 1000;
     let step = 0;
+    const tunnelAttempted = false;
 
     observer.onLog?.(
       LogLevel.INFO,
@@ -331,9 +332,15 @@ export class StarfleetProvider extends BaseProvider {
             return true;
           } else {
             observer.onLog?.(
+              LogLevel.INFO,
+              'SETUP',
+              '   🌉 Bridging Starfleet API (SSH Tunnel)...',
+            );
+            await this.ssh.ensureTunnel(8080, 8080);
+            observer.onLog?.(
               LogLevel.DEBUG,
               'SETUP',
-              '   ... [5/5] waiting for API (Is your tunnel open?)',
+              '   ... [5/5] waiting for API via tunnel',
             );
           }
         }
