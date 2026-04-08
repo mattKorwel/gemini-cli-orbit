@@ -33,6 +33,13 @@ distributed engineering platform.
 - **Cloud Workstations**: Native integration with Google Cloud Workstations for
   IDE-integrated, managed dev environments.
 
+### 4. Auto-Reaper & Resource Governance
+
+- **Goal**: Implement an automated resource cleanup strategy to prevent station
+  starvation and manage cloud costs.
+- **Features**: Configurable idle thresholds, automated capsule pruning (Reap),
+  and per-capsule CPU/Memory limits.
+
 ## 📡 Phase 6: Mission Control API & Dashboard
 
 ### 1. Orbit Persistence API
@@ -47,18 +54,24 @@ distributed engineering platform.
 ### 2. Web Constellation Dashboard
 
 - **Goal**: A high-fidelity web interface for monitoring the entire fleet.
-- **Features**: Real-time terminal snapshots (Peek), resource utilization
-  graphs, and one-click "Attach" (via web terminal or local redirect).
+- **Features**: Real-time terminal snapshots (Peek), progress bars, detailed
+  "Handoff Notes," resource utilization graphs, and one-click "Attach."
 
 ## 🛠️ Phase 7: Engineering Excellence
 
-### 1. Centralized Observability
+### 1. PR Creation Utility
+
+- **Goal**: Automate the final step of the "Implement" and "Fix" missions by
+  providing a high-fidelity PR creation utility that includes mission logs and
+  assessments in the PR body.
+
+### 2. Centralized Observability
 
 - **Standard**: All logging must respect the `--verbose` flag.
 - **Output**: Public script output should be thin and high-signal, moving
   detailed infrastructure logs to the background or the `--verbose` stream.
 
-### 2. Radical Testing Refactor
+### 3. Radical Testing Refactor
 
 - **Strategy**: Move away from heavy mocks in integration tests.
 - **Mechanism**: Use a real temporary filesystem for all tests. Hijack the `bin`
