@@ -136,11 +136,11 @@ export class ContextResolver {
 
     // Layer 6: CLI Flags (Final Word)
     const flagSpec: InfrastructureSpec = {
-      projectId: flags.projectId,
+      projectId: flags.local ? 'local' : flags.projectId,
       zone: flags.zone,
       instanceName: flags.instanceName,
       stationName: flags.stationName,
-      providerType: flags.providerType,
+      providerType: flags.local ? 'local-worktree' : flags.providerType,
       backendType: flags.backendType,
       imageUri: flags.imageUri,
       upstreamRepo: flags.upstreamRepo,
