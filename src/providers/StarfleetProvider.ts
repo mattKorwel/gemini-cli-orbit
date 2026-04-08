@@ -58,7 +58,7 @@ export class StarfleetProvider extends BaseProvider {
     this.stationName = config.stationName;
   }
 
-  // --- Path Resolution (Hardcoded to Starfleet Standards) ---
+  // --- Path Resolution ---
 
   resolveWorkDir(workspaceName: string): string {
     return `${ORBIT_ROOT}/workspaces/${workspaceName}`;
@@ -92,11 +92,9 @@ export class StarfleetProvider extends BaseProvider {
     return '/home/node/.gemini';
   }
 
-  // --- Core Lifecycle (API Delegated) ---
+  // --- Core Lifecycle ---
 
   async ensureReady(): Promise<number> {
-    // ensureReady for Starfleet strictly checks if the TRANSPORT (SSH) is ready.
-    // The API check is a higher-level concern.
     try {
       const ping = await this.ssh.runHostCommand(
         { bin: 'echo', args: ['pong'] },
@@ -159,26 +157,21 @@ export class StarfleetProvider extends BaseProvider {
   async getCapsuleIdleTime(): Promise<number> {
     return 0;
   }
-
   async attach(name: string): Promise<number> {
     return 0;
   }
-
   async runCapsule(config: CapsuleConfig): Promise<number> {
     return 0;
   }
-
   async stopCapsule(name: string): Promise<number> {
     return 0;
   }
   async removeCapsule(name: string): Promise<number> {
     return 0;
   }
-
   async jettisonMission(identifier: string): Promise<number> {
     return 0;
   }
-
   async splashdown(): Promise<number> {
     return 0;
   }
@@ -194,15 +187,12 @@ export class StarfleetProvider extends BaseProvider {
   async destroy(): Promise<number> {
     return 0;
   }
-
   async listCapsules(): Promise<string[]> {
     return this.client.listCapsules();
   }
-
   async provisionMirror(): Promise<number> {
     return 0;
   }
-
   async stationShell(): Promise<number> {
     return 0;
   }
@@ -228,7 +218,7 @@ export class StarfleetProvider extends BaseProvider {
   }
 
   /**
-   * Performs deep verification of a Starfleet Station (SSH, FS, API).
+   * Performs deep verification of a Starfleet Station with Interactive UI.
    */
   async verifyIgnition(
     observer: import('../core/types.js').OrbitObserver,
@@ -236,66 +226,93 @@ export class StarfleetProvider extends BaseProvider {
     const startTime = Date.now();
     const timeout = 5 * 60 * 1000;
     let step = 0;
-    const tunnelAttempted = false;
+
+    const steps = [
+      'Establishing SSH transport',
+      'Checking data disk mount',
+      'Verifying filesystem paths',
+      'Checking Docker daemon',
+      'Starting Station Supervisor',
+      'Connecting to Starfleet API',
+    ];
+
+    const updateUI = (message: string, isComplete = false, isError = false) => {
+      const icon = isError ? '❌' : isComplete ? '✅' : '⏳';
+      const dots = '.'.repeat(Math.max(1, 30 - message.length));
+      const line = `   ${icon} ${message} ${dots} ${isComplete ? 'Success' : isError ? 'Failed' : 'Pending'}`;
+
+      if (process.stdout.isTTY) {
+        process.stdout.write(`\r\x1b[K${line}`);
+        if (isComplete || isError) process.stdout.write('\n');
+      } else {
+        observer.onLog?.(LogLevel.INFO, 'SETUP', line);
+      }
+    };
 
     observer.onLog?.(
       LogLevel.INFO,
       'SETUP',
-      '🛸 Verification sequence started...',
+      '🛸 Starfleet Ignition sequence started...',
     );
 
     while (Date.now() - startTime < timeout) {
       try {
-        // Step 1: SSH Connectivity
+        updateUI(steps[step]);
+
+        // Step 1: SSH
         if (step === 0) {
           const res = await this.ssh.runHostCommand(
             { bin: 'echo', args: ['pong'] },
             { quiet: true },
           );
           if (res.status === 0) {
-            observer.onLog?.(
-              LogLevel.INFO,
-              'SETUP',
-              '   ✅ [1/5] SSH: Connection established.',
-            );
+            updateUI(steps[0], true);
             step = 1;
+            continue;
           }
         }
 
-        // Step 2: Disk Mount
+        // Step 2: Disk
         if (step === 1) {
           const res = await this.ssh.runHostCommand(
             { bin: 'df', args: ['-h', '/mnt/disks/data'] },
             { quiet: true },
           );
           if (res.status === 0) {
-            observer.onLog?.(
-              LogLevel.INFO,
-              'SETUP',
-              '   ✅ [2/5] DISK: Data disk is mounted.',
-            );
+            updateUI(steps[1], true);
             step = 2;
+            continue;
           }
         }
 
-        // Step 3: Valid Paths
+        // Step 3: Paths
         if (step === 2) {
           const res = await this.ssh.runHostCommand(
             { bin: 'ls', args: ['-d', '/mnt/disks/data/workspaces'] },
             { quiet: true },
           );
           if (res.status === 0) {
-            observer.onLog?.(
-              LogLevel.INFO,
-              'SETUP',
-              '   ✅ [3/5] PATHS: Ground truth directories exist.',
-            );
+            updateUI(steps[2], true);
             step = 3;
+            continue;
           }
         }
 
-        // Step 4: Docker Container
+        // Step 4: Docker Daemon Health
         if (step === 3) {
+          const res = await this.ssh.runHostCommand(
+            { bin: 'sudo', args: ['docker', 'version'] },
+            { quiet: true },
+          );
+          if (res.status === 0) {
+            updateUI(steps[3], true);
+            step = 4;
+            continue;
+          }
+        }
+
+        // Step 5: Supervisor Container
+        if (step === 4) {
           const res = await this.ssh.runHostCommand(
             {
               bin: 'sudo',
@@ -311,58 +328,37 @@ export class StarfleetProvider extends BaseProvider {
             { quiet: true },
           );
           if (res.stdout.includes('Up')) {
-            observer.onLog?.(
-              LogLevel.INFO,
-              'SETUP',
-              `   ✅ [4/5] DOCKER: Station Supervisor is running (${res.stdout.trim()}).`,
-            );
-            step = 4;
+            updateUI(steps[4], true);
+            step = 5;
+            continue;
           }
         }
 
-        // Step 5: API Ping (Localhost via tunnel)
-        if (step === 4) {
+        // Step 6: API
+        if (step === 5) {
           const alive = await this.client.ping();
           if (alive) {
-            observer.onLog?.(
-              LogLevel.INFO,
-              'SETUP',
-              '   ✅ [5/5] API: Station Supervisor is RESPONDING.',
-            );
+            updateUI(steps[5], true);
             return true;
           } else {
-            observer.onLog?.(
-              LogLevel.INFO,
-              'SETUP',
-              '   🌉 Bridging Starfleet API (SSH Tunnel)...',
-            );
             await this.ssh.ensureTunnel(8080, 8080);
-            observer.onLog?.(
-              LogLevel.DEBUG,
-              'SETUP',
-              '   ... [5/5] waiting for API via tunnel',
-            );
           }
         }
       } catch (e: any) {
-        observer.onLog?.(
-          LogLevel.DEBUG,
-          'SETUP',
-          `   ... step ${step + 1} pending: ${e.message}`,
-        );
+        // Silent retry
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
     }
+
+    updateUI(steps[step], false, true);
     return false;
   }
 
   async prepareMissionWorkspace(mCtx: MissionContext): Promise<void> {}
-
   protected async resolveLegacyCapsuleState(): Promise<CapsuleInfo['state']> {
     return 'IDLE';
   }
-
   override resolveIsolationId(mCtx: MissionContext): string {
     return mCtx.containerName;
   }

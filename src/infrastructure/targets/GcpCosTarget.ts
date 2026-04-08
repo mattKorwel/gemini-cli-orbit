@@ -278,8 +278,17 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             mkdir -p $MOUNT_PATH/dev
             chown -R 1000:1000 $MOUNT_PATH
             
-            # Pull and Start Supervisor
-            docker pull $IMAGE
+            # Pull and Start Supervisor with Retry
+            echo "Orbit: Pulling $IMAGE..."
+            for i in {1..10}; do
+              if docker pull $IMAGE; then
+                echo " Orbit: Pull successful."
+                break
+              fi
+              echo " Orbit: Pull failed (attempt $i), waiting for network..."
+              sleep 10
+            done
+
             docker run -d \
               --name $CONTAINER_NAME \
               --restart always \
