@@ -41,6 +41,10 @@ export class GeminiExecutor implements IGeminiExecutor {
       prompt,
       yolo,
       resume,
+      hookBeforeAgent,
+      hookAfterAgent,
+      hookBeforeTool,
+      hookNotification,
       ...runOpts
     } = options;
     const args: string[] = [];
@@ -51,6 +55,11 @@ export class GeminiExecutor implements IGeminiExecutor {
     if (resume) args.push('--resume', resume);
     if (promptInteractive) args.push('--prompt-interactive', promptInteractive);
     if (prompt) args.push('--prompt', prompt);
+
+    if (hookBeforeAgent) args.push('--hook-before-agent', hookBeforeAgent);
+    if (hookAfterAgent) args.push('--hook-after-agent', hookAfterAgent);
+    if (hookBeforeTool) args.push('--hook-before-tool', hookBeforeTool);
+    if (hookNotification) args.push('--hook-notification', hookNotification);
 
     return {
       bin,

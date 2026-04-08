@@ -234,23 +234,36 @@ export class GcpCosTarget implements InfrastructureProvisioner {
           'gce-container-declaration': '',
           'enable-oslogin': 'TRUE',
           'startup-script': `#!/bin/bash
-            set -e
+            echo "Orbit: Starting startup-script..."
             DEVICE_PATH="/dev/disk/by-id/google-orbit-data"
             MOUNT_PATH="/mnt/disks/data"
             
-            if [ ! -e "$DEVICE_PATH" ]; then
-              echo "Waiting for device $DEVICE_PATH..."
+            # Wait for device to appear
+            for i in {1..10}; do
+              if [ -e "$DEVICE_PATH" ]; then break; fi
+              echo "Waiting for device $DEVICE_PATH (attempt $i)..."
               sleep 5
+            done
+
+            if [ ! -e "$DEVICE_PATH" ]; then
+              echo "Error: Device $DEVICE_PATH never appeared."
+              exit 1
             fi
 
             # Format if unformatted
-            if ! blkid "$DEVICE_PATH"; then
+            if ! blkid "$DEVICE_PATH" > /dev/null 2>&1; then
+              echo "Formatting $DEVICE_PATH..."
               mkfs.ext4 -m 0 -E lazy_itable_init=1,lazy_journal_init=0,discard "$DEVICE_PATH"
+            else
+              echo "Device $DEVICE_PATH already formatted."
             fi
 
             mkdir -p "$MOUNT_PATH"
-            mount -o discard,defaults "$DEVICE_PATH" "$MOUNT_PATH" || true
+            echo "Mounting $DEVICE_PATH to $MOUNT_PATH..."
+            mount -o discard,defaults "$DEVICE_PATH" "$MOUNT_PATH" || echo "Warning: Mount failed, possibly already mounted."
+            
             chmod 777 "$MOUNT_PATH"
+            echo "Orbit: Startup-script complete."
           `,
         },
         labels: {

@@ -200,20 +200,24 @@ export class GceCosProvider extends BaseProvider {
 
       // Wait for persistent disk to be mounted (ADR 0016)
       if (this.isPersistent) {
+        let mounted = false;
         for (let i = 0; i < 30; i++) {
           const mountCheck = await this.getExecOutput(
             `grep -q "${ORBIT_ROOT}" /proc/mounts`,
             { quiet: true },
           );
-          if (mountCheck.status === 0) break;
-          if (i === 29) {
-            logger.warn(
-              'SETUP',
-              `   - Warning: ${ORBIT_ROOT} is not yet a mount point. Proceeding anyway...`,
-            );
+          if (mountCheck.status === 0) {
+            mounted = true;
+            break;
           }
           process.stdout.write('.');
           await new Promise((r) => setTimeout(r, 2000));
+        }
+
+        if (!mounted) {
+          throw new Error(
+            `Data disk ${ORBIT_ROOT} failed to mount. Check the instance startup-script logs via 'gcloud compute instances get-serial-port-output ${this.instanceName}'.`,
+          );
         }
       }
 
@@ -352,9 +356,9 @@ export class GceCosProvider extends BaseProvider {
     let remoteCmd: RemoteCommand;
 
     if (typeof command === 'string') {
-      // For raw strings, we use bash -c
+      // For raw strings, we use sh -c for maximum portability
       remoteCmd = {
-        bin: '/bin/bash',
+        bin: '/bin/sh',
         args: ['-c', command],
         env: { ...(mergedOptions.env || {}) },
       };

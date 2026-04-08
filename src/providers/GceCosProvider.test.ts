@@ -196,6 +196,27 @@ describe('GceCosProvider', () => {
     expect(res).toBe(0);
   });
 
+  it('should fail ensureReady if data disk is not mounted', async () => {
+    // 1. repo check
+    mockSsh.runHostCommand.mockResolvedValueOnce({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    });
+    // 2. mount check (fails repeatedly)
+    mockSsh.runHostCommand.mockResolvedValue({
+      status: 1,
+      stdout: '',
+      stderr: '',
+    });
+
+    const readyPromise = provider.ensureReady();
+    await vi.runAllTimersAsync();
+    const res = await readyPromise;
+
+    expect(res).toBe(255);
+  });
+
   it('should use executors for capsule operations', async () => {
     await provider.runCapsule({ image: 'img', name: 'c1' } as any);
     expect(mockExecutors.docker.run).toHaveBeenCalled();
@@ -235,6 +256,18 @@ describe('GceCosProvider', () => {
     const telemetry = await provider.getMissionTelemetry();
     expect(telemetry).toHaveLength(1);
     expect(telemetry[0]!.name).toBe('repo-123');
+  });
+
+  it('should wrap raw string commands in /bin/sh -c', async () => {
+    await provider.getExecOutput('ls -la');
+
+    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bin: '/bin/sh',
+        args: ['-c', 'ls -la'],
+      }),
+      expect.anything(),
+    );
   });
 
   it('should correctly resolve naming for GCE', () => {
