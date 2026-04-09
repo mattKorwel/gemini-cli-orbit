@@ -29,6 +29,15 @@ import {
 export abstract class BaseProvider {
   abstract readonly type: 'gce' | 'local-worktree' | 'local-docker';
   abstract readonly isPersistent: boolean;
+
+  /**
+   * Verifies that the provider infrastructure is ignited and ready for missions.
+   * Performs hardware handshakes or container spawning as needed.
+   */
+  abstract verifyIgnition(
+    observer: import('../core/types.js').OrbitObserver,
+  ): Promise<boolean>;
+
   abstract projectId: string;
   abstract zone: string;
   abstract stationName: string;
@@ -104,7 +113,7 @@ export abstract class BaseProvider {
   /**
    * Returns the absolute path to the workspace policy file in this environment.
    */
-  abstract resolvePolicyPath(repoRoot: string): string;
+  abstract resolvePolicyPath(): string;
 
   /**
    * Returns the absolute path to the git mirror repository in this environment.

@@ -44,7 +44,6 @@ export class StarfleetClient {
       const headers: Record<string, string | number> = {
         Accept: 'application/json',
       };
-
       if (data) {
         headers['Content-Type'] = 'application/json';
         headers['Content-Length'] = Buffer.byteLength(data);

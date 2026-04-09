@@ -134,7 +134,11 @@ export function getPrimaryRepoRoot(repoRoot: string = process.cwd()): string {
 /**
  * Standardized paths on the REMOTE station (Hardware Host)
  */
-export const ORBIT_ROOT = '/mnt/disks/data';
+export const ORBIT_ROOT =
+  process.env.GCLI_ORBIT_ROOT ||
+  (os.platform() === 'darwin'
+    ? path.join(os.homedir(), '.gemini/orbit')
+    : '/mnt/disks/data');
 export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
 export const SATELLITE_WORKSPACES_PATH = `${ORBIT_ROOT}/workspaces`;
 export const SATELLITE_WORKTREES_PATH = SATELLITE_WORKSPACES_PATH; // Compatibility

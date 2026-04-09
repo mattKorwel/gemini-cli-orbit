@@ -110,6 +110,7 @@ export class MissionOrchestrator {
       GCLI_ORBIT_MISSION_ID: identifier,
       GCLI_ORBIT_ACTION: manifest.action,
       GCLI_ORBIT_SESSION_NAME: manifest.sessionName,
+      GCLI_TRUST: '1',
     };
 
     try {

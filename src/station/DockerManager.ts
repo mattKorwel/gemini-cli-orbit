@@ -71,7 +71,10 @@ export class DockerManager {
     const cmd = this.docker.run(missionImage, options.command, {
       name: containerName,
       mounts,
-      env,
+      env: {
+        ...env,
+        GCLI_TRUST: '1',
+      },
       label: 'orbit-mission',
       interactive: true, // Always enable for TTY support
     } as any);

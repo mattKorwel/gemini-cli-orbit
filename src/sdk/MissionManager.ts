@@ -94,7 +94,7 @@ export class MissionManager {
     );
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
     const workDir = provider.resolveWorkDir(workspaceName);
-    const policyPath = provider.resolvePolicyPath(workDir);
+    const policyPath = provider.resolvePolicyPath();
 
     const isDev = options.dev ?? false;
 
@@ -172,6 +172,17 @@ export class MissionManager {
     manifest.workDir = capsuleWorkDir;
     manifest.tempDir = capsuleWorkDir;
 
+    // --- PHASE 1: IGNITION ---
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'MISSION',
+      'Verifying station ignition...',
+    );
+    const ignited = await provider.verifyIgnition(this.observer);
+    if (!ignited) {
+      throw new Error(`Station ignition failed for ${manifest.identifier}`);
+    }
+
     // --- STARFLEET FAST-PATH ---
     if ((provider as any).launchMission) {
       this.observer.onLog?.(
@@ -191,15 +202,10 @@ export class MissionManager {
         this.stationRegistry.saveReceipt(provider.getStationReceipt());
 
         if (action === 'chat') {
-          this.observer.onLog?.(
-            LogLevel.DEBUG,
-            'MISSION',
-            'Interactive mission ready (Auto-attach disabled for debugging)',
-          );
           // Give tmux a moment to spawn the session
-          // await new Promise((resolve) => setTimeout(resolve, 1200));
-          // const attachCode = await this.attach({ identifier, action });
-          // return { missionId: manifest.identifier, exitCode: attachCode };
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          const attachCode = await this.attach({ identifier, action });
+          return { missionId: manifest.identifier, exitCode: attachCode };
         }
 
         return { missionId: manifest.identifier, exitCode: 0 };

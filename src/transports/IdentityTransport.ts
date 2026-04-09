@@ -50,6 +50,11 @@ export class IdentityTransport implements StationTransport {
       ['exec', '-it', containerName, 'tmux', 'attach', '-t', sessionName],
       {
         interactive: true,
+        env: {
+          ...process.env,
+          TERM: process.env.TERM || 'xterm-256color',
+          COLORTERM: process.env.COLORTERM || 'truecolor',
+        },
       },
     );
 

@@ -139,13 +139,13 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
 
   resolveProjectConfigDir(): string {
-    return path.join(this.resolveOrbitRoot(), 'project-configs');
+    return path.join(this.resolveOrbitRoot(), '.gemini');
   }
 
   resolvePolicyPath(): string {
     return path.join(
-      this.resolveProjectConfigDir(),
-      'policies/workspace-policy.toml',
+      this.resolveCapsuleOrbitRoot(),
+      '.gemini/policies/workspace-policy.toml',
     );
   }
 
@@ -192,7 +192,16 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
 
   override createNodeCommand(scriptPath: string, args: string[] = []): Command {
-    return this.executors.node.createRemote(scriptPath, args);
+    // If we're on GCE, use the baked-in remote path
+    if (this.type === 'gce') {
+      return this.executors.node.createRemote(scriptPath, args);
+    }
+
+    // On local-docker, the scriptPath provided by telemetry is already the local host path
+    return {
+      bin: process.execPath,
+      args: [scriptPath, ...args],
+    };
   }
 
   async sync(
@@ -318,9 +327,6 @@ export abstract class StarfleetProvider extends BaseProvider {
     hostWorkDir: string,
   ): Promise<number> {
     try {
-      const ready = await this.ensureReady();
-      if (ready !== 0) return 1;
-
       // Sync user context (Auth, Trust, etc.)
       await this.syncGlobalConfig();
 

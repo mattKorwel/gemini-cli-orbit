@@ -76,12 +76,19 @@ export class LocalWorktreeProvider extends BaseProvider {
     return path.join(this.workspacesDir, this.projectCtx.repoName);
   }
 
-  override resolveBundlePath(): string {
-    return LOCAL_BUNDLE_PATH;
+  /**
+   * Returns the primary root for Orbit data inside the capsule.
+   */
+  resolveCapsuleOrbitRoot(): string {
+    return this.projectCtx.repoRoot;
   }
 
-  override resolveWorkerPath(): string {
-    return `${LOCAL_BUNDLE_PATH}/station.js`;
+  resolveBundlePath(): string {
+    return path.resolve(this.projectCtx.repoRoot, 'bundle');
+  }
+
+  resolveWorkerPath(): string {
+    return path.resolve(this.projectCtx.repoRoot, 'bundle/station.js');
   }
 
   override resolveProjectConfigDir(): string {
@@ -92,8 +99,11 @@ export class LocalWorktreeProvider extends BaseProvider {
     return path.join(os.homedir(), '.gemini');
   }
 
-  override resolvePolicyPath(repoRoot: string): string {
-    return path.join(repoRoot, '.gemini/policies/workspace-policy.toml');
+  override resolvePolicyPath(): string {
+    return path.join(
+      this.projectCtx.repoRoot,
+      '.gemini/policies/workspace-policy.toml',
+    );
   }
 
   override resolveMirrorPath(): string {
@@ -102,6 +112,11 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async ensureReady(): Promise<number> {
     return 0;
+  }
+
+  async verifyIgnition(): Promise<boolean> {
+    // Local worktrees are always "ignited" as they use the host machine
+    return true;
   }
 
   override createNodeCommand(scriptPath: string, args: string[] = []): Command {
@@ -240,7 +255,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       workDir: wtPath,
       containerName: mCtx.containerName,
       sessionName: mCtx.sessionName,
-      policyPath: this.resolvePolicyPath(wtPath),
+      policyPath: this.resolvePolicyPath(),
       upstreamUrl: (infra as any).upstreamUrl,
       mirrorPath: sourceDir,
       bundleDir: this.resolveBundlePath(),

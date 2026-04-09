@@ -18,7 +18,7 @@ import {
 export class DockerExecutor implements IDockerExecutor {
   constructor(
     private readonly pm: IProcessManager,
-    private readonly binName: string = 'sudo docker',
+    private readonly binName: string = 'docker',
   ) {}
 
   public exec(
@@ -26,7 +26,10 @@ export class DockerExecutor implements IDockerExecutor {
     innerCommand: string[],
     options: IRunOptions = {},
   ): IProcessResult {
-    const cmd = DockerExecutor.exec(container, innerCommand, options);
+    const cmd = DockerExecutor.exec(container, innerCommand, {
+      ...options,
+      bin: this.binName,
+    } as any);
     return this.pm.runSync(this.binName, cmd.args, cmd.options);
   }
 
@@ -94,7 +97,7 @@ export class DockerExecutor implements IDockerExecutor {
   public static exec(
     container: string,
     innerCommand: string[],
-    options: IRunOptions = {},
+    options: IRunOptions & { bin?: string } = {},
   ): Command {
     const args = ['exec'];
     if (options.interactive) args.push('-it');
@@ -109,10 +112,11 @@ export class DockerExecutor implements IDockerExecutor {
 
     const runOptions: IRunOptions = { ...options };
     delete runOptions.env;
+    delete (runOptions as any).bin;
     delete runOptions.cwd;
 
     return {
-      bin: 'sudo docker',
+      bin: options.bin || 'docker',
       args,
       options: runOptions,
     };

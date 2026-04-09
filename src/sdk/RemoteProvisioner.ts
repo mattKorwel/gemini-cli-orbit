@@ -68,7 +68,7 @@ export class RemoteProvisioner {
       workDir: remoteWorkspaceDir,
       containerName,
       sessionName: mCtx.sessionName,
-      policyPath: this.provider.resolvePolicyPath(remoteWorkspaceDir),
+      policyPath: this.provider.resolvePolicyPath(),
       upstreamUrl: mCtx.upstreamUrl || (infra as any).upstreamUrl,
       mirrorPath: this.provider.resolveMirrorPath(),
       bundleDir: this.provider.resolveBundlePath(),

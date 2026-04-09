@@ -63,6 +63,10 @@ async function main() {
     ['bundle/orbit-server.js', `--config=${dynamicConfigPath}`],
     {
       stdio: 'inherit',
+      env: {
+        ...process.env,
+        DOCKER_HOST: `unix://${home}/.docker/run/docker.sock`,
+      },
     },
   );
 

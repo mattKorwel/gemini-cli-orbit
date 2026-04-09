@@ -107,10 +107,7 @@ debugLog(`🚀 Hydration complete: ${JSON.stringify(config, null, 2)}`);
 
 // --- Initialize Components ---
 const pm = new ProcessManager({}, config.useSudo);
-const dockerExecutor = new DockerExecutor(
-  pm,
-  config.useSudo ? 'sudo docker' : 'docker',
-);
+const dockerExecutor = new DockerExecutor(pm, 'docker');
 const gitExecutor = new GitExecutor(pm);
 
 const workspace = new WorkspaceManager(gitExecutor, config);
@@ -178,8 +175,15 @@ const server = http.createServer(async (req, res) => {
         }),
       );
     } catch (err: any) {
+      console.error(`❌ POST /exec Error: ${err.message}`);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'EXEC_FAILED', message: err.message }));
+      res.end(
+        JSON.stringify({
+          error: 'EXEC_FAILED',
+          message: err.message,
+          stack: err.stack,
+        }),
+      );
     }
     return;
   }
@@ -222,6 +226,29 @@ const server = http.createServer(async (req, res) => {
     } catch (err: any) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'LIST_FAILED', message: err.message }));
+    }
+    return;
+  }
+
+  // 5. Get Mission Logs
+  if (
+    url?.startsWith('/missions/') &&
+    url?.endsWith('/logs') &&
+    method === 'GET'
+  ) {
+    const capsuleName = url.split('/')[2];
+    try {
+      const resObj = await pm.run(config.useSudo ? 'sudo docker' : 'docker', [
+        'logs',
+        '--tail',
+        '100',
+        capsuleName!,
+      ]);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ logs: resObj.stdout + resObj.stderr }));
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'LOGS_FAILED', message: err.message }));
     }
     return;
   }

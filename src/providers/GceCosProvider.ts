@@ -118,7 +118,7 @@ export class GceCosProvider extends BaseProvider {
   }
 
   override resolveProjectConfigDir(): string {
-    return `${ORBIT_ROOT}/project-configs`;
+    return `${ORBIT_ROOT}/.gemini`;
   }
 
   override resolveGlobalConfigDir(): string {
@@ -157,8 +157,8 @@ export class GceCosProvider extends BaseProvider {
     return 0;
   }
 
-  override resolvePolicyPath(_repoRoot: string): string {
-    return `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+  override resolvePolicyPath(): string {
+    return `${ORBIT_ROOT}/.gemini/policies/workspace-policy.toml`;
   }
 
   override resolveMirrorPath(): string {
@@ -177,6 +177,11 @@ export class GceCosProvider extends BaseProvider {
   ): Promise<void> {
     const provisioner = new RemoteProvisioner(this.projectCtx, this);
     await provisioner.prepareMissionWorkspace(mCtx, infra);
+  }
+
+  async verifyIgnition(): Promise<boolean> {
+    const res = await this.ensureReady();
+    return res === 0;
   }
 
   async ensureReady(): Promise<number> {

@@ -101,6 +101,11 @@ export class SshTransport implements StationTransport {
 
     const res = this.pm.runSync('ssh', ['-t', target, attachCmd], {
       interactive: true,
+      env: {
+        ...process.env,
+        TERM: process.env.TERM || 'xterm-256color',
+        COLORTERM: process.env.COLORTERM || 'truecolor',
+      },
     });
     return res.status;
   }

@@ -63,6 +63,7 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
         GEMINI_AUTO_UPDATE: '0',
         GCLI_ORBIT_MISSION_ID: identifier,
         GCLI_ORBIT_ACTION: action,
+        GCLI_TRUST: '1',
       },
       interactive: true,
     };
