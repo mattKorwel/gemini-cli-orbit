@@ -39,9 +39,10 @@ export class DockerExecutor implements IDockerExecutor {
       label?: string;
     } = {},
   ): Command {
-    const { name, mounts, label, env, quiet } = options;
+    const { name, mounts, label, env, quiet, interactive } = options;
     const args = ['run', '-d'];
 
+    if (interactive) args.push('-it');
     if (name) args.push('--name', name);
     if (label) args.push('--label', label);
 
@@ -97,6 +98,13 @@ export class DockerExecutor implements IDockerExecutor {
   ): Command {
     const args = ['exec'];
     if (options.interactive) args.push('-it');
+
+    if (options.env) {
+      Object.entries(options.env).forEach(([k, v]) => {
+        args.push('-e', `${k}=${v}`);
+      });
+    }
+
     args.push(container, ...innerCommand);
 
     const runOptions: IRunOptions = { ...options };

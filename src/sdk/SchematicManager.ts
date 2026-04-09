@@ -48,7 +48,7 @@ export class SchematicManager implements ISchematicManager {
     const knownKeys = [
       'projectId',
       'zone',
-      'backendType',
+      'networkAccessType',
       'dnsSuffix',
       'userSuffix',
       'vpcName',
@@ -105,12 +105,12 @@ export class SchematicManager implements ISchematicManager {
       base.zone ||
       'us-central1-a';
 
-    let backendType = base.backendType || 'direct-internal';
+    let networkAccessType = base.networkAccessType || 'direct-internal';
     const backendChoice = await ask(
-      `Backend Type (1: direct-internal, 2: external) [${backendType === 'external' ? '2' : '1'}]: `,
+      `Backend Type (1: direct-internal, 2: external) [${networkAccessType === 'external' ? '2' : '1'}]: `,
     );
-    if (backendChoice === '1') backendType = 'direct-internal';
-    if (backendChoice === '2') backendType = 'external';
+    if (backendChoice === '1') networkAccessType = 'direct-internal';
+    if (backendChoice === '2') networkAccessType = 'external';
 
     const dnsSuffix =
       (await ask(
@@ -167,7 +167,7 @@ export class SchematicManager implements ISchematicManager {
       ...base,
       projectId,
       zone,
-      backendType,
+      networkAccessType,
       dnsSuffix,
       userSuffix,
       vpcName,
@@ -208,7 +208,7 @@ export class SchematicManager implements ISchematicManager {
       const config = JSON.parse(content);
 
       // --- 🛡️ BASIC SCHEMA VALIDATION ---
-      const required = ['projectId', 'zone', 'backendType'];
+      const required = ['projectId', 'zone', 'networkAccessType'];
       const missing = required.filter((f) => !config[f]);
       if (missing.length > 0) {
         throw new Error(
@@ -242,7 +242,8 @@ export class SchematicManager implements ISchematicManager {
       const info: SchematicInfo = { name };
       if (config?.projectId) info.projectId = config.projectId;
       if (config?.zone) info.zone = config.zone;
-      if (config?.backendType) info.backendType = config.backendType;
+      if (config?.networkAccessType)
+        info.networkAccessType = config.networkAccessType;
       if (config?.machineType) info.machineType = config.machineType;
       return info;
     });

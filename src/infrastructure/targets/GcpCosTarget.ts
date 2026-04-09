@@ -81,7 +81,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     const name = this.config.instanceName || `station-${this.schematicName}`;
     const zone = this.config.zone || 'us-central1-a';
     const project = this.config.projectId;
-    const isExternal = this.config.backendType === 'external';
+    const isExternal = this.config.networkAccessType === 'external';
     const machineType = this.config.machineType || 'n2-standard-4';
 
     const provider = new gcp.Provider('gcp-provider', {
@@ -309,14 +309,25 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             echo "Orbit: Seeding logic to disk..."
             docker run --rm -v $MOUNT_PATH/bin:/target $IMAGE cp -r /usr/local/lib/orbit/bundle/. /target/
 
+            # Use the optimized orbit-worker image for mission capsules
+            # The supervisor remains on the fat image for orchestration capabilities
+            WORKER_IMAGE="ghcr.io/mattkorwel/orbit-worker:latest"
+
+            # Fix Docker socket permissions for the container user (node:1000)
+            # On COS, the docker group ID can vary, so we grant world-write to the socket
+            # in a controlled way or ensure the container user has access.
+            chmod 666 /var/run/docker.sock
+
             docker run -d \
               --name $CONTAINER_NAME \
               --restart always \
               -p 8080:8080 \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v $MOUNT_PATH:$MOUNT_PATH \
+              -v $MOUNT_PATH/workspaces:$MOUNT_PATH/workspaces \
               -v /dev/shm:/dev/shm \
               -e ORBIT_SERVER_PORT=8080 \
+              -e GCLI_ORBIT_WORKER_IMAGE=$WORKER_IMAGE \
               $IMAGE \
               node $MOUNT_PATH/bin/orbit-server.js
 

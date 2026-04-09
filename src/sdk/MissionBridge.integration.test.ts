@@ -9,6 +9,7 @@ import { MissionManager } from './MissionManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { StationRegistry } from './StationRegistry.js';
 import { main as stationMain } from '../station/station.js';
+import { StarfleetClient } from './StarfleetClient.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -192,6 +193,7 @@ describe('Mission Bridge Integration', () => {
           providerType: 'gce',
           workspacesDir: '/mnt/disks/data/workspaces',
           remoteWorkDir: '/mnt/disks/data',
+          starfleet: false,
         } as any,
         { onLog: vi.fn(), onProgress: vi.fn() } as any,
         factory,
@@ -199,6 +201,7 @@ describe('Mission Bridge Integration', () => {
         systemPm,
         mockExecutors,
         registry,
+        new StarfleetClient(),
       );
 
       const manifest = await manager.resolve({

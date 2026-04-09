@@ -20,6 +20,7 @@ vi.stubEnv('GCLI_ORBIT_PROVIDER', 'gce');
 
 import { MissionManager } from './MissionManager.js';
 import { resolveMissionContext } from '../utils/MissionUtils.js';
+import { StarfleetClient } from './StarfleetClient.js';
 import {
   type IProviderFactory,
   type IConfigManager,
@@ -134,6 +135,7 @@ describe('MissionManager', () => {
       mockPm,
       mockExecutors,
       mockStationRegistry,
+      new StarfleetClient(),
     );
   });
 
@@ -234,6 +236,7 @@ describe('MissionManager', () => {
       mockPm,
       mockExecutors,
       mockStationRegistry,
+      new StarfleetClient(),
     );
 
     (resolveMissionContext as any).mockReturnValue({
@@ -268,5 +271,39 @@ describe('MissionManager', () => {
     expect((manager as any).infra.upstreamUrl).toBe(
       'https://github.com/test/test.git',
     );
+  });
+
+  it('should propagate isDev flag to the manifest', async () => {
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+      action: 'chat',
+    });
+
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'review',
+      dev: true,
+    });
+
+    expect(manifest.isDev).toBe(true);
+  });
+
+  it('should prioritize mission-level dev flag over default', async () => {
+    (resolveMissionContext as any).mockReturnValue({
+      branchName: 'feat',
+      repoSlug: 'test-repo',
+      idSlug: '123',
+      action: 'chat',
+    });
+
+    const manifest = await manager.resolve({
+      identifier: '123',
+      action: 'chat',
+      dev: false,
+    });
+
+    expect(manifest.isDev).toBe(false);
   });
 });

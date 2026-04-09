@@ -7,7 +7,7 @@
 import path from 'node:path';
 import { type OrbitObserver } from '../core/types.js';
 import { LogLevel } from '../core/Logger.js';
-import { type SSHManager } from '../providers/SSHManager.js';
+import { type StationTransport } from '../core/interfaces.js';
 
 /**
  * ShadowManager: Discrete handler for local development overrides (--dev).
@@ -15,7 +15,7 @@ import { type SSHManager } from '../providers/SSHManager.js';
  */
 export class ShadowManager {
   constructor(
-    private readonly ssh: SSHManager,
+    private readonly transport: StationTransport,
     private readonly observer: OrbitObserver,
   ) {}
 
@@ -36,10 +36,11 @@ export class ShadowManager {
       const localBundleDir = path.resolve('bundle');
       const remoteBinDir = '/mnt/disks/data/bin';
 
-      await this.ssh.syncPath(localBundleDir, remoteBinDir, {
+      // Use trailing slash to sync contents, not the folder itself
+      await this.transport.sync(`${localBundleDir}/`, remoteBinDir, {
         delete: true, // Clean up old files
         quiet: true,
-        sudo: false,
+        sudo: true,
       });
 
       this.observer.onLog?.(

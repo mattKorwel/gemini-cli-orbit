@@ -60,7 +60,10 @@ function applyContextOptions(y: Argv) {
 
 function applyHardwareOptions(y: Argv) {
   return y
-    .group(['for-station', 'schematic'], 'Hardware Targets:')
+    .group(
+      ['for-station', 'schematic', 'dev', 'local-docker'],
+      'Hardware Targets:',
+    )
     .option('for-station', {
       type: 'string',
       description: 'Target a specific station instance',
@@ -68,6 +71,14 @@ function applyHardwareOptions(y: Argv) {
     .option('schematic', {
       type: 'string',
       description: 'The blueprint to use for liftoff',
+    })
+    .option('dev', {
+      type: 'boolean',
+      description: 'Enable development mode (shadow sync)',
+    })
+    .option('local-docker', {
+      type: 'boolean',
+      description: 'Use local Starfleet (Docker on Mac)',
     });
 }
 
@@ -110,8 +121,10 @@ export async function dispatch(argv: string[]): Promise<number> {
       .option('repo-dir', { type: 'string' })
       .option('repo', { type: 'string', alias: 'r' })
       .option('local', { type: 'boolean', alias: 'l' })
+      .option('local-docker', { type: 'boolean' })
       .option('for-station', { type: 'string' })
       .option('schematic', { type: 'string', alias: 's' })
+      .option('dev', { type: 'boolean' })
       .option('verbose', { type: 'boolean' })
       .option('dry-run', { type: 'boolean', hidden: true });
 
@@ -150,6 +163,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         identifier: args.identifier || args.id,
         action,
         args: args.extra || [],
+        dev: args.dev,
       });
       const result = await sdk.startMission(manifest);
       args.exitCode = result.exitCode;
@@ -600,6 +614,25 @@ QUICK START:
               },
             )
             .command(
+              'exec <command> [args..]',
+              'Execute a command on the station host.',
+              (y2) => {
+                y2.positional('command', { type: 'string' }).positional(
+                  'args',
+                  { type: 'string', array: true },
+                );
+                return applyGlobalOptions(
+                  applyHardwareOptions(applyContextOptions(y2)),
+                );
+              },
+              async (args: any) => {
+                args.exitCode = await sdk.stationExec(
+                  args.command,
+                  args.args || [],
+                );
+              },
+            )
+            .command(
               'reap',
               'Identify and remove idle missions.',
               (y2) => {
@@ -699,7 +732,9 @@ QUICK START:
                     type: 'boolean',
                     description: 'Decommission infrastructure',
                   });
-                return applyGlobalOptions(applyContextOptions(yLocal));
+                return applyHardwareOptions(
+                  applyGlobalOptions(applyContextOptions(yLocal)),
+                );
               },
               async (args: any) => {
                 args.exitCode = await sdk.provisionStation({
@@ -741,7 +776,9 @@ QUICK START:
                   schematics.forEach((s) => {
                     const project = s.projectId ? ` [${s.projectId}]` : '';
                     const zone = s.zone ? ` [${s.zone}]` : '';
-                    const type = s.backendType ? ` (${s.backendType})` : '';
+                    const type = s.networkAccessType
+                      ? ` (${s.networkAccessType})`
+                      : '';
                     console.log(
                       `   ${s.name.padEnd(20)}${project}${zone}${type}`,
                     );

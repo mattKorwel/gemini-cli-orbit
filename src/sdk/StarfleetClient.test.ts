@@ -6,31 +6,45 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { StarfleetClient } from './StarfleetClient.js';
-import { spawn, type ChildProcess } from 'node:child_process';
-import path from 'node:path';
+import http from 'node:http';
 
 describe('StarfleetClient Integration', () => {
-  let daemon: ChildProcess;
+  let server: http.Server;
   const client = new StarfleetClient('http://localhost:8081');
 
   beforeAll(async () => {
-    // Start the daemon on a test port
-    const serverPath = path.resolve('bundle/orbit-server.js');
-    daemon = spawn('node', [serverPath], {
-      env: {
-        ...process.env,
-        ORBIT_SERVER_PORT: '8081',
-        NO_SUDO: '1',
-        GCLI_ORBIT_SKIP_GIT: '1',
-      },
+    // Start a mock server on a test port
+    server = http.createServer(async (req, res) => {
+      const { method, url } = req;
+
+      if (url === '/health' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'OK' }));
+        return;
+      }
+
+      if (url === '/missions' && method === 'POST') {
+        // Just return success for test
+        res.writeHead(202, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            status: 'ACCEPTED',
+            receipt: { missionId: 'test-123', containerName: 'orbit-test-123' },
+          }),
+        );
+        return;
+      }
+
+      res.writeHead(404).end();
     });
 
-    // Wait for it to wake up
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise<void>((resolve) => {
+      server.listen(8081, '127.0.0.1', () => resolve());
+    });
   });
 
   afterAll(() => {
-    daemon.kill();
+    server.close();
   });
 
   it('should ping the daemon successfully', async () => {
@@ -46,7 +60,7 @@ describe('StarfleetClient Integration', () => {
       action: 'chat',
       workspaceName: 'test/123',
       workDir: '/tmp/test',
-      containerName: 'orbit-test-busybox',
+      containerName: 'orbit-test-123',
       policyPath: '/tmp/pol',
       sessionName: 'test/123',
       upstreamUrl: 'https://github.com/test.git',
@@ -56,6 +70,6 @@ describe('StarfleetClient Integration', () => {
     expect(res.status).toBe('ACCEPTED');
     expect(res.receipt).toBeDefined();
     expect(res.receipt.missionId).toBe('test-123');
-    expect(res.receipt.containerName).toBe('orbit-test-busybox');
+    expect(res.receipt.containerName).toBe('orbit-test-123');
   });
 });

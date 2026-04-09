@@ -1,0 +1,16 @@
+{
+  "port": 8080,
+  "workerImage": "ghcr.io/mattkorwel/orbit-worker:latest",
+  "manifestRoot": "/dev/shm",
+  "isUnlocked": false,
+  "useSudo": true,
+  "storage": {
+    "workspacesRoot": "/mnt/disks/data/workspaces",
+    "mirrorPath": "/mnt/disks/data/main"
+  },
+  "mounts": [
+    { "host": "/mnt/disks/data", "capsule": "/mnt/disks/data" },
+    { "host": "/dev/shm", "capsule": "/dev/shm" }
+  ],
+  "bundlePath": "/usr/local/lib/orbit/bundle"
+}

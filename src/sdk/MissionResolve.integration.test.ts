@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MissionManager } from './MissionManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { StationRegistry } from './StationRegistry.js';
+import { StarfleetClient } from './StarfleetClient.js';
 
 describe('Mission Resolve Integration', () => {
   const mockPm: any = {
@@ -39,6 +40,7 @@ describe('Mission Resolve Integration', () => {
       mockPm,
       mockExecutors,
       registry,
+      new StarfleetClient(),
     );
   };
 
@@ -69,7 +71,7 @@ describe('Mission Resolve Integration', () => {
       });
 
       expect(manifest.workDir).toBe(
-        '/mnt/disks/data/workspaces/real-repo/feat-1',
+        '/mnt/disks/data/workspaces/real-repo-feat-1',
       );
     });
 

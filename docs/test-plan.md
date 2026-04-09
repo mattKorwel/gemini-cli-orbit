@@ -20,7 +20,7 @@ corporate-ready blueprint.
     ```bash
     orbit infra schematic create corp-val \
       --projectId korwel-gcli-02-sandbox-676005 \
-      --backendType direct-internal \
+      --networkAccessType direct-internal \
       --dnsSuffix internal.gcpnode.com \
       --userSuffix _google_com \
       --manageNetworking true \
@@ -89,7 +89,7 @@ stack idempotently.
 external public IP.
 
 1.  **Schematic Creation**:
-    - `node bundle/orbit-cli.js infra schematic gemini-team --projectId gemini-cli-team-quota --backendType external --zone us-central1-a --manageNetworking false`
+    - `node bundle/orbit-cli.js infra schematic gemini-team --projectId gemini-cli-team-quota --networkAccessType external --zone us-central1-a --manageNetworking false`
     - [x] **Verification**: `manageNetworking` is false, and backend is
           external.
 2.  **External Liftoff**:

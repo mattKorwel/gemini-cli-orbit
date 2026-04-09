@@ -13,9 +13,9 @@ import {
   type OrbitStatus,
   type CapsuleConfig,
   type CapsuleInfo,
+  type RemoteCommand,
 } from '../core/types.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import { type SSHManager, type RemoteCommand } from './SSHManager.js';
 import { type Command } from '../core/executors/types.js';
 import { RemoteProvisioner } from '../sdk/RemoteProvisioner.js';
 import { logger } from '../core/Logger.js';
@@ -40,6 +40,7 @@ import {
   type IExecutors,
   type IProcessManager,
   type StationReceipt,
+  type StationTransport,
 } from '../core/interfaces.js';
 
 export class ConnectivityError extends Error {
@@ -64,7 +65,7 @@ export class GceCosProvider extends BaseProvider {
   private readonly instanceName: string;
   private readonly repoRoot: string;
   private readonly imageUri: string;
-  private readonly ssh: SSHManager;
+  private readonly transport: StationTransport;
 
   constructor(
     private readonly projectCtx: ProjectContext,
@@ -72,7 +73,7 @@ export class GceCosProvider extends BaseProvider {
     zone: string,
     instanceName: string,
     repoRoot: string,
-    ssh: SSHManager,
+    transport: StationTransport,
     pm: IProcessManager,
     executors: IExecutors,
     private readonly infra: InfrastructureSpec,
@@ -90,7 +91,7 @@ export class GceCosProvider extends BaseProvider {
     this.zone = zone;
     this.instanceName = instanceName;
     this.repoRoot = repoRoot;
-    this.ssh = ssh;
+    this.transport = transport;
     this.imageUri =
       config.imageUri ||
       'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
@@ -166,7 +167,7 @@ export class GceCosProvider extends BaseProvider {
 
   injectState(state: InfrastructureState): void {
     if (state.publicIp) {
-      this.ssh.setOverrideHost(state.publicIp);
+      this.transport.setOverrideHost(state.publicIp);
     }
   }
 
@@ -193,7 +194,7 @@ export class GceCosProvider extends BaseProvider {
     }
 
     try {
-      const remote = this.ssh.getMagicRemote();
+      const remote = this.transport.getMagicRemote();
       logger.info(
         `   - Verifying health check (${this.stationName}) at ${remote}...`,
       );
@@ -388,14 +389,13 @@ export class GceCosProvider extends BaseProvider {
         Object.assign(remoteCmd.env!, mergedOptions.sensitiveEnv);
       }
 
-      return this.ssh.runDockerExec(
-        mergedOptions.isolationId,
-        remoteCmd,
-        mergedOptions,
-      );
+      const cmdStr = `${remoteCmd.bin} ${remoteCmd.args.join(' ')}`;
+      const dockerCmd = `sudo docker exec ${mergedOptions.isolationId} /bin/bash -c ${JSON.stringify(cmdStr)}`;
+
+      return this.transport.exec(dockerCmd, mergedOptions);
     }
 
-    return this.ssh.runHostCommand(remoteCmd, mergedOptions);
+    return this.transport.exec(remoteCmd, mergedOptions);
   }
 
   async sync(
@@ -403,7 +403,7 @@ export class GceCosProvider extends BaseProvider {
     remotePath: string,
     options: SyncOptions = {},
   ): Promise<number> {
-    return this.ssh.syncPath(localPath, remotePath, options);
+    return this.transport.sync(localPath, remotePath, options);
   }
 
   async syncIfChanged(
@@ -411,7 +411,8 @@ export class GceCosProvider extends BaseProvider {
     remotePath: string,
     options: SyncOptions = {},
   ): Promise<number> {
-    return this.ssh.syncPathIfChanged(localPath, remotePath, options);
+    // SshTransport uses rsync -avz which already checks for changes
+    return this.transport.sync(localPath, remotePath, options);
   }
 
   async getStatus(): Promise<OrbitStatus> {
@@ -525,7 +526,7 @@ export class GceCosProvider extends BaseProvider {
     return 0;
   }
 
-  async attach(identifier: string): Promise<number> {
+  async attach(identifier: string, sessionName?: string): Promise<number> {
     // If identifier already includes the repo slug, don't double-prefix it
     const cleanId = identifier.startsWith(`${this.projectCtx.repoName}-`)
       ? identifier.replace(`${this.projectCtx.repoName}-`, '')
@@ -538,9 +539,10 @@ export class GceCosProvider extends BaseProvider {
       this.projectCtx.repoName,
       this.pm,
     );
-    const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
+    const finalSessionName =
+      sessionName || this.resolveSessionName(repoSlug, idSlug, action);
 
-    return this.ssh.attachToTmux(containerName, sessionName);
+    return this.transport.attach(containerName, finalSessionName);
   }
 
   async runCapsule(config: CapsuleConfig): Promise<number> {
@@ -730,7 +732,7 @@ export class GceCosProvider extends BaseProvider {
       zone: this.zone,
       repo: this.projectCtx.repoName,
       upstreamUrl: this.infra.upstreamUrl,
-      backendType: this.infra.backendType as any,
+      networkAccessType: this.infra.networkAccessType as any,
       schematic: this.infra.schematic,
       dnsSuffix: this.infra.dnsSuffix,
       userSuffix: this.infra.userSuffix,

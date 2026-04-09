@@ -45,9 +45,9 @@ your code or credentials.
 
 ## 🛠️ Security Best Practices for Developers
 
-- **Restrict SSH Ranges**: When using `external` or `direct-internal` backends,
-  always specify your corporate or home IP range in the `sshSourceRanges`
-  configuration.
+- **Restrict SSH Ranges**: When using `external` or `direct-internal`
+  network-access-types, always specify your corporate or home IP range in the
+  `sshSourceRanges` configuration.
 - **Audit Extensions**: Only link trusted extensions into your orbit station.
 - **Regular Splashdowns**: Use the `/orbit:splashdown` command periodically to
   clear out old capsules and mission state.

@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   curl \
   git \
+  tmux \
   openssh-client \
   && curl -fsSL https://get.docker.com | sh \
   && apt-get clean \
@@ -27,6 +28,10 @@ COPY --from=builder /build/gemini-extension.json .
 
 # Link orbit as a global command
 RUN ln -s /usr/local/lib/orbit/bundle/orbit-cli.js /usr/local/bin/orbit && chmod +x /usr/local/bin/orbit
+
+# Inject Station Blueprint (ADR 0015)
+RUN mkdir -p /etc/orbit
+COPY configs/station.starfleet.json /etc/orbit/station.json
 
 # Create the standard data mount point
 RUN mkdir -p /mnt/disks/data && chown -R node:node /mnt/disks/data /usr/local/lib/orbit

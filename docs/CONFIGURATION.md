@@ -102,7 +102,7 @@ Orbit supports two distinct networking strategies for cloud stations:
 - `projectId`: The Cloud Project ID (e.g., `my-cloud-project`).
 - `zone`: The Cloud Zone (e.g., `us-west1-a`).
 - `machineType`: The Cloud Machine Type (e.g., `n2-standard-8`).
-- `backendType`: Connectivity method (`direct-internal`, `external`).
+- `networkAccessType`: Connectivity method (`direct-internal`, `external`).
 - `vpcName`: The target VPC.
 - `subnetName`: The target Subnet.
 - `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH.
@@ -124,18 +124,18 @@ serve two primary purposes:
 
 ### Supported Flags
 
-| Flag             | Schematic Property | Description                                     |
-| ---------------- | ------------------ | ----------------------------------------------- |
-| `--projectId`    | `projectId`        | The Cloud Project ID.                           |
-| `--zone`         | `zone`             | The Cloud Zone (e.g., `us-central1-a`).         |
-| `--instanceName` | `instanceName`     | The name of the Station.                        |
-| `--backend`      | `backendType`      | `direct-internal` or `external`.                |
-| `--machineType`  | `machineType`      | The Cloud Machine Type (e.g., `n2-standard-8`). |
-| `--vpcName`      | `vpcName`          | The target VPC network name.                    |
-| `--subnetName`   | `subnetName`       | The target Subnet name.                         |
-| `--image`        | `imageUri`         | The Docker image for mission capsules.          |
-| `--schematic`    | N/A                | The name of the schematic to use.               |
-| `--for-station`  | N/A                | Target a specific station by name.              |
+| Flag                    | Schematic Property  | Description                                     |
+| ----------------------- | ------------------- | ----------------------------------------------- |
+| `--projectId`           | `projectId`         | The Cloud Project ID.                           |
+| `--zone`                | `zone`              | The Cloud Zone (e.g., `us-central1-a`).         |
+| `--instanceName`        | `instanceName`      | The name of the Station.                        |
+| `--network-access-type` | `networkAccessType` | `direct-internal` or `external`.                |
+| `--machineType`         | `machineType`       | The Cloud Machine Type (e.g., `n2-standard-8`). |
+| `--vpcName`             | `vpcName`           | The target VPC network name.                    |
+| `--subnetName`          | `subnetName`        | The target Subnet name.                         |
+| `--image`               | `imageUri`          | The Docker image for mission capsules.          |
+| `--schematic`           | N/A                 | The name of the schematic to use.               |
+| `--for-station`         | N/A                 | Target a specific station by name.              |
 
 ---
 
@@ -182,7 +182,7 @@ Highest priority overrides for the current session.
 - `GCLI_ORBIT_PROJECT_ID`
 - `GCLI_ORBIT_ZONE`
 - `GCLI_ORBIT_INSTANCE_NAME`
-- `GCLI_ORBIT_BACKEND`
+- `GCLI_ORBIT_NETWORK_ACCESS`
 - `GCLI_ORBIT_IMAGE`
 - `GCLI_ORBIT_TEMP_DIR`: Override the base directory for session-specific
   temporary data.

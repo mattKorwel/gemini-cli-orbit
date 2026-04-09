@@ -27,8 +27,8 @@ export const MissionManifestSchema = z.object({
   verbose: z.boolean().optional(), // Whether to enable detailed logging
   tempDir: z.string().optional(), // Root directory for temporary logs
   isDev: z.boolean().optional(), // Whether to use Shadow Mode (Dev override)
-  env: z.record(z.string()).optional(), // Standard environment variables
-  sensitiveEnv: z.record(z.string()).optional(), // Secret environment variables (not logged)
+  env: z.record(z.string(), z.string()).optional(), // Standard environment variables
+  sensitiveEnv: z.record(z.string(), z.string()).optional(), // Secret environment variables (not logged)
 });
 
 /**
@@ -36,6 +36,14 @@ export const MissionManifestSchema = z.object({
  * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
  */
 export type MissionManifest = z.infer<typeof MissionManifestSchema>;
+
+export interface ExecResult {
+  status: number;
+  stdout: string;
+  stderr: string;
+}
+
+export type StationReceipt = import('./interfaces.js').StationReceipt;
 
 /**
  * Interface for observing SDK activities.
@@ -111,6 +119,7 @@ export interface MissionOptions {
   identifier: string;
   action: string;
   args?: string[];
+  dev?: boolean;
 }
 
 /**
@@ -255,7 +264,7 @@ export interface SchematicInfo {
   name: string;
   projectId?: string;
   zone?: string;
-  backendType?: string;
+  networkAccessType?: string;
   machineType?: string;
 }
 
@@ -264,7 +273,7 @@ export interface SetupOptions {
   zone: string;
   dnsSuffix?: string;
   userSuffix?: string;
-  backendType?: string;
+  networkAccessType?: string;
 }
 export interface ExecOptions {
   interactive?: boolean;
@@ -303,6 +312,30 @@ export interface SyncOptions {
   exclude?: string[];
   sudo?: boolean;
   quiet?: boolean;
+}
+
+export interface MountPoint {
+  host: string;
+  capsule: string;
+  readonly?: boolean;
+}
+
+/**
+ * Configuration for the Station Supervisor (Server).
+ * Used for early hydration to eliminate inline defaults.
+ */
+export interface StationSupervisorConfig {
+  port: number;
+  workerImage: string;
+  manifestRoot: string;
+  isUnlocked: boolean;
+  useSudo: boolean;
+  storage: {
+    workspacesRoot: string;
+    mirrorPath: string;
+  };
+  mounts: MountPoint[];
+  bundlePath: string;
 }
 
 export interface OrbitStatus {

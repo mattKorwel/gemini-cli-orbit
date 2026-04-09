@@ -11,6 +11,7 @@ import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { ContextResolver } from '../core/ContextResolver.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { StarfleetClient } from './StarfleetClient.js';
 import fs from 'node:fs';
 
 vi.mock('node:fs');
@@ -90,7 +91,8 @@ describe('Config Propagation Integration', () => {
       zone: 'us-east1-b',
       dnsSuffix: 'internal.gcpnode.com',
       userSuffix: '_google_com',
-      backendType: 'direct-internal',
+      networkAccessType: 'direct-internal',
+      starfleet: false,
     };
 
     const receiptData = {
@@ -100,6 +102,7 @@ describe('Config Propagation Integration', () => {
       projectId: 'corp-project-123',
       zone: 'us-east1-b',
       schematic: schematicName, // This is the crucial link
+      starfleet: false,
     };
 
     (fs.readFileSync as any).mockImplementation((p: string) => {
@@ -138,6 +141,7 @@ describe('Config Propagation Integration', () => {
       mockPm,
       executors,
       stationRegistry,
+      new StarfleetClient(),
     );
 
     // Start mission in background so we can advance timers
@@ -199,6 +203,7 @@ describe('Config Propagation Integration', () => {
       projectId: 'real-corp-99',
       zone: 'us-west1-a',
       providerType: 'gce',
+      starfleet: false,
     };
 
     (fs.readFileSync as any).mockImplementation((p: string) => {

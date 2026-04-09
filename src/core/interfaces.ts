@@ -10,21 +10,30 @@ import {
   type OrbitConfig,
   type OrbitSettings,
 } from './Constants.js';
-import { type SchematicInfo } from './types.js';
+import {
+  type SchematicInfo,
+  type SyncOptions,
+  type ExecOptions,
+  type ExecResult,
+  type OrbitObserver,
+} from './types.js';
+import { type Command } from './executors/types.js';
 import { type OrbitProvider } from '../providers/BaseProvider.js';
 import { type InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { type InfrastructureProvisioner } from '../infrastructure/InfrastructureProvisioner.js';
 
+export type IOrbitObserver = OrbitObserver;
+
 export interface StationReceipt {
   name: string;
   instanceName: string;
-  type: 'gce' | 'local-worktree';
+  type: 'gce' | 'local-worktree' | 'local-git' | 'local-docker';
   projectId: string;
   zone: string;
   repo: string;
   upstreamUrl?: string | undefined;
   status?: string;
-  backendType?: 'direct-internal' | 'external';
+  networkAccessType?: 'direct-internal' | 'external';
   schematic?: string | undefined;
   rootPath?: string | undefined;
   workspacesDir?: string;
@@ -90,6 +99,53 @@ export interface IInfrastructureFactory {
   ): InfrastructureProvisioner;
 }
 
+/**
+ * StationTransport: Abstraction for connectivity to a Station host.
+ * Supports both Direct (Local) and SSH (Remote) implementations.
+ */
+export interface StationTransport {
+  readonly type: 'identity' | 'ssh';
+
+  /**
+   * Executes a command on the host.
+   */
+  exec(command: string | Command, options?: ExecOptions): Promise<ExecResult>;
+
+  /**
+   * Attaches to a persistent TTY session on the host.
+   */
+  attach(containerName: string, sessionName: string): Promise<number>;
+
+  /**
+   * Transfers files between local and host.
+   */
+  sync(
+    localPath: string,
+    remotePath: string,
+    options?: SyncOptions,
+  ): Promise<number>;
+
+  /**
+   * Ensures a port forward tunnel is active (SSH only).
+   */
+  ensureTunnel(localPort: number, remotePort: number): Promise<void>;
+
+  /**
+   * Returns the connection handle (e.g. user@host).
+   */
+  getConnectionHandle(): string;
+
+  /**
+   * Overrides the target host (e.g. with a newly provisioned public IP).
+   */
+  setOverrideHost(host: string): void;
+
+  /**
+   * Returns the "magic" remote handle used for rsync/ssh.
+   */
+  getMagicRemote(): string;
+}
+
 export interface IProcessResult {
   status: number;
   stdout: string;
@@ -102,6 +158,7 @@ export interface IRunOptions {
   interactive?: boolean;
   quiet?: boolean;
   stream?: boolean; // Real-time streaming to console
+  detached?: boolean;
   onStdout?: (data: string) => void;
   onStderr?: (data: string) => void;
   stdio?:
@@ -148,12 +205,20 @@ export interface IGitExecutor {
     options?: IRunOptions,
   ): IProcessResult;
   checkout(cwd: string, branch: string, options?: IRunOptions): IProcessResult;
+  checkoutNew(
+    cwd: string,
+    branch: string,
+    base?: string,
+    options?: IRunOptions,
+  ): IProcessResult;
   worktreeAdd(
     cwd: string,
     path: string,
     branch: string,
     options?: IRunOptions,
   ): IProcessResult;
+  verify(cwd: string, branch: string, options?: IRunOptions): IProcessResult;
+  revParse(cwd: string, args: string[], options?: IRunOptions): IProcessResult;
 }
 
 export interface IDockerExecutor {

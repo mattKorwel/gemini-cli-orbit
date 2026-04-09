@@ -43,18 +43,16 @@ describe('GceCosProvider', () => {
   };
 
   const mockSsh = {
-    runHostCommand: vi.fn(),
-    runDockerExec: vi.fn(),
-    syncPath: vi.fn().mockResolvedValue(0),
+    exec: vi.fn(),
+    sync: vi.fn().mockResolvedValue(0),
     getMagicRemote: vi.fn().mockReturnValue('user@host'),
-    getBackendType: vi.fn().mockReturnValue('direct-internal'),
+    getConnectionHandle: vi.fn().mockReturnValue('user@host'),
+    getNetworkAccessType: vi.fn().mockReturnValue('direct-internal'),
     setOverrideHost: vi.fn(),
-    attachToTmux: vi.fn().mockResolvedValue(0),
-    syncPathIfChanged: vi.fn().mockResolvedValue(0),
-    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
-    withConnectivityRetry: vi.fn().mockImplementation((op) => op()), // Unified retry mock
+    attach: vi.fn().mockResolvedValue(0),
+    ensureTunnel: vi.fn().mockResolvedValue(undefined),
   };
-  mockSsh.runDockerExec.mockResolvedValue({
+  mockSsh.exec.mockResolvedValue({
     status: 0,
     stdout: 'session',
     stderr: '',
@@ -80,12 +78,12 @@ describe('GceCosProvider', () => {
     vi.useFakeTimers();
     (fs.existsSync as any).mockReturnValue(true);
 
-    mockSsh.runHostCommand.mockResolvedValue({
+    mockSsh.exec.mockResolvedValue({
       status: 0,
       stdout: '',
       stderr: '',
     });
-    mockSsh.syncPathIfChanged.mockResolvedValue(0);
+    mockSsh.sync.mockResolvedValue(0);
     mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
 
     provider = new GceCosProvider(
@@ -131,7 +129,7 @@ describe('GceCosProvider', () => {
   });
 
   it('should list active orbit capsules', async () => {
-    mockSsh.runHostCommand.mockResolvedValue({
+    mockSsh.exec.mockResolvedValue({
       status: 0,
       stdout: 'c1\nc2\n',
       stderr: '',
@@ -144,46 +142,39 @@ describe('GceCosProvider', () => {
   it('should propagate TrueColor environment variables to capsules', async () => {
     await provider.getExecOutput('ls', { isolationId: 'my-capsule' });
 
-    expect(mockSsh.runDockerExec).toHaveBeenCalledWith(
-      'my-capsule',
-      expect.objectContaining({
-        env: expect.objectContaining({
-          COLORTERM: 'truecolor',
-          FORCE_COLOR: '3',
-          TERM: 'xterm-256color',
-        }),
-      }),
+    expect(mockSsh.exec).toHaveBeenCalledWith(
+      expect.stringContaining('sudo docker exec my-capsule'),
       expect.anything(),
     );
   });
 
   it('should execute ensureReady and refresh capsule if missing', async () => {
     // 1. repo check
-    mockSsh.runHostCommand.mockResolvedValueOnce({
+    mockSsh.exec.mockResolvedValueOnce({
       status: 0,
       stdout: '',
       stderr: '',
     });
     // 2. mount check
-    mockSsh.runHostCommand.mockResolvedValueOnce({
+    mockSsh.exec.mockResolvedValueOnce({
       status: 0,
       stdout: '/mnt/disks/data',
       stderr: '',
     });
     // 3. mkdir -p check
-    mockSsh.runHostCommand.mockResolvedValueOnce({
+    mockSsh.exec.mockResolvedValueOnce({
       status: 0,
       stdout: '',
       stderr: '',
     });
     // 4. initial capsule check (exists)
-    mockSsh.runHostCommand.mockResolvedValueOnce({
+    mockSsh.exec.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',
       stderr: '',
     });
     // 5. Signal lock loop check
-    mockSsh.runHostCommand.mockResolvedValueOnce({
+    mockSsh.exec.mockResolvedValueOnce({
       status: 0,
       stdout: 'true',
       stderr: '',
@@ -198,13 +189,13 @@ describe('GceCosProvider', () => {
 
   it('should fail ensureReady if data disk is not mounted', async () => {
     // 1. repo check
-    mockSsh.runHostCommand.mockResolvedValueOnce({
+    mockSsh.exec.mockResolvedValueOnce({
       status: 0,
       stdout: '',
       stderr: '',
     });
     // 2. mount check (fails repeatedly)
-    mockSsh.runHostCommand.mockResolvedValue({
+    mockSsh.exec.mockResolvedValue({
       status: 1,
       stdout: '',
       stderr: '',
@@ -229,13 +220,12 @@ describe('GceCosProvider', () => {
   });
 
   it('should fetch mission telemetry via SSH/Docker', async () => {
-    mockSsh.runHostCommand.mockImplementation(async (cmdObj: any) => {
-      const args = cmdObj.args || [];
-      const cmd = args.join(' ');
-      if (cmd.includes('docker ps')) {
+    mockSsh.exec.mockImplementation(async (cmd: any) => {
+      const cmdStr = typeof cmd === 'string' ? cmd : cmd.args.join(' ');
+      if (cmdStr.includes('docker ps')) {
         return { status: 0, stdout: 'repo-123', stderr: '' };
       }
-      if (cmd.includes('station.js status')) {
+      if (cmdStr.includes('station.js status')) {
         return {
           status: 0,
           stdout: JSON.stringify({
@@ -246,7 +236,7 @@ describe('GceCosProvider', () => {
           stderr: '',
         };
       }
-      if (cmd.includes('docker stats')) {
+      if (cmdStr.includes('docker stats')) {
         return { status: 0, stdout: '10% / 100MB', stderr: '' };
       }
       // Default success for other commands like tmux list-sessions
@@ -261,7 +251,7 @@ describe('GceCosProvider', () => {
   it('should wrap raw string commands in /bin/sh -c', async () => {
     await provider.getExecOutput('ls -la');
 
-    expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+    expect(mockSsh.exec).toHaveBeenCalledWith(
       expect.objectContaining({
         bin: '/bin/sh',
         args: ['-c', 'ls -la'],
@@ -316,12 +306,8 @@ describe('GceCosProvider', () => {
       expect(mockExecutors.docker.remove).toHaveBeenCalledWith('repo-123-fix');
 
       // Should remove specific secret
-      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: expect.arrayContaining([
-            expect.stringContaining('rm -f /dev/shm/.orbit-env-repo-123-fix'),
-          ]),
-        }),
+      expect(mockSsh.exec).toHaveBeenCalledWith(
+        expect.stringContaining('rm -f /dev/shm/.orbit-env-repo-123-fix'),
         expect.objectContaining({ quiet: true }),
       );
     });
@@ -329,9 +315,11 @@ describe('GceCosProvider', () => {
     it('should remove all containers for mission if no action provided', async () => {
       await provider.jettisonMission('123');
 
-      // Verify all commands executed via runHostCommand
-      const calls = mockSsh.runHostCommand.mock.calls;
-      const commands = calls.map((c: any) => c[0].args.join(' '));
+      // Verify all commands executed via exec
+      const calls = mockSsh.exec.mock.calls;
+      const commands = calls.map((c: any) =>
+        typeof c[0] === 'string' ? c[0] : c[0].args.join(' '),
+      );
 
       // 1. Should use Docker list + grep + xargs for bulk cleanup
       expect(

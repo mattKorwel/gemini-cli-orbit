@@ -81,8 +81,8 @@ export class ContextResolver {
           instanceName: receipt.instanceName || receipt.name,
           projectId: receipt.projectId,
           zone: receipt.zone,
-          providerType: receipt.type,
-          backendType: receipt.backendType,
+          providerType: receipt.type as any,
+          networkAccessType: receipt.networkAccessType,
           schematic: receipt.schematic,
           dnsSuffix: receipt.dnsSuffix,
           userSuffix: receipt.userSuffix,
@@ -102,7 +102,7 @@ export class ContextResolver {
       // ADR 0016: Schematic is a blueprint.
       // If we are explicitly using a schematic, its core provider settings
       // should override stale receipt data (e.g. if we move from local to remote).
-      infra = { ...this.mergeDefined(schematic, infra) };
+      infra = this.mergeDefined(infra, schematic);
 
       // Ensure schematic specific overrides for type-switching
       if (schematic.projectId && schematic.projectId !== 'local') {
@@ -126,7 +126,7 @@ export class ContextResolver {
       projectId: env.GCLI_ORBIT_PROJECT_ID,
       zone: env.GCLI_ORBIT_ZONE,
       instanceName: env.GCLI_ORBIT_INSTANCE_NAME,
-      backendType: env.GCLI_ORBIT_BACKEND as any,
+      networkAccessType: env.GCLI_ORBIT_NETWORK_ACCESS as any,
       imageUri: env.GCLI_ORBIT_IMAGE,
       providerType: env.GCLI_ORBIT_PROVIDER as any,
       sshUser: env.USER || env.USERNAME,
@@ -135,13 +135,15 @@ export class ContextResolver {
     infra = this.mergeDefined(infra, envSpec);
 
     // Layer 6: CLI Flags (Final Word)
+    const isLocalDocker =
+      (flags as any).localDocker || (flags as any)['local-docker'];
     const flagSpec: InfrastructureSpec = {
-      projectId: flags.local ? 'local' : flags.projectId,
+      projectId: flags.projectId,
       zone: flags.zone,
       instanceName: flags.instanceName,
       stationName: flags.stationName,
-      providerType: flags.local ? 'local-worktree' : flags.providerType,
-      backendType: flags.backendType,
+      providerType: flags.providerType as any,
+      networkAccessType: (flags as any).networkAccessType,
       imageUri: flags.imageUri,
       upstreamRepo: flags.upstreamRepo,
       manageNetworking: flags.manageNetworking,
@@ -158,24 +160,44 @@ export class ContextResolver {
       reaperIdleLimit: flags.reaperIdleLimit,
       dnsSuffix: flags.dnsSuffix,
       userSuffix: flags.userSuffix,
+      allowDevUpdates: flags.allowDevUpdates,
       schematic: flags.schematic,
       verbose: flags.verbose,
     };
     if (flags.forStation) flagSpec.stationName = flags.forStation;
     infra = this.mergeDefined(infra, flagSpec);
 
-    // STEP 5: Dynamic Defaults & Final Resolution
+    // FORCED OVERRIDES (ADR 0022: Local flags must trump)
+    if (flags.local) {
+      infra.projectId = 'local';
+      infra.providerType = 'local-worktree';
+    } else if (isLocalDocker) {
+      infra.projectId = 'local';
+      infra.providerType = 'local-docker';
+    }
+
+    // STEP 5: Session State (Runtime Flags)
+    const isDev =
+      (flags as any).isDev ||
+      (flags as any).dev ||
+      env.GCLI_ORBIT_DEV === '1' ||
+      false;
+
+    // STEP 6: Dynamic Defaults & Final Resolution
 
     // Fallback ID
     if (!infra.projectId) infra.projectId = 'local';
 
     // Provider Type Resolution (Re-evaluate after all merges)
     if (infra.projectId === 'local') {
+      // Defaults for local project
       infra.providerType = infra.providerType || 'local-worktree';
-    } else if (infra.providerType === 'local-worktree' || !infra.providerType) {
-      // If we have a real project ID but provider is still local-worktree (stale receipt),
+    } else {
+      // If we have a real project ID but provider is still local-worktree or missing,
       // we must upgrade to GCE.
-      infra.providerType = 'gce';
+      if (infra.providerType === 'local-worktree' || !infra.providerType) {
+        infra.providerType = 'gce';
+      }
     }
 
     // Standardized Station Naming (Hub-side)
@@ -203,6 +225,8 @@ export class ContextResolver {
     if (!infra.workspacesDir) {
       if (infra.projectId && infra.projectId !== 'local') {
         infra.workspacesDir = '/mnt/disks/data/workspaces';
+      } else if (infra.providerType === 'local-docker') {
+        infra.workspacesDir = './orbit-test-run/workspaces';
       } else {
         const primaryRoot = getPrimaryRepoRoot(project.repoRoot);
         infra.workspacesDir = path.resolve(
@@ -227,7 +251,7 @@ export class ContextResolver {
         ? DEFAULT_SUBNET_NAME
         : 'default';
 
-    return { project, infra };
+    return { project, infra, isDev };
   }
 
   /**

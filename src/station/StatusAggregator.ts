@@ -6,18 +6,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  ORBIT_STATE_PATH,
-  SATELLITE_WORKSPACES_PATH,
-} from '../core/Constants.js';
+import { ORBIT_STATE_PATH } from '../core/Constants.js';
 
 /**
  * Aggregates all mission state manifests on this station.
  */
 export class StatusAggregator {
-  constructor(
-    private readonly workspacesRoot: string = SATELLITE_WORKSPACES_PATH,
-  ) {}
+  constructor(private readonly workspacesRoot: string) {}
 
   async getStatus(overrideRoot?: string) {
     const root = overrideRoot || this.workspacesRoot;

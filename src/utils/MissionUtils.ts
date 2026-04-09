@@ -57,6 +57,21 @@ export function resolveMissionContext(
     if (res.status === 0) {
       branchName = res.stdout.toString().trim();
     }
+  } else {
+    // If idPart is a string like 'my-feature', try to see if that is our current branch
+    // or just use it as the branch name.
+    const res: IProcessResult = pm.runSync(
+      'git',
+      ['rev-parse', '--abbrev-ref', 'HEAD'],
+      { quiet: true },
+    );
+    if (res.status === 0) {
+      const currentBranch = res.stdout.toString().trim();
+      // If we are on a real branch (not HEAD), use that as the source
+      if (currentBranch && currentBranch !== 'HEAD') {
+        branchName = currentBranch;
+      }
+    }
   }
 
   // 2. Handle id:action suffix (e.g. 123:review)
@@ -97,7 +112,26 @@ export function getMissionManifest(): MissionManifest {
     }
   }
 
-  // 2. Try local worktree manifest (./.orbit-manifest.json)
+  // 2. Try RAM-disk manifest (Starfleet Fast-Path injection)
+  // When running via Starfleet, the SDK may inject it here.
+  const shmManifests = fs.existsSync('/dev/shm')
+    ? fs.readdirSync('/dev/shm').filter((f) => f.includes('orbit-manifest'))
+    : [];
+
+  if (shmManifests.length > 0) {
+    // Pick the most recent if multiple (rare)
+    const latest = shmManifests.sort().reverse()[0];
+    if (latest) {
+      const shmPath = path.join('/dev/shm', latest);
+      try {
+        return JSON.parse(fs.readFileSync(shmPath, 'utf8'));
+      } catch (_e: any) {
+        // Continue to next fallback
+      }
+    }
+  }
+
+  // 3. Try local worktree manifest (./.orbit-manifest.json)
   // Fallback for local development or manual worker testing
   const localManifest = path.resolve(process.cwd(), LOCAL_MANIFEST_NAME);
   if (fs.existsSync(localManifest)) {

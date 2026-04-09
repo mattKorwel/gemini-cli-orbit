@@ -34,14 +34,12 @@ describe('GceCosProvider Integration Logic', () => {
 
   const mockSsh = {
     getMagicRemote: vi.fn().mockReturnValue('user@host'),
-    runHostCommand: vi.fn(),
-    syncPath: vi.fn().mockResolvedValue(0),
-    syncPathIfChanged: vi.fn().mockResolvedValue(0),
+    getConnectionHandle: vi.fn().mockReturnValue('user@host'),
+    exec: vi.fn(),
+    sync: vi.fn().mockResolvedValue(0),
     setOverrideHost: vi.fn(),
-    runDockerExec: vi.fn(),
-    getStandardUser: vi.fn().mockReturnValue('node'),
-    resolvePolicyPath: vi.fn().mockReturnValue('/mock/policy.toml'),
-    withConnectivityRetry: vi.fn().mockImplementation((op) => op()),
+    attach: vi.fn().mockResolvedValue(0),
+    ensureTunnel: vi.fn().mockResolvedValue(undefined),
   };
 
   const mockPm: any = {
@@ -68,7 +66,7 @@ describe('GceCosProvider Integration Logic', () => {
 
   describe('ensureReady & Sync', () => {
     it('should sync the extension bundle to the remote host during ensureReady', async () => {
-      mockSsh.runHostCommand.mockResolvedValue({
+      mockSsh.exec.mockResolvedValue({
         status: 0,
         stdout: 'true',
         stderr: '',
@@ -76,7 +74,7 @@ describe('GceCosProvider Integration Logic', () => {
 
       await provider.ensureReady();
 
-      expect(mockSsh.syncPathIfChanged).toHaveBeenCalledWith(
+      expect(mockSsh.sync).toHaveBeenCalledWith(
         `${LOCAL_BUNDLE_PATH}/`,
         BUNDLE_PATH,
         expect.objectContaining({ delete: true, sudo: true }),
@@ -84,7 +82,7 @@ describe('GceCosProvider Integration Logic', () => {
     });
 
     it('should return 255 if bundle sync fails', async () => {
-      mockSsh.syncPathIfChanged.mockResolvedValue(1);
+      mockSsh.sync.mockResolvedValue(1);
       const res = await provider.ensureReady();
       expect(res).toBe(255);
     });
@@ -95,9 +93,9 @@ describe('GceCosProvider Integration Logic', () => {
       const rawCmd = "echo 'hello world' && ls";
       await provider.getExecOutput(rawCmd);
 
-      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect(mockSsh.exec).toHaveBeenCalledWith(
         expect.objectContaining({
-          bin: '/bin/bash',
+          bin: '/bin/sh',
           args: ['-c', "echo 'hello world' && ls"],
         }),
         expect.anything(),
@@ -108,7 +106,7 @@ describe('GceCosProvider Integration Logic', () => {
       const cmdObj = { bin: 'node', args: ['bundle.js', 'start'] };
       await provider.getExecOutput(cmdObj);
 
-      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect(mockSsh.exec).toHaveBeenCalledWith(
         expect.objectContaining({
           bin: 'node',
           args: ['bundle.js', 'start'],
@@ -117,10 +115,10 @@ describe('GceCosProvider Integration Logic', () => {
       );
     });
 
-    it('should pass environment variables through to SSHManager', async () => {
+    it('should pass environment variables through to transport', async () => {
       await provider.getExecOutput('ls', { env: { FOO: 'bar' } });
 
-      expect(mockSsh.runHostCommand).toHaveBeenCalledWith(
+      expect(mockSsh.exec).toHaveBeenCalledWith(
         expect.objectContaining({
           env: expect.objectContaining({ FOO: 'bar' }),
         }),
@@ -128,12 +126,11 @@ describe('GceCosProvider Integration Logic', () => {
       );
     });
 
-    it('should route to runDockerExec if isolationId is provided', async () => {
+    it('should route to sudo docker exec if isolationId is provided', async () => {
       await provider.getExecOutput('ls', { isolationId: 'my-capsule' });
 
-      expect(mockSsh.runDockerExec).toHaveBeenCalledWith(
-        'my-capsule',
-        expect.objectContaining({ bin: '/bin/bash' }),
+      expect(mockSsh.exec).toHaveBeenCalledWith(
+        expect.stringContaining('sudo docker exec my-capsule'),
         expect.anything(),
       );
     });

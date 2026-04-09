@@ -3,7 +3,7 @@ name: Starfleet Sentinel
 on:
   schedule:
     - cron: '0 * * * *' # Every hour
-  workflow_dispatch:      # Manual trigger
+  workflow_dispatch: # Manual trigger
 
 jobs:
   check-freshness:
@@ -23,7 +23,7 @@ jobs:
         id: check
         run: |
           REMOTE_IMAGE="us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest"
-          
+
           # Get current digest from registry
           CURRENT_DIGEST=$(gcloud artifacts docker images describe $REMOTE_IMAGE --format='value(image_summary.digest)')
           echo "Current Digest: $CURRENT_DIGEST"
@@ -31,7 +31,7 @@ jobs:
           # Restore last known digest from cache
           mkdir -p .sentinel
           echo "unknown" > .sentinel/last-digest
-          
+
           # We use a simple file-based approach for the check logic
           if [ -f .sentinel/last-digest ]; then
             LAST_DIGEST=$(cat .sentinel/last-digest)

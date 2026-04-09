@@ -1,0 +1,13 @@
+{
+  "port": 8080,
+  "workerImage": "test-worker-image",
+  "manifestRoot": "/tmp/orbit-test-manifests",
+  "isUnlocked": true,
+  "useSudo": false,
+  "storage": {
+    "workspacesRoot": "/tmp/orbit-test-workspaces",
+    "mirrorPath": "/tmp/orbit-test-mirror"
+  },
+  "mounts": [{ "host": "/tmp/orbit-test-data", "capsule": "/mnt/disks/data" }],
+  "bundlePath": "/usr/local/lib/orbit/bundle"
+}

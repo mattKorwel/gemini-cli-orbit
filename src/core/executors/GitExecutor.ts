@@ -52,6 +52,35 @@ export class GitExecutor implements IGitExecutor {
     return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
   }
 
+  public checkoutNew(
+    cwd: string,
+    branch: string,
+    base?: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.checkoutNew(cwd, branch, base, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public worktreeAdd(
+    cwd: string,
+    path: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.worktreeAdd(cwd, path, branch, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  public verify(
+    cwd: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.verify(cwd, branch, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
   /**
    * Instance-based revParse that uses the injected ProcessManager.
    */
@@ -112,6 +141,47 @@ export class GitExecutor implements IGitExecutor {
     return {
       bin: 'git',
       args: ['checkout', branch],
+      options: { ...options, cwd },
+    };
+  }
+
+  public static checkoutNew(
+    cwd: string,
+    branch: string,
+    base?: string,
+    options: IRunOptions = {},
+  ): Command {
+    const args = ['checkout', '-b', branch];
+    if (base) args.push(base);
+
+    return {
+      bin: 'git',
+      args,
+      options: { ...options, cwd },
+    };
+  }
+
+  public static worktreeAdd(
+    cwd: string,
+    path: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'git',
+      args: ['worktree', 'add', path, branch],
+      options: { ...options, cwd },
+    };
+  }
+
+  public static verify(
+    cwd: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'git',
+      args: ['rev-parse', '--verify', branch],
       options: { ...options, cwd },
     };
   }

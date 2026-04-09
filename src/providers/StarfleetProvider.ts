@@ -6,35 +6,41 @@
 
 import { BaseProvider } from './BaseProvider.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
-import { LogLevel } from '../core/Logger.js';
+import path from 'node:path';
+import fs from 'node:fs';
 import {
-  type ExecOptions,
-  type SyncOptions,
   type OrbitStatus,
+  type StationReceipt,
+  type MissionManifest,
+  type ExecOptions,
   type CapsuleConfig,
   type CapsuleInfo,
-  type MissionManifest,
+  type ExecResult,
+  type SyncOptions,
+  type OrbitObserver,
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
-import { type MissionContext } from '../utils/MissionUtils.js';
 import {
-  type IExecutors,
-  type IProcessManager,
-  type StationReceipt,
-} from '../core/interfaces.js';
-import {
-  ORBIT_ROOT,
   BUNDLE_PATH,
+  ORBIT_ROOT,
   STATION_BUNDLE_PATH,
+  ORBIT_STATE_PATH,
+  type ProjectContext,
+  type InfrastructureSpec,
 } from '../core/Constants.js';
-import { type SSHManager } from './SSHManager.js';
+import {
+  type StationTransport,
+  type IProcessManager,
+  type IExecutors,
+} from '../core/interfaces.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
 
 /**
- * StarfleetProvider: A remote-first provider that delegates all actions to
- * the Station Supervisor API over an SSH transport.
+ * StarfleetProvider: Abstract base for all providers that delegate to a
+ * Station Supervisor API.
  */
-export class StarfleetProvider extends BaseProvider {
-  public readonly type = 'gce';
+export abstract class StarfleetProvider extends BaseProvider {
+  public abstract readonly type: 'gce' | 'local-docker';
   public readonly isPersistent = true;
 
   public projectId: string;
@@ -42,10 +48,12 @@ export class StarfleetProvider extends BaseProvider {
   public stationName: string;
 
   constructor(
-    private readonly client: StarfleetClient,
-    private readonly ssh: SSHManager,
-    pm: IProcessManager,
+    protected readonly client: StarfleetClient,
+    protected readonly transport: StationTransport,
+    protected readonly pm: IProcessManager,
     executors: IExecutors,
+    protected readonly projectCtx: ProjectContext,
+    protected readonly infra: InfrastructureSpec,
     config: {
       projectId: string;
       zone: string;
@@ -58,14 +66,68 @@ export class StarfleetProvider extends BaseProvider {
     this.stationName = config.stationName;
   }
 
-  // --- Path Resolution ---
+  /**
+   * Environment-specific ignition sequence.
+   */
+  abstract verifyIgnition(observer: OrbitObserver): Promise<boolean>;
+
+  override resolveWorkspaceName(repoSlug: string, idSlug: string): string {
+    return `${repoSlug}-${idSlug}`;
+  }
+
+  override resolveSessionName(
+    repoSlug: string,
+    idSlug: string,
+    action: string,
+  ): string {
+    const parts = [repoSlug, idSlug];
+    if (action !== 'chat') parts.push(action);
+    return parts.join('-');
+  }
+
+  override resolveContainerName(
+    _repoSlug: string,
+    idSlug: string,
+    _action: string,
+  ): string {
+    return `orbit-${idSlug}`;
+  }
+
+  // --- Path Resolution (Station Host perspective) ---
+
+  /**
+   * Returns the primary root for Orbit data on the station host.
+   */
+  resolveOrbitRoot(): string {
+    return ORBIT_ROOT;
+  }
 
   resolveWorkDir(workspaceName: string): string {
-    return `${ORBIT_ROOT}/workspaces/${workspaceName}`;
+    return path.join(this.resolveWorkspacesRoot(), workspaceName);
   }
 
   resolveWorkspacesRoot(): string {
-    return `${ORBIT_ROOT}/workspaces`;
+    return path.join(this.resolveOrbitRoot(), 'workspaces');
+  }
+
+  // --- Path Resolution (Mission Capsule perspective) ---
+
+  /**
+   * Returns the primary root for Orbit data inside the capsule.
+   */
+  resolveCapsuleOrbitRoot(): string {
+    return '/mnt/disks/data';
+  }
+
+  /**
+   * Returns the absolute workspace path inside the capsule.
+   */
+  resolveCapsuleWorkDir(workspaceName: string): string {
+    return path.join(
+      this.resolveCapsuleOrbitRoot(),
+      'workspaces',
+      workspaceName,
+    );
   }
 
   resolveBundlePath(): string {
@@ -77,31 +139,46 @@ export class StarfleetProvider extends BaseProvider {
   }
 
   resolveProjectConfigDir(): string {
-    return `${ORBIT_ROOT}/project-configs`;
+    return path.join(this.resolveOrbitRoot(), 'project-configs');
   }
 
   resolvePolicyPath(): string {
-    return `${ORBIT_ROOT}/project-configs/policies/workspace-policy.toml`;
+    return path.join(
+      this.resolveProjectConfigDir(),
+      'policies/workspace-policy.toml',
+    );
   }
 
   resolveMirrorPath(): string {
-    return `${ORBIT_ROOT}/main`;
+    return path.join(this.resolveOrbitRoot(), 'main');
   }
 
   resolveGlobalConfigDir(): string {
     return '/home/node/.gemini';
   }
 
-  // --- Core Lifecycle ---
+  // --- Core API Layer ---
 
   async ensureReady(): Promise<number> {
     try {
-      const ping = await this.ssh.runHostCommand(
+      // Basic connectivity check
+      const ping = await this.transport.exec(
         { bin: 'echo', args: ['pong'] },
         { quiet: true },
       );
-      return ping.status === 0 ? 0 : 1;
-    } catch {
+      if (ping.status !== 0) return 1;
+
+      // Ensure API tunnel (noop for local)
+      await this.transport.ensureTunnel(8080, 8080);
+
+      // Verify API connectivity
+      const isAlive = await this.client.ping();
+      if (!isAlive) {
+        throw new Error('Starfleet API not responding');
+      }
+
+      return 0;
+    } catch (_err: any) {
       return 1;
     }
   }
@@ -114,18 +191,22 @@ export class StarfleetProvider extends BaseProvider {
     return 'STARFLEET_API_CALL';
   }
 
+  override createNodeCommand(scriptPath: string, args: string[] = []): Command {
+    return this.executors.node.createRemote(scriptPath, args);
+  }
+
   async sync(
-    localPath: string,
-    remotePath: string,
-    options?: SyncOptions,
+    _localPath: string,
+    _remotePath: string,
+    _options?: SyncOptions,
   ): Promise<number> {
     return 0;
   }
 
   async syncIfChanged(
-    localPath: string,
-    remotePath: string,
-    options?: SyncOptions,
+    _localPath: string,
+    _remotePath: string,
+    _options?: SyncOptions,
   ): Promise<number> {
     return 0;
   }
@@ -157,19 +238,24 @@ export class StarfleetProvider extends BaseProvider {
   async getCapsuleIdleTime(): Promise<number> {
     return 0;
   }
-  async attach(name: string): Promise<number> {
+  async attach(containerName: string, sessionName: string): Promise<number> {
+    try {
+      await this.ensureReady();
+      return await this.transport.attach(containerName, sessionName);
+    } catch (_err: any) {
+      return 1;
+    }
+  }
+  async runCapsule(_config: CapsuleConfig): Promise<number> {
     return 0;
   }
-  async runCapsule(config: CapsuleConfig): Promise<number> {
+  async stopCapsule(_name: string): Promise<number> {
     return 0;
   }
-  async stopCapsule(name: string): Promise<number> {
+  async removeCapsule(_name: string): Promise<number> {
     return 0;
   }
-  async removeCapsule(name: string): Promise<number> {
-    return 0;
-  }
-  async jettisonMission(identifier: string): Promise<number> {
+  async jettisonMission(_identifier: string): Promise<number> {
     return 0;
   }
   async splashdown(): Promise<number> {
@@ -194,7 +280,17 @@ export class StarfleetProvider extends BaseProvider {
     return 0;
   }
   async stationShell(): Promise<number> {
-    return 0;
+    const target = this.transport.getConnectionHandle();
+    const res = this.pm.runSync('ssh', ['-t', target], {
+      interactive: true,
+    });
+    return res.status;
+  }
+  async stationExec(
+    command: string | Command,
+    options?: ExecOptions,
+  ): Promise<ExecResult> {
+    return this.transport.exec(command, options);
   }
   async missionShell(): Promise<number> {
     return 0;
@@ -204,166 +300,81 @@ export class StarfleetProvider extends BaseProvider {
     return {
       name: this.stationName,
       instanceName: this.stationName,
-      type: 'gce',
+      type: this.type,
       projectId: this.projectId,
       zone: this.zone,
-      repo: 'unknown',
+      repo: this.projectCtx.repoName,
+      upstreamUrl: this.infra.upstreamUrl,
+      networkAccessType: this.infra.networkAccessType as any,
+      schematic: this.infra.schematic,
+      dnsSuffix: this.infra.dnsSuffix,
+      userSuffix: this.infra.userSuffix,
       lastSeen: new Date().toISOString(),
     };
   }
 
-  async launchMission(manifest: MissionManifest): Promise<number> {
-    const res = await this.client.launchMission(manifest);
-    if (res.status === 'ACCEPTED' && res.receipt) {
-      console.log(`\n✨ Starfleet Mission Ignited!`);
-      console.log(`   ID:        ${res.receipt.missionId}`);
-      console.log(`   Capsule:   ${res.receipt.containerName}`);
-      console.log(`   Workspace: ${res.receipt.workspacePath}`);
-      console.log(`   Time:      ${res.receipt.ignitedAt}`);
-      return 0;
+  async launchMission(
+    manifest: MissionManifest,
+    hostWorkDir: string,
+  ): Promise<number> {
+    try {
+      const ready = await this.ensureReady();
+      if (ready !== 0) return 1;
+
+      // Sync user context (Auth, Trust, etc.)
+      await this.syncGlobalConfig();
+
+      const res = (await this.client.launchMission(manifest)) as any;
+
+      if (res.status === 'ACCEPTED' && res.receipt) {
+        console.log(`\n✨ Starfleet Mission Ignited!`);
+        console.log(`   ID:        ${res.receipt.missionId}`);
+        console.log(`   Capsule:   ${res.receipt.containerName}`);
+        console.log(`   Workspace: ${res.receipt.workspacePath}`);
+        console.log(`   Time:      ${res.receipt.ignitedAt}`);
+
+        // Wait for worker to signal READY on the host-side path
+        const isReady = await this.waitForIgnition(hostWorkDir);
+        return isReady ? 0 : 1;
+      }
+      return 1;
+    } catch (_err: any) {
+      return 1;
     }
-    return 1;
   }
 
   /**
-   * Performs deep verification of a Starfleet Station with Interactive UI.
+   * Periodically polls for state.json [IDLE] on the host machine.
    */
-  async verifyIgnition(
-    observer: import('../core/types.js').OrbitObserver,
+  private async waitForIgnition(
+    hostWorkDir: string,
+    timeoutMs = 15000,
   ): Promise<boolean> {
-    const startTime = Date.now();
-    const timeout = 5 * 60 * 1000;
-    let step = 0;
+    const statePath = path.join(hostWorkDir, ORBIT_STATE_PATH);
+    const start = Date.now();
 
-    const steps = [
-      'Establishing SSH transport',
-      'Checking data disk mount',
-      'Verifying filesystem paths',
-      'Checking Docker daemon',
-      'Starting Station Supervisor',
-      'Connecting to Starfleet API',
-    ];
-
-    const updateUI = (message: string, isComplete = false, isError = false) => {
-      const icon = isError ? '❌' : isComplete ? '✅' : '⏳';
-      const dots = '.'.repeat(Math.max(1, 30 - message.length));
-      const line = `   ${icon} ${message} ${dots} ${isComplete ? 'Success' : isError ? 'Failed' : 'Pending'}`;
-
-      if (process.stdout.isTTY) {
-        process.stdout.write(`\r\x1b[K${line}`);
-        if (isComplete || isError) process.stdout.write('\n');
-      } else {
-        observer.onLog?.(LogLevel.INFO, 'SETUP', line);
-      }
-    };
-
-    observer.onLog?.(
-      LogLevel.INFO,
-      'SETUP',
-      '🛸 Starfleet Ignition sequence started...',
-    );
-
-    while (Date.now() - startTime < timeout) {
+    while (Date.now() - start < timeoutMs) {
       try {
-        updateUI(steps[step]);
-
-        // Step 1: SSH
-        if (step === 0) {
-          const res = await this.ssh.runHostCommand(
-            { bin: 'echo', args: ['pong'] },
-            { quiet: true },
-          );
-          if (res.status === 0) {
-            updateUI(steps[0], true);
-            step = 1;
-            continue;
-          }
-        }
-
-        // Step 2: Disk
-        if (step === 1) {
-          const res = await this.ssh.runHostCommand(
-            { bin: 'df', args: ['-h', '/mnt/disks/data'] },
-            { quiet: true },
-          );
-          if (res.status === 0) {
-            updateUI(steps[1], true);
-            step = 2;
-            continue;
-          }
-        }
-
-        // Step 3: Paths
-        if (step === 2) {
-          const res = await this.ssh.runHostCommand(
-            { bin: 'ls', args: ['-d', '/mnt/disks/data/workspaces'] },
-            { quiet: true },
-          );
-          if (res.status === 0) {
-            updateUI(steps[2], true);
-            step = 3;
-            continue;
-          }
-        }
-
-        // Step 4: Docker Daemon Health
-        if (step === 3) {
-          const res = await this.ssh.runHostCommand(
-            { bin: 'sudo', args: ['docker', 'version'] },
-            { quiet: true },
-          );
-          if (res.status === 0) {
-            updateUI(steps[3], true);
-            step = 4;
-            continue;
-          }
-        }
-
-        // Step 5: Supervisor Container
-        if (step === 4) {
-          const res = await this.ssh.runHostCommand(
-            {
-              bin: 'sudo',
-              args: [
-                'docker',
-                'ps',
-                '--filter',
-                'name=station-supervisor',
-                '--format',
-                '{{.Status}}',
-              ],
-            },
-            { quiet: true },
-          );
-          if (res.stdout.includes('Up')) {
-            updateUI(steps[4], true);
-            step = 5;
-            continue;
-          }
-        }
-
-        // Step 6: API
-        if (step === 5) {
-          const alive = await this.client.ping();
-          if (alive) {
-            updateUI(steps[5], true);
+        if (fs.existsSync(statePath)) {
+          const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+          if (state.status === 'IDLE' || state.status === 'READY') {
             return true;
-          } else {
-            await this.ssh.ensureTunnel(8080, 8080);
           }
         }
-      } catch (e: any) {
-        // Silent retry
+      } catch (_e) {
+        // Retry
       }
-
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    updateUI(steps[step], false, true);
+    console.error(
+      `❌ Ignition verification timed out after ${timeoutMs / 1000}s.`,
+    );
+    console.error(`   Worker failed to signal READY at ${statePath}`);
     return false;
   }
 
-  async prepareMissionWorkspace(mCtx: MissionContext): Promise<void> {}
+  async prepareMissionWorkspace(_mCtx: MissionContext): Promise<void> {}
   protected async resolveLegacyCapsuleState(): Promise<CapsuleInfo['state']> {
     return 'IDLE';
   }

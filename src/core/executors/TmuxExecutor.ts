@@ -97,8 +97,8 @@ export class TmuxExecutor implements ITmuxExecutor {
 
     // 4. Combined Launch Script
     // If command succeeds (exit 0), the session ends.
-    // If it fails (non-zero), we drop into zsh for debugging.
-    const fullLaunch = `${styles}; ${tip}; ${cdPrefix}${envPrefix}${innerCommand} || exec zsh`;
+    // If it fails (non-zero), we drop into bash for debugging.
+    const fullLaunch = `${styles}; ${tip}; ${cdPrefix}${envPrefix}${innerCommand} || exec bash`;
 
     return {
       bin: 'tmux',

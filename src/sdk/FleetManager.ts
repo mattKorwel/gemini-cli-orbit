@@ -50,9 +50,10 @@ export class FleetManager {
    * Build or wake Orbital Station infrastructure. (Idempotent Liftoff)
    */
   async provision(options: ProvisionOptions): Promise<number> {
-    const { schematicName, stationName, destroy } = options;
-    const instanceName = stationName || this.infra.instanceName || 'default';
-    const sName = schematicName || (this.infra as any).schematic || 'default';
+    const { destroy } = options;
+    const config = this.infra;
+    const instanceName = config.instanceName || 'default';
+    const sName = config.schematic || 'default';
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');
     this.observer.onLog?.(
@@ -61,25 +62,20 @@ export class FleetManager {
       `📡 Instance: ${instanceName} | Schematic: ${sName}`,
     );
 
-    const schematic = this.configManager.loadSchematic(sName);
-    const config = {
-      ...this.infra,
-      ...schematic,
-      instanceName,
-      stationName: instanceName,
-      schematic: sName,
-    };
+    const isLocal =
+      config.providerType === 'local-worktree' ||
+      config.providerType === 'local-docker';
 
-    if (!config.projectId && config.providerType !== 'local-worktree') {
+    if (!config.projectId && !isLocal) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'SETUP',
-        `❌ No active infrastructure schematic found. Please run "orbit schematic create ${sName}" to set up your blueprints.`,
+        `❌ No active infrastructure project found. Please specify a projectId or use a local provider.`,
       );
       return 1;
     }
 
-    if (config.providerType !== 'local-worktree') {
+    if (!isLocal) {
       await this.dependencyManager.ensurePulumi();
     }
 

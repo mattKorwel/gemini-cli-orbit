@@ -285,7 +285,7 @@ export class LocalWorktreeProvider extends BaseProvider {
     return 0;
   }
 
-  async attach(name: string): Promise<number> {
+  async attach(name: string, _sessionName?: string): Promise<number> {
     if (!this.hasTmux()) throw new Error('tmux is required for local missions');
     return this.pm.runSync('tmux', ['attach-session', '-t', name], {
       stdio: 'inherit',
@@ -459,7 +459,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       zone: 'local',
       repo: this.projectCtx.repoName,
       upstreamUrl: this.infra.upstreamUrl,
-      backendType: 'direct-internal',
+      networkAccessType: 'direct-internal',
       lastSeen: new Date().toISOString(),
     };
   }

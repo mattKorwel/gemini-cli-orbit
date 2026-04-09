@@ -146,7 +146,7 @@ export class StationRegistry implements IStationRegistry {
       zone: receipt.zone,
       instanceName: receipt.instanceName || receipt.name,
       providerType: receipt.type,
-      backendType: receipt.backendType,
+      networkAccessType: receipt.networkAccessType,
       workspacesDir: receipt.workspacesDir,
       dnsSuffix: receipt.dnsSuffix,
       userSuffix: receipt.userSuffix,

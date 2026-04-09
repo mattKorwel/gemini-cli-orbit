@@ -73,6 +73,13 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
 
     const geminiCmd = GeminiExecutor.create('gemini', geminiOpts);
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
+
+    if (res.status !== 0) {
+      console.error(`❌ Gemini failed with status ${res.status}`);
+    } else {
+      console.info('✅ Interactive session complete.');
+    }
+
     return res.status;
   } else {
     logger.info('GENERAL', `🏃 Launching ${action} playbook...`);

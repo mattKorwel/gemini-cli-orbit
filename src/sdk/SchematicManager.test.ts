@@ -46,7 +46,7 @@ describe('SchematicManager', () => {
     configManager.loadSchematic.mockReturnValue({
       projectId: 'p1',
       zone: 'z1',
-      backendType: 'external',
+      networkAccessType: 'external',
     });
 
     const list = manager.listSchematics();
@@ -63,7 +63,7 @@ describe('SchematicManager', () => {
     const mockJson = JSON.stringify({
       projectId: 'remote-p',
       zone: 'remote-z',
-      backendType: 'external',
+      networkAccessType: 'external',
     });
 
     (spawnSync as any).mockReturnValue({

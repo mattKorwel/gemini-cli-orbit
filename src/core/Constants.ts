@@ -51,8 +51,13 @@ export interface InfrastructureSpec {
   zone?: string | undefined;
   instanceName?: string | undefined; // Required primary key for provisioning
   stationName?: string | undefined;
-  providerType?: 'gce' | 'local-worktree' | 'local-workspace' | undefined;
-  backendType?: 'direct-internal' | 'external' | undefined;
+  providerType?:
+    | 'gce'
+    | 'local-worktree'
+    | 'local-git'
+    | 'local-docker'
+    | undefined;
+  networkAccessType?: 'direct-internal' | 'external' | undefined;
   imageUri?: string | undefined;
   upstreamRepo?: string | undefined;
   upstreamUrl?: string | undefined;
@@ -71,8 +76,11 @@ export interface InfrastructureSpec {
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
   sshUser?: string | undefined;
+  allowDevUpdates?: boolean | undefined;
   schematic?: string | undefined;
   verbose?: boolean | undefined;
+  env?: Record<string, string> | undefined;
+  sensitiveEnv?: Record<string, string> | undefined;
 }
 
 /**
@@ -81,6 +89,7 @@ export interface InfrastructureSpec {
 export interface OrbitContext {
   project: ProjectContext;
   infra: InfrastructureSpec;
+  isDev?: boolean;
 }
 
 /**
@@ -217,7 +226,7 @@ export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
 export const DEFAULT_VPC_NAME = 'orbit';
 export const DEFAULT_SUBNET_NAME = 'orbit';
-export const DEFAULT_IMAGE_URI =
+export const DEFAULT_SUPERVISOR_IMAGE_URI =
   'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
 /**
@@ -234,7 +243,19 @@ export interface OrbitConfig extends InfrastructureSpec {
   profile?: string | undefined;
   schematic?: string | undefined;
   forStation?: string | undefined;
+  projectId?: string | undefined;
+  providerType?:
+    | 'gce'
+    | 'local-worktree'
+    | 'local-git'
+    | 'local-docker'
+    | undefined;
+  networkAccessType?: 'direct-internal' | 'external' | undefined;
   local?: boolean | undefined;
+  localDocker?: boolean | undefined;
+  isDev?: boolean | undefined;
+  env?: Record<string, string> | undefined;
+  sensitiveEnv?: Record<string, string> | undefined;
   manageNetworking?: boolean | undefined;
   allowDevUpdates?: boolean | undefined;
   tempDir?: string | undefined;
@@ -259,5 +280,6 @@ export interface OrbitSettings {
   tempDir?: string | undefined;
   workspacesDir?: string | undefined;
   worktreesDir?: string | undefined; // Compatibility
+  localDocker?: boolean | undefined;
   autoClean?: boolean | undefined;
 }

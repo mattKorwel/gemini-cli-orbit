@@ -51,7 +51,7 @@ export async function main(
 
     // Special Case: status aggregation can run without a manifest
     if (action === 'status') {
-      const root = argv[1];
+      const root = argv[1] || '';
       const aggregator = new StatusAggregator(root);
       const result = await aggregator.getStatus(root);
       console.log(JSON.stringify(result, null, 2));

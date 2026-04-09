@@ -1,0 +1,18 @@
+{
+  "name": "local",
+  "providerType": "local-docker",
+  "port": 8080,
+  "workerImage": "ghcr.io/mattkorwel/orbit-worker:latest",
+  "manifestRoot": "./orbit-test-run/manifests",
+  "isUnlocked": true,
+  "useSudo": false,
+  "storage": {
+    "workspacesRoot": "./orbit-test-run/workspaces",
+    "mirrorPath": "./orbit-test-run/main"
+  },
+  "mounts": [
+    { "host": "./orbit-test-run", "capsule": "/mnt/disks/data" },
+    { "host": "./orbit-test-run/manifests", "capsule": "/dev/shm" }
+  ],
+  "bundlePath": "/usr/local/lib/orbit/bundle"
+}

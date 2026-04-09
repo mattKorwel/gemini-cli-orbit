@@ -27,7 +27,7 @@ import {
  * Centralizes naming policy with overridable defaults.
  */
 export abstract class BaseProvider {
-  abstract readonly type: 'gce' | 'local-worktree';
+  abstract readonly type: 'gce' | 'local-worktree' | 'local-docker';
   abstract readonly isPersistent: boolean;
   abstract projectId: string;
   abstract zone: string;
@@ -192,7 +192,7 @@ export abstract class BaseProvider {
   /**
    * Attaches to an active mission.
    */
-  abstract attach(name: string): Promise<number>;
+  abstract attach(name: string, sessionName?: string): Promise<number>;
 
   /**
    * Launches a specific capsule configuration.

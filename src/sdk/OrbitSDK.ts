@@ -127,13 +127,14 @@ export class OrbitSDK implements IOrbitSDK {
       (this.context.infra as any).apiUrl || 'http://localhost:8080',
     );
 
-    // Initializing transport early for Shadow management
+    // Initializing provider once for the entire SDK session
     const provider = providerFactory.getProvider(
       this.projectCtx,
       this.context.infra as any,
     );
-    const ssh = (provider as any).ssh;
-    this.shadow = new ShadowManager(ssh, this.observer);
+
+    const transport = (provider as any).transport;
+    this.shadow = new ShadowManager(transport, this.observer);
 
     this.missions = new MissionManager(
       this.projectCtx,
@@ -145,6 +146,7 @@ export class OrbitSDK implements IOrbitSDK {
       executors,
       stationRegistry,
       starfleetClient,
+      provider,
     );
     this.status = new StatusManager(
       this.projectCtx,
@@ -152,6 +154,7 @@ export class OrbitSDK implements IOrbitSDK {
       providerFactory,
       executors,
       stationRegistry,
+      provider,
     );
     this.fleet = new FleetManager(
       this.projectCtx,
@@ -247,7 +250,7 @@ export class OrbitSDK implements IOrbitSDK {
    */
   async startMission(manifest: MissionManifest): Promise<MissionResult> {
     // Perform surgical shadow sync if --dev is enabled
-    await this.shadow.syncIfRequested({ dev: manifest.isDev });
+    await this.shadow.syncIfRequested({ dev: manifest.isDev } as any);
 
     return this.missions.start(manifest);
   }
@@ -256,14 +259,12 @@ export class OrbitSDK implements IOrbitSDK {
    * Resolve user intent into a concrete MissionManifest.
    */
   async resolveMission(options: MissionOptions): Promise<MissionManifest> {
-    const manifest = await this.missions.resolve(options);
-
-    // Inject the isDev flag from the CLI options into the manifest
-    if ((options as any).dev) {
-      manifest.isDev = true;
-    }
-
-    return manifest;
+    // Inject the isDev flag from the context into the mission options if not explicitly set
+    const mergedOptions = {
+      ...options,
+      dev: options.dev !== undefined ? options.dev : this.context.isDev,
+    };
+    return this.missions.resolve(mergedOptions as any);
   }
 
   /**
@@ -285,6 +286,22 @@ export class OrbitSDK implements IOrbitSDK {
    */
   async stationShell(): Promise<number> {
     return this.missions.stationShell();
+  }
+
+  /**
+   * Executes a command on the station host.
+   */
+  async stationExec(
+    command: string,
+    args: string[] = [],
+    options: any = {},
+  ): Promise<number> {
+    const provider = (this.missions as any).getProvider();
+    const res = await provider.getExecOutput(
+      { bin: command, args },
+      { ...options, interactive: true },
+    );
+    return res.status;
   }
 
   /**

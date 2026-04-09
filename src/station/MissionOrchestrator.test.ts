@@ -29,9 +29,23 @@ describe('MissionOrchestrator (Behavioral)', () => {
     const git = new GitExecutor(pm);
     const dockerExec = new DockerExecutor(pm, 'docker');
 
-    const workspace = new WorkspaceManager(git);
-    const docker = new DockerManager(dockerExec, pm);
-    orchestrator = new MissionOrchestrator(workspace, docker);
+    const config: any = {
+      port: 8080,
+      workerImage: 'test-worker-image',
+      manifestRoot: harness.root,
+      isUnlocked: true,
+      useSudo: false,
+      storage: {
+        workspacesRoot: harness.resolve('workspaces'),
+        mirrorPath: harness.resolve('mirror'),
+      },
+      mounts: [{ host: harness.root, capsule: '/mnt/disks/data' }],
+      bundlePath: '/usr/local/lib/orbit/bundle',
+    };
+
+    const workspace = new WorkspaceManager(git, config);
+    const docker = new DockerManager(dockerExec, pm, config);
+    orchestrator = new MissionOrchestrator(workspace, docker, config);
   });
 
   afterEach(() => {
@@ -52,14 +66,24 @@ describe('MissionOrchestrator (Behavioral)', () => {
       sensitiveEnv: { SECRET_KEY: 'top-secret' },
     };
 
-    // 1. Run Orchestration
-    const receipt = await orchestrator.orchestrate(manifest);
+    // 1. Run Orchestration (in background-ish because of verify loop)
+    const orchestratePromise = orchestrator.orchestrate(manifest);
 
-    // 2. Verify Result
+    // 2. Simulate Worker Signaling READY
+    const statePath = path.join(workDir, '.gemini/orbit/state.json');
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(statePath, JSON.stringify({ status: 'IDLE' }));
+
+    const receipt = await orchestratePromise;
+
+    // 3. Verify Result
     expect(receipt.missionId).toBe('test-123');
 
-    // 3. Verify Manifest File (The "Source of Truth" for the mission)
-    const manifestPath = path.join(workDir, '.orbit-manifest.json');
+    // 3. Verify Isolated Manifest File (The "Source of Truth" for container mounting)
+    const manifestPath = path.join(
+      harness.root,
+      'orbit-manifest-test-123.json',
+    );
     expect(fs.existsSync(manifestPath)).toBe(true);
     const saved = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     expect(saved.env.SETTING).toBe('true');

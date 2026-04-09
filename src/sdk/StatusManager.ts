@@ -14,17 +14,32 @@ import {
   type IExecutors,
   type IStationRegistry,
   type HydratedStation,
-  type IStatusManager,
 } from '../core/interfaces.js';
 
-export class StatusManager implements IStatusManager {
+export class StatusManager {
+  private _cachedProvider:
+    | import('../providers/BaseProvider.js').BaseProvider
+    | null = null;
+
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
     private readonly providerFactory: IProviderFactory,
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
-  ) {}
+    provider?: import('../providers/BaseProvider.js').BaseProvider,
+  ) {
+    if (provider) this._cachedProvider = provider;
+  }
+
+  private getProvider() {
+    if (this._cachedProvider) return this._cachedProvider;
+    this._cachedProvider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+    return this._cachedProvider;
+  }
 
   /**
    * Check station health and active mission status for the active project.

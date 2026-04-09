@@ -14,6 +14,18 @@ export interface ExecResponse {
   stderr: string;
 }
 
+export interface StarfleetReceipt {
+  missionId: string;
+  containerName: string;
+  workspacePath: string;
+  ignitedAt: string;
+}
+
+export interface LaunchResponse {
+  status: string;
+  receipt: StarfleetReceipt;
+}
+
 /**
  * StarfleetClient: The thin client that talks to the Station Supervisor API.
  */
@@ -29,39 +41,53 @@ export class StarfleetClient {
       const url = `${this.baseUrl}${path}`;
       const data = body ? JSON.stringify(body) : undefined;
 
-      const options: http.RequestOptions = {
-        method,
-        headers: {
-          Accept: 'application/json',
-        },
+      const headers: Record<string, string | number> = {
+        Accept: 'application/json',
       };
 
       if (data) {
-        options.headers!['Content-Type'] = 'application/json';
-        options.headers!['Content-Length'] = Buffer.byteLength(data);
+        headers['Content-Type'] = 'application/json';
+        headers['Content-Length'] = Buffer.byteLength(data);
       }
+
+      const options: http.RequestOptions = {
+        method,
+        headers,
+      };
 
       const req = http.request(url, options, (res) => {
         let responseBody = '';
+        console.log(
+          `[DEBUG] StarfleetClient.request response received: status=${res.statusCode}`,
+        );
         res.on('data', (chunk) => (responseBody += chunk.toString()));
         res.on('end', () => {
+          console.log(
+            `[DEBUG] StarfleetClient.request response body: ${responseBody}`,
+          );
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             try {
               resolve(JSON.parse(responseBody) as T);
-            } catch (e) {
+            } catch (_e) {
               resolve(responseBody as unknown as T);
             }
           } else {
-            reject(
-              new Error(`Request failed (${res.statusCode}): ${responseBody}`),
-            );
+            const errorMsg = `Request failed (${res.statusCode}): ${responseBody}`;
+            console.error(`[DEBUG] StarfleetClient.request Error: ${errorMsg}`);
+            reject(new Error(errorMsg));
           }
         });
       });
 
-      req.on('error', reject);
+      req.on('error', (err) => {
+        console.error(
+          `[DEBUG] StarfleetClient.request Error Event: ${err.message}`,
+        );
+        reject(err);
+      });
       if (data) req.write(data);
       req.end();
+      console.log(`[DEBUG] StarfleetClient.request sent: ${method} ${url}`);
     });
   }
 
@@ -74,11 +100,9 @@ export class StarfleetClient {
     }
   }
 
-  async launchMission(
-    manifest: MissionManifest,
-  ): Promise<{ status: string; container: string }> {
+  async launchMission(manifest: MissionManifest): Promise<LaunchResponse> {
     MissionManifestSchema.parse(manifest);
-    return this.request('/missions', 'POST', manifest);
+    return this.request<LaunchResponse>('/missions', 'POST', manifest);
   }
 
   async exec(command: string | Command, options?: any): Promise<ExecResponse> {

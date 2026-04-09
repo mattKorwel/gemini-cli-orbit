@@ -5,50 +5,67 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
 import os from 'node:os';
+import fs from 'node:fs';
 import {
-  type InfrastructureSpec,
-  type ProjectContext,
-  UPSTREAM_REPO_URL,
-} from '../core/Constants.js';
-import { LogLevel } from '../core/Logger.js';
-import {
-  type IConfigManager,
-  type IProviderFactory,
-  type IStationRegistry,
-  type IProcessManager,
-} from '../core/interfaces.js';
-import {
+  type MissionManifest,
   type MissionResult,
   type MissionOptions,
-  type MissionManifest,
-  type OrbitObserver,
   type JettisonOptions,
   type ReapOptions,
   type GetLogsOptions,
 } from '../core/types.js';
 import {
+  type IOrbitObserver,
+  type IProviderFactory,
+  type IConfigManager,
+  type IStationRegistry,
+  type IProcessManager,
+  type IExecutors,
+} from '../core/interfaces.js';
+import { LogLevel } from '../core/Logger.js';
+import {
+  type ProjectContext,
+  type InfrastructureSpec,
+  UPSTREAM_REPO_URL,
+} from '../core/Constants.js';
+import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
-import { type IExecutors } from '../core/interfaces.js';
+import { type StarfleetClient } from './StarfleetClient.js';
 
 /**
- * FleetCommander: SDK-level mission orchestrator.
- * High-level workflow state machine.
+ * MissionManager: Orchestrates the mission lifecycle across different providers.
  */
 export class MissionManager {
+  private _cachedProvider:
+    | import('../providers/BaseProvider.js').BaseProvider
+    | null = null;
+
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
-    private readonly observer: OrbitObserver,
+    private readonly observer: IOrbitObserver,
     private readonly providerFactory: IProviderFactory,
     private readonly configManager: IConfigManager,
     private readonly pm: IProcessManager,
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
-  ) {}
+    private readonly starfleetClient: StarfleetClient,
+    provider?: import('../providers/BaseProvider.js').BaseProvider,
+  ) {
+    if (provider) this._cachedProvider = provider;
+  }
+
+  private getProvider() {
+    if (this._cachedProvider) return this._cachedProvider;
+    this._cachedProvider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+    );
+    return this._cachedProvider;
+  }
 
   /**
    * Stage 2 Hydration: Resolves user intent into a concrete MissionManifest.
@@ -56,10 +73,7 @@ export class MissionManager {
   async resolve(options: MissionOptions): Promise<MissionManifest> {
     const { identifier: rawIdentifier, action: rawAction } = options;
 
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
 
     // 1. Resolve Raw Metadata
     const {
@@ -81,6 +95,8 @@ export class MissionManager {
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
     const workDir = provider.resolveWorkDir(workspaceName);
     const policyPath = provider.resolvePolicyPath(workDir);
+
+    const isDev = options.dev ?? false;
 
     const upstreamUrl =
       this.infra.upstreamUrl ||
@@ -104,6 +120,7 @@ export class MissionManager {
       mirrorPath: provider.resolveMirrorPath(),
       bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
+      isDev: isDev,
       tempDir: workDir,
       env: this.infra.env,
       sensitiveEnv: this.infra.sensitiveEnv,
@@ -117,15 +134,11 @@ export class MissionManager {
     const { identifier, action } = manifest;
     const missionId = identifier;
 
+    const provider = this.getProvider();
     this.observer.onLog?.(
-      LogLevel.INFO,
+      LogLevel.DEBUG,
       'MISSION',
-      `🚀 Initializing '${action}' mission for ${identifier}...`,
-    );
-
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
+      `Provider resolved: ${provider.type}`,
     );
 
     // 1. Resolve naming authority components for the provider
@@ -151,19 +164,44 @@ export class MissionManager {
 
     // ADR 0018: Explicitly set tempDir to workDir for log isolation
     manifest.tempDir = mCtx.workspaceName;
-    const workDir = provider.resolveWorkDir(mCtx.workspaceName);
-    manifest.workDir = workDir;
-    manifest.tempDir = workDir;
+    const hostWorkDir = provider.resolveWorkDir(mCtx.workspaceName);
+    const capsuleWorkDir = (provider as any).resolveCapsuleWorkDir
+      ? (provider as any).resolveCapsuleWorkDir(mCtx.workspaceName)
+      : hostWorkDir;
+
+    manifest.workDir = capsuleWorkDir;
+    manifest.tempDir = capsuleWorkDir;
 
     // --- STARFLEET FAST-PATH ---
     if ((provider as any).launchMission) {
+      this.observer.onLog?.(
+        LogLevel.DEBUG,
+        'MISSION',
+        'Entering Starfleet fast-path',
+      );
       this.observer.onProgress?.(
         'PHASE 1',
         '🚀 Launching Starfleet Mission...',
       );
-      const exitCode = await (provider as any).launchMission(manifest);
+      const exitCode = await (provider as any).launchMission(
+        manifest,
+        hostWorkDir,
+      );
       if (exitCode === 0) {
         this.stationRegistry.saveReceipt(provider.getStationReceipt());
+
+        if (action === 'chat') {
+          this.observer.onLog?.(
+            LogLevel.DEBUG,
+            'MISSION',
+            'Interactive mission ready (Auto-attach disabled for debugging)',
+          );
+          // Give tmux a moment to spawn the session
+          // await new Promise((resolve) => setTimeout(resolve, 1200));
+          // const attachCode = await this.attach({ identifier, action });
+          // return { missionId: manifest.identifier, exitCode: attachCode };
+        }
+
         return { missionId: manifest.identifier, exitCode: 0 };
       }
       throw new Error(`Starfleet launch failed for ${manifest.identifier}`);
@@ -289,10 +327,7 @@ export class MissionManager {
    * Drops into a raw interactive shell on the hardware host.
    */
   async stationShell(): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     await provider.ensureReady();
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -306,10 +341,7 @@ export class MissionManager {
    * Drops into a raw interactive shell inside a mission capsule.
    */
   async missionShell(options: { identifier: string }): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -337,12 +369,9 @@ export class MissionManager {
     identifier: string;
     action?: string | undefined;
   }): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
 
-    // 1. Calculate canonical session name via Provider Hook
+    // 1. Calculate canonical names
     const {
       repoSlug,
       idSlug,
@@ -360,13 +389,29 @@ export class MissionManager {
       `👋 Resuming existing '${action}' for ${idSlug}...`,
     );
 
+    const containerName = provider.resolveContainerName(
+      repoSlug,
+      idSlug,
+      action,
+    );
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
-    // 2. Try direct attach to canonical name first
-    const directRes = await provider.attach(sessionName);
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'ATTACH',
+      `Direct attach attempt: container=${containerName}, session=${sessionName}`,
+    );
+
+    // 2. Try direct attach to canonical container first
+    const directRes = await provider.attach(containerName, sessionName);
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'ATTACH',
+      `Direct attach result: ${directRes}`,
+    );
     if (directRes === 0) return 0;
 
-    // 3. Fallback: List Capsules to find the right one (Legacy support)
+    // 3. Fallback: List Capsules to find the right one (Legacy support or slug mismatch)
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -379,8 +424,8 @@ export class MissionManager {
       return 1;
     }
 
-    // 4. Attach via Provider
-    return provider.attach(target);
+    // 4. Attach via Provider with identified container
+    return provider.attach(target, sessionName);
   }
 
   /**
@@ -390,10 +435,7 @@ export class MissionManager {
     identifier: string;
     command: string;
   }): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const { branchName, repoSlug, idSlug } = resolveMissionContext(
       options.identifier,
       this.projectCtx.repoName,
@@ -418,10 +460,7 @@ export class MissionManager {
   async jettison(options: JettisonOptions): Promise<MissionResult> {
     const { identifier, action } = options;
 
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
 
     // Delegate ALL cleanup (sessions, worktrees, and secrets) to the provider.
     // This ensures surgical cleanup for specific actions vs. full mission cleanup.
@@ -434,10 +473,7 @@ export class MissionManager {
    * Removes idle mission capsules.
    */
   async reap(options: ReapOptions): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const capsules = await provider.listCapsules();
     const threshold = options.threshold || 24; // 24 hours default
 
@@ -461,10 +497,7 @@ export class MissionManager {
    * Retrieves logs from a mission capsule.
    */
   async getLogs(options: GetLogsOptions): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 

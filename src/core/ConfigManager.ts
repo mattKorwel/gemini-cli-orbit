@@ -114,7 +114,8 @@ export function getRepoConfig(
     projectId: process.env.GCLI_ORBIT_PROJECT_ID || config.projectId,
     zone: process.env.GCLI_ORBIT_ZONE || config.zone,
     instanceName: process.env.GCLI_ORBIT_INSTANCE_NAME || config.instanceName,
-    backendType: (process.env.GCLI_ORBIT_BACKEND as any) || config.backendType,
+    networkAccessType:
+      (process.env.GCLI_ORBIT_BACKEND as any) || config.networkAccessType,
     imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
     providerType:
       (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
@@ -186,7 +187,7 @@ export function resolveContextBundles(
       instanceName: config.instanceName,
       stationName: config.stationName,
       providerType: config.providerType,
-      backendType: config.backendType,
+      networkAccessType: config.networkAccessType,
       imageUri: config.imageUri,
       upstreamRepo: config.upstreamRepo,
       manageNetworking: config.manageNetworking,

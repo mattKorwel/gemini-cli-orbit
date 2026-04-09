@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { type IGitExecutor } from '../core/interfaces.js';
-import { GitExecutor } from '../core/executors/GitExecutor.js';
+import { type StationSupervisorConfig } from '../core/types.js';
 
 export interface WorkspaceOptions {
   workDir: string;
@@ -20,14 +20,24 @@ export interface WorkspaceOptions {
  * WorkspaceManager: Manages Git repositories on the Station host.
  */
 export class WorkspaceManager {
-  constructor(private readonly git: IGitExecutor) {}
+  constructor(
+    private readonly git: IGitExecutor,
+    private readonly config: StationSupervisorConfig,
+  ) {}
 
   /**
    * Ensures a workspace exists, is initialized, and is on the correct branch.
    */
   async ensureWorkspace(options: WorkspaceOptions): Promise<void> {
-    const { workDir, upstreamUrl, branchName, mirrorPath } = options;
+    const {
+      workDir,
+      upstreamUrl,
+      branchName,
+      mirrorPath: manifestMirror,
+    } = options;
     const targetDir = path.resolve(workDir);
+
+    const mirrorPath = manifestMirror || this.config.storage.mirrorPath;
 
     if (process.env.GCLI_ORBIT_SKIP_GIT === '1') {
       if (!fs.existsSync(targetDir))
@@ -36,7 +46,7 @@ export class WorkspaceManager {
     }
 
     // 1. Check if it's already a git repo
-    const isRepo = this.git.revParse(targetDir, ['--is-inside-work-tree'], {
+    this.git.revParse(targetDir, ['--is-inside-work-tree'], {
       quiet: true,
     });
     const res = this.git.init(targetDir);
@@ -61,7 +71,10 @@ export class WorkspaceManager {
     }
 
     // 2. Fetch and Checkout
+    console.info(`[ORCH]    - Fetching branch '${branchName}' from origin...`);
     this.git.fetch(targetDir, 'origin', branchName);
+
+    console.info(`[ORCH]    - Checking out branch '${branchName}'...`);
     this.git.checkout(targetDir, branchName);
   }
 }

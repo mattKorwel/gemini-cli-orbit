@@ -15,7 +15,7 @@ export const mockSsh = {
     .mockResolvedValue({ status: 0, stdout: '', stderr: '' }),
   syncPath: vi.fn().mockResolvedValue(0),
   getMagicRemote: vi.fn().mockReturnValue('user@host'),
-  getBackendType: vi.fn().mockReturnValue('direct-internal'),
+  getNetworkAccessType: vi.fn().mockReturnValue('direct-internal'),
   setOverrideHost: vi.fn(),
   attachToTmux: vi.fn().mockResolvedValue(0),
 };

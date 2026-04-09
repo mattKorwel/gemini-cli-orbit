@@ -19,7 +19,15 @@
     "infra:push": "tsx scripts/infra-push.ts",
     "build:bundle": "tsx tools/bundle.ts",
     "build:typecheck": "npm run typecheck",
-    "build": "npm run build:typecheck && npm run build:bundle"
+    "build": "npm run build:typecheck && npm run build:bundle",
+    "mission:dev": "node bundle/orbit-cli.js mission start --schematic starfleet-local",
+    "mission:attach": "node bundle/orbit-cli.js mission attach --verbose",
+    "mission:validate": "tsx scripts/mission-validate.ts",
+    "station:dev": "node bundle/orbit-server.js --config=configs/station.local.json",
+    "station:shell": "node bundle/orbit-cli.js station shell",
+    "station:smoke": "tsx scripts/station-smoke.ts",
+    "station:supervisor": "node bundle/orbit-cli.js station exec sudo docker exec -it station-supervisor /bin/bash",
+    "starfleet:local": "mkdir -p orbit-test-run/workspaces orbit-test-run/main orbit-test-run/manifests bin && tsx scripts/start-local-supervisor.ts"
   },
   "lint-staged": {
     "*.{js,ts}": [
