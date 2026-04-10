@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Local Docker Starfleet Provider Behavior > rebuilds and validates the local worker image when gemini is missing 1`] = `
+{
+  "history": [
+    "[<cwd>] docker image inspect orbit-worker:local",
+    "[<cwd>] docker run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orbit-worker:local --version",
+    "[<tmp>/repo] docker build -t orbit-worker:local -f orbit-worker.Dockerfile .",
+    "[<cwd>] docker run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orbit-worker:local --version",
+  ],
+  "ok": true,
+}
+`;

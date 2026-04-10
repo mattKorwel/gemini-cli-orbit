@@ -79,6 +79,9 @@ export interface InfrastructureSpec {
   allowDevUpdates?: boolean | undefined;
   schematic?: string | undefined;
   verbose?: boolean | undefined;
+  gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none' | undefined;
+  geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none' | undefined;
+  repoToken?: string | undefined;
   env?: Record<string, string> | undefined;
   sensitiveEnv?: Record<string, string> | undefined;
 }
@@ -151,13 +154,15 @@ export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
 
 /**
  * Standardized paths INSIDE the Agent Capsule (Docker Container)
- * Aligned with orbit-capsule.Dockerfile
+ * ADR 0023: Unified Container Root
  */
-export const CAPSULE_WORKDIR = '/home/node/dev/main';
-export const CAPSULE_CLI_ROOT = '/usr/local/lib/gemini-cli';
-export const CAPSULE_BUNDLE_PATH = `${CAPSULE_CLI_ROOT}/bundle`;
-export const STATION_BUNDLE_PATH = `${BUNDLE_PATH}/station.js`;
-export const CAPSULE_MANIFEST_PATH = '/home/node/.orbit-manifest.json';
+export const CAPSULE_ROOT = '/orbit';
+export const CAPSULE_WORKDIR = `${CAPSULE_ROOT}/workspaces`;
+export const CAPSULE_BUNDLE_PATH = `${CAPSULE_ROOT}/bundle`;
+export const STATION_BUNDLE_PATH = `${CAPSULE_BUNDLE_PATH}/station.js`;
+export const CAPSULE_MANIFEST_PATH = `${CAPSULE_ROOT}/manifest.json`;
+export const SUPERVISOR_ENTRYPOINT_SOURCE_PATH =
+  '/tmp/orbit-starfleet-entrypoint.sh';
 export const LOCAL_MANIFEST_NAME = '.orbit-manifest.json';
 
 /**
@@ -182,7 +187,18 @@ export const GLOBAL_ACCOUNTS_FILE = path.join(
   GLOBAL_GEMINI_DIR,
   'google_accounts.json',
 );
-export const GLOBAL_GH_CONFIG = path.join(os.homedir(), '.config/gh/hosts.yml');
+export function getGlobalGhConfigDir(): string {
+  if (process.env.GH_CONFIG_DIR) {
+    return process.env.GH_CONFIG_DIR;
+  }
+  if (process.platform === 'win32' && process.env.APPDATA) {
+    return path.join(process.env.APPDATA, 'GitHub CLI');
+  }
+  return path.join(os.homedir(), '.config', 'gh');
+}
+export const GLOBAL_GH_CONFIG_DIR = getGlobalGhConfigDir();
+export const GLOBAL_GH_CONFIG = path.join(GLOBAL_GH_CONFIG_DIR, 'hosts.yml');
+export const GLOBAL_HOME_ENV_FILE = path.join(os.homedir(), '.env');
 
 export const GLOBAL_ORBIT_DIR = path.join(GLOBAL_GEMINI_DIR, 'orbit');
 export const GLOBAL_SETTINGS_PATH = path.join(
@@ -260,6 +276,9 @@ export interface OrbitConfig extends InfrastructureSpec {
   isDev?: boolean | undefined;
   env?: Record<string, string> | undefined;
   sensitiveEnv?: Record<string, string> | undefined;
+  gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none' | undefined;
+  geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none' | undefined;
+  repoToken?: string | undefined;
   manageNetworking?: boolean | undefined;
   allowDevUpdates?: boolean | undefined;
   tempDir?: string | undefined;

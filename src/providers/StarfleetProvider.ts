@@ -21,10 +21,10 @@ import {
 } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
 import {
-  BUNDLE_PATH,
-  ORBIT_ROOT,
-  STATION_BUNDLE_PATH,
+  CAPSULE_ROOT,
+  CAPSULE_BUNDLE_PATH,
   ORBIT_STATE_PATH,
+  ORBIT_ROOT,
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
@@ -72,7 +72,7 @@ export abstract class StarfleetProvider extends BaseProvider {
   abstract verifyIgnition(observer: OrbitObserver): Promise<boolean>;
 
   override resolveWorkspaceName(repoSlug: string, idSlug: string): string {
-    return `${repoSlug}-${idSlug}`;
+    return `${repoSlug}/${idSlug}`;
   }
 
   override resolveSessionName(
@@ -82,7 +82,7 @@ export abstract class StarfleetProvider extends BaseProvider {
   ): string {
     const parts = [repoSlug, idSlug];
     if (action !== 'chat') parts.push(action);
-    return parts.join('-');
+    return parts.join('/');
   }
 
   override resolveContainerName(
@@ -116,14 +116,14 @@ export abstract class StarfleetProvider extends BaseProvider {
    * Returns the primary root for Orbit data inside the capsule.
    */
   resolveCapsuleOrbitRoot(): string {
-    return '/mnt/disks/data';
+    return CAPSULE_ROOT;
   }
 
   /**
    * Returns the absolute workspace path inside the capsule.
    */
   resolveCapsuleWorkDir(workspaceName: string): string {
-    return path.join(
+    return path.posix.join(
       this.resolveCapsuleOrbitRoot(),
       'workspaces',
       workspaceName,
@@ -131,26 +131,26 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
 
   resolveBundlePath(): string {
-    return BUNDLE_PATH;
+    return CAPSULE_BUNDLE_PATH;
   }
 
   resolveWorkerPath(): string {
-    return STATION_BUNDLE_PATH;
+    return path.posix.join(CAPSULE_BUNDLE_PATH, 'station.js');
   }
 
   resolveProjectConfigDir(): string {
-    return path.join(this.resolveOrbitRoot(), '.gemini');
+    return path.posix.join(this.resolveOrbitRoot(), '.gemini');
   }
 
   resolvePolicyPath(): string {
-    return path.join(
+    return path.posix.join(
       this.resolveCapsuleOrbitRoot(),
       '.gemini/policies/workspace-policy.toml',
     );
   }
 
   resolveMirrorPath(): string {
-    return path.join(this.resolveOrbitRoot(), 'main');
+    return path.posix.join(this.resolveOrbitRoot(), 'main');
   }
 
   resolveGlobalConfigDir(): string {

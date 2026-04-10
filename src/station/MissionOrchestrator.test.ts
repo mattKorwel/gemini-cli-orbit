@@ -9,7 +9,6 @@ import { StarfleetHarness } from '../test/StarfleetHarness.js';
 import { MissionOrchestrator } from './MissionOrchestrator.js';
 import { WorkspaceManager } from './WorkspaceManager.js';
 import { DockerManager } from './DockerManager.js';
-import { ProcessManager } from '../core/ProcessManager.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 import path from 'node:path';
@@ -23,9 +22,8 @@ describe('MissionOrchestrator (Behavioral)', () => {
     harness = new StarfleetHarness('MissionOrchestrator');
     harness.stub('git', '');
     harness.stub('docker', '');
-    harness.activate();
 
-    const pm = new ProcessManager({}, false);
+    const pm = harness.createProcessManager();
     const git = new GitExecutor(pm);
     const dockerExec = new DockerExecutor(pm, 'docker');
 

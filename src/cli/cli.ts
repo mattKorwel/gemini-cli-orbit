@@ -164,6 +164,8 @@ export async function dispatch(argv: string[]): Promise<number> {
         action,
         args: args.extra || [],
         dev: args.dev,
+        gitAuthMode: args.gitAuth,
+        geminiAuthMode: args.geminiAuth,
       });
       const result = await sdk.startMission(manifest);
       args.exitCode = result.exitCode;
@@ -382,11 +384,22 @@ QUICK START:
                 y2.positional('identifier', {
                   type: 'string',
                   description: 'PR or Issue ID',
-                }).positional('action', {
-                  type: 'string',
-                  default: 'chat',
-                  description: 'Verb: chat, fix, review, implement',
-                });
+                })
+                  .positional('action', {
+                    type: 'string',
+                    default: 'chat',
+                    description: 'Verb: chat, fix, review, implement',
+                  })
+                  .option('git-auth', {
+                    type: 'string',
+                    choices: ['host-gh-config', 'repo-token', 'none'],
+                    description: 'Override Git auth mode for this mission',
+                  })
+                  .option('gemini-auth', {
+                    type: 'string',
+                    choices: ['env-chain', 'accounts-file', 'none'],
+                    description: 'Override Gemini auth mode for this mission',
+                  });
                 return applyGlobalOptions(
                   applyHardwareOptions(applyContextOptions(y2)),
                 );

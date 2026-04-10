@@ -38,6 +38,7 @@ echo "🧠 Launching Station Supervisor..."
 docker run -d \
   --name ${CONTAINER_NAME} \
   --restart always \
+  --group-add $(stat -c '%g' /var/run/docker.sock) \
   -p 8080:8080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v ${DATA_DISK}:${DATA_DISK} \

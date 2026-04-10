@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import path from 'node:path';
 import {
   type IDockerExecutor,
   type IProcessManager,
@@ -15,7 +14,9 @@ export interface MissionContainerOptions {
   id: string;
   name: string;
   image?: string;
+  user?: string;
   env?: Record<string, string>;
+  mounts?: { host: string; capsule: string; readonly?: boolean }[];
   command?: string;
   isDev?: boolean;
 }
@@ -35,51 +36,54 @@ export class DockerManager {
    * Spawns a new mission capsule container.
    */
   async runMissionContainer(options: MissionContainerOptions): Promise<void> {
-    const { id, name, image, env, isDev } = options;
+    const { name, image, user, env, mounts, isDev } = options;
 
     const containerName = name;
-
-    // 1. Blueprint-Driven Mounts (ADR 0015)
-    const mounts: any[] = [...this.config.mounts];
-
-    // 2. Mission-Specific Dynamic Mounts
-    mounts.push({
-      host: path.join(this.config.manifestRoot, `orbit-manifest-${id}.json`),
-      capsule: '/home/node/.orbit-manifest.json',
-    });
-
-    // Shadow Mode: Override the baked-in mission logic with the supervisor's synced bundle
-    if (isDev) {
-      mounts.push({
-        host: path.join(this.config.storage.workspacesRoot, '..', 'bin'),
-        capsule: this.config.bundlePath,
-      });
-    }
 
     // Use the provided image, or the hydrated default worker image
     const missionImage = image || this.config.workerImage;
 
     // ADR 0022: Idempotent Spawning
-    // If a container with this name already exists (e.g. from a crashed session),
-    // we must remove it first to avoid conflicts.
     const cleanupCmd = this.docker.remove(containerName);
     await this.pm.run(cleanupCmd.bin, cleanupCmd.args, {
       ...cleanupCmd.options,
       quiet: true,
     });
 
+    const finalMounts = [...(mounts || this.config.mounts)];
+
+    // Shadow Mode: Override the baked-in mission logic with the supervisor's live bundle
+    if (isDev) {
+      const bundleAreaHost = this.config.areas?.bundle?.host;
+      const bundleHost = bundleAreaHost || this.config.bundlePath;
+      if (
+        bundleHost &&
+        !finalMounts.find((mount) => mount.capsule === '/orbit/bundle')
+      ) {
+        finalMounts.push({
+          host: bundleHost,
+          capsule: '/orbit/bundle',
+          readonly: true,
+        });
+      }
+    }
+
     const cmd = this.docker.run(missionImage, options.command, {
       name: containerName,
-      mounts,
+      user,
+      mounts: finalMounts,
       env: {
         ...env,
         GCLI_TRUST: '1',
       },
       label: 'orbit-mission',
-      interactive: true, // Always enable for TTY support
+      interactive: true,
     } as any);
 
-    console.log(`[DOCKER] 🏃 Spawning mission container: ${containerName}`);
+    console.info(
+      `[DOCKER] 🏃 Running Command: ${cmd.bin} ${cmd.args.join(' ')}`,
+    );
+    console.info(`[DOCKER]    - Options: ${JSON.stringify(cmd.options)}`);
 
     const res = await this.pm.run(cmd.bin, cmd.args, cmd.options);
     if (res.status !== 0) {

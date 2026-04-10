@@ -27,6 +27,8 @@ export const MissionManifestSchema = z.object({
   verbose: z.boolean().optional(), // Whether to enable detailed logging
   tempDir: z.string().optional(), // Root directory for temporary logs
   isDev: z.boolean().optional(), // Whether to use Shadow Mode (Dev override)
+  gitAuthMode: z.enum(['host-gh-config', 'repo-token', 'none']).optional(),
+  geminiAuthMode: z.enum(['env-chain', 'accounts-file', 'none']).optional(),
   env: z.record(z.string(), z.string()).optional(), // Standard environment variables
   sensitiveEnv: z.record(z.string(), z.string()).optional(), // Secret environment variables (not logged)
 });
@@ -120,6 +122,8 @@ export interface MissionOptions {
   action: string;
   args?: string[];
   dev?: boolean;
+  gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none';
+  geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none';
 }
 
 /**
@@ -320,6 +324,13 @@ export interface MountPoint {
   readonly?: boolean;
 }
 
+export interface StationPathArea {
+  host: string;
+  capsule: string;
+  readonly?: boolean;
+  kind?: 'dir' | 'file';
+}
+
 /**
  * Configuration for the Station Supervisor (Server).
  * Used for early hydration to eliminate inline defaults.
@@ -327,7 +338,9 @@ export interface MountPoint {
 export interface StationSupervisorConfig {
   port: number;
   workerImage: string;
+  workerUser?: string;
   manifestRoot: string;
+  hostRoot?: string;
   isUnlocked: boolean;
   useSudo: boolean;
   storage: {
@@ -335,6 +348,7 @@ export interface StationSupervisorConfig {
     mirrorPath: string;
   };
   mounts: MountPoint[];
+  areas?: Record<string, StationPathArea>;
   bundlePath: string;
 }
 

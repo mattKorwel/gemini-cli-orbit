@@ -43,17 +43,36 @@ export class IdentityTransport implements StationTransport {
       `📡 Direct Attach: Joining mission '${containerName}' on local Docker...`,
     );
 
+    const term = process.env.TERM || 'xterm-256color';
+    const colorTerm = process.env.COLORTERM || 'truecolor';
+    const forceColor = process.env.FORCE_COLOR || '3';
+
     // In identity mode, we run docker exec directly.
     // Use runSync to ensure the terminal (TTY) is passed through correctly.
     const res = this.pm.runSync(
       'docker',
-      ['exec', '-it', containerName, 'tmux', 'attach', '-t', sessionName],
+      [
+        'exec',
+        '-it',
+        '-e',
+        `TERM=${term}`,
+        '-e',
+        `COLORTERM=${colorTerm}`,
+        '-e',
+        `FORCE_COLOR=${forceColor}`,
+        containerName,
+        'tmux',
+        'attach',
+        '-t',
+        sessionName,
+      ],
       {
         interactive: true,
         env: {
           ...process.env,
-          TERM: process.env.TERM || 'xterm-256color',
-          COLORTERM: process.env.COLORTERM || 'truecolor',
+          TERM: term,
+          COLORTERM: colorTerm,
+          FORCE_COLOR: forceColor,
         },
       },
     );

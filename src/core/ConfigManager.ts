@@ -119,6 +119,10 @@ export function getRepoConfig(
     imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
     providerType:
       (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
+    gitAuthMode: (process.env.GCLI_ORBIT_GIT_AUTH as any) || config.gitAuthMode,
+    geminiAuthMode:
+      (process.env.GCLI_ORBIT_GEMINI_AUTH as any) || config.geminiAuthMode,
+    repoToken: process.env.GCLI_ORBIT_REPO_TOKEN || config.repoToken,
     verbose:
       process.env.GCLI_ORBIT_VERBOSE !== undefined
         ? process.env.GCLI_ORBIT_VERBOSE === '1'
@@ -204,6 +208,9 @@ export function resolveContextBundles(
       reaperIdleLimit: config.reaperIdleLimit,
       dnsSuffix: config.dnsSuffix,
       userSuffix: config.userSuffix,
+      gitAuthMode: config.gitAuthMode,
+      geminiAuthMode: config.geminiAuthMode,
+      repoToken: config.repoToken,
     },
   };
 }

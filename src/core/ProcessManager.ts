@@ -74,7 +74,7 @@ export class ProcessManager implements IProcessManager {
     return {
       status: res.status ?? (res.error ? 1 : 0),
       stdout: res.stdout?.toString() || '',
-      stderr: res.stderr?.toString() || '',
+      stderr: res.stderr?.toString() || res.error?.message || '',
     };
   }
 

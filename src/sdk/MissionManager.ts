@@ -5,7 +5,6 @@
  */
 
 import path from 'node:path';
-import os from 'node:os';
 import fs from 'node:fs';
 import {
   type MissionManifest,
@@ -28,12 +27,17 @@ import {
   type ProjectContext,
   type InfrastructureSpec,
   UPSTREAM_REPO_URL,
+  GLOBAL_GH_CONFIG,
 } from '../core/Constants.js';
 import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
 import { type StarfleetClient } from './StarfleetClient.js';
+import { loadAuthEnvChain } from '../utils/EnvResolver.js';
+
+type GitAuthMode = 'host-gh-config' | 'repo-token' | 'none';
+type GeminiAuthMode = 'env-chain' | 'accounts-file' | 'none';
 
 /**
  * MissionManager: Orchestrates the mission lifecycle across different providers.
@@ -97,6 +101,12 @@ export class MissionManager {
     const policyPath = provider.resolvePolicyPath();
 
     const isDev = options.dev ?? false;
+    const gitAuthMode =
+      options.gitAuthMode ||
+      this.infra.gitAuthMode ||
+      (provider.type === 'local-docker' ? 'host-gh-config' : 'repo-token');
+    const geminiAuthMode =
+      options.geminiAuthMode || this.infra.geminiAuthMode || 'env-chain';
 
     const upstreamUrl =
       this.infra.upstreamUrl ||
@@ -121,10 +131,72 @@ export class MissionManager {
       bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
       isDev: isDev,
+      gitAuthMode,
+      geminiAuthMode,
       tempDir: workDir,
       env: this.infra.env,
       sensitiveEnv: this.infra.sensitiveEnv,
     };
+  }
+
+  private resolveMissionSensitiveEnv(manifest: MissionManifest): {
+    sensitiveEnv: Record<string, string>;
+    warnings: string[];
+  } {
+    const authEnv = loadAuthEnvChain(this.projectCtx.repoRoot);
+    const sensitiveEnv: Record<string, string> = {
+      ...((this.infra as any).sensitiveEnv || {}),
+      ...(manifest.sensitiveEnv || {}),
+    };
+    const warnings: string[] = [];
+    const gitAuthMode = (manifest.gitAuthMode || 'repo-token') as GitAuthMode;
+    const geminiAuthMode = (manifest.geminiAuthMode ||
+      'env-chain') as GeminiAuthMode;
+
+    if (geminiAuthMode === 'env-chain') {
+      const geminiApiKey =
+        process.env.GEMINI_API_KEY ||
+        authEnv.GEMINI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        authEnv.GOOGLE_API_KEY;
+      if (geminiApiKey) {
+        sensitiveEnv.GEMINI_API_KEY = geminiApiKey;
+      }
+    }
+
+    if (gitAuthMode === 'repo-token') {
+      const repoToken =
+        this.infra.repoToken ||
+        process.env.GCLI_ORBIT_REPO_TOKEN ||
+        authEnv.GCLI_ORBIT_REPO_TOKEN ||
+        process.env.WORKSPACE_GH_TOKEN ||
+        authEnv.WORKSPACE_GH_TOKEN;
+
+      if (repoToken) {
+        sensitiveEnv.GH_TOKEN = repoToken;
+        sensitiveEnv.GITHUB_TOKEN = repoToken;
+      } else if (fs.existsSync(GLOBAL_GH_CONFIG)) {
+        try {
+          const content = fs.readFileSync(GLOBAL_GH_CONFIG, 'utf8');
+          const match = content.match(/oauth_token:\s+([^\s\n]+)/);
+          if (match && match[1]) {
+            sensitiveEnv.GH_TOKEN = match[1];
+            sensitiveEnv.GITHUB_TOKEN = match[1];
+            warnings.push(
+              'Using global GitHub auth fallback for this mission. Configure repoToken or GCLI_ORBIT_REPO_TOKEN to reduce scope.',
+            );
+          }
+        } catch (e: any) {
+          this.observer.onLog?.(
+            LogLevel.DEBUG,
+            'AUTH',
+            `Failed to read GH config: ${e.message}`,
+          );
+        }
+      }
+    }
+
+    return { sensitiveEnv, warnings };
   }
 
   /**
@@ -171,6 +243,13 @@ export class MissionManager {
 
     manifest.workDir = capsuleWorkDir;
     manifest.tempDir = capsuleWorkDir;
+    const { sensitiveEnv: resolvedSensitiveEnv, warnings: authWarnings } =
+      this.resolveMissionSensitiveEnv(manifest);
+    manifest.sensitiveEnv = resolvedSensitiveEnv;
+
+    authWarnings.forEach((warning) => {
+      this.observer.onLog?.(LogLevel.WARN, 'AUTH', warning);
+    });
 
     // --- PHASE 1: IGNITION ---
     this.observer.onLog?.(
@@ -235,47 +314,11 @@ export class MissionManager {
       sudo: true,
     });
 
-    // 5. Mission Preparation (Hardware/Container Layer)
-    // Gather sensitive credentials from local environment
-    const sensitiveEnv: Record<string, string> = {};
-    const creds = ['GH_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY'];
-    creds.forEach((key) => {
-      if (process.env[key]) sensitiveEnv[key] = process.env[key]!;
-    });
-
-    // ADR: Also try to extract token from gh hosts.yml if not in env
-    if (!sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
-      try {
-        const ghConfigPath = path.join(os.homedir(), '.config/gh/hosts.yml');
-        if (fs.existsSync(ghConfigPath)) {
-          const content = fs.readFileSync(ghConfigPath, 'utf8');
-          // Match any token under github.com or other hosts
-          const match = content.match(/oauth_token:\s+([^\s\n]+)/);
-          if (match && match[1]) {
-            sensitiveEnv.GH_TOKEN = match[1];
-          }
-        }
-      } catch (e: any) {
-        this.observer.onLog?.(
-          LogLevel.DEBUG,
-          'MISSION',
-          `Failed to read GH config: ${e.message}`,
-        );
-      }
-    }
-
-    // Ensure at least one is set if found
-    if (sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
-      sensitiveEnv.GITHUB_TOKEN = sensitiveEnv.GH_TOKEN;
-    } else if (sensitiveEnv.GITHUB_TOKEN && !sensitiveEnv.GH_TOKEN) {
-      sensitiveEnv.GH_TOKEN = sensitiveEnv.GITHUB_TOKEN;
-    }
-
     await provider.prepareMissionWorkspace(mCtx, {
       ...this.infra,
       sensitiveEnv: {
         ...(this.infra as any).sensitiveEnv,
-        ...sensitiveEnv,
+        ...resolvedSensitiveEnv,
       },
     } as any);
 
@@ -296,8 +339,8 @@ export class MissionManager {
       interactive: false,
       manifest,
       stream: true, // Provide real-time feedback during initialization
-      env: sensitiveEnv,
-      sensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
+      env: resolvedSensitiveEnv,
+      sensitiveEnv: resolvedSensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
     });
 
     if (startRes.status !== 0) {

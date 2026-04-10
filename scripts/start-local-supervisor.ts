@@ -8,6 +8,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
+import {
+  findDockerSocket,
+  findAvailablePort,
+} from '../src/utils/DockerUtils.js';
 
 /**
  * Dynamically generates a local station config with absolute paths
@@ -23,10 +27,17 @@ async function main() {
   );
 
   const baseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const selectedPort = await findAvailablePort(8080);
+  const ghConfigDir =
+    process.env.GH_CONFIG_DIR ||
+    (process.platform === 'win32' && process.env.APPDATA
+      ? path.join(process.env.APPDATA, 'GitHub CLI')
+      : path.join(home, '.config', 'gh'));
 
-  // Hydrate absolute paths for Docker stability on Mac
+  // Hydrate absolute paths for Docker stability
   const hydratedConfig = {
     ...baseConfig,
+    port: selectedPort,
     manifestRoot: path.resolve(root, baseConfig.manifestRoot),
     storage: {
       workspacesRoot: path.resolve(root, baseConfig.storage.workspacesRoot),
@@ -35,14 +46,16 @@ async function main() {
     mounts: [
       ...baseConfig.mounts.map((m: any) => ({
         ...m,
-        host: path.resolve(root, m.host),
+        host:
+          m.host === '~/.gemini'
+            ? path.join(home, '.gemini')
+            : m.host === '~/.config/gh'
+              ? ghConfigDir
+              : m.host.startsWith('./')
+                ? path.resolve(root, m.host)
+                : m.host,
       })),
       // CRITICAL: Mount local user config for trust and settings
-      {
-        host: path.join(home, '.gemini'),
-        capsule: '/home/node/.gemini',
-        readonly: true,
-      },
       // Mount the local bundle so mission telemetry and hooks work
       {
         host: path.join(root, 'bundle'),
@@ -54,9 +67,15 @@ async function main() {
 
   fs.writeFileSync(dynamicConfigPath, JSON.stringify(hydratedConfig, null, 2));
 
-  console.log(`🚀 Starting Local Supervisor with dynamic config...`);
+  console.log(`🚀 Starting Local Supervisor (Host Mode)...`);
+  console.log(`   - API:     http://localhost:${selectedPort}`);
   console.log(`   - Data:    ${hydratedConfig.storage.workspacesRoot}`);
-  console.log(`   - Config:  ~/.gemini -> /home/node/.gemini (ro)`);
+
+  const isWin = os.platform() === 'win32';
+  const dockerSocket = findDockerSocket();
+  const dockerHost = isWin
+    ? `npipe:////./pipe/docker_engine`
+    : `unix://${dockerSocket}`;
 
   const server = spawn(
     'node',
@@ -65,7 +84,7 @@ async function main() {
       stdio: 'inherit',
       env: {
         ...process.env,
-        DOCKER_HOST: `unix://${home}/.docker/run/docker.sock`,
+        DOCKER_HOST: dockerHost,
       },
     },
   );

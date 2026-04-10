@@ -232,6 +232,7 @@ export interface IDockerExecutor {
     command?: string,
     options?: IRunOptions & {
       name?: string;
+      user?: string | undefined;
       mounts?: { host: string; capsule: string; readonly?: boolean }[];
       label?: string;
     },

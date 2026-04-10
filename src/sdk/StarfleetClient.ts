@@ -30,7 +30,14 @@ export interface LaunchResponse {
  * StarfleetClient: The thin client that talks to the Station Supervisor API.
  */
 export class StarfleetClient {
-  constructor(private readonly baseUrl: string = 'http://localhost:8080') {}
+  constructor(private baseUrl: string = 'http://localhost:8080') {}
+
+  /**
+   * Updates the base URL (useful for dynamic port mapping).
+   */
+  public setBaseUrl(url: string): void {
+    this.baseUrl = url;
+  }
 
   private async request<T>(
     path: string,
@@ -92,9 +99,15 @@ export class StarfleetClient {
 
   async ping(): Promise<boolean> {
     try {
-      const res = await this.request<{ status: string }>('/health', 'GET');
+      const res = await this.request<{ status: string; semaphore?: string }>(
+        '/health',
+        'GET',
+      );
+      if (res.semaphore) {
+        console.log(`[CLIENT] 🚩 Semaphore: ${res.semaphore}`);
+      }
       return res.status === 'OK';
-    } catch {
+    } catch (_e) {
       return false;
     }
   }

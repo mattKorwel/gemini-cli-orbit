@@ -111,6 +111,41 @@ export function createTaskRunner(
 
         taskStatus.state = 'running';
         const logStream = fs.createWriteStream(taskStatus.logPath);
+        let activePipes = 0;
+        let processClosed = false;
+        let logClosed = false;
+
+        const maybeCloseLogStream = () => {
+          if (logClosed || !processClosed || activePipes > 0) {
+            return;
+          }
+          logClosed = true;
+          logStream.end();
+        };
+
+        const pipeTaskStream = (
+          stream: NodeJS.ReadableStream | null | undefined,
+        ) => {
+          if (!stream) {
+            return;
+          }
+
+          activePipes += 1;
+          let settled = false;
+          const settle = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            activePipes = Math.max(0, activePipes - 1);
+            maybeCloseLogStream();
+          };
+
+          stream.pipe(logStream, { end: false });
+          stream.once('end', settle);
+          stream.once('close', settle);
+          stream.once('error', settle);
+        };
 
         const proc = pm.spawn('sh', ['-c', task.cmd], {
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -123,8 +158,8 @@ export function createTaskRunner(
           return;
         }
 
-        if (proc.stdout) proc.stdout.pipe(logStream);
-        if (proc.stderr) proc.stderr.pipe(logStream);
+        pipeTaskStream(proc.stdout);
+        pipeTaskStream(proc.stderr);
 
         const timer = setTimeout(() => {
           if (runningTasks.has(task.id)) {
@@ -138,6 +173,8 @@ export function createTaskRunner(
         runningTasks.set(task.id, { proc, timer, lastReadPos: 0 });
 
         proc.on('close', (code) => {
+          processClosed = true;
+          maybeCloseLogStream();
           if (taskStatus.state === 'running') {
             clearTimeout(timer);
             taskStatus.exitCode = code ?? 0;

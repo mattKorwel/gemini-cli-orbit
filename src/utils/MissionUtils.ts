@@ -97,10 +97,10 @@ export function resolveMissionContext(
 
 /**
  * Unified loader for Mission Manifests.
- * Prioritizes local worktree manifest, then global capsule manifest.
+ * Prioritizes global capsule manifest, then local worktree manifest.
  */
 export function getMissionManifest(): MissionManifest {
-  // 1. Try global capsule manifest (/home/node/.orbit-manifest.json)
+  // 1. Try global capsule manifest (/orbit/manifest.json)
   // ADR 0018: This is the primary manifest location for Agent Capsules
   if (fs.existsSync(CAPSULE_MANIFEST_PATH)) {
     try {

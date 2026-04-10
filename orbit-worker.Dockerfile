@@ -41,13 +41,18 @@ RUN npm install -g --no-fund --no-audit @google/gemini-cli@nightly \
   && rm -rf /root/.npm/_cacache
 
 # 6. Orbit Mission Logic (Baked-in for Starfleet reliability)
-WORKDIR /usr/local/lib/orbit/bundle
+RUN mkdir -p /orbit/bundle /orbit/workspaces /orbit/manifests
+WORKDIR /orbit/bundle
 COPY bundle/mission.js .
 COPY bundle/hooks.js .
 COPY bundle/station.js .
 COPY starfleet-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/starfleet-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/starfleet-entrypoint.sh && \
+    chmod +x /usr/local/bin/starfleet-entrypoint.sh
+
+# Ensure the non-root user can write to workspaces and manifests
+RUN chown -R node:node /orbit
 
 USER node
-WORKDIR /mnt/disks/data
+WORKDIR /orbit
 CMD ["/usr/local/bin/starfleet-entrypoint.sh", "chat"]

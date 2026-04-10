@@ -7,16 +7,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { ProcessManager } from '../core/ProcessManager.js';
+import { TestProcessManager } from './TestProcessManager.js';
 
 /**
  * StarfleetHarness: A specialized test harness for verifying Starfleet activities.
- * Provides a real filesystem sandbox and intercepts spawned commands via PATH hijacking.
+ * Provides a real filesystem sandbox and intercepts spawned commands via a scoped binDir.
  */
 export class StarfleetHarness {
   public readonly root: string;
   public readonly bin: string;
   public readonly historyFile: string;
-  private readonly originalPath: string | undefined;
 
   constructor(suiteName: string) {
     this.root = fs.mkdtempSync(
@@ -24,37 +25,52 @@ export class StarfleetHarness {
     );
     this.bin = path.join(this.root, 'bin');
     this.historyFile = path.join(this.root, 'spawn-history.log');
-    this.originalPath = process.env.PATH;
 
     fs.mkdirSync(this.bin, { recursive: true });
     fs.writeFileSync(this.historyFile, '');
   }
 
   /**
-   * Hijacks a binary by creating a stub in the sandbox bin directory.
+   * Creates a programmable binary stub in the sandbox bin directory.
+   */
+  public stubScript(binName: string, scriptBody: string): void {
+    const programPath = path.join(this.bin, `${binName}.js`);
+    const sharedPreamble = `
+const fs = require('node:fs');
+const path = require('node:path');
+const historyFile = ${JSON.stringify(this.historyFile)};
+const root = ${JSON.stringify(this.root)};
+const args = process.argv.slice(2);
+const cwd = process.cwd();
+fs.appendFileSync(historyFile, \`[\${cwd}] ${binName} \${args.join(' ')}\\n\`);
+`;
+    fs.writeFileSync(programPath, `${sharedPreamble}\n${scriptBody}\n`, {
+      mode: 0o755,
+    });
+  }
+
+  /**
+   * Creates a simple success/failure stub.
    */
   public stub(binName: string, response = '', exitCode = 0): void {
-    const stubPath = path.join(this.bin, binName);
-    const content = `#!/bin/sh
-echo "[$(pwd)] ${binName} $@" >> "${this.historyFile}"
-${response ? `echo "${response}"` : ''}
-exit ${exitCode}
-`;
-    fs.writeFileSync(stubPath, content, { mode: 0o755 });
+    this.stubScript(
+      binName,
+      `
+if (${JSON.stringify(response)}) {
+  process.stdout.write(${JSON.stringify(response)} + '\\n');
+}
+process.exit(${exitCode});
+`,
+    );
   }
 
   /**
-   * Activates the harness by modifying the process PATH.
+   * Returns a ProcessManager that resolves binaries from the harness bin dir first.
    */
-  public activate(): void {
-    process.env.PATH = `${this.bin}${path.delimiter}${this.originalPath}`;
-  }
-
-  /**
-   * Deactivates the harness by restoring the process PATH.
-   */
-  public deactivate(): void {
-    process.env.PATH = this.originalPath;
+  public createProcessManager(useSudo = false): TestProcessManager {
+    return new TestProcessManager(new ProcessManager({}, useSudo), {
+      binDir: this.bin,
+    });
   }
 
   /**
@@ -72,9 +88,29 @@ exit ${exitCode}
    * Cleans up the sandbox.
    */
   public cleanup(): void {
-    this.deactivate();
+    if (!fs.existsSync(this.root)) {
+      return;
+    }
+
+    const deadline = Date.now() + 3000;
+    let lastError: unknown;
+    while (Date.now() < deadline) {
+      try {
+        fs.rmSync(this.root, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 50,
+        });
+        return;
+      } catch (error) {
+        lastError = error;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+      }
+    }
+
     if (fs.existsSync(this.root)) {
-      fs.rmSync(this.root, { recursive: true, force: true });
+      throw lastError;
     }
   }
 

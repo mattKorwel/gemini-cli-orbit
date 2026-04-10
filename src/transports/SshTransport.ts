@@ -95,16 +95,20 @@ export class SshTransport implements StationTransport {
     sessionName: string,
   ): Promise<number> {
     const target = this.getConnectionHandle();
+    const term = process.env.TERM || 'xterm-256color';
+    const colorTerm = process.env.COLORTERM || 'truecolor';
+    const forceColor = process.env.FORCE_COLOR || '3';
 
     // Starfleet standard: persistent tmux session named after the action or mission
-    const attachCmd = `sudo docker exec -it ${containerName} tmux attach -t ${sessionName} || sudo docker exec -it ${containerName} /bin/bash`;
+    const attachCmd = `sudo docker exec -it -e TERM=${term} -e COLORTERM=${colorTerm} -e FORCE_COLOR=${forceColor} ${containerName} tmux attach -t ${sessionName} || sudo docker exec -it -e TERM=${term} -e COLORTERM=${colorTerm} -e FORCE_COLOR=${forceColor} ${containerName} /bin/bash`;
 
     const res = this.pm.runSync('ssh', ['-t', target, attachCmd], {
       interactive: true,
       env: {
         ...process.env,
-        TERM: process.env.TERM || 'xterm-256color',
-        COLORTERM: process.env.COLORTERM || 'truecolor',
+        TERM: term,
+        COLORTERM: colorTerm,
+        FORCE_COLOR: forceColor,
       },
     });
     return res.status;

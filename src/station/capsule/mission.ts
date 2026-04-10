@@ -20,11 +20,14 @@ import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
 
+const CAPSULE_GEMINI_BIN = '/usr/local/share/npm-global/bin/gemini';
+
 /**
  * Entrypoint for Orbit missions inside the capsule.
  * Pure Workflow Dispatcher: Assumes environment is already prepared by the Supervisor.
  */
 export async function main(pm: IProcessManager = new ProcessManager()) {
+  console.log('🚩 SEMAPHORE: Mission Logic Version - v7');
   const manifest = getMissionManifest();
   logger.setVerbose(manifest.verbose === true);
   const { identifier, action, workDir, policyPath } = manifest;
@@ -72,11 +75,17 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
       geminiOpts.resume = 'latest';
     }
 
-    const geminiCmd = GeminiExecutor.create('gemini', geminiOpts);
+    const geminiBin = fs.existsSync(CAPSULE_GEMINI_BIN)
+      ? CAPSULE_GEMINI_BIN
+      : 'gemini';
+    const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
 
     if (res.status !== 0) {
-      console.error(`❌ Gemini failed with status ${res.status}`);
+      const details = res.stderr?.trim() || res.stdout?.trim();
+      console.error(
+        `❌ Gemini failed with status ${res.status}${details ? `: ${details}` : ''}`,
+      );
     } else {
       console.info('✅ Interactive session complete.');
     }

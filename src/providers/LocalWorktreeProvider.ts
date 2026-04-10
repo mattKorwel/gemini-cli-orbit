@@ -15,7 +15,6 @@ import {
 import {
   type ProjectContext,
   type InfrastructureSpec,
-  LOCAL_BUNDLE_PATH,
   LOCAL_MANIFEST_NAME,
 } from '../core/Constants.js';
 import { type Command } from '../core/executors/types.js';

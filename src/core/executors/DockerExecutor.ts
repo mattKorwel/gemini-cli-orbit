@@ -21,6 +21,42 @@ export class DockerExecutor implements IDockerExecutor {
     private readonly binName: string = 'docker',
   ) {}
 
+  public ps(options: { filter?: string; format?: string } = {}): Command {
+    const args: string[] = [];
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+    args.push('ps');
+    if (options.format) args.push('--format', options.format);
+    if (options.filter) args.push('--filter', options.filter);
+
+    return {
+      bin: this.binName,
+      args,
+      options: {
+        env: { DOCKER_HOST: process.env.DOCKER_HOST || '' },
+      },
+    };
+  }
+
+  public logs(container: string, options: { tail?: string } = {}): Command {
+    const args: string[] = [];
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+    args.push('logs');
+    if (options.tail) args.push('--tail', options.tail);
+    args.push(container);
+
+    return {
+      bin: this.binName,
+      args,
+      options: {
+        env: { DOCKER_HOST: process.env.DOCKER_HOST || '' },
+      },
+    };
+  }
+
   public exec(
     container: string,
     innerCommand: string[],
@@ -38,16 +74,44 @@ export class DockerExecutor implements IDockerExecutor {
     command?: string,
     options: IRunOptions & {
       name?: string;
+      user?: string | undefined;
       mounts?: { host: string; capsule: string; readonly?: boolean }[];
       label?: string;
+      groupAdd?: string;
+      ports?: { host: number; container: number }[];
     } = {},
   ): Command {
-    const { name, mounts, label, env, quiet, interactive } = options;
-    const args = ['run', '-d'];
+    const {
+      name,
+      user,
+      mounts,
+      label,
+      env,
+      quiet,
+      interactive,
+      groupAdd,
+      ports,
+    } = options;
+    const args: string[] = [];
+
+    // Explicitly add Host flag if environment variable exists
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+
+    args.push('run', '-d');
 
     if (interactive) args.push('-it');
     if (name) args.push('--name', name);
+    if (user) args.push('--user', user);
     if (label) args.push('--label', label);
+    if (groupAdd) args.push('--group-add', groupAdd);
+
+    if (ports) {
+      ports.forEach((p) => {
+        args.push('-p', `${p.host}:${p.container}`);
+      });
+    }
 
     if (mounts) {
       mounts.forEach((m) => {
@@ -66,7 +130,12 @@ export class DockerExecutor implements IDockerExecutor {
       args.push('/bin/bash', '-c', command);
     }
 
-    const runOptions: IRunOptions = {};
+    const runOptions: IRunOptions = {
+      env: {
+        ...options.env,
+        DOCKER_HOST: process.env.DOCKER_HOST || '',
+      },
+    };
     if (quiet !== undefined) {
       runOptions.quiet = quiet;
     }
@@ -79,16 +148,34 @@ export class DockerExecutor implements IDockerExecutor {
   }
 
   public stop(container: string): Command {
+    const args: string[] = [];
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+    args.push('stop', container);
+
     return {
       bin: this.binName,
-      args: ['stop', container],
+      args,
+      options: {
+        env: { DOCKER_HOST: process.env.DOCKER_HOST || '' },
+      },
     };
   }
 
   public remove(container: string): Command {
+    const args: string[] = [];
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+    args.push('rm', '-f', container);
+
     return {
       bin: this.binName,
-      args: ['rm', '-f', container],
+      args,
+      options: {
+        env: { DOCKER_HOST: process.env.DOCKER_HOST || '' },
+      },
     };
   }
 
@@ -99,12 +186,23 @@ export class DockerExecutor implements IDockerExecutor {
     innerCommand: string[],
     options: IRunOptions & { bin?: string } = {},
   ): Command {
-    const args = ['exec'];
+    const args: string[] = [];
+
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+
+    args.push('exec');
     if (options.interactive) args.push('-it');
 
-    if (options.env) {
-      Object.entries(options.env).forEach(([k, v]) => {
-        args.push('-e', `${k}=${v}`);
+    const env = {
+      ...options.env,
+      DOCKER_HOST: process.env.DOCKER_HOST || '',
+    };
+
+    if (env) {
+      Object.entries(env).forEach(([k, v]) => {
+        if (v) args.push('-e', `${k}=${v}`);
       });
     }
 
@@ -114,6 +212,7 @@ export class DockerExecutor implements IDockerExecutor {
     delete runOptions.env;
     delete (runOptions as any).bin;
     delete runOptions.cwd;
+    runOptions.env = env;
 
     return {
       bin: options.bin || 'docker',

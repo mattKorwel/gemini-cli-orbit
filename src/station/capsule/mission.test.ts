@@ -109,4 +109,43 @@ describe('mission entrypoint', () => {
       mockPm,
     );
   });
+
+  it('should launch chat with the capsule gemini binary and interactive cwd', async () => {
+    (MissionUtils.getMissionManifest as any).mockReturnValue({
+      identifier: 'chat-123',
+      action: 'chat',
+      workDir: '/orbit/workspaces/test-repo/chat-123',
+      policyPath: '/orbit/.gemini/policies/workspace-policy.toml',
+    });
+    (fs.existsSync as any).mockImplementation((target: string) => {
+      return target === '/usr/local/share/npm-global/bin/gemini';
+    });
+    (fs.readdirSync as any).mockReturnValue([]);
+    mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+
+    await main(mockPm);
+
+    const [bin, args, options] = mockPm.runSync.mock.calls[0];
+    expect(bin).toBe('/usr/local/share/npm-global/bin/gemini');
+    expect(args).toEqual([
+      '--approval-mode',
+      'plan',
+      '--policy',
+      '/orbit/.gemini/policies/workspace-policy.toml',
+    ]);
+    expect(options).toEqual(
+      expect.objectContaining({
+        interactive: true,
+        env: expect.objectContaining({
+          GEMINI_AUTO_UPDATE: '0',
+          GCLI_ORBIT_MISSION_ID: 'chat-123',
+          GCLI_ORBIT_ACTION: 'chat',
+          GCLI_TRUST: '1',
+        }),
+      }),
+    );
+    expect(String(options.cwd).replaceAll('\\', '/')).toContain(
+      '/orbit/workspaces/test-repo/chat-123',
+    );
+  });
 });
