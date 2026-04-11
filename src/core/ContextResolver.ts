@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import os from 'node:os';
 import {
   type OrbitContext,
   type InfrastructureSpec,
@@ -232,7 +233,14 @@ export class ContextResolver {
       if (infra.projectId && infra.projectId !== 'local') {
         infra.workspacesDir = '/mnt/disks/data/workspaces';
       } else if (infra.providerType === 'local-docker') {
-        infra.workspacesDir = './orbit-test-run/workspaces';
+        infra.workspacesDir = path.join(
+          os.homedir(),
+          '.gemini',
+          'orbit',
+          'stations',
+          'local',
+          'workspaces',
+        );
       } else {
         const primaryRoot = getPrimaryRepoRoot(project.repoRoot);
         infra.workspacesDir = path.resolve(

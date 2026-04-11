@@ -258,10 +258,7 @@ process.exit(0);
             .replaceAll('\\', '/')
             .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
             .replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo')
-            .replaceAll(
-              orbitRoot.replaceAll('\\', '/'),
-              '<tmp>/repo/orbit-test-run',
-            )
+            .replaceAll(orbitRoot.replaceAll('\\', '/'), '<tmp>/orbit-root')
             .replaceAll(devShmRoot.replaceAll('\\', '/'), '<tmp>/dev-shm')
             .replace(/orbit-cli-123-\d+/g, 'orbit-cli-123-<ts>')
             .replace(

@@ -44,4 +44,3 @@ All data lives on the persistent data disk mounted at `/mnt/disks/data`.
 - `/mnt/disks/data/main`: The bare repository mirror.
 - `/mnt/disks/data/workspaces/`: Individual mission worktrees.
 - `/mnt/disks/data/bundle/`: The active Orbit extension code.
-- `/mnt/disks/data/project-configs/`: Your project's `.gemini` configuration.

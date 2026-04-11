@@ -21,7 +21,7 @@ bypassing Docker.
 ### 🚀 Launch & Attach
 
 ```bash
-node bundle/orbit-cli.js mission start test-local-worktree --action chat
+node bundle/orbit-cli.js mission start test-local-worktree --local --action chat
 ```
 
 _Expected:_ A new tmux session should open immediately. You should be in a new

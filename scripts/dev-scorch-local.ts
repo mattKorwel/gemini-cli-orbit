@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -32,8 +33,13 @@ function removeIfPresent(name: string): void {
 }
 
 function main() {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const orbitRoot = path.join(root, 'orbit-test-run');
+  const orbitRoot = path.join(
+    os.homedir(),
+    '.gemini',
+    'orbit',
+    'stations',
+    'local',
+  );
   const removeImages = process.argv.includes('--images');
 
   removeIfPresent('station-supervisor-local');

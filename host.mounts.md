@@ -7,12 +7,12 @@ mode.
 
 _Provider: `LocalDockerStarfleetProvider.ts`_
 
-| Host Path (Source)     | Container Path (Target) | Notes                   |
-| :--------------------- | :---------------------- | :---------------------- |
-| `/var/run/docker.sock` | `/var/run/docker.sock`  | Universal DooD path     |
-| `./orbit-test-run`     | `/orbit`                | Main storage root       |
-| `~/.gemini`            | `/home/node/.gemini`    | Auth/Config inheritance |
-| `./bundle`             | `/orbit/bundle`         | Logic inheritance (ro)  |
+| Host Path (Source)               | Container Path (Target) | Notes                   |
+| :------------------------------- | :---------------------- | :---------------------- |
+| `/var/run/docker.sock`           | `/var/run/docker.sock`  | Universal DooD path     |
+| `~/.gemini/orbit/stations/local` | `/orbit`                | Main storage root       |
+| `~/.gemini`                      | `/home/node/.gemini`    | Auth/Config inheritance |
+| `./bundle`                       | `/orbit/bundle`         | Logic inheritance (ro)  |
 
 ## 2. Mission Capsule (Worker Spawning)
 
@@ -21,8 +21,8 @@ _Orchestrator: `MissionOrchestrator.ts`_
 **Static Mounts (from `configs/station.local.json`):** | Host Path (Source) |
 Container Path (Target) | Notes | | :------------------------- |
 :---------------------------- | :-------------------------- | |
-`./orbit-test-run` | `/orbit` | Provides workspaces & manifests | | `~/.gemini`
-| `/orbit/home/.gemini` | Trust inheritance |
+`~/.gemini/orbit/stations/local` | `/orbit` | Provides workspaces & manifests |
+| `~/.gemini` | `/orbit/home/.gemini` | Trust inheritance |
 
 **Dynamic Mounts (Assembly in Orchestrator):** | Host Path (Source) | Container
 Path (Target) | Notes | |

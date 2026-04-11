@@ -59,7 +59,9 @@ describe('ContextResolver', () => {
     expect(context.infra.providerType).toBe('local-docker');
     expect(context.infra.projectId).toBe('local');
     expect(context.infra.zone).toBe('localhost');
-    expect(context.infra.workspacesDir).toBe('./orbit-test-run/workspaces');
+    expect(context.infra.workspacesDir).toBe(
+      './orbit-git-worktrees/workspaces',
+    );
   });
 
   it('should resolve to GCE when a projectId is provided via flags', async () => {

@@ -55,9 +55,13 @@ async function main() {
     process.exit(launch.status ?? 1);
   }
 
+  const os = await import('node:os');
   const statePath = path.join(
-    root,
-    'orbit-test-run',
+    os.homedir(),
+    '.gemini',
+    'orbit',
+    'stations',
+    'local',
     'workspaces',
     'gemini-cli-orbit',
     missionId,
