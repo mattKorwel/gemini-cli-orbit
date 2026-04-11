@@ -164,6 +164,7 @@ export const CAPSULE_MANIFEST_PATH = `${CAPSULE_ROOT}/manifest.json`;
 export const SUPERVISOR_ENTRYPOINT_SOURCE_PATH =
   '/tmp/orbit-starfleet-entrypoint.sh';
 export const LOCAL_MANIFEST_NAME = '.orbit-manifest.json';
+export const LOCAL_MANIFEST_ENV = 'GCLI_ORBIT_MANIFEST_PATH';
 
 /**
  * Standardized paths on the LOCAL machine (The Extension itself)
@@ -201,6 +202,7 @@ export const GLOBAL_GH_CONFIG = path.join(GLOBAL_GH_CONFIG_DIR, 'hosts.yml');
 export const GLOBAL_HOME_ENV_FILE = path.join(os.homedir(), '.env');
 
 export const GLOBAL_ORBIT_DIR = path.join(GLOBAL_GEMINI_DIR, 'orbit');
+export const GLOBAL_MANIFESTS_DIR = path.join(GLOBAL_ORBIT_DIR, 'manifests');
 export const GLOBAL_SETTINGS_PATH = path.join(
   GLOBAL_ORBIT_DIR,
   'settings.json',
@@ -229,6 +231,11 @@ export function getLocalSettingsPath(repoRoot: string): string {
 
 export function getOrbitLogPath(repoRoot: string): string {
   return path.join(getProjectOrbitDir(repoRoot), 'orbit.log');
+}
+
+export function getLocalMissionManifestPath(sessionName: string): string {
+  const safeName = sessionName.replace(/[^a-zA-Z0-9\-_/]/g, '-');
+  return path.join(GLOBAL_MANIFESTS_DIR, 'local', `${safeName}.json`);
 }
 
 /**

@@ -20,6 +20,7 @@ import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { logger } from '../core/Logger.js';
 import {
   CAPSULE_MANIFEST_PATH,
+  LOCAL_MANIFEST_ENV,
   LOCAL_MANIFEST_NAME,
 } from '../core/Constants.js';
 import { getMissionManifest } from '../utils/MissionUtils.js';
@@ -110,7 +111,7 @@ Usage:
   node station.js [action]
 
 Note: Mission parameters are read from the mounted manifest file:
-  ${CAPSULE_MANIFEST_PATH} or ${LOCAL_MANIFEST_NAME}
+  ${CAPSULE_MANIFEST_PATH}, $${LOCAL_MANIFEST_ENV}, or ${LOCAL_MANIFEST_NAME}
 
 Actions (determined by manifest.action if omitted):
   start          Unified mission start (init + hooks + run)

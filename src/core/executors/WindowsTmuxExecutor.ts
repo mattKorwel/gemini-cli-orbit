@@ -3,6 +3,7 @@
  * Copyright 2026 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+import { spawnSync } from 'node:child_process';
 import { type Command } from './types.js';
 import { type IRunOptions } from '../interfaces.js';
 import { TmuxExecutor } from './TmuxExecutor.js';
@@ -12,9 +13,36 @@ import { TmuxExecutor } from './TmuxExecutor.js';
  * Uses Base64 EncodedCommand to bypass PowerShell profile/policy issues.
  */
 export class WindowsTmuxExecutor extends TmuxExecutor {
+  private static resolvedBin: string | null = null;
+
   protected override get bin(): string {
-    const baseBin = process.env.ORBIT_TMUX_BIN || 'tmux';
-    return baseBin.endsWith('.exe') ? baseBin : `${baseBin}.exe`;
+    if (process.env.ORBIT_TMUX_BIN) {
+      const baseBin = process.env.ORBIT_TMUX_BIN;
+      return baseBin.endsWith('.exe') ? baseBin : `${baseBin}.exe`;
+    }
+
+    if (WindowsTmuxExecutor.resolvedBin) {
+      return WindowsTmuxExecutor.resolvedBin;
+    }
+
+    const lookup = spawnSync('where.exe', ['tmux'], {
+      stdio: 'pipe',
+      shell: false,
+    });
+    if (lookup.status === 0) {
+      const resolved = lookup.stdout
+        .toString()
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean);
+      if (resolved) {
+        WindowsTmuxExecutor.resolvedBin = resolved;
+        return resolved;
+      }
+    }
+
+    WindowsTmuxExecutor.resolvedBin = 'tmux.exe';
+    return WindowsTmuxExecutor.resolvedBin;
   }
 
   private normalizeSession(name: string): string {
@@ -44,6 +72,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
   ): Command {
     const { cwd, env } = options;
     const binName = this.bin;
+    const tmuxBin = this.shellQuote(binName);
     const normalizedSession = this.normalizeSession(sessionName);
 
     // 1. Tmux Style Definitions
@@ -55,7 +84,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
       'set-option status-right "#[fg=colour244] #H "',
       'set-option window-status-current-format "#[fg=colour45,bold] #S "',
     ]
-      .map((s) => `${binName} ${s}`)
+      .map((s) => `${tmuxBin} ${s}`)
       .join('; ');
 
     // 2. PWSH Tip
@@ -99,6 +128,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
     options: IRunOptions & { detached?: boolean } = {},
   ): Command {
     const { detached = true, cwd, env } = options;
+    const binName = this.bin;
     const normalizedSession = this.normalizeSession(sessionName);
 
     const tmuxArgs = [
@@ -133,7 +163,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
     delete runOptions.env;
 
     return {
-      bin: this.bin,
+      bin: binName,
       args: tmuxArgs,
       options: runOptions,
     };

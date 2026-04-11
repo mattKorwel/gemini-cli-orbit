@@ -289,6 +289,39 @@ export class MissionManager {
       throw new Error(`Station ignition failed for ${manifest.identifier}`);
     }
 
+    // --- LOCAL WORKTREE DIRECT PATH ---
+    if (provider.type === 'local-worktree' && (provider as any).launchMission) {
+      this.observer.onLog?.(
+        LogLevel.DEBUG,
+        'MISSION',
+        'Entering local-worktree direct path',
+      );
+
+      await provider.ensureReady();
+      this.stationRegistry.saveReceipt(provider.getStationReceipt());
+      await provider.prepareMissionWorkspace(mCtx, {
+        ...this.infra,
+        sensitiveEnv: {
+          ...(this.infra as any).sensitiveEnv,
+          ...resolvedSensitiveEnv,
+        },
+      } as any);
+
+      this.observer.onProgress?.(
+        'PHASE 1',
+        '🚀 Launching local worktree mission...',
+      );
+
+      const exitCode = await (provider as any).launchMission(manifest);
+      if (exitCode !== 0) {
+        throw new Error(
+          `Local worktree launch failed for ${manifest.identifier}`,
+        );
+      }
+
+      return { missionId: manifest.identifier, exitCode: 0 };
+    }
+
     // --- STARFLEET FAST-PATH ---
     if ((provider as any).launchMission) {
       this.observer.onLog?.(
