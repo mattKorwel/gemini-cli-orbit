@@ -106,9 +106,11 @@ export class DependencyManager implements IDependencyManager {
   }
 
   private findInPath(bin: string): string | null {
-    const res = this.processManager.runSync('which', [bin], { quiet: true });
+    const cmd = process.platform === 'win32' ? 'where' : 'which';
+    const res = this.processManager.runSync(cmd, [bin], { quiet: true });
     if (res.status === 0 && res.stdout.trim()) {
-      return res.stdout.trim();
+      // 'where' can return multiple lines, take the first one
+      return res.stdout.split('\n')[0].trim();
     }
     return null;
   }

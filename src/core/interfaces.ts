@@ -253,6 +253,11 @@ export interface ITmuxExecutor {
     options?: IRunOptions & { detached?: boolean },
   ): import('./executors/types.js').Command;
   attach(sessionName: string): IProcessResult;
+  hasSession(sessionName: string): import('./executors/types.js').Command;
+  killSession(sessionName: string): import('./executors/types.js').Command;
+  listSessions(): import('./executors/types.js').Command;
+  capturePane(sessionName: string): import('./executors/types.js').Command;
+  version(): import('./executors/types.js').Command;
 }
 
 export interface INodeExecutor {

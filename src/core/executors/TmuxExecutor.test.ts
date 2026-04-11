@@ -8,10 +8,12 @@ import { describe, it, expect } from 'vitest';
 import { TmuxExecutor } from './TmuxExecutor.js';
 
 describe('TmuxExecutor', () => {
+  const expectedBin = process.platform === 'win32' ? 'tmux.exe' : 'tmux';
+
   it('wraps a command correctly', () => {
     process.env.TERM_PROGRAM = 'myterm';
     const cmd = TmuxExecutor.wrap('mysession', 'ls -la', { cwd: '/tmp' });
-    expect(cmd.bin).toBe('tmux');
+    expect(cmd.bin).toBe(expectedBin);
     expect(cmd.args).toContain('mysession');
     const lastArg = cmd.args[cmd.args.length - 1];
     expect(lastArg).toContain("cd '/tmp'");
@@ -42,7 +44,7 @@ describe('TmuxExecutor', () => {
       cwd: '/tmp',
       env: { VERBOSE: '1' },
     });
-    expect(cmd.bin).toBe('tmux');
+    expect(cmd.bin).toBe(expectedBin);
     expect(cmd.args).toContain('mysession');
     const lastArg = cmd.args[cmd.args.length - 1];
     expect(lastArg).toContain('🛰️  ORBIT');

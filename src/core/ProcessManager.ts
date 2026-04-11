@@ -62,7 +62,7 @@ export class ProcessManager implements IProcessManager {
       stdio:
         mergedOptions.stdio ||
         (interactive ? 'inherit' : quiet ? 'pipe' : 'inherit'),
-      shell: false,
+      shell: mergedOptions.shell ?? false,
     };
 
     if (process.env.GCLI_ORBIT_VERBOSE === '1') {
@@ -115,6 +115,7 @@ export class ProcessManager implements IProcessManager {
         env: { ...process.env, ...env },
         stdio: mergedOptions.stdio || 'inherit',
         detached: mergedOptions.detached || false,
+        shell: mergedOptions.shell ?? false,
       });
 
       child.on('error', (err) => {

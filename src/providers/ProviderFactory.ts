@@ -28,6 +28,7 @@ import {
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { WindowsTmuxExecutor } from '../core/executors/WindowsTmuxExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { SshExecutor } from '../core/executors/SshExecutor.js';
@@ -39,10 +40,15 @@ export class ProviderFactory implements IProviderFactory {
   ) {}
 
   static getExecutors(pm: IProcessManager): IExecutors {
+    const tmux =
+      process.platform === 'win32'
+        ? new WindowsTmuxExecutor(pm)
+        : new TmuxExecutor(pm);
+
     return {
       git: new GitExecutor(pm),
       docker: new DockerExecutor(pm),
-      tmux: new TmuxExecutor(pm),
+      tmux,
       node: new NodeExecutor(pm),
       gemini: new GeminiExecutor(pm),
       ssh: new SshExecutor(pm),

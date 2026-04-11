@@ -2,8 +2,6 @@
 
 exports[`Mission Bridge Behavior > records the known-good GCE launch command stream 1`] = `
 [
-  "sync: git rev-parse --abbrev-ref HEAD",
-  "sync: git rev-parse --abbrev-ref HEAD",
   "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c ls -d /mnt/disks/data/main",
   "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c grep -q "/mnt/disks/data" /proc/mounts",
   "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo mkdir -p /mnt/disks/data/bundle /mnt/disks/data/workspaces /mnt/disks/data/main /mnt/disks/data/.gemini /mnt/disks/data/gemini-cli-config/.gemini /mnt/disks/data/tmp && sudo chown -R 1000:1000 /mnt/disks/data && sudo chmod -R 2775 /mnt/disks/data",

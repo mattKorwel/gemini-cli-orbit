@@ -47,6 +47,7 @@ import { ProcessManager } from '../core/ProcessManager.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { WindowsTmuxExecutor } from '../core/executors/WindowsTmuxExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { ShellIntegration } from '../utils/ShellIntegration.js';
@@ -106,10 +107,15 @@ export class OrbitSDK implements IOrbitSDK {
 
     // Foundation
     const processManager = new ProcessManager();
+    const tmux =
+      process.platform === 'win32'
+        ? new WindowsTmuxExecutor(processManager)
+        : new TmuxExecutor(processManager);
+
     const executors: IExecutors = {
       git: new GitExecutor(processManager),
       docker: new DockerExecutor(processManager),
-      tmux: new TmuxExecutor(processManager),
+      tmux,
       node: new NodeExecutor(processManager),
       gemini: new GeminiExecutor(processManager),
       ssh: new SshExecutor(processManager),

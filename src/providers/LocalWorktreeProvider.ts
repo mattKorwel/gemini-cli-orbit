@@ -60,7 +60,8 @@ export class LocalWorktreeProvider extends BaseProvider {
   }
 
   private hasTmux(): boolean {
-    const res = this.pm.runSync('which', ['tmux'], { quiet: true });
+    const bin = process.platform === 'win32' ? 'where' : 'which';
+    const res = this.pm.runSync(bin, ['tmux'], { quiet: true });
     return res.status === 0;
   }
 
@@ -157,7 +158,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       COLORTERM: 'truecolor',
       FORCE_COLOR: '3',
       TERM: 'xterm-256color',
-      TERM_PROGRAM: process.env.TERM_PROGRAM || 'iTerm.app',
+      TERM_PROGRAM: process.env.TERM_PROGRAM || 'Orbit',
       GEMINI_AUTO_UPDATE: '0',
     };
 
@@ -171,7 +172,12 @@ export class LocalWorktreeProvider extends BaseProvider {
     }
 
     if (typeof command === 'string') {
-      return this.pm.runSync('/bin/bash', ['-c', command], runOptions);
+      const isWin = process.platform === 'win32';
+      const shellBin = isWin ? 'powershell.exe' : '/bin/bash';
+      const shellArgs = isWin
+        ? ['-NoProfile', '-Command', command]
+        : ['-c', command];
+      return this.pm.runSync(shellBin, shellArgs, runOptions);
     }
 
     return this.pm.runSync(command.bin, command.args, runOptions);
@@ -299,11 +305,80 @@ export class LocalWorktreeProvider extends BaseProvider {
     return 0;
   }
 
+  /**
+   * STARFLEET FAST-PATH: Local worktrees run directly on the host.
+   */
+  async launchMission(manifest: any): Promise<number> {
+    const {
+      sessionName,
+      workDir,
+      bundleDir,
+      identifier,
+      action,
+      env = {},
+    } = manifest;
+
+    console.info(
+      `[LOCAL] 🚀 Launching mission '${identifier}' via local tmux...`,
+    );
+
+    // 1. Prepare Environment
+    const missionEnv = {
+      ...env,
+      GCLI_ORBIT_MISSION_ID: identifier,
+      GCLI_ORBIT_ACTION: action,
+      GCLI_ORBIT_SESSION_NAME: sessionName,
+      GCLI_ORBIT_BUNDLE_DIR: bundleDir,
+      GCLI_TRUST: '1',
+    };
+
+    // 2. Prepare Command
+    const workerScript = path.join(bundleDir, 'mission.js');
+    const cmd = this.executors.tmux.wrapMission(
+      sessionName,
+      `node ${this.shellQuote(workerScript)}`,
+      {
+        cwd: workDir,
+        env: missionEnv,
+      },
+    );
+
+    // 3. Launch in Background
+    this.pm.spawn(cmd.bin, cmd.args, cmd.options);
+
+    console.info(
+      `[LOCAL] ✨ Mission worker launched in session: ${sessionName}`,
+    );
+    return 0;
+  }
+
   async attach(name: string, _sessionName?: string): Promise<number> {
-    if (!this.hasTmux()) throw new Error('tmux is required for local missions');
-    return this.pm.runSync('tmux', ['attach-session', '-t', name], {
-      stdio: 'inherit',
-    }).status;
+    const target = _sessionName || name;
+
+    if (!this.hasTmux()) {
+      const parts = target.split('/');
+      const workspaceName =
+        parts.length >= 2 ? `${parts[0]}/${parts[1]}` : name;
+      const wtPath = path.join(this.workspacesDir, workspaceName);
+
+      console.log(
+        `\n💡 tmux not found. Dropping into a standard shell at ${wtPath}`,
+      );
+      const isWin = process.platform === 'win32';
+      const shellBin =
+        process.env.SHELL || (isWin ? 'powershell.exe' : '/bin/bash');
+      const shellArgs = isWin && !process.env.SHELL ? ['-NoProfile'] : [];
+
+      // If the worktree doesn't exist, fallback to repo root
+      const cwd = this.fs.existsSync(wtPath)
+        ? wtPath
+        : this.projectCtx.repoRoot;
+
+      return this.pm.runSync(shellBin, shellArgs, { cwd, stdio: 'inherit' })
+        .status;
+    }
+
+    return this.executors.tmux.attach(target).status;
   }
 
   async runCapsule(): Promise<number> {
@@ -313,9 +388,8 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async stopCapsule(name: string): Promise<number> {
     if (!this.hasTmux()) return 0;
-    return this.pm.runSync('tmux', ['kill-session', '-t', name], {
-      quiet: true,
-    }).status;
+    const cmd = this.executors.tmux.killSession(name);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options).status;
   }
 
   async removeCapsule(name: string): Promise<number> {
@@ -329,11 +403,19 @@ export class LocalWorktreeProvider extends BaseProvider {
     );
 
     // 2. Kill associated tmux sessions
-    // Cleanup session if name represents a session-safe slug
     if (this.hasTmux()) {
-      // Try both slashed and hyphenated names for robust cleanup
-      this.pm.runSync('tmux', ['kill-session', '-t', name.replace(/\//g, '-')]);
-      this.pm.runSync('tmux', ['kill-session', '-t', name]);
+      // Robust: try both names to ensure cleanup on Windows vs Linux
+      const slashed = name;
+      const hyphenated = name.replace(/\//g, '-');
+
+      this.pm.runSync('tmux', ['kill-session', '-t', hyphenated], {
+        quiet: true,
+      });
+      if (slashed !== hyphenated) {
+        this.pm.runSync('tmux', ['kill-session', '-t', slashed], {
+          quiet: true,
+        });
+      }
     }
     return 0;
   }
@@ -349,9 +431,8 @@ export class LocalWorktreeProvider extends BaseProvider {
       // 1. Surgical Action Cleanup: Kill only the specific session
       const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
       if (this.hasTmux()) {
-        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
-          quiet: true,
-        });
+        const cmd = this.executors.tmux.killSession(sessionName);
+        this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       }
 
       // ADR: If this was the LAST session for this mission ID, clean up the worktree too
@@ -359,9 +440,12 @@ export class LocalWorktreeProvider extends BaseProvider {
         const missionPrefix = `${repoSlug}/${idSlug}/`; // Trailing slash is key
         const chatSession = this.resolveSessionName(repoSlug, idSlug, 'chat'); // The non-action one
 
-        const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
-          quiet: true,
-        });
+        const listCmd = this.executors.tmux.listSessions();
+        const listRes = this.pm.runSync(
+          listCmd.bin,
+          listCmd.args,
+          listCmd.options,
+        );
         const sessions = (listRes.stdout || '').split('\n');
 
         const otherSessions = sessions.filter((s) => {
@@ -385,9 +469,8 @@ export class LocalWorktreeProvider extends BaseProvider {
       const actions = ['chat', 'fix', 'review', 'implement'];
       for (const act of actions) {
         const sessionName = this.resolveSessionName(repoSlug, idSlug, act);
-        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
-          quiet: true,
-        });
+        const cmd = this.executors.tmux.killSession(sessionName);
+        this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       }
     }
 

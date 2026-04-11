@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
+import { WindowsGeminiExecutor } from '../../core/executors/WindowsGeminiExecutor.js';
 import { getMissionManifest } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
@@ -78,7 +79,13 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     const geminiBin = fs.existsSync(CAPSULE_GEMINI_BIN)
       ? CAPSULE_GEMINI_BIN
       : 'gemini';
-    const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
+
+    const geminiExecutor =
+      process.platform === 'win32'
+        ? new WindowsGeminiExecutor(pm)
+        : new GeminiExecutor(pm);
+
+    const geminiCmd = geminiExecutor.create(geminiBin, geminiOpts);
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
 
     if (res.status !== 0) {

@@ -57,21 +57,6 @@ export function resolveMissionContext(
     if (res.status === 0) {
       branchName = res.stdout.toString().trim();
     }
-  } else {
-    // If idPart is a string like 'my-feature', try to see if that is our current branch
-    // or just use it as the branch name.
-    const res: IProcessResult = pm.runSync(
-      'git',
-      ['rev-parse', '--abbrev-ref', 'HEAD'],
-      { quiet: true },
-    );
-    if (res.status === 0) {
-      const currentBranch = res.stdout.toString().trim();
-      // If we are on a real branch (not HEAD), use that as the source
-      if (currentBranch && currentBranch !== 'HEAD') {
-        branchName = currentBranch;
-      }
-    }
   }
 
   // 2. Handle id:action suffix (e.g. 123:review)
