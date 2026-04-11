@@ -12,9 +12,6 @@ echo "🚀 Starfleet Bootstrap sequence starting..."
 
 # 1. Ensure the data disk layout is correct
 echo "📂 Preparing ground truth filesystem..."
-sudo mkdir -p ${DATA_DISK}/workspaces
-sudo mkdir -p ${DATA_DISK}/mirror
-sudo mkdir -p ${DATA_DISK}/project-configs
 sudo mkdir -p ${DATA_DISK}/bin
 sudo mkdir -p ${DATA_DISK}/dev
 

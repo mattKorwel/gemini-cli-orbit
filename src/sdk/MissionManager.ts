@@ -222,8 +222,8 @@ export class MissionManager {
       });
       const current = stations.find((s) => s.receipt.name === receipt.name);
       if (
-        current?.reality?.status === 'HIBERNATED' ||
-        current?.reality?.status === 'TERMINATED'
+        current?.receipt?.status === 'HIBERNATED' ||
+        current?.receipt?.status === 'TERMINATED'
       ) {
         this.observer.onLog?.(
           LogLevel.INFO,

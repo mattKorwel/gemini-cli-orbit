@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
 import { createStationServer } from '../station/StationApi.js';
 import { logger } from '../core/Logger.js';
@@ -49,6 +50,8 @@ describe('CLI Launch Behavior', () => {
 
   beforeEach(() => {
     harness = new StarfleetHarness('CliLaunch');
+    const home = harness.resolve('home');
+    vi.spyOn(os, 'homedir').mockReturnValue(home);
     activeBinDir = harness.bin;
     originalCwd = process.cwd();
   });
@@ -68,7 +71,14 @@ describe('CLI Launch Behavior', () => {
     { timeout: 15000 },
     async () => {
       const repoRoot = harness.resolve('repo');
-      const orbitRoot = path.join(repoRoot, 'orbit-test-run');
+      const home = os.homedir();
+      const orbitRoot = path.join(
+        home,
+        '.gemini',
+        'orbit',
+        'stations',
+        'local',
+      );
       const devShmRoot = harness.resolve('dev-shm');
       const workerStatePath = path.join(
         orbitRoot,

@@ -99,16 +99,22 @@ export class WorkspaceManager {
       this.git.remoteAdd(targetDir, 'origin', upstreamUrl);
 
       // Setup Alternates (Reference Clone) for speed
-      if (mirrorPath && fs.existsSync(path.join(mirrorPath, 'config'))) {
-        const alternates = path.join(targetDir, '.git/objects/info/alternates');
-        const objects = path.join(mirrorPath, 'objects');
+      let objectsPath = '';
+      if (mirrorPath) {
+        if (fs.existsSync(path.join(mirrorPath, 'config'))) {
+          objectsPath = path.join(mirrorPath, 'objects');
+        } else if (fs.existsSync(path.join(mirrorPath, '.git', 'config'))) {
+          objectsPath = path.join(mirrorPath, '.git', 'objects');
+        }
+      }
 
+      if (objectsPath) {
+        const alternates = path.join(targetDir, '.git/objects/info/alternates');
         // Ensure the directory exists
         if (!fs.existsSync(path.dirname(alternates))) {
           fs.mkdirSync(path.dirname(alternates), { recursive: true });
         }
-
-        fs.writeFileSync(alternates, objects);
+        fs.writeFileSync(alternates, objectsPath);
       }
     }
 

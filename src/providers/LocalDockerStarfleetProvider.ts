@@ -44,7 +44,8 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
   );
 
   private getHostOrbitRoot(): string {
-    return path.join(this.projectCtx.repoRoot, 'orbit-test-run');
+    const stationName = this.projectCtx.orbitConfig?.instanceName || 'local';
+    return path.join(os.homedir(), '.gemini', 'orbit', 'stations', stationName);
   }
 
   private resolveLocalWorkerImage(): string {
@@ -279,6 +280,11 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
             {
               host: orbitRoot,
               capsule: CAPSULE_ROOT,
+            },
+            {
+              host: root,
+              capsule: path.posix.join(CAPSULE_ROOT, 'main'),
+              readonly: true,
             },
             {
               host: path.join(home, '.gemini'),

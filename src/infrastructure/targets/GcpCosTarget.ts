@@ -271,9 +271,6 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             CONTAINER_NAME="station-supervisor"
             
             # Prepare ground truth filesystem
-            mkdir -p $MOUNT_PATH/workspaces
-            mkdir -p $MOUNT_PATH/mirror
-            mkdir -p $MOUNT_PATH/project-configs
             mkdir -p $MOUNT_PATH/bin
             
             # --- STARFLEET HARDWARE LOCK ---

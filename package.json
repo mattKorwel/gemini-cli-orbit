@@ -34,7 +34,7 @@
     "station:shell": "node bundle/orbit-cli.js station shell",
     "station:smoke": "tsx scripts/station-smoke.ts",
     "station:supervisor": "node bundle/orbit-cli.js station exec sudo docker exec -it station-supervisor /bin/bash",
-    "starfleet:local": "mkdir -p orbit-test-run/workspaces orbit-test-run/main orbit-test-run/manifests bin && tsx scripts/start-local-supervisor.ts"
+    "starfleet:local": "tsx scripts/start-local-supervisor.ts"
   },
   "lint-staged": {
     "*.{js,ts}": [

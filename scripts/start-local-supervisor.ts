@@ -20,11 +20,15 @@ import {
 async function main() {
   const root = process.cwd();
   const home = os.homedir();
+  const stationName = process.env.GCLI_ORBIT_INSTANCE_NAME || 'local';
+  const hostRoot = path.join(home, '.gemini', 'orbit', 'stations', stationName);
+
+  if (!fs.existsSync(hostRoot)) {
+    fs.mkdirSync(hostRoot, { recursive: true });
+  }
+
   const configPath = path.join(root, 'configs/station.local.json');
-  const dynamicConfigPath = path.join(
-    root,
-    'orbit-test-run/station.dynamic.json',
-  );
+  const dynamicConfigPath = path.join(hostRoot, 'station.dynamic.json');
 
   const baseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   const selectedPort = await findAvailablePort(8080);
@@ -38,10 +42,11 @@ async function main() {
   const hydratedConfig = {
     ...baseConfig,
     port: selectedPort,
-    manifestRoot: path.resolve(root, baseConfig.manifestRoot),
+    hostRoot: hostRoot,
+    manifestRoot: path.resolve(hostRoot, 'manifests'),
     storage: {
-      workspacesRoot: path.resolve(root, baseConfig.storage.workspacesRoot),
-      mirrorPath: path.resolve(root, baseConfig.storage.mirrorPath),
+      workspacesRoot: path.resolve(hostRoot, 'workspaces'),
+      mirrorPath: path.resolve(hostRoot, 'main'),
     },
     mounts: [
       ...baseConfig.mounts.map((m: any) => ({
@@ -53,7 +58,7 @@ async function main() {
               ? ghConfigDir
               : m.host.startsWith('./')
                 ? path.resolve(root, m.host)
-                : m.host,
+                : m.host.replace(/^~(?=$|\/|\\)/, home), // Expand ~ for other paths
       })),
       // CRITICAL: Mount local user config for trust and settings
       // Mount the local bundle so mission telemetry and hooks work

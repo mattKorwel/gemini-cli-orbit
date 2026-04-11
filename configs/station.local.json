@@ -1,7 +1,7 @@
 {
   "name": "local",
   "providerType": "local-docker",
-  "hostRoot": "./orbit-test-run",
+  "hostRoot": "~/.gemini/orbit/stations/local-docker",
   "port": 8080,
   "workerImage": "orbit-worker:local",
   "workerUser": "root",
@@ -13,7 +13,7 @@
     "mirrorPath": "/orbit/main"
   },
   "mounts": [
-    { "host": "./orbit-test-run", "capsule": "/orbit" },
+    { "host": "~/.gemini/orbit/stations/local-docker", "capsule": "/orbit" },
     { "host": "~/.gemini", "capsule": "/orbit/home/.gemini", "readonly": true },
     {
       "host": "~/.config/gh",
