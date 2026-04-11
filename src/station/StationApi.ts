@@ -186,6 +186,27 @@ export function createStationServer(
       return;
     }
 
+    if (url?.startsWith('/missions/') && method === 'DELETE') {
+      const parts = url.split('/');
+      const capsuleName = parts[2];
+      try {
+        debugLog(`DELETE /missions/${capsuleName} - Jettisoning mission`);
+        // Note: For now, we delegate to a basic container removal.
+        // In the future, this can trigger deeper workspace cleanup via orchestrator.
+        const cmd = dockerExecutor.rm(capsuleName!, { force: true });
+        await processManager.run(cmd.bin, cmd.args, cmd.options);
+
+        res.writeHead(204).end();
+      } catch (err: any) {
+        debugLog(`❌ DELETE /missions/${capsuleName} Failure: ${err.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({ error: 'JETTISON_FAILED', message: err.message }),
+        );
+      }
+      return;
+    }
+
     if (
       url?.startsWith('/missions/') &&
       url?.endsWith('/logs') &&

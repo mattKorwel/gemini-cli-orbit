@@ -179,6 +179,24 @@ export class DockerExecutor implements IDockerExecutor {
     };
   }
 
+  public rm(container: string, options: { force?: boolean } = {}): Command {
+    const args: string[] = [];
+    if (process.env.DOCKER_HOST) {
+      args.push('-H', process.env.DOCKER_HOST);
+    }
+    args.push('rm');
+    if (options.force) args.push('--force');
+    args.push(container);
+
+    return {
+      bin: this.binName,
+      args,
+      options: {
+        env: { DOCKER_HOST: process.env.DOCKER_HOST || '' },
+      },
+    };
+  }
+
   // --- Static Metadata Helpers ---
 
   public static exec(

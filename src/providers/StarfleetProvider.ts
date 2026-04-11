@@ -264,8 +264,13 @@ export abstract class StarfleetProvider extends BaseProvider {
   async removeCapsule(_name: string): Promise<number> {
     return 0;
   }
-  async jettisonMission(_identifier: string): Promise<number> {
-    return 0;
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    try {
+      await this.ensureReady();
+      return await this.client.jettisonMission(identifier, action);
+    } catch (_err: any) {
+      return 1;
+    }
   }
   async splashdown(): Promise<number> {
     return 0;

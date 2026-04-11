@@ -205,4 +205,60 @@ process.exit(0);
       }
     },
   );
+
+  it('handles launch failure when docker run fails', async () => {
+    const orbitRoot = harness.resolve('orbit');
+    harness.stub('docker', 'error message', 1);
+
+    const config: any = {
+      port: 0,
+      hostRoot: orbitRoot,
+      storage: { workspacesRoot: '/orbit/workspaces' },
+      mounts: [],
+      areas: {},
+    };
+
+    const processManager = harness.createProcessManager();
+    const server = createStationServer({
+      config,
+      processManager,
+      debugLog: () => {},
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve());
+    });
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Failed to bind station API test server');
+      }
+
+      const client = new StarfleetClient(`http://127.0.0.1:${address.port}`);
+
+      // Should throw due to 400 Bad Request on launch failure
+      // We must provide a valid-looking manifest to pass Zod schema but fail orchestrate()
+      await expect(
+        client.launchMission({
+          identifier: 'fail-123',
+          repoName: 'test-repo',
+          branchName: 'main',
+          action: 'chat',
+          workspaceName: 'test-repo/fail-123',
+          workDir: '/orbit/workspaces/test-repo/fail-123',
+          containerName: 'fail-cont',
+          policyPath: '/orbit/.gemini/policies/workspace-policy.toml',
+          sessionName: 'test-repo/fail-123/chat',
+          upstreamUrl: 'https://github.com/org/repo.git',
+          mirrorPath: '/orbit/main',
+          bundleDir: '/orbit/bundle',
+        } as any),
+      ).rejects.toThrow(/INVALID_ORDER/);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    }
+  });
 });

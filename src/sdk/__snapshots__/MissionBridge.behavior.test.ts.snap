@@ -17,6 +17,7 @@ exports[`Mission Bridge Behavior > records the known-good GCE launch command str
   "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' corp-remote-v1",
   "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' corp-remote-v1",
   "sync: rsync <home>/.gemini/settings.json node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/gemini-cli-config/.gemini",
+  "sync: rsync <home>/.gemini/google_accounts.json node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/gemini-cli-config/.gemini",
   "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo mkdir -p /mnt/disks/data/gemini-cli-config/.config/gh",
   "sync: rsync <home>/AppData/Roaming/GitHub CLI/hosts.yml node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/gemini-cli-config/.config/gh",
   "sync: rsync <tmp>/.gemini/ node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/.gemini",

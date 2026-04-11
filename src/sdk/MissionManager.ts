@@ -57,9 +57,14 @@ export class MissionManager {
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
     private readonly starfleetClient: StarfleetClient,
-    provider?: import('../providers/BaseProvider.js').BaseProvider,
+    private readonly provider?: import('../providers/BaseProvider.js').BaseProvider,
+    private fleet?: import('./FleetManager.js').FleetManager,
   ) {
     if (provider) this._cachedProvider = provider;
+  }
+
+  public setFleetManager(fleet: import('./FleetManager.js').FleetManager) {
+    this.fleet = fleet;
   }
 
   private getProvider() {
@@ -207,6 +212,28 @@ export class MissionManager {
     const missionId = identifier;
 
     const provider = this.getProvider();
+
+    // --- PHASE 0: SITUATIONAL AWARENESS (Wake-on-Mission) ---
+    // If the station is hibernated, we must wake it before proceeding.
+    const receipt = provider.getStationReceipt();
+    if (receipt && this.fleet) {
+      const stations = await this.stationRegistry.listStations({
+        syncWithReality: true,
+      });
+      const current = stations.find((s) => s.receipt.name === receipt.name);
+      if (
+        current?.reality?.status === 'HIBERNATED' ||
+        current?.reality?.status === 'TERMINATED'
+      ) {
+        this.observer.onLog?.(
+          LogLevel.INFO,
+          'MISSION',
+          `💤 Station '${receipt.name}' is hibernated. Waking up...`,
+        );
+        await this.fleet.provision({ instanceName: receipt.name } as any);
+      }
+    }
+
     this.observer.onLog?.(
       LogLevel.DEBUG,
       'MISSION',

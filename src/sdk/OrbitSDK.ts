@@ -177,6 +177,8 @@ export class OrbitSDK implements IOrbitSDK {
       executors,
     );
     this.integrations = new IntegrationManager(this.observer, shellIntegration);
+
+    this.missions.setFleetManager(this.fleet);
   }
 
   /**

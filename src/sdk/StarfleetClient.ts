@@ -133,4 +133,10 @@ export class StarfleetClient {
     const res = await this.request<{ capsules: string[] }>('/missions', 'GET');
     return res.capsules;
   }
+
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    const query = action ? `?action=${action}` : '';
+    await this.request(`/missions/${identifier}${query}`, 'DELETE');
+    return 0;
+  }
 }
