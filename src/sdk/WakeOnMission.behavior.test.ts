@@ -34,15 +34,20 @@ describe('Wake-on-Mission Behavior', () => {
     const factory = new ProviderFactory(pm, executors);
     const configManager = new ConfigManager();
     const stationRegistry = new StationRegistry(factory, configManager);
-    const infraFactory = new InfrastructureFactory(configManager);
-    const dependencyManager = new DependencyManager(pm, {
-      onLog: vi.fn(),
-      onProgress: vi.fn(),
-    } as any);
-    const statusManager = new StatusManager(stationRegistry, configManager, {
-      onLog: vi.fn(),
-      onProgress: vi.fn(),
-    } as any);
+    const infraFactory = new InfrastructureFactory();
+    const dependencyManager = new DependencyManager(pm);
+    const statusManager = new StatusManager(
+      { repoRoot: harness.root, repoName: 'test-repo' },
+      {
+        providerType: 'gce',
+        instanceName: 'station-zeta',
+        projectId: 'p1',
+        zone: 'z1',
+      } as any,
+      factory,
+      executors,
+      stationRegistry,
+    );
 
     // Mock a previously saved receipt for a GCE station
     vi.spyOn(stationRegistry, 'listStations').mockResolvedValue([

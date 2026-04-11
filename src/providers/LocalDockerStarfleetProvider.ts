@@ -44,7 +44,7 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
   );
 
   private getHostOrbitRoot(): string {
-    const stationName = this.projectCtx.orbitConfig?.instanceName || 'local';
+    const stationName = this.infra.instanceName || 'local';
     return path.join(os.homedir(), '.gemini', 'orbit', 'stations', stationName);
   }
 
