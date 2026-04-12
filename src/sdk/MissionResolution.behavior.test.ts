@@ -49,11 +49,23 @@ describe('Mission Resolution Behavior', () => {
       typeof p === 'string'
         ? p.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>')
         : p;
+    const normalizeEnv = (env: Record<string, string> | undefined) => {
+      if (!env) return env;
+
+      return Object.fromEntries(
+        Object.entries(env).map(([key, value]) => {
+          if (key === 'WT_SESSION') return [key, '<wt-session>'];
+          if (key === 'TERM_SESSION_ID') return [key, '<term-session>'];
+          return [key, value];
+        }),
+      );
+    };
 
     return {
       manifest: {
         ...manifest,
         bundleDir: normalizePath(manifest.bundleDir),
+        env: normalizeEnv(manifest.env),
         mirrorPath: normalizePath(manifest.mirrorPath),
         policyPath: normalizePath(manifest.policyPath),
         tempDir: normalizePath(manifest.tempDir),
@@ -132,5 +144,46 @@ process.exit(1);
     });
 
     expect(normalize(manifest, harness.getHistory())).toMatchSnapshot();
+  });
+
+  it('includes terminal identity env in resolved manifests', async () => {
+    const originalTermProgram = process.env.TERM_PROGRAM;
+    const originalTermProgramVersion = process.env.TERM_PROGRAM_VERSION;
+    const originalWtSession = process.env.WT_SESSION;
+    const originalTermSessionId = process.env.TERM_SESSION_ID;
+
+    process.env.TERM_PROGRAM = 'WindowsTerminal';
+    process.env.TERM_PROGRAM_VERSION = '1.22.11141.0';
+    process.env.WT_SESSION = 'wt-123';
+    process.env.TERM_SESSION_ID = 'term-456';
+
+    try {
+      const manager = createManager();
+      const manifest = await manager.resolve({
+        identifier: 'terminal-env',
+        action: 'chat',
+      });
+
+      expect(manifest.env).toMatchObject({
+        TERM: 'xterm-256color',
+        COLORTERM: 'truecolor',
+        FORCE_COLOR: '3',
+        TERM_PROGRAM: 'WindowsTerminal',
+        TERM_PROGRAM_VERSION: '1.22.11141.0',
+        WT_SESSION: 'wt-123',
+        TERM_SESSION_ID: 'term-456',
+      });
+    } finally {
+      if (originalTermProgram === undefined) delete process.env.TERM_PROGRAM;
+      else process.env.TERM_PROGRAM = originalTermProgram;
+      if (originalTermProgramVersion === undefined)
+        delete process.env.TERM_PROGRAM_VERSION;
+      else process.env.TERM_PROGRAM_VERSION = originalTermProgramVersion;
+      if (originalWtSession === undefined) delete process.env.WT_SESSION;
+      else process.env.WT_SESSION = originalWtSession;
+      if (originalTermSessionId === undefined)
+        delete process.env.TERM_SESSION_ID;
+      else process.env.TERM_SESSION_ID = originalTermSessionId;
+    }
   });
 });

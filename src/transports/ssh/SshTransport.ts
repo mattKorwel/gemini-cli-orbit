@@ -20,6 +20,10 @@ import {
 } from '../../core/types.js';
 import type { ISshExecutor } from '../../core/executors/ssh/SshExecutor.js';
 import { type InfrastructureSpec } from '../../core/Constants.js';
+import {
+  getDefinedProcessEnv,
+  getInteractiveTerminalEnv,
+} from '../../utils/TerminalEnv.js';
 
 /**
  * SshTransport: Remote transport implementation using SSH-backed command and
@@ -94,19 +98,18 @@ export class SshTransport implements StationTransport {
     sessionName: string,
   ): Promise<number> {
     const target = this.getConnectionHandle();
-    const term = process.env.TERM || 'xterm-256color';
-    const colorTerm = process.env.COLORTERM || 'truecolor';
-    const forceColor = process.env.FORCE_COLOR || '3';
+    const terminalEnv = getInteractiveTerminalEnv();
+    const dockerEnvArgs = Object.entries(terminalEnv)
+      .map(([key, value]) => `-e ${key}=${value}`)
+      .join(' ');
 
-    const attachCmd = `sudo docker exec -it -e TERM=${term} -e COLORTERM=${colorTerm} -e FORCE_COLOR=${forceColor} ${containerName} tmux attach -t ${sessionName} || sudo docker exec -it -e TERM=${term} -e COLORTERM=${colorTerm} -e FORCE_COLOR=${forceColor} ${containerName} /bin/bash`;
+    const attachCmd = `sudo docker exec -it ${dockerEnvArgs} ${containerName} tmux attach -t ${sessionName} || sudo docker exec -it ${dockerEnvArgs} ${containerName} /bin/bash`;
 
     const res = this.ssh.exec(target, attachCmd, {
       interactive: true,
       env: {
-        ...process.env,
-        TERM: term,
-        COLORTERM: colorTerm,
-        FORCE_COLOR: forceColor,
+        ...getDefinedProcessEnv(),
+        ...terminalEnv,
       },
     });
     return res.status;

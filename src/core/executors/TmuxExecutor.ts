@@ -10,6 +10,7 @@ import {
   type IProcessManager,
   type IProcessResult,
 } from '../interfaces.js';
+import { getInteractiveTerminalEnv } from '../../utils/TerminalEnv.js';
 
 /**
  * TmuxExecutor: Standard Linux implementation of tmux orchestration.
@@ -50,12 +51,7 @@ export class TmuxExecutor implements ITmuxExecutor {
 
     // 3. Execution Environment
     const mergedEnv = {
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      ...(process.env.TERM_PROGRAM
-        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
-        : {}),
+      ...getInteractiveTerminalEnv(),
       ...(env || {}),
     };
 
@@ -90,12 +86,7 @@ export class TmuxExecutor implements ITmuxExecutor {
     ].filter(Boolean);
 
     const mergedEnv = {
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      ...(process.env.TERM_PROGRAM
-        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
-        : {}),
+      ...getInteractiveTerminalEnv(),
       ...(env || {}),
     };
 

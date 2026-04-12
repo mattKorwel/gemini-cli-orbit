@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { type Command } from './types.js';
 import { type IRunOptions } from '../interfaces.js';
 import { TmuxExecutor } from './TmuxExecutor.js';
+import { getInteractiveTerminalEnv } from '../../utils/TerminalEnv.js';
 
 /**
  * WindowsTmuxExecutor: Specialized implementation for Windows environments (psmux).
@@ -93,12 +94,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
 
     // 3. PWSH Environment & Execution
     const mergedEnv = {
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      ...(process.env.TERM_PROGRAM
-        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
-        : {}),
+      ...getInteractiveTerminalEnv(),
       ...(env || {}),
     };
 
@@ -140,12 +136,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
     ].filter(Boolean);
 
     const mergedEnv = {
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      ...(process.env.TERM_PROGRAM
-        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
-        : {}),
+      ...getInteractiveTerminalEnv(),
       ...(env || {}),
     };
 

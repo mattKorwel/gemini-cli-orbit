@@ -36,6 +36,7 @@ import {
 import { type StarfleetClient } from './StarfleetClient.js';
 import { loadAuthEnvChain } from '../utils/EnvResolver.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import { getInteractiveTerminalEnv } from '../utils/TerminalEnv.js';
 
 type GitAuthMode = 'host-gh-config' | 'repo-token' | 'none';
 type GeminiAuthMode = 'env-chain' | 'accounts-file' | 'none';
@@ -165,7 +166,10 @@ export class MissionManager {
       gitAuthMode,
       geminiAuthMode,
       tempDir: workDir,
-      env: this.sanitizeMissionEnv(this.infra.env),
+      env: {
+        ...getInteractiveTerminalEnv(),
+        ...(this.sanitizeMissionEnv(this.infra.env) || {}),
+      },
       sensitiveEnv: this.infra.sensitiveEnv,
     };
 

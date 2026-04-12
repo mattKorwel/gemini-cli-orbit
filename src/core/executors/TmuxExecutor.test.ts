@@ -9,11 +9,13 @@ import { TmuxExecutor } from './TmuxExecutor.js';
 import { ProcessManager } from '../ProcessManager.js';
 
 describe('TmuxExecutor', () => {
-  const expectedBin = process.platform === 'win32' ? 'tmux.exe' : 'tmux';
+  const expectedBin = 'tmux';
   const executor = new TmuxExecutor(new ProcessManager());
 
   it('wraps a command correctly', () => {
     process.env.TERM_PROGRAM = 'myterm';
+    process.env.TERM_PROGRAM_VERSION = '1.0.0';
+    process.env.WT_SESSION = 'wt-123';
     const cmd = executor.wrap('mysession', 'ls -la', { cwd: '/tmp' });
     expect(cmd.bin).toBe(expectedBin);
     expect(cmd.args).toContain('mysession');
@@ -23,6 +25,8 @@ describe('TmuxExecutor', () => {
     expect(lastArg).toContain("export FORCE_COLOR='3'");
     expect(lastArg).toContain("export TERM='xterm-256color'");
     expect(lastArg).toContain("export TERM_PROGRAM='myterm'");
+    expect(lastArg).toContain("export TERM_PROGRAM_VERSION='1.0.0'");
+    expect(lastArg).toContain("export WT_SESSION='wt-123'");
     expect(lastArg).toContain('ls -la; exec zsh');
   });
 
@@ -42,6 +46,8 @@ describe('TmuxExecutor', () => {
 
   it('wraps a mission correctly with wrapMission', () => {
     process.env.TERM_PROGRAM = 'myterm';
+    process.env.TERM_PROGRAM_VERSION = '1.0.0';
+    process.env.WT_SESSION = 'wt-123';
     const cmd = executor.wrapMission('mysession', 'node mission.js', {
       cwd: '/tmp',
       env: { VERBOSE: '1' },
@@ -59,6 +65,8 @@ describe('TmuxExecutor', () => {
     expect(lastArg).toContain("export FORCE_COLOR='3'");
     expect(lastArg).toContain("export TERM='xterm-256color'");
     expect(lastArg).toContain("export TERM_PROGRAM='myterm'");
+    expect(lastArg).toContain("export TERM_PROGRAM_VERSION='1.0.0'");
+    expect(lastArg).toContain("export WT_SESSION='wt-123'");
     expect(lastArg).toContain("cd '/tmp'");
     expect(lastArg).toContain("export VERBOSE='1'");
     expect(lastArg).toContain('node mission.js');

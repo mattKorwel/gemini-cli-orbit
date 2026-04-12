@@ -32,6 +32,7 @@ import {
   type IRunOptions,
   type StationReceipt,
 } from '../core/interfaces.js';
+import { getInteractiveTerminalEnv } from '../utils/TerminalEnv.js';
 
 import type fsNamespace from 'node:fs';
 
@@ -275,11 +276,8 @@ export class LocalWorktreeProvider extends BaseProvider {
 
     const env: any = {
       ...process.env,
+      ...getInteractiveTerminalEnv(),
       ...mergedOptions.env,
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      TERM_PROGRAM: process.env.TERM_PROGRAM || 'Orbit',
       GEMINI_AUTO_UPDATE: '0',
     };
 
@@ -454,6 +452,7 @@ export class LocalWorktreeProvider extends BaseProvider {
 
     // 1. Prepare Environment
     const missionEnv = {
+      ...getInteractiveTerminalEnv(),
       ...env,
       GCLI_ORBIT_MISSION_ID: identifier,
       GCLI_ORBIT_ACTION: action,

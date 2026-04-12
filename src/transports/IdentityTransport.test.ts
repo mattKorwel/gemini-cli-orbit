@@ -22,9 +22,17 @@ describe('IdentityTransport', () => {
     const originalTerm = process.env.TERM;
     const originalColorTerm = process.env.COLORTERM;
     const originalForceColor = process.env.FORCE_COLOR;
+    const originalTermProgram = process.env.TERM_PROGRAM;
+    const originalTermProgramVersion = process.env.TERM_PROGRAM_VERSION;
+    const originalWtSession = process.env.WT_SESSION;
+    const originalTermSessionId = process.env.TERM_SESSION_ID;
     process.env.TERM = '';
     process.env.COLORTERM = '';
     process.env.FORCE_COLOR = '';
+    process.env.TERM_PROGRAM = 'WindowsTerminal';
+    process.env.TERM_PROGRAM_VERSION = '1.22.11141.0';
+    process.env.WT_SESSION = 'wt-123';
+    process.env.TERM_SESSION_ID = 'term-456';
 
     try {
       const status = await transport.attach('orbit-123', 'repo/123');
@@ -40,6 +48,14 @@ describe('IdentityTransport', () => {
           'COLORTERM=truecolor',
           '-e',
           'FORCE_COLOR=3',
+          '-e',
+          'TERM_PROGRAM=WindowsTerminal',
+          '-e',
+          'TERM_PROGRAM_VERSION=1.22.11141.0',
+          '-e',
+          'WT_SESSION=wt-123',
+          '-e',
+          'TERM_SESSION_ID=term-456',
           'orbit-123',
           'tmux',
           'attach',
@@ -52,6 +68,10 @@ describe('IdentityTransport', () => {
             TERM: 'xterm-256color',
             COLORTERM: 'truecolor',
             FORCE_COLOR: '3',
+            TERM_PROGRAM: 'WindowsTerminal',
+            TERM_PROGRAM_VERSION: '1.22.11141.0',
+            WT_SESSION: 'wt-123',
+            TERM_SESSION_ID: 'term-456',
           }),
         }),
       );
@@ -62,6 +82,16 @@ describe('IdentityTransport', () => {
       else process.env.COLORTERM = originalColorTerm;
       if (originalForceColor === undefined) delete process.env.FORCE_COLOR;
       else process.env.FORCE_COLOR = originalForceColor;
+      if (originalTermProgram === undefined) delete process.env.TERM_PROGRAM;
+      else process.env.TERM_PROGRAM = originalTermProgram;
+      if (originalTermProgramVersion === undefined)
+        delete process.env.TERM_PROGRAM_VERSION;
+      else process.env.TERM_PROGRAM_VERSION = originalTermProgramVersion;
+      if (originalWtSession === undefined) delete process.env.WT_SESSION;
+      else process.env.WT_SESSION = originalWtSession;
+      if (originalTermSessionId === undefined)
+        delete process.env.TERM_SESSION_ID;
+      else process.env.TERM_SESSION_ID = originalTermSessionId;
     }
   });
 });

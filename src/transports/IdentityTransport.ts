@@ -14,6 +14,10 @@ import {
   type ExecOptions,
   type ExecResult,
 } from '../core/types.js';
+import {
+  getDefinedProcessEnv,
+  getInteractiveTerminalEnv,
+} from '../utils/TerminalEnv.js';
 
 /**
  * IdentityTransport: A "Passthrough" transport for local execution.
@@ -43,9 +47,10 @@ export class IdentityTransport implements StationTransport {
       `📡 Direct Attach: Joining mission '${containerName}' on local Docker...`,
     );
 
-    const term = process.env.TERM || 'xterm-256color';
-    const colorTerm = process.env.COLORTERM || 'truecolor';
-    const forceColor = process.env.FORCE_COLOR || '3';
+    const terminalEnv = getInteractiveTerminalEnv();
+    const dockerEnvArgs = Object.entries(terminalEnv).flatMap(
+      ([key, value]) => ['-e', `${key}=${value}`],
+    );
 
     // In identity mode, we run docker exec directly.
     // Use runSync to ensure the terminal (TTY) is passed through correctly.
@@ -54,12 +59,7 @@ export class IdentityTransport implements StationTransport {
       [
         'exec',
         '-it',
-        '-e',
-        `TERM=${term}`,
-        '-e',
-        `COLORTERM=${colorTerm}`,
-        '-e',
-        `FORCE_COLOR=${forceColor}`,
+        ...dockerEnvArgs,
         containerName,
         'tmux',
         'attach',
@@ -69,10 +69,8 @@ export class IdentityTransport implements StationTransport {
       {
         interactive: true,
         env: {
-          ...process.env,
-          TERM: term,
-          COLORTERM: colorTerm,
-          FORCE_COLOR: forceColor,
+          ...getDefinedProcessEnv(),
+          ...terminalEnv,
         },
       },
     );
