@@ -72,7 +72,7 @@ local machine.
 Open a separate terminal window and leave this running:
 
 ```bash
-npm run starfleet:local
+npm run local:station
 ```
 
 ### 🚀 Launch & Attach
@@ -80,7 +80,7 @@ npm run starfleet:local
 In your main terminal:
 
 ```bash
-node bundle/orbit-cli.js mission start test-local-docker chat --local-docker
+npm run local:chat:docker
 ```
 
 _Expected:_ The CLI should communicate with the local API. A worker container
@@ -100,7 +100,7 @@ tmux: `Ctrl+B`, then `d`)_
 ### 💓 Pulse Check (On Host)
 
 ```bash
-node bundle/orbit-cli.js constellation --pulse
+npm run fleet:pulse
 ```
 
 _Expected:_ The `test-local-docker` mission should be listed as active under the
@@ -109,7 +109,7 @@ _Expected:_ The `test-local-docker` mission should be listed as active under the
 ### 🌊 Splashdown
 
 ```bash
-node bundle/orbit-cli.js infra splashdown
+npm run infra:splashdown
 ```
 
 _Expected:_ The worker container (`orbit-test-local-docker-...`) is forcefully
