@@ -34,6 +34,7 @@ async function main() {
       env: {
         ...process.env,
         DOCKER_HOST: dockerHost,
+        GCLI_ORBIT_HOST_PATH_BASE: root,
       },
     },
   );

@@ -10,6 +10,7 @@ import path from 'node:path';
 import { LocalDockerStarfleetProvider } from './LocalDockerStarfleetProvider.js';
 import { ProviderFactory } from './ProviderFactory.js';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
+import { LogLevel } from '../core/Logger.js';
 
 describe('Local Docker Starfleet Provider Behavior', () => {
   let harness: StarfleetHarness;
@@ -117,4 +118,100 @@ process.exit(0);
       }).toMatchSnapshot();
     },
   );
+
+  it('bridges to an existing host-mode supervisor without starting a supervisor container', async () => {
+    const repoRoot = harness.resolve('repo');
+    fs.mkdirSync(path.join(repoRoot, 'configs'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repoRoot, 'configs', 'station.local.json'),
+      JSON.stringify({
+        workerImage: 'orbit-worker:local',
+      }),
+    );
+
+    harness.stubScript(
+      'docker',
+      `
+const joined = args.join(' ');
+
+if (joined === 'image inspect orbit-worker:local') {
+  process.stdout.write('[]\\n');
+  process.exit(0);
+}
+
+if (joined === 'run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orbit-worker:local --version') {
+  process.stdout.write('gemini 0.0.0-test\\n');
+  process.exit(0);
+}
+
+if (joined.includes('--name station-supervisor-local')) {
+  process.stderr.write('should not start local supervisor container when host-mode is healthy\\n');
+  process.exit(99);
+}
+
+process.exit(0);
+`,
+    );
+
+    const processManager = harness.createProcessManager();
+    const observer = {
+      onLog: vi.fn(),
+    } as any;
+    const client = {
+      ping: vi.fn().mockResolvedValue(true),
+      setBaseUrl: vi.fn(),
+    } as any;
+
+    const provider = new LocalDockerStarfleetProvider(
+      client,
+      {
+        type: 'identity',
+        exec: vi.fn(),
+        attach: vi.fn(),
+        sync: vi.fn(),
+        ensureTunnel: vi.fn(),
+        getConnectionHandle: vi.fn().mockReturnValue('local'),
+        setOverrideHost: vi.fn(),
+        getMagicRemote: vi.fn().mockReturnValue('local'),
+      } as any,
+      processManager,
+      ProviderFactory.getExecutors(processManager),
+      {
+        repoRoot,
+        repoName: 'test-repo',
+      },
+      {
+        providerType: 'local-docker',
+        instanceName: 'local-docker',
+      },
+      {
+        projectId: 'local',
+        zone: 'localhost',
+        stationName: 'local-docker',
+      },
+    );
+
+    const ok = await provider.verifyIgnition(observer);
+
+    const normalizedHistory = harness
+      .getHistory()
+      .map((line) =>
+        line
+          .replaceAll('\\', '/')
+          .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
+          .replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo'),
+      );
+
+    expect(ok).toBe(true);
+    expect(client.ping).toHaveBeenCalled();
+    expect(normalizedHistory).toEqual([
+      '[<cwd>] docker image inspect orbit-worker:local',
+      '[<cwd>] docker run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orbit-worker:local --version',
+    ]);
+    expect(observer.onLog).toHaveBeenCalledWith(
+      LogLevel.INFO,
+      'SETUP',
+      '🔗 Bridging to existing host-mode Starfleet Supervisor.',
+    );
+  });
 });

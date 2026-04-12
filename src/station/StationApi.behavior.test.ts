@@ -206,6 +206,199 @@ process.exit(0);
     },
   );
 
+  it(
+    'mounts Gemini settings as a read-only file using the real host target',
+    { timeout: 15000 },
+    async () => {
+      const orbitRoot = harness.resolve('orbit');
+      const devShmRoot = harness.resolve('dev-shm');
+      const settingsTarget = harness.resolve('dotfiles/.gemini/settings.json');
+      const settingsLink = path.join(
+        orbitRoot,
+        'home',
+        '.gemini',
+        'settings.json',
+      );
+      const workerStatePath = path.join(
+        orbitRoot,
+        'workspaces',
+        'test-repo',
+        'settings-link',
+        '.gemini',
+        'orbit',
+        'state.json',
+      );
+
+      fs.mkdirSync(path.dirname(settingsTarget), { recursive: true });
+      fs.writeFileSync(
+        settingsTarget,
+        JSON.stringify({ ui: { theme: 'test' } }),
+      );
+      fs.mkdirSync(path.dirname(settingsLink), { recursive: true });
+      fs.mkdirSync(path.join(orbitRoot, 'bundle'), { recursive: true });
+      fs.mkdirSync(path.join(orbitRoot, '.gemini', 'policies'), {
+        recursive: true,
+      });
+      fs.mkdirSync(path.join(orbitRoot, 'manifests'), { recursive: true });
+      fs.mkdirSync(path.join(orbitRoot, 'workspaces'), { recursive: true });
+      fs.mkdirSync(path.dirname(workerStatePath), { recursive: true });
+      fs.writeFileSync(workerStatePath, JSON.stringify({ status: 'IDLE' }));
+      fs.mkdirSync(devShmRoot, { recursive: true });
+      fs.writeFileSync(
+        path.join(orbitRoot, 'starfleet-entrypoint.sh'),
+        '#!/bin/sh\nexit 0\n',
+      );
+
+      try {
+        fs.symlinkSync(settingsTarget, settingsLink, 'file');
+      } catch {
+        fs.writeFileSync(settingsLink, fs.readFileSync(settingsTarget, 'utf8'));
+      }
+
+      harness.stub('git', '');
+      harness.stubScript(
+        'docker',
+        `
+if (args[0] === 'run') {
+  const statePath = ${JSON.stringify(workerStatePath)};
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(statePath, JSON.stringify({ status: 'IDLE' }));
+  process.stdout.write('fake-container-id\\n');
+  process.exit(0);
+}
+
+process.exit(0);
+`,
+      );
+
+      const config: any = {
+        port: 0,
+        workerImage: 'test-worker-image',
+        workerUser: 'root',
+        manifestRoot: '/dev/shm',
+        hostRoot: orbitRoot,
+        isUnlocked: true,
+        useSudo: false,
+        storage: {
+          workspacesRoot: '/orbit/workspaces',
+          mirrorPath: '/orbit/main',
+        },
+        mounts: [
+          { host: orbitRoot, capsule: '/orbit' },
+          { host: devShmRoot, capsule: '/dev/shm' },
+        ],
+        areas: {
+          orbitRoot: {
+            host: orbitRoot,
+            capsule: '/orbit',
+            kind: 'dir',
+          },
+          manifests: {
+            host: path.join(orbitRoot, 'manifests'),
+            capsule: '/orbit/manifests',
+            kind: 'dir',
+          },
+          bundle: {
+            host: path.join(orbitRoot, 'bundle'),
+            capsule: '/orbit/bundle',
+            kind: 'dir',
+            readonly: true,
+          },
+          globalGemini: {
+            host: path.join(orbitRoot, 'home', '.gemini'),
+            capsule: '/orbit/home/.gemini',
+            kind: 'dir',
+            readonly: true,
+          },
+          policies: {
+            host: path.join(orbitRoot, '.gemini', 'policies'),
+            capsule: '/orbit/.gemini/policies',
+            kind: 'dir',
+            readonly: true,
+          },
+          entrypoint: {
+            host: path.join(orbitRoot, 'starfleet-entrypoint.sh'),
+            capsule: '/orbit/starfleet-entrypoint.sh',
+            kind: 'file',
+            readonly: true,
+          },
+        },
+        bundlePath: '/orbit/bundle',
+      };
+
+      const processManager = harness.createProcessManager();
+      const server = createStationServer({
+        config,
+        processManager,
+        debugLog: () => {},
+      });
+
+      await new Promise<void>((resolve) => {
+        server.listen(0, '127.0.0.1', () => resolve());
+      });
+
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+          throw new Error('Failed to bind station API test server');
+        }
+
+        const client = new StarfleetClient(`http://127.0.0.1:${address.port}`);
+
+        await client.launchMission({
+          identifier: 'settings-link',
+          repoName: 'test-repo',
+          branchName: 'main',
+          action: 'chat',
+          workspaceName: 'test-repo/settings-link',
+          workDir: '/orbit/workspaces/test-repo/settings-link',
+          containerName: 'orbit-settings-link',
+          policyPath: '/orbit/.gemini/policies/workspace-policy.toml',
+          sessionName: 'test-repo/settings-link/chat',
+          upstreamUrl: 'https://github.com/org/repo.git',
+          mirrorPath: '/orbit/main',
+          bundleDir: '/orbit/bundle',
+        } as any);
+
+        const resolvedSettingsHost = fs.realpathSync.native(settingsLink);
+        const settingsLinkIsSymlink = fs
+          .lstatSync(settingsLink)
+          .isSymbolicLink();
+        const normalizedHistory = harness.getHistory().map((line) =>
+          line
+            .replaceAll('\\', '/')
+            .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
+            .replaceAll(orbitRoot.replaceAll('\\', '/'), '<tmp>/orbit')
+            .replaceAll(devShmRoot.replaceAll('\\', '/'), '<tmp>/dev-shm')
+            .replaceAll(
+              resolvedSettingsHost.replaceAll('\\', '/'),
+              '<tmp>/settings-host',
+            )
+            .replace(/orbit-settings-link-\d+/g, 'orbit-settings-link-<ts>')
+            .replace(
+              /orbit-manifest-settings-link-\d+\.json/g,
+              'orbit-manifest-settings-link-<ts>.json',
+            ),
+        );
+
+        const runLine = normalizedHistory.find((line) =>
+          line.includes('docker run'),
+        );
+
+        expect(runLine).toContain('/orbit/home/.gemini/settings.json:ro');
+        if (settingsLinkIsSymlink) {
+          expect(runLine).toContain(
+            '-v <tmp>/settings-host:/orbit/home/.gemini/settings.json:ro',
+          );
+        }
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        });
+      }
+    },
+  );
+
   it('handles launch failure when docker run fails', async () => {
     const orbitRoot = harness.resolve('orbit');
     harness.stub('docker', 'error message', 1);
@@ -237,8 +430,6 @@ process.exit(0);
 
       const client = new StarfleetClient(`http://127.0.0.1:${address.port}`);
 
-      // Should throw due to 400 Bad Request on launch failure
-      // We must provide a valid-looking manifest to pass Zod schema but fail orchestrate()
       await expect(
         client.launchMission({
           identifier: 'fail-123',
@@ -254,7 +445,9 @@ process.exit(0);
           mirrorPath: '/orbit/main',
           bundleDir: '/orbit/bundle',
         } as any),
-      ).rejects.toThrow(/INVALID_ORDER/);
+      ).rejects.toThrow(
+        /MISSION_LAUNCH_FAILED|Failed to start mission container/,
+      );
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));

@@ -49,6 +49,7 @@ export abstract class StarfleetProvider extends BaseProvider {
   private selectedApiPort: number | null = null;
   private apiPortPromise: Promise<number> | null = null;
   private publicIp: string | undefined;
+  private launchedContainers = new Map<string, string>();
 
   constructor(
     protected readonly client: StarfleetClient,
@@ -393,6 +394,10 @@ export abstract class StarfleetProvider extends BaseProvider {
       )) as any;
 
       if (res.status === 'READY' && res.receipt) {
+        this.launchedContainers.set(
+          res.receipt.missionId,
+          res.receipt.containerName,
+        );
         console.log(`\n✨ Starfleet Mission Ignited!`);
         console.log(`   ID:        ${res.receipt.missionId}`);
         console.log(`   Capsule:   ${res.receipt.containerName}`);
@@ -418,6 +423,9 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
   protected async resolveLegacyCapsuleState(): Promise<CapsuleInfo['state']> {
     return 'IDLE';
+  }
+  getLaunchedContainerName(missionId: string): string | undefined {
+    return this.launchedContainers.get(missionId);
   }
   override resolveIsolationId(mCtx: MissionContext): string {
     return mCtx.containerName;

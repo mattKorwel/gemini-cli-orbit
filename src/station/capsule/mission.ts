@@ -6,7 +6,7 @@
 
 import path from 'node:path';
 import os from 'node:os';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
@@ -22,6 +22,17 @@ import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
 
 const CAPSULE_GEMINI_BIN = '/usr/local/share/npm-global/bin/gemini';
+
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+
+  try {
+    return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Entrypoint for Orbit missions inside the capsule.
@@ -142,11 +153,7 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
   }
 }
 
-if (
-  process.argv[1] &&
-  (import.meta.url === pathToFileURL(process.argv[1]).href ||
-    import.meta.url === `file://${process.argv[1]}`)
-) {
+if (isDirectExecution()) {
   main()
     .then((code) => process.exit(code))
     .catch((err) => {

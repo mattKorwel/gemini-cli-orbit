@@ -18,7 +18,6 @@ import {
 import {
   buildMountAreas,
   normalizeCapsulePath,
-  resolveCapsulePathFromAreas,
   resolveHostPathFromAreas,
 } from './MountRegistry.js';
 import { type StationPathArea } from '../core/types.js';
@@ -197,7 +196,32 @@ export class MissionOrchestrator {
       );
     }
 
+    const geminiSettingsCapsulePath = '/orbit/home/.gemini/settings.json';
+    const geminiSettingsHostPath = this.resolveOptionalHostFile(
+      geminiSettingsCapsulePath,
+    );
+    if (geminiSettingsHostPath) {
+      mounts.push({
+        host: geminiSettingsHostPath,
+        capsule: geminiSettingsCapsulePath,
+        readonly: true,
+      });
+    }
+
     return mounts;
+  }
+
+  private resolveOptionalHostFile(capsulePath: string): string | undefined {
+    const hostPath = this.toHostPath(capsulePath);
+    if (!fs.existsSync(hostPath)) {
+      return undefined;
+    }
+
+    try {
+      return fs.realpathSync.native(hostPath);
+    } catch {
+      return hostPath;
+    }
   }
 
   /**

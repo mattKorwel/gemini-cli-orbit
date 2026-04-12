@@ -15,7 +15,7 @@
     "sync-docs": "tsx tools/sync-docs.ts",
     "local:station": "tsx scripts/start-local-supervisor.ts",
     "local:chat:docker": "tsx scripts/dev-local-chat.ts",
-    "local:chat:worktree": "node bundle/orbit-cli.js mission start chat-v1 chat --local",
+    "local:chat:worktree": "tsx scripts/dev-local-worktree-chat.ts",
     "local:scorch": "tsx scripts/dev-scorch-local.ts",
     "local:scorch:images": "tsx scripts/dev-scorch-local.ts --images",
     "fleet:pulse": "node bundle/orbit-cli.js constellation --pulse",

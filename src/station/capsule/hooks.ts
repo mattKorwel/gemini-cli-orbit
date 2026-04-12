@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
 
@@ -111,15 +112,22 @@ export async function beforeTool(input: any) {
   updateState(input.cwd, { status: 'THINKING' });
 }
 
-// Entry point for command-line hooks
-if (
-  import.meta.url === `file://${process.argv[1]}` ||
-  (process.argv[1] && process.argv[1].endsWith('hooks.js'))
-) {
+export function isDirectHookExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+
+  try {
+    return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+export async function runHookCli() {
   try {
     const stdin = fs.readFileSync(0, 'utf8').trim();
     if (!stdin) {
-      process.exit(0);
+      return 0;
     }
 
     const input = JSON.parse(stdin);
@@ -127,22 +135,24 @@ if (
 
     switch (event) {
       case 'SessionStart':
-        sessionStart(input);
+        await sessionStart(input);
         break;
       case 'BeforeAgent':
-        beforeAgent(input);
+        await beforeAgent(input);
         break;
       case 'AfterAgent':
-        afterAgent(input);
+        await afterAgent(input);
         break;
       case 'BeforeTool':
-        beforeTool(input);
+        await beforeTool(input);
         break;
       case 'Notification':
-        notification(input);
+        await notification(input);
         break;
     }
-  } catch (_e) {
-    process.exit(0);
+
+    return 0;
+  } catch {
+    return 0;
   }
 }

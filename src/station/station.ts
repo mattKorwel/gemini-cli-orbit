@@ -11,7 +11,8 @@
  */
 
 import { hideBin } from 'yargs/helpers';
-import { pathToFileURL } from 'node:url';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
@@ -26,6 +27,17 @@ import {
 import { getMissionManifest } from '../utils/MissionUtils.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
+
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+
+  try {
+    return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Main entry point for the worker.
@@ -113,11 +125,7 @@ Actions (determined by manifest.action if omitted):
   `);
 }
 
-if (
-  process.argv[1] &&
-  (import.meta.url === pathToFileURL(process.argv[1]).href ||
-    import.meta.url === `file://${process.argv[1]}`)
-) {
+if (isDirectExecution()) {
   // Hide node and script path
   const args = hideBin(process.argv);
   main(args)

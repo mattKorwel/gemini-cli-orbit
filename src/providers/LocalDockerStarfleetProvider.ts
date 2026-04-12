@@ -337,18 +337,7 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
               HOME: LocalDockerStarfleetProvider.localDockerHome,
               DOCKER_HOST: 'unix:///var/run/docker.sock',
               ORBIT_SERVER_PORT: '8080',
-              ORBIT_HOST_ROOT: orbitRoot,
-              GCLI_ORBIT_BUNDLE_PATH: path.join(root, 'bundle'),
-              GCLI_ORBIT_CONFIGS_HOST: path.join(root, 'configs'),
-              GCLI_ORBIT_GEMINI_DIR_HOST: path.join(home, '.gemini'),
-              GCLI_ORBIT_POLICIES_HOST: path.join(root, '.gemini', 'policies'),
-              GCLI_ORBIT_ENTRYPOINT_HOST: path.join(
-                root,
-                'starfleet-entrypoint.sh',
-              ),
-              ...(fs.existsSync(hostGhConfigDir)
-                ? { GCLI_ORBIT_GH_CONFIG_HOST: hostGhConfigDir }
-                : {}),
+              GCLI_ORBIT_HOST_PATH_BASE: root,
             },
           } as any);
 

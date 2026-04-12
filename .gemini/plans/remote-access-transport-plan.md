@@ -271,6 +271,14 @@ change.
   - consider a clearer long-term network/firewall mode model than flat booleans
 - Should raw SSH remain default for GCE, or should personal-project docs pivot
   to `ssh-public` as the recommended default?
+- Move host-path resolution fully into startup hydration so `StationApi` stops
+  re-deriving host workspace roots from capsule paths for logs and status.
+- Keep the station startup contract narrow:
+  - supervisor consumes the blueprint plus one optional
+    `GCLI_ORBIT_HOST_PATH_BASE`
+  - remove path-specific override envs permanently
+  - keep capsule/internal paths in blueprint storage fields and host paths in
+    mounts/areas only
 
 ## TODO
 
@@ -298,3 +306,8 @@ change.
   hardcoding the provisioner default.
 - Keep the default small for personal/test projects; current default target is
   50 GB.
+- Simplify `local-worktree` startup.
+- Current `local-worktree` chat launch is slower than expected and appears to
+  traverse more orchestration hops than the local tmux-backed path should need.
+- Revisit whether `local-worktree` can skip generic mission orchestration layers
+  that are only valuable for station/API-backed flows.

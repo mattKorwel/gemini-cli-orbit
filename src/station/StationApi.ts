@@ -36,6 +36,14 @@ export interface StationApiDependencies {
   debugLog?: (msg: string) => void;
 }
 
+function resolveWorkspaceHostRoot(config: StationSupervisorConfig): string {
+  const mountAreas = buildMountAreas(config.mounts, config.areas);
+  return (
+    resolveHostPathFromAreas(config.storage.workspacesRoot, mountAreas) ||
+    config.storage.workspacesRoot
+  );
+}
+
 async function getJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -52,7 +60,8 @@ async function getJsonBody(req: http.IncomingMessage): Promise<any> {
 
 export function createDefaultStationDependencies(): StationApiDependencies {
   const config = hydrateStationSupervisorConfig();
-  const logPath = path.join(config.storage.workspacesRoot, 'supervisor.log');
+  const workspaceHostRoot = resolveWorkspaceHostRoot(config);
+  const logPath = path.join(workspaceHostRoot, 'supervisor.log');
   const debugLog = (msg: string) => {
     const line = `[${new Date().toISOString()}] ${msg}\n`;
     process.stdout.write(line);
@@ -90,6 +99,7 @@ export function createStationServer(
       config,
     );
   const mountAreas = buildMountAreas(config.mounts, config.areas);
+  const workspaceHostRoot = resolveWorkspaceHostRoot(config);
 
   const resolveSupervisorFsPath = (internalPath: string): string => {
     const normalized = normalizeCapsulePath(internalPath);
@@ -308,7 +318,7 @@ export function createStationServer(
 
     if (url === '/missions/status' && method === 'GET') {
       try {
-        const aggregator = new StatusAggregator(config.storage.workspacesRoot);
+        const aggregator = new StatusAggregator(workspaceHostRoot);
         const status = await aggregator.getStatus();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(status));

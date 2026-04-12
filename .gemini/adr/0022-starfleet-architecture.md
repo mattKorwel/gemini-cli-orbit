@@ -10,7 +10,7 @@ Orbit is no longer a set of disparate CLI scripts. It is now a structured,
 three-tier orchestration system:
 
 1.  **Fleet Commander (Hub)**: The local Gemini SDK/CLI. Orchestrates hardware
-    and monitors the fleet via `station pulse`.
+    and monitors the fleet via `constellation --pulse`.
 2.  **Station Supervisor (Manager)**: The remote/host management layer. Handles
     workspace setup, mission spawning, and state aggregation.
 3.  **Agent Satellite (Capsule)**: The persistent Gemini session inside a
@@ -38,10 +38,11 @@ now flows through a structured pipeline:
 Missions now automatically manifest their status:
 
 - **Hard-linked Hooks**: Gemini CLI in each capsule is configured with
-  `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `Notification` hooks.
+  `SessionStart`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `Notification`
+  hooks via Gemini system settings baked into the worker image.
 - **`state.json`**: Hooks write the current state (🧠 Thinking, ⏳ Waiting for
   Input, 🛑 Blocked on Approval) to a persistent manifest.
-- **Aggregated Pulse**: `station pulse` now performs a single call to the
+- **Aggregated Pulse**: `constellation --pulse` performs a single call to the
   Station Supervisor, which aggregates all `state.json` files into a unified
   "Starfleet Dashboard."
 
@@ -64,12 +65,26 @@ This removes redundant `orbit-` prefixes while maintaining strict separation.
 - **Resilient Branching**: Missions now fall back to creating branches from
   `HEAD` if the remote branch is missing (e.g., old/merged PRs).
 
+### 5. Local-Docker Path Contract
+
+- **Blueprint-first station config**: `configs/station.local.json` remains the
+  source of truth for local station layout.
+- **Single explicit host path base**: local supervisor startup provides one
+  `GCLI_ORBIT_HOST_PATH_BASE`, and all relative host paths in the blueprint are
+  resolved against it.
+- **No path-specific override envs**: local startup does not pass separate env
+  overrides for bundle, policies, entrypoint, or user config paths.
+- **Separation of concerns**:
+  - blueprint storage fields remain capsule/internal paths
+  - mounts/areas describe host paths
+  - startup hydration resolves relative host paths exactly once
+
 ## 🛠️ Verification State
 
 - **Unit Tests**: 127 tests passing (including new tests for ProcessManager,
   Executors, and StatusAggregator).
-- **Local Verification**: Successfully launched and monitored `chat` missions in
-  the `gemini-cli` repo.
+- **Local Verification**: local-docker path hydration now resolves repo assets
+  correctly from a single startup-provided base path.
 - **Remote Verification**: Successfully provisioned a fresh GCE station
   (`starfleet-test-v1`) and verified the entire launch-and-pulse flow.
 

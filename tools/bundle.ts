@@ -39,7 +39,7 @@ async function build() {
     { in: 'src/station/server.ts', out: 'bundle/orbit-server.js' },
     { in: 'src/station/capsule/mission.ts', out: 'bundle/mission.js' },
     { in: 'src/station/station.ts', out: 'bundle/station.js' },
-    { in: 'src/station/capsule/hooks.ts', out: 'bundle/hooks.js' },
+    { in: 'src/station/capsule/hooks-cli.ts', out: 'bundle/hooks.js' },
   ];
 
   for (const entry of entries) {

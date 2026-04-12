@@ -8,11 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type IGitExecutor } from '../core/interfaces.js';
 import { type StationSupervisorConfig } from '../core/types.js';
-import {
-  buildMountAreas,
-  resolveCapsulePathFromAreas,
-  resolveHostPathFromAreas,
-} from './MountRegistry.js';
+import { buildMountAreas, resolveHostPathFromAreas } from './MountRegistry.js';
 
 export interface WorkspaceOptions {
   workDir: string;

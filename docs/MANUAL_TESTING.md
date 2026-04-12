@@ -67,6 +67,20 @@ _Expected:_ The tmux session is killed, and the worktree directory is removed.
 This mode runs the Starfleet Supervisor and Worker capsules in Docker on your
 local machine.
 
+### Prerequisites
+
+If an old local station is hanging around, reset it first:
+
+```bash
+npm run local:scorch
+```
+
+The local supervisor now resolves relative host paths in
+`configs/station.local.json` against the startup directory via one explicit
+host-path base. Repo assets such as `./bundle`, `./.gemini/policies`, and
+`./starfleet-entrypoint.sh` should resolve into the current repo root, while
+station data stays under `~/.gemini/orbit/stations/local-docker`.
+
 ### 🛸 Start Supervisor (Background)
 
 Open a separate terminal window and leave this running:
@@ -126,12 +140,17 @@ Pulumi.
 ### 🏗️ Provision Station (Liftoff)
 
 ```bash
-node bundle/orbit-cli.js infra liftoff test-station --schematic korwel-fresh
+node bundle/orbit-cli.js infra liftoff test-station --schematic personal-gcp
 ```
 
 _Expected:_ Pulumi provisions or wakes the named GCE VM from the selected
-schematic. With `manageNetworking: false`, Orbit reuses the named VPC/subnet
-from the schematic instead of creating fresh networking.
+schematic. The current personal-project path uses:
+
+- `useDefaultNetwork: true`
+- `manageFirewallRules: true`
+
+so Orbit reuses the default VPC/subnet and ensures the needed SSH firewall
+access there.
 
 ### 🚀 Launch & Attach
 

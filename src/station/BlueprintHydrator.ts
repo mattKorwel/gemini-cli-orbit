@@ -5,28 +5,20 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   type StationPathArea,
   type StationSupervisorConfig,
 } from '../core/types.js';
-import {
-  CAPSULE_BUNDLE_PATH,
-  CAPSULE_ROOT,
-  SUPERVISOR_ENTRYPOINT_SOURCE_PATH,
-} from '../core/Constants.js';
+import { CAPSULE_ROOT } from '../core/Constants.js';
 import { normalizeCapsulePath } from './MountRegistry.js';
 
 interface StationRuntimeOverrides {
   port?: number;
   workerImage?: string;
   hostRoot?: string;
-  bundleHost?: string;
-  configsHost?: string;
-  geminiDirHost?: string;
-  ghConfigHost?: string;
-  policiesHost?: string;
-  entrypointHost?: string;
+  hostPathBase?: string;
 }
 
 export function hydrateStationSupervisorConfig(
@@ -43,20 +35,21 @@ export function hydrateStationSupervisorConfig(
 
   applyRuntimeOverrides(blueprint, runtime);
 
-  blueprint.manifestRoot = path.resolve(blueprint.manifestRoot);
-  blueprint.storage.workspacesRoot = path.resolve(
+  blueprint.hostRoot = normalizeRuntimeHostPath(
+    blueprint.hostRoot,
+    runtime.hostPathBase,
+  );
+  blueprint.manifestRoot = normalizeCapsulePath(blueprint.manifestRoot);
+  blueprint.storage.workspacesRoot = normalizeCapsulePath(
     blueprint.storage.workspacesRoot,
   );
-  blueprint.storage.mirrorPath = path.resolve(blueprint.storage.mirrorPath);
+  blueprint.storage.mirrorPath = normalizeCapsulePath(
+    blueprint.storage.mirrorPath,
+  );
 
   blueprint.mounts = (blueprint.mounts || []).map((mount: any) => ({
     ...mount,
-    host: resolveBlueprintMountHost(
-      mount.host,
-      mount.capsule,
-      blueprint.hostRoot,
-      runtime,
-    ),
+    host: resolveBlueprintMountHost(mount.host, runtime),
   }));
 
   blueprint.areas = buildStaticAreas(blueprint, runtime);
@@ -130,23 +123,8 @@ function collectRuntimeOverrides(
   if (env.ORBIT_HOST_ROOT) {
     runtime.hostRoot = env.ORBIT_HOST_ROOT;
   }
-  if (env.GCLI_ORBIT_BUNDLE_PATH) {
-    runtime.bundleHost = env.GCLI_ORBIT_BUNDLE_PATH;
-  }
-  if (env.GCLI_ORBIT_CONFIGS_HOST) {
-    runtime.configsHost = env.GCLI_ORBIT_CONFIGS_HOST;
-  }
-  if (env.GCLI_ORBIT_GEMINI_DIR_HOST) {
-    runtime.geminiDirHost = env.GCLI_ORBIT_GEMINI_DIR_HOST;
-  }
-  if (env.GCLI_ORBIT_GH_CONFIG_HOST) {
-    runtime.ghConfigHost = env.GCLI_ORBIT_GH_CONFIG_HOST;
-  }
-  if (env.GCLI_ORBIT_POLICIES_HOST) {
-    runtime.policiesHost = env.GCLI_ORBIT_POLICIES_HOST;
-  }
-  if (env.GCLI_ORBIT_ENTRYPOINT_HOST) {
-    runtime.entrypointHost = env.GCLI_ORBIT_ENTRYPOINT_HOST;
+  if (env.GCLI_ORBIT_HOST_PATH_BASE) {
+    runtime.hostPathBase = env.GCLI_ORBIT_HOST_PATH_BASE;
   }
 
   return runtime;
@@ -169,35 +147,9 @@ function applyRuntimeOverrides(
 
 function resolveBlueprintMountHost(
   hostPath: string,
-  capsulePath: string,
-  hostRoot: string | undefined,
   runtime: StationRuntimeOverrides,
 ): string {
-  if (hostPath === '~/.gemini' && runtime.geminiDirHost) {
-    return normalizeRuntimeHostPath(runtime.geminiDirHost);
-  }
-  if (hostPath === '~/.config/gh' && runtime.ghConfigHost) {
-    return normalizeRuntimeHostPath(runtime.ghConfigHost);
-  }
-
-  const normalizedCapsulePath = normalizeCapsulePath(capsulePath);
-  if (
-    hostPath.startsWith('./') &&
-    hostRoot &&
-    normalizedCapsulePath.startsWith(CAPSULE_ROOT)
-  ) {
-    const relativePath = path.posix.relative(
-      CAPSULE_ROOT,
-      normalizedCapsulePath,
-    );
-    const relativeParts = relativePath.split('/').filter(Boolean);
-    if (/^[A-Z]:/i.test(hostRoot)) {
-      return path.win32.join(hostRoot, ...relativeParts);
-    }
-    return path.posix.join(hostRoot, ...relativeParts);
-  }
-
-  return normalizeRuntimeHostPath(hostPath);
+  return normalizeRuntimeHostPath(hostPath, runtime.hostPathBase);
 }
 
 function buildStaticAreas(
@@ -209,12 +161,7 @@ function buildStaticAreas(
       name,
       {
         ...area,
-        host: resolveBlueprintMountHost(
-          area.host,
-          area.capsule,
-          blueprint.hostRoot,
-          runtime,
-        ),
+        host: resolveBlueprintMountHost(area.host, runtime),
       },
     ]),
   );
@@ -252,72 +199,33 @@ function buildStaticAreas(
       readonly: geminiMount.readonly,
     };
   }
-
-  if (runtime.bundleHost) {
-    areas.bundle = {
-      host: normalizeRuntimeHostPath(runtime.bundleHost),
-      capsule: CAPSULE_BUNDLE_PATH,
-      kind: 'dir',
-      readonly: true,
-    };
-  }
-
-  if (runtime.configsHost) {
-    areas.configs = {
-      host: normalizeRuntimeHostPath(runtime.configsHost),
-      capsule: path.posix.join(CAPSULE_ROOT, 'configs'),
-      kind: 'dir',
-      readonly: true,
-    };
-  }
-
-  if (runtime.geminiDirHost) {
-    areas.globalGemini = {
-      host: normalizeRuntimeHostPath(runtime.geminiDirHost),
-      capsule: path.posix.join(CAPSULE_ROOT, 'home', '.gemini'),
-      kind: 'dir',
-      readonly: true,
-    };
-  }
-
-  if (runtime.ghConfigHost) {
-    areas.ghConfig = {
-      host: normalizeRuntimeHostPath(runtime.ghConfigHost),
-      capsule: path.posix.join(CAPSULE_ROOT, 'home', '.config', 'gh'),
-      kind: 'dir',
-      readonly: true,
-    };
-  }
-
-  if (runtime.policiesHost) {
-    areas.policies = {
-      host: normalizeRuntimeHostPath(runtime.policiesHost),
-      capsule: path.posix.join(CAPSULE_ROOT, '.gemini', 'policies'),
-      kind: 'dir',
-      readonly: true,
-    };
-  }
-
-  if (runtime.entrypointHost) {
-    areas.entrypoint = {
-      host: normalizeRuntimeHostPath(runtime.entrypointHost),
-      capsule: SUPERVISOR_ENTRYPOINT_SOURCE_PATH,
-      kind: 'file',
-      readonly: true,
-    };
-  }
-
   return areas;
 }
 
-function normalizeRuntimeHostPath(hostPath: string): string {
-  if (/^[A-Z]:/i.test(hostPath)) {
-    return path.win32.normalize(hostPath);
+function normalizeRuntimeHostPath(
+  hostPath: string,
+  hostPathBase?: string,
+): string {
+  const expandedHome =
+    hostPath === '~'
+      ? os.homedir()
+      : hostPath.startsWith('~/') || hostPath.startsWith('~\\')
+        ? path.join(os.homedir(), hostPath.slice(2))
+        : hostPath;
+
+  if (/^[A-Z]:/i.test(expandedHome)) {
+    return path.win32.normalize(expandedHome);
   }
 
-  if (path.posix.isAbsolute(hostPath)) {
-    return path.posix.normalize(hostPath);
+  if (path.posix.isAbsolute(expandedHome)) {
+    return path.posix.normalize(expandedHome);
   }
 
-  return path.resolve(hostPath);
+  if (hostPathBase) {
+    return path.resolve(hostPathBase, expandedHome);
+  }
+
+  throw new Error(
+    `Relative host path "${hostPath}" requires GCLI_ORBIT_HOST_PATH_BASE to be set.`,
+  );
 }

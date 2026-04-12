@@ -530,11 +530,13 @@ export class MissionManager {
       `👋 Resuming existing '${action}' for ${idSlug}...`,
     );
 
-    const containerName = provider.resolveContainerName(
-      repoSlug,
-      idSlug,
-      action,
-    );
+    const launchedContainerName =
+      typeof (provider as any).getLaunchedContainerName === 'function'
+        ? (provider as any).getLaunchedContainerName(options.identifier)
+        : undefined;
+    const containerName =
+      launchedContainerName ||
+      provider.resolveContainerName(repoSlug, idSlug, action);
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
     this.observer.onLog?.(
