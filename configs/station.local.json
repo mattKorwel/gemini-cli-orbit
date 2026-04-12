@@ -22,5 +22,25 @@
     },
     { "host": "/dev/shm", "capsule": "/dev/shm" }
   ],
+  "areas": {
+    "policies": {
+      "host": "./.gemini/policies",
+      "capsule": "/orbit/.gemini/policies",
+      "kind": "dir",
+      "readonly": true
+    },
+    "bundle": {
+      "host": "./bundle",
+      "capsule": "/orbit/bundle",
+      "kind": "dir",
+      "readonly": true
+    },
+    "entrypoint": {
+      "host": "./starfleet-entrypoint.sh",
+      "capsule": "/orbit/starfleet-entrypoint.sh",
+      "kind": "file",
+      "readonly": true
+    }
+  },
   "bundlePath": "/orbit/bundle"
 }
