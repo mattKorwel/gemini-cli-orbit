@@ -84,7 +84,7 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
       'set-option status-right "#[fg=colour244] #H "',
       'set-option window-status-current-format "#[fg=colour45,bold] #S "',
     ]
-      .map((s) => `${tmuxBin} ${s}`)
+      .map((s) => `& ${tmuxBin} ${s}`)
       .join('; ');
 
     // 2. PWSH Tip
@@ -155,7 +155,21 @@ export class WindowsTmuxExecutor extends TmuxExecutor {
         .join('; ') + '; ';
 
     const cdPrefix = cwd ? `Set-Location ${this.shellQuote(cwd)}; ` : '';
-    const script = `${cdPrefix}${envPrefix}${innerCommand}; powershell.exe -NoProfile -ExecutionPolicy Bypass`;
+
+    // 4. Tmux Style Definitions
+    const tmuxBin = this.shellQuote(binName);
+    const styles = [
+      'set-option status on',
+      'set-option status-position top',
+      'set-option status-style "bg=colour235,fg=colour244"',
+      'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
+      'set-option status-right "#[fg=colour244] #H "',
+      'set-option window-status-current-format "#[fg=colour45,bold] #S "',
+    ]
+      .map((s) => `& ${tmuxBin} ${s}`)
+      .join('; ');
+
+    const script = `${styles}; ${cdPrefix}${envPrefix}${innerCommand}`;
 
     tmuxArgs.push(this.pwshEncode(script));
 

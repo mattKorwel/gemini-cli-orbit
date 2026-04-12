@@ -104,7 +104,24 @@ export class TmuxExecutor implements ITmuxExecutor {
         .map(([k, v]) => `export ${k}=${this.shellQuote(v as string)}`)
         .join('; ') + '; ';
     const cdPrefix = cwd ? `cd ${this.shellQuote(cwd)} && ` : '';
-    const fullInner = `${cdPrefix}${envPrefix}${innerCommand}; exec zsh`;
+
+    // 4. Stealth UI Style Definitions
+    const binName = this.bin;
+    const styles = [
+      'set-option status on',
+      'set-option status-position top',
+      'set-option status-style "bg=colour235,fg=colour244"',
+      'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
+      'set-option status-right "#[fg=colour244] #H "',
+      'set-option window-status-current-format "#[fg=colour45,bold] #S "',
+      'set-option -ga terminal-overrides ",xterm-256color:Tc"',
+      'set-option -as terminal-features ",xterm-256color:RGB"',
+      'set-option -g default-terminal "xterm-256color"',
+    ]
+      .map((s) => `${binName} ${s}`)
+      .join('; ');
+
+    const fullInner = `${styles}; ${cdPrefix}${envPrefix}${innerCommand}; exec zsh`;
 
     tmuxArgs.push(fullInner);
 
@@ -158,7 +175,7 @@ export class TmuxExecutor implements ITmuxExecutor {
   public capturePane(sessionName: string): Command {
     return {
       bin: this.bin,
-      args: ['capture-pane', '-pt', sessionName],
+      args: ['capture-pane', '-p', '-t', sessionName],
       options: { quiet: true },
     };
   }

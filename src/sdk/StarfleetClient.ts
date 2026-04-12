@@ -162,6 +162,10 @@ export class StarfleetClient {
     return res.capsules;
   }
 
+  async getMissionsStatus(): Promise<{ missions: any[] }> {
+    return this.request<{ missions: any[] }>('/missions/status', 'GET');
+  }
+
   async jettisonMission(identifier: string, action?: string): Promise<number> {
     const query = action ? `?action=${action}` : '';
     await this.request(`/missions/${identifier}${query}`, 'DELETE');

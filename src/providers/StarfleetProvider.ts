@@ -337,6 +337,11 @@ export abstract class StarfleetProvider extends BaseProvider {
   async listCapsules(): Promise<string[]> {
     return this.withStationApi(() => this.client.listCapsules());
   }
+
+  async getMissionsStatus(): Promise<{ missions: any[] }> {
+    return this.withStationApi(() => this.client.getMissionsStatus());
+  }
+
   async provisionMirror(): Promise<number> {
     return 0;
   }

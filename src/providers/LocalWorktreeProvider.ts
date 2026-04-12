@@ -25,6 +25,7 @@ import {
 } from '../utils/MissionUtils.js';
 import { sanitizeName } from '../core/ConfigManager.js';
 import { WindowsGitExecutor } from '../core/executors/WindowsGitExecutor.js';
+import { StatusAggregator } from '../station/StatusAggregator.js';
 import {
   type IExecutors,
   type IProcessManager,
@@ -666,8 +667,16 @@ export class LocalWorktreeProvider extends BaseProvider {
     });
     if (res.status !== 0) return [];
 
-    const sessions = (res.stdout || '').split('\n').filter(Boolean);
+    const sessions = (res.stdout || '')
+      .split('\n')
+      .filter(Boolean)
+      .map((s) => s.split(':')[0] || s);
     return sessions.filter((s) => this.isOrbitSession(s));
+  }
+
+  async getMissionsStatus(): Promise<{ missions: any[] }> {
+    const aggregator = new StatusAggregator(this.workspacesDir);
+    return aggregator.getStatus();
   }
 
   async provisionMirror(): Promise<number> {

@@ -1022,9 +1022,6 @@ function renderMissionList(
 
       if (!detail && c.lastThought) {
         const isSnapshot = c.lastThought.includes('\n');
-        console.log(
-          `DEBUG: render mission=${c.name} isSnapshot=${isSnapshot} peek=${peek}`,
-        );
         if (peek || !isSnapshot) {
           detail = isSnapshot
             ? `Terminal:\n\`\`\`\n${c.lastThought}\n\`\`\``

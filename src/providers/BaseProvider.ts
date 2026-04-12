@@ -260,6 +260,11 @@ export abstract class BaseProvider {
   abstract listCapsules(): Promise<string[]>;
 
   /**
+   * Returns aggregated mission status manifests from the station.
+   */
+  abstract getMissionsStatus(): Promise<{ missions: any[] }>;
+
+  /**
    * Provisions a high-performance git mirror.
    */
   abstract provisionMirror(remoteUrl: string): Promise<number>;
@@ -377,25 +382,13 @@ export abstract class BaseProvider {
   async getMissionTelemetry(peek = false): Promise<CapsuleInfo[]> {
     const capsules: CapsuleInfo[] = [];
 
-    // 1. Request aggregated status from the worker
-    const bundlePath = this.resolveWorkerPath();
-    const workspacesRoot = this.resolveWorkspacesRoot();
-
-    const statusCmd = this.createNodeCommand(bundlePath, [
-      'status',
-      workspacesRoot,
-    ]);
-
-    const statusOutput = await this.getExecOutput(statusCmd, { quiet: true });
-
+    // 1. Request aggregated status from the station
     let aggregatedMissions: any[] = [];
-    if (statusOutput.status === 0) {
-      try {
-        const report = JSON.parse(statusOutput.stdout);
-        aggregatedMissions = report.missions || [];
-      } catch (_e) {
-        // Fallback
-      }
+    try {
+      const report = await this.getMissionsStatus();
+      aggregatedMissions = report.missions || [];
+    } catch (_e) {
+      // Fallback to basic discovery if status API fails or is not supported
     }
 
     // 2. Discover active capsules/containers

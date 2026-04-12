@@ -18,6 +18,7 @@ import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { WorkspaceManager } from './WorkspaceManager.js';
 import { DockerManager } from './DockerManager.js';
 import { MissionOrchestrator } from './MissionOrchestrator.js';
+import { StatusAggregator } from './StatusAggregator.js';
 import { hydrateStationSupervisorConfig } from './BlueprintHydrator.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import {
@@ -301,6 +302,21 @@ export function createStationServer(
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'LIST_FAILED', message: err.message }));
+      }
+      return;
+    }
+
+    if (url === '/missions/status' && method === 'GET') {
+      try {
+        const aggregator = new StatusAggregator(config.storage.workspacesRoot);
+        const status = await aggregator.getStatus();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(status));
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({ error: 'STATUS_FAILED', message: err.message }),
+        );
       }
       return;
     }
