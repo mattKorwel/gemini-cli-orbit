@@ -9,6 +9,7 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import { type StationState } from '../core/types.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import {
   type IProviderFactory,
   type IExecutors,
@@ -24,6 +25,7 @@ export class StatusManager {
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
+    private readonly state: InfrastructureState | undefined,
     private readonly providerFactory: IProviderFactory,
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
@@ -37,6 +39,7 @@ export class StatusManager {
     this._cachedProvider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
+      this.state,
     );
     return this._cachedProvider;
   }

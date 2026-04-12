@@ -8,6 +8,6 @@
     "workspacesRoot": "/tmp/orbit-test-workspaces",
     "mirrorPath": "/tmp/orbit-test-mirror"
   },
-  "mounts": [{ "host": "/tmp/orbit-test-data", "capsule": "/mnt/disks/data" }],
+  "mounts": [{ "host": "/tmp/orbit-test-data", "capsule": "/orbit" }],
   "bundlePath": "/usr/local/lib/orbit/bundle"
 }

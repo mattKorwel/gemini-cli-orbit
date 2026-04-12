@@ -70,8 +70,6 @@ export class RemoteProvisioner {
       sessionName: mCtx.sessionName,
       policyPath: this.provider.resolvePolicyPath(),
       upstreamUrl: mCtx.upstreamUrl || (infra as any).upstreamUrl,
-      mirrorPath: this.provider.resolveMirrorPath(),
-      bundleDir: this.provider.resolveBundlePath(),
       tempDir: remoteWorkspaceDir,
     });
 

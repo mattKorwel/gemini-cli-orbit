@@ -6,7 +6,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { ProviderFactory } from './ProviderFactory.js';
-import { GceCosProvider } from './GceCosProvider.js';
 import { StarfleetProvider } from './StarfleetProvider.js';
 import {
   type ProjectContext,
@@ -36,18 +35,5 @@ describe('ProviderFactory', () => {
     const factory = new ProviderFactory(mockPm, mockExecutors);
     const provider = factory.getProvider(projectCtx, infra);
     expect(provider).toBeInstanceOf(StarfleetProvider);
-  });
-
-  it('should return a GceCosProvider instance when starfleet is explicitly disabled', () => {
-    const infra: InfrastructureSpec = {
-      projectId: 'test-project',
-      zone: 'us-central1-a',
-      instanceName: 'test-instance',
-      starfleet: false,
-    } as any;
-
-    const factory = new ProviderFactory(mockPm, mockExecutors);
-    const provider = factory.getProvider(projectCtx, infra);
-    expect(provider).toBeInstanceOf(GceCosProvider);
   });
 });

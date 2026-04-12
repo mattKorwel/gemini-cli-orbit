@@ -5,26 +5,29 @@
  */
 
 import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   type StationTransport,
   type IProcessManager,
   type IProcessResult,
-} from '../core/interfaces.js';
-import { type Command } from '../core/executors/types.js';
+} from '../../core/interfaces.js';
+import { type Command } from '../../core/executors/types.js';
 import {
   type SyncOptions,
   type ExecOptions,
   type ExecResult,
-} from '../core/types.js';
-import type { ISshExecutor } from '../core/executors/SshExecutor.js';
-import { type InfrastructureSpec } from '../core/Constants.js';
+} from '../../core/types.js';
+import type { ISshExecutor } from '../../core/executors/ssh/SshExecutor.js';
+import { type InfrastructureSpec } from '../../core/Constants.js';
 
 /**
- * SshTransport: Remote transport implementation using SSH and MagicRemote.
+ * SshTransport: Remote transport implementation using SSH-backed command and
+ * file transfer primitives.
  */
 export class SshTransport implements StationTransport {
   public readonly type = 'ssh';
-  private activeTunnels: Set<number> = new Set();
+  protected activeTunnels: Set<number> = new Set();
   private overrideHost: string | null = null;
 
   constructor(
@@ -53,13 +56,9 @@ export class SshTransport implements StationTransport {
 
     const customSuffix = this.infra.dnsSuffix || 'internal';
     const baseSuffix = `.c.${this.projectId}`;
-    let fullSuffix = '';
-
-    if (customSuffix.startsWith('.')) {
-      fullSuffix = `${baseSuffix}${customSuffix}`;
-    } else {
-      fullSuffix = `${baseSuffix}.${customSuffix}`;
-    }
+    const fullSuffix = customSuffix.startsWith('.')
+      ? `${baseSuffix}${customSuffix}`
+      : `${baseSuffix}.${customSuffix}`;
 
     return `${user}@nic0.${this.instanceName}.${this.zone}${fullSuffix}`;
   }
@@ -99,10 +98,9 @@ export class SshTransport implements StationTransport {
     const colorTerm = process.env.COLORTERM || 'truecolor';
     const forceColor = process.env.FORCE_COLOR || '3';
 
-    // Starfleet standard: persistent tmux session named after the action or mission
     const attachCmd = `sudo docker exec -it -e TERM=${term} -e COLORTERM=${colorTerm} -e FORCE_COLOR=${forceColor} ${containerName} tmux attach -t ${sessionName} || sudo docker exec -it -e TERM=${term} -e COLORTERM=${colorTerm} -e FORCE_COLOR=${forceColor} ${containerName} /bin/bash`;
 
-    const res = this.pm.runSync('ssh', ['-t', target, attachCmd], {
+    const res = this.ssh.exec(target, attachCmd, {
       interactive: true,
       env: {
         ...process.env,
@@ -119,13 +117,40 @@ export class SshTransport implements StationTransport {
     remotePath: string,
     options: SyncOptions = {},
   ): Promise<number> {
-    const remote = `${this.getConnectionHandle()}:${remotePath}`;
+    const trimmedLocal = localPath.replace(/[\\/]+$/, '');
+    const sourcePath = trimmedLocal || localPath;
+    const isDirectory =
+      fs.existsSync(sourcePath) && fs.statSync(sourcePath).isDirectory();
+    const target = this.getConnectionHandle();
 
     return this.withConnectivityRetry(async () => {
-      const res = this.ssh.rsync(localPath, remote, options);
+      const prepPath = isDirectory
+        ? remotePath
+        : path.posix.dirname(remotePath);
+      const quotedPrepPath = prepPath.replace(/'/g, "'\\''");
+      const prepCommand =
+        options.delete && isDirectory
+          ? `sudo rm -rf '${quotedPrepPath}' && sudo mkdir -p '${quotedPrepPath}'`
+          : `${options.sudo ? 'sudo ' : ''}mkdir -p '${quotedPrepPath}'`;
+      const prepRes = await this.ssh.execAsync(target, prepCommand, {
+        quiet: true,
+      });
+      if (prepRes.status !== 0) {
+        throw new Error(
+          `Remote prepare failed with exit code ${prepRes.status}: ${prepRes.stderr}`,
+        );
+      }
+
+      const copyOptions: { quiet?: boolean; directory?: boolean } = {
+        directory: isDirectory,
+      };
+      if (options.quiet !== undefined) {
+        copyOptions.quiet = options.quiet;
+      }
+      const res = this.ssh.copyTo(target, localPath, remotePath, copyOptions);
       if (res.status !== 0) {
         throw new Error(
-          `Rsync failed with exit code ${res.status}: ${res.stderr}`,
+          `File transfer failed with exit code ${res.status}: ${res.stderr}`,
         );
       }
       return res.status;
@@ -139,33 +164,42 @@ export class SshTransport implements StationTransport {
     if (this.activeTunnels.has(localPort)) return;
 
     const target = this.getConnectionHandle();
-    const home = os.homedir();
-
     await this.pm.runAsync(
       'ssh',
-      [
-        '-i',
-        `${home}/.ssh/google_compute_engine`,
-        '-o',
-        'StrictHostKeyChecking=no',
-        '-o',
-        'UserKnownHostsFile=/dev/null',
-        '-o',
-        'ControlMaster=auto',
-        '-o',
-        'ControlPath=~/.ssh/orbit-%C',
-        '-o',
-        'ControlPersist=10m',
-        '-L',
-        `${localPort}:localhost:${remotePort}`,
-        '-N',
-        '-f',
-        target,
-      ],
-      { detached: true } as any,
+      this.getTunnelArgs(target, localPort, remotePort),
+      {
+        detached: true,
+      } as any,
     );
 
     this.activeTunnels.add(localPort);
+  }
+
+  protected getTunnelArgs(
+    target: string,
+    localPort: number,
+    remotePort: number,
+  ): string[] {
+    const home = os.homedir();
+    return [
+      '-i',
+      `${home}/.ssh/google_compute_engine`,
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      '-o',
+      'ControlMaster=auto',
+      '-o',
+      'ControlPath=~/.ssh/orbit-%C',
+      '-o',
+      'ControlPersist=10m',
+      '-L',
+      `${localPort}:localhost:${remotePort}`,
+      '-N',
+      '-f',
+      target,
+    ];
   }
 
   private async withConnectivityRetry<T>(

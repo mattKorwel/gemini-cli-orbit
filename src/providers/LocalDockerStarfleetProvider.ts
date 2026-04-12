@@ -261,9 +261,13 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
           const orbitRoot = this.getHostOrbitRoot();
           const gid = this.getDockerSocketGid();
           const hostGhConfigDir = GLOBAL_GH_CONFIG_DIR;
-          const configsCapsulePath = path.posix.join(CAPSULE_ROOT, 'configs');
           const entrypointCapsulePath = SUPERVISOR_ENTRYPOINT_SOURCE_PATH;
-          const supervisorCmd = `node ${CAPSULE_BUNDLE_PATH}/orbit-server.js --config=${CAPSULE_ROOT}/configs/station.local.json`;
+          const supervisorConfigCapsulePath = path.posix.join(
+            CAPSULE_ROOT,
+            'config',
+            'station.json',
+          );
+          const supervisorCmd = `node ${CAPSULE_BUNDLE_PATH}/orbit-server.js --config=${supervisorConfigCapsulePath}`;
           const mounts: {
             host: string;
             capsule: string;
@@ -297,8 +301,8 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
               readonly: true,
             },
             {
-              host: path.join(root, 'configs'),
-              capsule: configsCapsulePath,
+              host: path.join(root, 'configs', 'station.local.json'),
+              capsule: supervisorConfigCapsulePath,
               readonly: true,
             },
             {

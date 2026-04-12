@@ -35,6 +35,7 @@ import {
 } from '../utils/MissionUtils.js';
 import { type StarfleetClient } from './StarfleetClient.js';
 import { loadAuthEnvChain } from '../utils/EnvResolver.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 
 type GitAuthMode = 'host-gh-config' | 'repo-token' | 'none';
 type GeminiAuthMode = 'env-chain' | 'accounts-file' | 'none';
@@ -57,6 +58,7 @@ export class MissionManager {
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
     private readonly starfleetClient: StarfleetClient,
+    private readonly state?: InfrastructureState,
     private readonly provider?: import('../providers/BaseProvider.js').BaseProvider,
     private fleet?: import('./FleetManager.js').FleetManager,
   ) {
@@ -72,8 +74,31 @@ export class MissionManager {
     this._cachedProvider = this.providerFactory.getProvider(
       this.projectCtx,
       this.infra as any,
+      this.state,
     );
     return this._cachedProvider;
+  }
+
+  private sanitizeMissionEnv(
+    env: Record<string, string> | undefined,
+  ): Record<string, string> | undefined {
+    if (!env) return undefined;
+
+    const blockedPrefixes = ['GCLI_ORBIT_', 'ORBIT_'];
+    const blockedExact = new Set([
+      'DOCKER_HOST',
+      'COMPOSE_FILE',
+      'COMPOSE_PROJECT_NAME',
+    ]);
+
+    const sanitized = Object.fromEntries(
+      Object.entries(env).filter(([key]) => {
+        if (blockedExact.has(key)) return false;
+        return !blockedPrefixes.some((prefix) => key.startsWith(prefix));
+      }),
+    );
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
   }
 
   /**
@@ -102,7 +127,10 @@ export class MissionManager {
       action,
     );
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
-    const workDir = provider.resolveWorkDir(workspaceName);
+    const hostWorkDir = provider.resolveWorkDir(workspaceName);
+    const workDir = (provider as any).resolveCapsuleWorkDir
+      ? (provider as any).resolveCapsuleWorkDir(workspaceName)
+      : hostWorkDir;
     const policyPath = provider.resolvePolicyPath();
 
     const isDev = options.dev ?? false;
@@ -121,7 +149,7 @@ export class MissionManager {
           UPSTREAM_REPO_URL);
     this.infra.upstreamUrl = upstreamUrl;
 
-    return {
+    const manifest: MissionManifest = {
       identifier,
       repoName: this.projectCtx.repoName,
       branchName,
@@ -132,16 +160,23 @@ export class MissionManager {
       sessionName,
       policyPath,
       upstreamUrl,
-      mirrorPath: provider.resolveMirrorPath(),
-      bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
       isDev: isDev,
       gitAuthMode,
       geminiAuthMode,
       tempDir: workDir,
-      env: this.infra.env,
+      env: this.sanitizeMissionEnv(this.infra.env),
       sensitiveEnv: this.infra.sensitiveEnv,
     };
+
+    // Starfleet stations own their runtime layout via baked supervisor config.
+    // Only local-worktree still needs station path details carried in manifest.
+    if (provider.type === 'local-worktree') {
+      manifest.mirrorPath = provider.resolveMirrorPath();
+      manifest.bundleDir = provider.resolveBundlePath();
+    }
+
+    return manifest;
   }
 
   private resolveMissionSensitiveEnv(manifest: MissionManifest): {
@@ -364,10 +399,7 @@ export class MissionManager {
       '📂 Synchronizing project configurations...',
     );
 
-    // 1. Sync global user settings (Auth, etc.)
-    await provider.syncGlobalConfig();
-
-    // 2. Lazy Sync Project Configs (.gemini)
+    // 1. Lazy Sync Project Configs (.gemini)
     const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
     const targetConfigDir = provider.resolveProjectConfigDir();
     await provider.syncIfChanged(`${localConfigDir}/`, targetConfigDir, {

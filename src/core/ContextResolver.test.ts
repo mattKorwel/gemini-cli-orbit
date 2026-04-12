@@ -123,6 +123,32 @@ describe('ContextResolver', () => {
     expect(context.infra.providerType).toBe('gce');
   });
 
+  it('should hydrate runtime connection state from station receipt without pushing it into infra', async () => {
+    vi.spyOn(ConfigManager, 'loadJson').mockReturnValue({
+      name: 'my-station',
+      type: 'gce',
+      projectId: 'real-project',
+      zone: 'us-west1-a',
+      instanceName: 'my-station',
+      externalIp: '34.1.2.3',
+      sshUser: 'oslogin-user',
+    });
+
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: { forStation: 'my-station' },
+      env: {},
+    });
+
+    expect(context.state).toEqual({
+      status: 'ready',
+      publicIp: '34.1.2.3',
+      sshUser: 'oslogin-user',
+    });
+    expect(context.infra.instanceName).toBe('my-station');
+    expect((context.infra as any).externalIp).toBeUndefined();
+  });
+
   it('should prioritize explicit flags over schematic values', async () => {
     vi.spyOn(ConfigManager, 'loadSchematic').mockReturnValue({
       projectId: 'schematic-project',

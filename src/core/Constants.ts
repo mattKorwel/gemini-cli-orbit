@@ -61,7 +61,8 @@ export interface InfrastructureSpec {
   imageUri?: string | undefined;
   upstreamRepo?: string | undefined;
   upstreamUrl?: string | undefined;
-  manageNetworking?: boolean | undefined;
+  useDefaultNetwork?: boolean | undefined;
+  manageFirewallRules?: boolean | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;
   machineType?: string | undefined;
@@ -92,6 +93,7 @@ export interface InfrastructureSpec {
 export interface OrbitContext {
   project: ProjectContext;
   infra: InfrastructureSpec;
+  state?: import('../infrastructure/InfrastructureState.js').InfrastructureState;
   isDev?: boolean;
 }
 
@@ -286,7 +288,8 @@ export interface OrbitConfig extends InfrastructureSpec {
   gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none' | undefined;
   geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none' | undefined;
   repoToken?: string | undefined;
-  manageNetworking?: boolean | undefined;
+  useDefaultNetwork?: boolean | undefined;
+  manageFirewallRules?: boolean | undefined;
   allowDevUpdates?: boolean | undefined;
   tempDir?: string | undefined;
   autoClean?: boolean | undefined;

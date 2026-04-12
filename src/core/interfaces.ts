@@ -39,6 +39,8 @@ export interface StationReceipt {
   workspacesDir?: string;
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
+  sshUser?: string | undefined;
+  externalIp?: string | undefined;
   lastSeen: string;
 }
 export interface HydratedStation {
@@ -141,7 +143,7 @@ export interface StationTransport {
   setOverrideHost(host: string): void;
 
   /**
-   * Returns the "magic" remote handle used for rsync/ssh.
+   * Returns the connection handle used for SSH-backed file transfers.
    */
   getMagicRemote(): string;
 }
@@ -159,6 +161,7 @@ export interface IRunOptions {
   quiet?: boolean;
   stream?: boolean; // Real-time streaming to console
   detached?: boolean;
+  shell?: boolean;
   onStdout?: (data: string) => void;
   onStderr?: (data: string) => void;
   stdio?:
@@ -283,7 +286,7 @@ export interface IExecutors {
   tmux: ITmuxExecutor;
   node: INodeExecutor;
   gemini: IGeminiExecutor;
-  ssh: import('./executors/SshExecutor.js').ISshExecutor;
+  ssh: import('./executors/ssh/SshExecutor.js').ISshExecutor;
 }
 
 /**

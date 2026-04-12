@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
 import { GceStarfleetProvider } from './GceStarfleetProvider.js';
 import { LocalDockerStarfleetProvider } from './LocalDockerStarfleetProvider.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
 import type { OrbitProvider } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import { SshTransport } from '../transports/SshTransport.js';
+import { SshTransport } from '../transports/ssh/SshTransport.js';
 import { IdentityTransport } from '../transports/IdentityTransport.js';
 import {
   getPrimaryRepoRoot,
@@ -31,7 +30,9 @@ import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { WindowsTmuxExecutor } from '../core/executors/WindowsTmuxExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
-import { SshExecutor } from '../core/executors/SshExecutor.js';
+import { SshExecutor } from '../core/executors/ssh/SshExecutor.js';
+import { WindowsSshExecutor } from '../core/executors/ssh/WindowsSshExecutor.js';
+import { WindowsSshTransport } from '../transports/ssh/WindowsSshTransport.js';
 
 export class ProviderFactory implements IProviderFactory {
   constructor(
@@ -51,7 +52,10 @@ export class ProviderFactory implements IProviderFactory {
       tmux,
       node: new NodeExecutor(pm),
       gemini: new GeminiExecutor(pm),
-      ssh: new SshExecutor(pm),
+      ssh:
+        process.platform === 'win32'
+          ? new WindowsSshExecutor(pm)
+          : new SshExecutor(pm),
     };
   }
 
@@ -103,52 +107,42 @@ export class ProviderFactory implements IProviderFactory {
       );
     }
 
-    // TIER C: GCE (Standard Starfleet or Legacy GCE COS)
+    // TIER C: GCE (Starfleet)
     if (providerType === 'gce') {
-      const transport = new SshTransport(
-        infra.projectId!,
-        infra.zone!,
-        infra.instanceName!,
-        infra,
-        this.pm,
-        this.executors.ssh,
+      const transport =
+        process.platform === 'win32'
+          ? new WindowsSshTransport(
+              infra.projectId!,
+              infra.zone!,
+              infra.instanceName!,
+              infra,
+              this.pm,
+              this.executors.ssh,
+            )
+          : new SshTransport(
+              infra.projectId!,
+              infra.zone!,
+              infra.instanceName!,
+              infra,
+              this.pm,
+              this.executors.ssh,
+            );
+
+      const client = new StarfleetClient(
+        (infra as any).apiUrl || 'http://localhost:8080',
       );
 
-      // Default to Starfleet for GCE unless explicitly opting out
-      if ((infra as any).starfleet !== false) {
-        const client = new StarfleetClient(
-          (infra as any).apiUrl || 'http://localhost:8080',
-        );
-
-        return new GceStarfleetProvider(
-          client,
-          transport,
-          this.pm,
-          this.executors,
-          projectCtx,
-          infra,
-          {
-            projectId: infra.projectId!,
-            zone: infra.zone!,
-            stationName: infra.instanceName || stationName,
-          },
-        );
-      }
-
-      // Legacy path for raw GCE COS (non-orchestrated)
-      const provider = new GceCosProvider(
-        projectCtx,
-        infra.projectId!,
-        infra.zone!,
-        infra.instanceName!,
-        getPrimaryRepoRoot(projectCtx.repoRoot),
-        transport as any, // Legacy cast
+      const provider = new GceStarfleetProvider(
+        client,
+        transport,
         this.pm,
         this.executors,
+        projectCtx,
         infra,
         {
-          imageUri: infra.imageUri as any,
-          stationName: stationName,
+          projectId: infra.projectId!,
+          zone: infra.zone!,
+          stationName: infra.instanceName || stationName,
         },
       );
 

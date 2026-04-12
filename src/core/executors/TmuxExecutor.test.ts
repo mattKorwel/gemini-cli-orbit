@@ -6,13 +6,15 @@
 
 import { describe, it, expect } from 'vitest';
 import { TmuxExecutor } from './TmuxExecutor.js';
+import { ProcessManager } from '../ProcessManager.js';
 
 describe('TmuxExecutor', () => {
   const expectedBin = process.platform === 'win32' ? 'tmux.exe' : 'tmux';
+  const executor = new TmuxExecutor(new ProcessManager());
 
   it('wraps a command correctly', () => {
     process.env.TERM_PROGRAM = 'myterm';
-    const cmd = TmuxExecutor.wrap('mysession', 'ls -la', { cwd: '/tmp' });
+    const cmd = executor.wrap('mysession', 'ls -la', { cwd: '/tmp' });
     expect(cmd.bin).toBe(expectedBin);
     expect(cmd.args).toContain('mysession');
     const lastArg = cmd.args[cmd.args.length - 1];
@@ -26,7 +28,7 @@ describe('TmuxExecutor', () => {
 
   it('handles shell quoting in wrap', () => {
     process.env.TERM_PROGRAM = 'myterm';
-    const cmd = TmuxExecutor.wrap('mysession', 'ls', {
+    const cmd = executor.wrap('mysession', 'ls', {
       cwd: "/path/with'quotes",
       env: { VAR: "val'with'quotes" },
     });
@@ -40,7 +42,7 @@ describe('TmuxExecutor', () => {
 
   it('wraps a mission correctly with wrapMission', () => {
     process.env.TERM_PROGRAM = 'myterm';
-    const cmd = TmuxExecutor.wrapMission('mysession', 'node mission.js', {
+    const cmd = executor.wrapMission('mysession', 'node mission.js', {
       cwd: '/tmp',
       env: { VERBOSE: '1' },
     });
@@ -63,7 +65,7 @@ describe('TmuxExecutor', () => {
   });
 
   it('handles complex quoting in wrapMission', () => {
-    const cmd = TmuxExecutor.wrapMission('mysession', 'node', {
+    const cmd = executor.wrapMission('mysession', 'node', {
       env: { MANIFEST: '{"branch":"feat/can\'t-fail"}' },
     });
     const lastArg = cmd.args[cmd.args.length - 1];
@@ -73,8 +75,17 @@ describe('TmuxExecutor', () => {
   });
 
   it('creates an attach command', () => {
-    const cmd = TmuxExecutor.attach('mysession');
-    expect(cmd.args).toEqual(['attach-session', '-t', 'mysession']);
-    expect(cmd.options?.interactive).toBe(true);
+    const pm = {
+      runSync: (bin: string, args: string[], options?: any) => ({
+        status: 0,
+        stdout: JSON.stringify({ bin, args, options }),
+        stderr: '',
+      }),
+    } as any;
+    const attachExecutor = new TmuxExecutor(pm);
+    const result = attachExecutor.attach('mysession');
+    const payload = JSON.parse(result.stdout);
+    expect(payload.args).toEqual(['attach-session', '-t', 'mysession']);
+    expect(payload.options?.interactive).toBe(true);
   });
 });

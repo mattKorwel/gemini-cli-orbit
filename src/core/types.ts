@@ -163,6 +163,7 @@ export interface GetLogsOptions {
  */
 export interface ProvisionOptions {
   stationName?: string | undefined;
+  instanceName?: string | undefined;
   schematicName?: string | undefined;
   destroy?: boolean | undefined;
 }

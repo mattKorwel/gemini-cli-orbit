@@ -68,7 +68,7 @@ function resolveBlueprintPath(argv: string[], env: NodeJS.ProcessEnv): string {
   return (
     argv.find((arg) => arg.startsWith('--config='))?.split('=')[1] ||
     env.ORBIT_STATION_CONFIG ||
-    '/etc/orbit/station.json'
+    '/orbit/config/station.json'
   );
 }
 
@@ -80,7 +80,7 @@ function readBlueprint(
     return JSON.parse(fs.readFileSync(blueprintPath, 'utf8'));
   }
 
-  if (blueprintPath === '/etc/orbit/station.json') {
+  if (blueprintPath === '/orbit/config/station.json') {
     throw new Error(
       `🛑 CRITICAL: Production Station Blueprint not found at ${blueprintPath}`,
     );
@@ -97,15 +97,22 @@ function readBlueprint(
     hostRoot: env.ORBIT_HOST_ROOT || '/mnt/disks/data',
     workerImage: 'ghcr.io/mattkorwel/orbit-worker:latest',
     storage: {
-      workspacesRoot: '/mnt/disks/data/workspaces',
-      mirrorPath: '/mnt/disks/data/main',
+      workspacesRoot: '/orbit/data/workspaces',
+      mirrorPath: '/orbit/data/main',
     },
     mounts: [
-      { host: '/mnt/disks/data', capsule: '/mnt/disks/data' },
-      { host: '/dev/shm', capsule: '/dev/shm' },
+      { host: '/mnt/disks/data', capsule: '/orbit/data' },
+      { host: '/dev/shm', capsule: '/orbit/manifests' },
     ],
+    areas: {
+      globalGemini: {
+        host: './home/.gemini',
+        capsule: '/orbit/home/.gemini',
+        kind: 'dir',
+      },
+    },
     bundlePath: '/usr/local/lib/orbit/bundle',
-    isUnlocked: fs.existsSync('/mnt/disks/data/.starfleet-dev-unlocked'),
+    isUnlocked: fs.existsSync('/orbit/data/.starfleet-dev-unlocked'),
   };
 }
 
@@ -197,9 +204,20 @@ function buildStaticAreas(
   blueprint: Record<string, any>,
   runtime: StationRuntimeOverrides,
 ): Record<string, StationPathArea> {
-  const areas: Record<string, StationPathArea> = {
-    ...(blueprint.areas || {}),
-  };
+  const areas: Record<string, StationPathArea> = Object.fromEntries(
+    Object.entries(blueprint.areas || {}).map(([name, area]: [string, any]) => [
+      name,
+      {
+        ...area,
+        host: resolveBlueprintMountHost(
+          area.host,
+          area.capsule,
+          blueprint.hostRoot,
+          runtime,
+        ),
+      },
+    ]),
+  );
 
   if (blueprint.hostRoot) {
     areas.orbitRoot = {
@@ -219,6 +237,19 @@ function buildStaticAreas(
       host: manifestMount.host,
       capsule: manifestMount.capsule,
       kind: 'dir',
+    };
+  }
+
+  const geminiCapsulePath = path.posix.join(CAPSULE_ROOT, 'home', '.gemini');
+  const geminiMount = (blueprint.mounts || []).find(
+    (mount: any) => normalizeCapsulePath(mount.capsule) === geminiCapsulePath,
+  );
+  if (geminiMount) {
+    areas.globalGemini = {
+      host: geminiMount.host,
+      capsule: geminiMount.capsule,
+      kind: 'dir',
+      readonly: geminiMount.readonly,
     };
   }
 

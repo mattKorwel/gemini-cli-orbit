@@ -18,8 +18,10 @@ import {
 import {
   buildMountAreas,
   normalizeCapsulePath,
+  resolveCapsulePathFromAreas,
   resolveHostPathFromAreas,
 } from './MountRegistry.js';
+import { type StationPathArea } from '../core/types.js';
 
 export interface StarfleetReceipt {
   missionId: string;
@@ -44,6 +46,21 @@ export class MissionOrchestrator {
     this.mountAreas = buildMountAreas(config.mounts, config.areas);
   }
 
+  private getMatchedMountArea(
+    internalPath: string,
+  ): StationPathArea | undefined {
+    const normalizedPath = normalizeCapsulePath(internalPath);
+    return this.mountAreas.find((area) => {
+      const areaCapsule = normalizeCapsulePath(area.capsule);
+      if (normalizedPath === areaCapsule) return true;
+      if (area.kind === 'file') return false;
+      const prefix = areaCapsule.endsWith('/')
+        ? areaCapsule
+        : `${areaCapsule}/`;
+      return normalizedPath.startsWith(prefix);
+    });
+  }
+
   /**
    * Translates an internal (container) path back to its host equivalent.
    * Required for DooD (Docker-out-of-Docker) volume mounts.
@@ -61,16 +78,6 @@ export class MissionOrchestrator {
     return internalPath;
   }
 
-  private resolveRequiredArea(name: string) {
-    const area = this.config.areas?.[name];
-    if (!area) {
-      throw new Error(
-        `Missing required static area '${name}' in supervisor config`,
-      );
-    }
-    return area;
-  }
-
   private resolveSupervisorFsPath(internalPath: string): string {
     if (/^[A-Z]:/i.test(internalPath) || !internalPath.startsWith('/')) {
       return internalPath;
@@ -82,27 +89,15 @@ export class MissionOrchestrator {
       return mappedPath;
     }
 
-    let cursor = normalizedPath;
-
-    while (true) {
-      if (fs.existsSync(cursor) && cursor !== '/') {
-        return normalizedPath;
-      }
-      const next = path.posix.dirname(cursor);
-      if (next === cursor) {
-        break;
-      }
-      cursor = next;
+    const hostRoot = this.config.hostRoot?.replace(/\\/g, '/');
+    if (hostRoot && mappedPath.startsWith(hostRoot)) {
+      const relative = mappedPath.slice(hostRoot.length).replace(/^\/+/, '');
+      return relative ? `/orbit/data/${relative}` : '/orbit/data';
     }
 
-    if (mappedPath !== normalizedPath && this.config.isUnlocked) {
+    const manifestRoot = this.config.manifestRoot?.replace(/\\/g, '/');
+    if (manifestRoot && mappedPath.startsWith(manifestRoot)) {
       return mappedPath;
-    }
-
-    if (mappedPath !== normalizedPath) {
-      throw new Error(
-        `Supervisor path "${normalizedPath}" is not available inside the supervisor. Check static mounts.`,
-      );
     }
 
     return normalizedPath;
@@ -161,11 +156,15 @@ export class MissionOrchestrator {
       });
     }
 
-    const namedAreas = [
-      this.resolveRequiredArea('globalGemini'),
-      this.resolveRequiredArea('policies'),
-      this.resolveRequiredArea('bundle'),
-    ];
+    const namedAreas = ['globalGemini', 'policies', 'bundle']
+      .map((name) => this.config.areas?.[name])
+      .filter(
+        (
+          area,
+        ): area is NonNullable<
+          NonNullable<StationSupervisorConfig['areas']>[string]
+        > => Boolean(area),
+      );
     const ghConfigArea = this.config.areas?.ghConfig;
     if (ghConfigArea && fs.existsSync(ghConfigArea.capsule)) {
       namedAreas.push(ghConfigArea);

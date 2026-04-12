@@ -119,6 +119,7 @@ export function getRepoConfig(
     imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
     providerType:
       (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
+    sshUser: process.env.GCLI_ORBIT_SSH_USER || config.sshUser,
     gitAuthMode: (process.env.GCLI_ORBIT_GIT_AUTH as any) || config.gitAuthMode,
     geminiAuthMode:
       (process.env.GCLI_ORBIT_GEMINI_AUTH as any) || config.geminiAuthMode,
@@ -154,17 +155,20 @@ export function getRepoConfig(
   }
   if (!config.worktreesDir) config.worktreesDir = config.workspacesDir;
 
-  if (config.manageNetworking === undefined) {
-    config.manageNetworking = true;
+  if (config.useDefaultNetwork === undefined) {
+    config.useDefaultNetwork = false;
+  }
+  if (config.manageFirewallRules === undefined) {
+    config.manageFirewallRules = true;
   }
 
   if (!config.vpcName) {
-    config.vpcName = config.manageNetworking ? DEFAULT_VPC_NAME : 'default';
+    config.vpcName = config.useDefaultNetwork ? 'default' : DEFAULT_VPC_NAME;
   }
   if (!config.subnetName) {
-    config.subnetName = config.manageNetworking
-      ? DEFAULT_SUBNET_NAME
-      : 'default';
+    config.subnetName = config.useDefaultNetwork
+      ? 'default'
+      : DEFAULT_SUBNET_NAME;
   }
 
   return config;
@@ -194,7 +198,8 @@ export function resolveContextBundles(
       networkAccessType: config.networkAccessType,
       imageUri: config.imageUri,
       upstreamRepo: config.upstreamRepo,
-      manageNetworking: config.manageNetworking,
+      useDefaultNetwork: config.useDefaultNetwork,
+      manageFirewallRules: config.manageFirewallRules,
       vpcName: config.vpcName,
       subnetName: config.subnetName,
       machineType: config.machineType,
@@ -208,6 +213,7 @@ export function resolveContextBundles(
       reaperIdleLimit: config.reaperIdleLimit,
       dnsSuffix: config.dnsSuffix,
       userSuffix: config.userSuffix,
+      sshUser: config.sshUser,
       gitAuthMode: config.gitAuthMode,
       geminiAuthMode: config.geminiAuthMode,
       repoToken: config.repoToken,

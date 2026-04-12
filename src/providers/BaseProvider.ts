@@ -270,9 +270,10 @@ export abstract class BaseProvider {
   abstract resolveGlobalConfigDir(): string;
 
   /**
-   * Synchronizes global user configurations (settings, auth) to the station.
+   * Synchronizes Gemini settings to the station when the provider needs a
+   * remote station-local copy.
    */
-  async syncGlobalConfig(): Promise<number> {
+  async syncGeminiSettings(): Promise<number> {
     return 0;
   }
 

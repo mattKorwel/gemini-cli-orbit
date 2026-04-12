@@ -57,10 +57,10 @@ describe('Config Propagation Integration', () => {
           .mockImplementation(async (target, command, options) =>
             mockPm.runSync('ssh', [target, command], options),
           ),
-        rsync: vi
+        copyTo: vi
           .fn()
-          .mockImplementation((local, remote, options) =>
-            mockPm.runSync('rsync', [local, remote], options),
+          .mockImplementation((target, local, remote, options) =>
+            mockPm.runSync('scp', [local, `${target}:${remote}`], options),
           ),
       },
       git: {
@@ -92,7 +92,6 @@ describe('Config Propagation Integration', () => {
       dnsSuffix: 'internal.gcpnode.com',
       userSuffix: '_google_com',
       networkAccessType: 'direct-internal',
-      starfleet: false,
     };
 
     const receiptData = {
@@ -102,7 +101,6 @@ describe('Config Propagation Integration', () => {
       projectId: 'corp-project-123',
       zone: 'us-east1-b',
       schematic: schematicName, // This is the crucial link
-      starfleet: false,
     };
 
     (fs.readFileSync as any).mockImplementation((p: string) => {
@@ -203,7 +201,6 @@ describe('Config Propagation Integration', () => {
       projectId: 'real-corp-99',
       zone: 'us-west1-a',
       providerType: 'gce',
-      starfleet: false,
     };
 
     (fs.readFileSync as any).mockImplementation((p: string) => {

@@ -37,7 +37,7 @@ describe('MissionOrchestrator (Behavioral)', () => {
         workspacesRoot: harness.resolve('workspaces'),
         mirrorPath: harness.resolve('mirror'),
       },
-      mounts: [{ host: harness.root, capsule: '/mnt/disks/data' }],
+      mounts: [{ host: harness.root, capsule: '/orbit' }],
       bundlePath: '/usr/local/lib/orbit/bundle',
     };
 

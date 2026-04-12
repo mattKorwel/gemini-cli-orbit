@@ -15,7 +15,6 @@ import { FleetManager } from './FleetManager.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { DependencyManager } from './DependencyManager.js';
 import { StatusManager } from './StatusManager.js';
-import fs from 'node:fs';
 
 describe('Wake-on-Mission Behavior', () => {
   let harness: StarfleetHarness;
@@ -44,6 +43,7 @@ describe('Wake-on-Mission Behavior', () => {
         projectId: 'p1',
         zone: 'z1',
       } as any,
+      undefined,
       factory,
       executors,
       stationRegistry,

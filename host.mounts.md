@@ -41,3 +41,6 @@ _Config: `configs/station.starfleet.json`_
 | :----------------- | :---------------------- | :--------------------- |
 | `/mnt/disks/data`  | `/orbit`                | Persistent disk        |
 | `/dev/shm`         | `/orbit/manifests`      | RAM-disk for manifests |
+
+The default supervisor blueprint inside the image is available at
+`/orbit/config/station.json`.

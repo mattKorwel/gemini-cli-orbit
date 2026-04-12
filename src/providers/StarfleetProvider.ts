@@ -7,7 +7,8 @@
 import { BaseProvider } from './BaseProvider.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
 import path from 'node:path';
-import fs from 'node:fs';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import { findAvailablePort } from '../utils/DockerUtils.js';
 import {
   type OrbitStatus,
   type StationReceipt,
@@ -23,7 +24,6 @@ import { type Command } from '../core/executors/types.js';
 import {
   CAPSULE_ROOT,
   CAPSULE_BUNDLE_PATH,
-  ORBIT_STATE_PATH,
   ORBIT_ROOT,
   type ProjectContext,
   type InfrastructureSpec,
@@ -46,6 +46,9 @@ export abstract class StarfleetProvider extends BaseProvider {
   public projectId: string;
   public zone: string;
   public stationName: string;
+  private selectedApiPort: number | null = null;
+  private apiPortPromise: Promise<number> | null = null;
+  private publicIp: string | undefined;
 
   constructor(
     protected readonly client: StarfleetClient,
@@ -159,6 +162,49 @@ export abstract class StarfleetProvider extends BaseProvider {
 
   // --- Core API Layer ---
 
+  protected async ensureApiEndpoint(): Promise<number> {
+    if (this.type !== 'gce') {
+      return 8080;
+    }
+
+    if (this.selectedApiPort !== null) {
+      return this.selectedApiPort;
+    }
+
+    if (!this.apiPortPromise) {
+      this.apiPortPromise = (async () => {
+        const basePort = 18080 + this.hashStationName(this.stationName);
+        const port = await findAvailablePort(basePort);
+        this.client.setBaseUrl(`http://127.0.0.1:${port}`);
+        this.selectedApiPort = port;
+        return port;
+      })();
+    }
+
+    return this.apiPortPromise;
+  }
+
+  protected async withStationApi<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.type === 'gce') {
+      const port = await this.ensureApiEndpoint();
+      await this.transport.ensureTunnel(port, 8080);
+    }
+
+    return operation();
+  }
+
+  protected getSelectedApiPort(): number {
+    return this.selectedApiPort ?? 8080;
+  }
+
+  private hashStationName(name: string): number {
+    let hash = 0;
+    for (const ch of name) {
+      hash = (hash * 31 + ch.charCodeAt(0)) % 1000;
+    }
+    return hash;
+  }
+
   async ensureReady(): Promise<number> {
     try {
       // Basic connectivity check
@@ -168,11 +214,8 @@ export abstract class StarfleetProvider extends BaseProvider {
       );
       if (ping.status !== 0) return 1;
 
-      // Ensure API tunnel (noop for local)
-      await this.transport.ensureTunnel(8080, 8080);
-
-      // Verify API connectivity
-      const isAlive = await this.client.ping();
+      // Verify API connectivity through the correct station tunnel
+      const isAlive = await this.withStationApi(() => this.client.ping());
       if (!isAlive) {
         throw new Error('Starfleet API not responding');
       }
@@ -184,7 +227,7 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
 
   async getExecOutput(command: string | Command, options?: ExecOptions) {
-    return this.client.exec(command, options);
+    return this.withStationApi(() => this.client.exec(command, options));
   }
 
   getRunCommand(): string {
@@ -221,7 +264,7 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
 
   async getStatus(): Promise<OrbitStatus> {
-    const alive = await this.client.ping();
+    const alive = await this.withStationApi(() => this.client.ping());
     return {
       name: this.stationName,
       status: alive ? 'RUNNING' : 'UNREACHABLE',
@@ -236,7 +279,9 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
 
   async getCapsuleStatus(name: string) {
-    const capsules = await this.client.listCapsules();
+    const capsules = await this.withStationApi(() =>
+      this.client.listCapsules(),
+    );
     const exists = capsules.includes(name);
     return { exists, running: exists };
   }
@@ -267,7 +312,9 @@ export abstract class StarfleetProvider extends BaseProvider {
   async jettisonMission(identifier: string, action?: string): Promise<number> {
     try {
       await this.ensureReady();
-      return await this.client.jettisonMission(identifier, action);
+      return await this.withStationApi(() =>
+        this.client.jettisonMission(identifier, action),
+      );
     } catch (_err: any) {
       return 1;
     }
@@ -278,7 +325,7 @@ export abstract class StarfleetProvider extends BaseProvider {
   async removeSecret(): Promise<void> {}
 
   async capturePane(capsuleName: string): Promise<string> {
-    return this.client.capturePane(capsuleName);
+    return this.withStationApi(() => this.client.capturePane(capsuleName));
   }
 
   async listStations(): Promise<number> {
@@ -288,14 +335,14 @@ export abstract class StarfleetProvider extends BaseProvider {
     return 0;
   }
   async listCapsules(): Promise<string[]> {
-    return this.client.listCapsules();
+    return this.withStationApi(() => this.client.listCapsules());
   }
   async provisionMirror(): Promise<number> {
     return 0;
   }
   async stationShell(): Promise<number> {
     const target = this.transport.getConnectionHandle();
-    const res = this.pm.runSync('ssh', ['-t', target], {
+    const res = this.executors.ssh.exec(target, '', {
       interactive: true,
     });
     return res.status;
@@ -323,69 +370,47 @@ export abstract class StarfleetProvider extends BaseProvider {
       schematic: this.infra.schematic,
       dnsSuffix: this.infra.dnsSuffix,
       userSuffix: this.infra.userSuffix,
+      sshUser: this.infra.sshUser,
+      externalIp: this.publicIp,
       lastSeen: new Date().toISOString(),
     };
   }
 
   async launchMission(
     manifest: MissionManifest,
-    hostWorkDir: string,
+    _hostWorkDir: string,
   ): Promise<number> {
     try {
-      // Sync user context (Auth, Trust, etc.)
-      await this.syncGlobalConfig();
+      await this.syncGeminiSettings();
 
-      const res = (await this.client.launchMission(manifest)) as any;
+      const res = (await this.withStationApi(() =>
+        this.client.launchMission(manifest),
+      )) as any;
 
-      if (res.status === 'ACCEPTED' && res.receipt) {
+      if (res.status === 'READY' && res.receipt) {
         console.log(`\n✨ Starfleet Mission Ignited!`);
         console.log(`   ID:        ${res.receipt.missionId}`);
         console.log(`   Capsule:   ${res.receipt.containerName}`);
         console.log(`   Workspace: ${res.receipt.workspacePath}`);
         console.log(`   Time:      ${res.receipt.ignitedAt}`);
-
-        // Wait for worker to signal READY on the host-side path
-        const isReady = await this.waitForIgnition(hostWorkDir);
-        return isReady ? 0 : 1;
+        return 0;
       }
       return 1;
-    } catch (_err: any) {
+    } catch (err: any) {
+      console.error(
+        `❌ Starfleet launch failed: ${err?.message || String(err)}`,
+      );
       return 1;
     }
-  }
-
-  /**
-   * Periodically polls for state.json [IDLE] on the host machine.
-   */
-  private async waitForIgnition(
-    hostWorkDir: string,
-    timeoutMs = 15000,
-  ): Promise<boolean> {
-    const statePath = path.join(hostWorkDir, ORBIT_STATE_PATH);
-    const start = Date.now();
-
-    while (Date.now() - start < timeoutMs) {
-      try {
-        if (fs.existsSync(statePath)) {
-          const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-          if (state.status === 'IDLE' || state.status === 'READY') {
-            return true;
-          }
-        }
-      } catch (_e) {
-        // Retry
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    console.error(
-      `❌ Ignition verification timed out after ${timeoutMs / 1000}s.`,
-    );
-    console.error(`   Worker failed to signal READY at ${statePath}`);
-    return false;
   }
 
   async prepareMissionWorkspace(_mCtx: MissionContext): Promise<void> {}
+  injectState(state: InfrastructureState): void {
+    this.publicIp = state.publicIp;
+    if (state.publicIp && this.infra.networkAccessType === 'external') {
+      this.transport.setOverrideHost(state.publicIp);
+    }
+  }
   protected async resolveLegacyCapsuleState(): Promise<CapsuleInfo['state']> {
     return 'IDLE';
   }

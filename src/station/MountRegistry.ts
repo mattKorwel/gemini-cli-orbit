@@ -92,3 +92,40 @@ export function resolveHostPathFromAreas(
 
   return undefined;
 }
+
+export function resolveCapsulePathFromAreas(
+  hostPath: string,
+  areas: StationPathArea[],
+): string | undefined {
+  const normalizedHostPath = normalizeHostPath(hostPath);
+
+  for (const area of [...areas].sort(
+    (left, right) => right.host.length - left.host.length,
+  )) {
+    const areaCapsule = normalizeCapsulePath(area.capsule);
+    const areaHost = normalizeHostPath(area.host);
+
+    if (normalizedHostPath === areaHost) {
+      return areaCapsule;
+    }
+
+    if (area.kind === 'file') {
+      continue;
+    }
+
+    const prefix =
+      areaHost.endsWith(path.posix.sep) || WINDOWS_DRIVE_RE.test(areaHost)
+        ? `${areaHost}${areaHost.endsWith('\\') || areaHost.endsWith('/') ? '' : path.sep}`
+        : `${areaHost}/`;
+
+    if (!normalizedHostPath.startsWith(prefix)) {
+      continue;
+    }
+
+    const relativePath = normalizedHostPath.slice(prefix.length);
+    const relativeParts = relativePath.split(/[\\/]+/).filter(Boolean);
+    return normalizeCapsulePath(path.posix.join(areaCapsule, ...relativeParts));
+  }
+
+  return undefined;
+}

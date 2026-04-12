@@ -94,10 +94,12 @@ export class GcpCosTarget implements InfrastructureProvisioner {
     // 1. Networking Layer
     let network: gcp.compute.Network | undefined;
     let subnetwork: gcp.compute.Subnetwork | undefined;
+    const useDefaultNetwork = this.config.useDefaultNetwork === true;
+    const manageFirewallRules = this.config.manageFirewallRules !== false;
     let networkName: pulumi.Input<string> = this.config.vpcName || 'default';
     let subnetName: pulumi.Input<string> = this.config.subnetName || 'default';
 
-    if (this.config.manageNetworking) {
+    if (!useDefaultNetwork) {
       // Use instance-specific names for managed networks to ensure isolation and prevent conflicts
       const vpcId =
         this.config.vpcName && this.config.vpcName !== 'orbit'
@@ -153,23 +155,25 @@ export class GcpCosTarget implements InfrastructureProvisioner {
         },
         { provider, dependsOn: [router] },
       );
+    }
 
-      // Firewall Rules
-      if (
-        this.config.sshSourceRanges &&
-        this.config.sshSourceRanges.length > 0
-      ) {
-        new gcp.compute.Firewall(
-          `orbit-ssh-${this.id}`,
-          {
-            name: `orbit-ssh-${this.id}`,
-            network: network.id,
-            allows: [{ protocol: 'tcp', ports: ['22'] }],
-            sourceRanges: this.config.sshSourceRanges,
-          },
-          { provider, dependsOn: [network] },
-        );
-      }
+    const sshSourceRanges =
+      this.config.sshSourceRanges && this.config.sshSourceRanges.length > 0
+        ? this.config.sshSourceRanges
+        : isExternal
+          ? ['0.0.0.0/0']
+          : undefined;
+    if (manageFirewallRules && sshSourceRanges && sshSourceRanges.length > 0) {
+      new gcp.compute.Firewall(
+        `orbit-ssh-${this.id}`,
+        {
+          name: `orbit-ssh-${this.id}`,
+          network: useDefaultNetwork ? networkName : network!.id,
+          allows: [{ protocol: 'tcp', ports: ['22'] }],
+          sourceRanges: sshSourceRanges,
+        },
+        { provider, ...(network ? { dependsOn: [network] } : {}) },
+      );
     }
 
     // 2. Static IP (only if external)
@@ -192,7 +196,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       dataDiskName,
       {
         name: dataDiskName,
-        size: 500,
+        size: 50,
         type:
           this.config.dataDiskType || this.getRecommendedDiskType(machineType),
         zone,
@@ -270,9 +274,6 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             IMAGE="ghcr.io/mattkorwel/gemini-cli-orbit:latest"
             CONTAINER_NAME="station-supervisor"
             
-            # Prepare ground truth filesystem
-            mkdir -p $MOUNT_PATH/bin
-            
             # --- STARFLEET HARDWARE LOCK ---
             # Default: Locked (No dev folder, limited node permissions)
             if [ "${this.config.allowDevUpdates || 'false'}" == "true" ]; then
@@ -285,9 +286,8 @@ export class GcpCosTarget implements InfrastructureProvisioner {
               echo "Orbit: Station is LOCKED (Production mode)."
               rm -f $MOUNT_PATH/.starfleet-dev-unlocked
               chown -R 1000:1000 $MOUNT_PATH
-              # Restrict write access to sensitive areas if possible
-              chmod -R 755 $MOUNT_PATH
-              chmod -R 775 $MOUNT_PATH/workspaces # Missions still need to write
+              # Restrict write access in production while keeping Orbit runtime writable
+              chmod -R 2775 $MOUNT_PATH
             fi
             
             # Pull and Start Supervisor with Retry
@@ -301,11 +301,6 @@ export class GcpCosTarget implements InfrastructureProvisioner {
               sleep 10
             done
 
-            # SEED THE DISK: Copy the bundle from the image to the persistent disk
-            # This allows the --dev flag to overwrite it later for rapid dev.
-            echo "Orbit: Seeding logic to disk..."
-            docker run --rm -v $MOUNT_PATH/bin:/target $IMAGE cp -r /usr/local/lib/orbit/bundle/. /target/
-
             # Use the optimized orbit-worker image for mission capsules
             # The supervisor remains on the fat image for orchestration capabilities
             WORKER_IMAGE="ghcr.io/mattkorwel/orbit-worker:latest"
@@ -315,18 +310,17 @@ export class GcpCosTarget implements InfrastructureProvisioner {
             # in a controlled way or ensure the container user has access.
             chmod 666 /var/run/docker.sock
 
+            docker rm -f $CONTAINER_NAME 2>/dev/null || true
             docker run -d \
               --name $CONTAINER_NAME \
               --restart always \
               -p 8080:8080 \
               -v /var/run/docker.sock:/var/run/docker.sock \
-              -v $MOUNT_PATH:$MOUNT_PATH \
-              -v $MOUNT_PATH/workspaces:$MOUNT_PATH/workspaces \
+              -v $MOUNT_PATH:/orbit/data \
               -v /dev/shm:/dev/shm \
               -e ORBIT_SERVER_PORT=8080 \
               -e GCLI_ORBIT_WORKER_IMAGE=$WORKER_IMAGE \
-              $IMAGE \
-              node $MOUNT_PATH/bin/orbit-server.js
+              $IMAGE
 
             echo "Orbit: Startup-script complete."
           `,
@@ -381,8 +375,16 @@ export class GcpCosTarget implements InfrastructureProvisioner {
       );
     }
 
+    const onOutput = this.getOutputHandler();
+
     try {
-      const result = await stack.up({ onOutput: this.getOutputHandler() });
+      logger.info(
+        'SETUP',
+        `   🔄 Pulumi: Refreshing cloud state for ${this.id} before apply...`,
+      );
+      await stack.refresh({ onOutput });
+
+      const result = await stack.up({ onOutput });
 
       return {
         status: 'ready',

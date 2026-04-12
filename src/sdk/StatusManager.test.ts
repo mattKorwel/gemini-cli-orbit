@@ -74,6 +74,7 @@ describe('StatusManager', () => {
     const manager = new StatusManager(
       mockProjectCtx as any,
       mockInfra as any,
+      undefined,
       providerFactory,
       mockExecutors,
       stationRegistry,
@@ -122,6 +123,7 @@ describe('StatusManager', () => {
     const manager = new StatusManager(
       mockProjectCtx as any,
       mockInfra as any,
+      undefined,
       providerFactory,
       mockExecutors,
       stationRegistry,
@@ -148,6 +150,7 @@ describe('StatusManager', () => {
     const manager = new StatusManager(
       mockProjectCtx as any,
       mockInfra as any,
+      undefined,
       providerFactory,
       {} as any,
       stationRegistry,

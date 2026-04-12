@@ -8,7 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type IGitExecutor } from '../core/interfaces.js';
 import { type StationSupervisorConfig } from '../core/types.js';
-import { buildMountAreas, resolveHostPathFromAreas } from './MountRegistry.js';
+import {
+  buildMountAreas,
+  resolveCapsulePathFromAreas,
+  resolveHostPathFromAreas,
+} from './MountRegistry.js';
 
 export interface WorkspaceOptions {
   workDir: string;
@@ -40,28 +44,15 @@ export class WorkspaceManager {
       return mappedPath;
     }
 
-    const normalized = targetPath.replace(/\\/g, '/');
-    let cursor = normalized;
-
-    while (true) {
-      if (fs.existsSync(cursor) && cursor !== '/') {
-        return targetPath;
-      }
-      const next = path.posix.dirname(cursor);
-      if (next === cursor) {
-        break;
-      }
-      cursor = next;
+    const hostRoot = this.config.hostRoot?.replace(/\\/g, '/');
+    if (mappedPath && hostRoot && mappedPath.startsWith(hostRoot)) {
+      const relative = mappedPath.slice(hostRoot.length).replace(/^\/+/, '');
+      return relative ? `/orbit/data/${relative}` : '/orbit/data';
     }
 
-    if (mappedPath && this.config.isUnlocked) {
+    const manifestRoot = this.config.manifestRoot?.replace(/\\/g, '/');
+    if (mappedPath && manifestRoot && mappedPath.startsWith(manifestRoot)) {
       return mappedPath;
-    }
-
-    if (mappedPath) {
-      throw new Error(
-        `Supervisor path "${normalized}" is not available inside the supervisor. Check static mounts.`,
-      );
     }
 
     return targetPath;
@@ -81,9 +72,11 @@ export class WorkspaceManager {
 
     const mirrorPath = manifestMirror || this.config.storage.mirrorPath;
 
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
     if (process.env.GCLI_ORBIT_SKIP_GIT === '1') {
-      if (!fs.existsSync(targetDir))
-        fs.mkdirSync(targetDir, { recursive: true });
       return;
     }
 
@@ -120,9 +113,68 @@ export class WorkspaceManager {
 
     // 2. Fetch and Checkout
     console.info(`[ORCH]    - Fetching branch '${branchName}' from origin...`);
-    this.git.fetch(targetDir, 'origin', branchName);
+    const fetchRes = this.git.fetch(targetDir, 'origin', branchName, {
+      quiet: true,
+    });
+    if (fetchRes.status !== 0) {
+      console.warn(
+        `   ⚠️  Branch '${branchName}' fetch failed or not found. Creating locally if needed.`,
+      );
+    }
 
-    console.info(`[ORCH]    - Checking out branch '${branchName}'...`);
-    this.git.checkout(targetDir, branchName);
+    const localRef = `refs/heads/${branchName}`;
+    const remoteRef = `refs/remotes/origin/${branchName}`;
+    const localCheck = this.git.verify(targetDir, localRef, { quiet: true });
+    const remoteCheck = this.git.verify(targetDir, remoteRef, { quiet: true });
+
+    if (localCheck.status === 0) {
+      console.info(`[ORCH]    - Checking out local branch '${branchName}'...`);
+      const checkoutRes = this.git.checkout(targetDir, branchName, {
+        quiet: true,
+      });
+      if (checkoutRes.status !== 0) {
+        throw new Error(
+          `Failed to checkout local branch '${branchName}': ${checkoutRes.stderr}`,
+        );
+      }
+      return;
+    }
+
+    if (remoteCheck.status === 0) {
+      console.info(
+        `[ORCH]    - Creating branch '${branchName}' from origin/${branchName}...`,
+      );
+      const checkoutNewRes = this.git.checkoutNew(
+        targetDir,
+        branchName,
+        `origin/${branchName}`,
+        {
+          quiet: true,
+        },
+      );
+      if (checkoutNewRes.status !== 0) {
+        throw new Error(
+          `Failed to create branch '${branchName}' from origin/${branchName}: ${checkoutNewRes.stderr}`,
+        );
+      }
+      return;
+    }
+
+    console.warn(
+      `   ⚠️  Branch '${branchName}' not found. Creating from HEAD.`,
+    );
+    const checkoutNewRes = this.git.checkoutNew(
+      targetDir,
+      branchName,
+      undefined,
+      {
+        quiet: true,
+      },
+    );
+    if (checkoutNewRes.status !== 0) {
+      throw new Error(
+        `Failed to create branch '${branchName}' from HEAD: ${checkoutNewRes.stderr}`,
+      );
+    }
   }
 }

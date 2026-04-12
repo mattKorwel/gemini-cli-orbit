@@ -27,12 +27,14 @@ COPY --from=builder /build/bundle ./bundle
 COPY --from=builder /build/package.json .
 COPY --from=builder /build/gemini-extension.json .
 COPY configs ./configs
+RUN mkdir -p /orbit/config /orbit/data
+COPY configs/station.starfleet.json /orbit/config/station.json
 
 # Link orbit as a global command
 RUN ln -s /usr/local/lib/orbit/bundle/orbit-cli.js /usr/local/bin/orbit && chmod +x /usr/local/bin/orbit
 
 # Create the standard data mount point
-RUN mkdir -p /orbit /mnt/disks/data && chown -R node:node /orbit /mnt/disks/data /usr/local/lib/orbit
+RUN mkdir -p /orbit /orbit/data /mnt/disks/data && chown -R node:node /orbit /mnt/disks/data /usr/local/lib/orbit
 
 USER node
 WORKDIR /orbit

@@ -30,8 +30,6 @@ describe('SshExecutor', () => {
 
     const result = executor.create(target, command);
 
-    // The last argument should be the raw command string,
-    // NOT something like "'ls -la'" (which would return 127 from bash)
     expect(result.args[result.args.length - 1]).toBe(command);
     expect(result.args).toContain(target);
     expect(result.bin).toBe('ssh');

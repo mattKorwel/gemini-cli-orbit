@@ -10,6 +10,7 @@ import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { type MissionManifest } from '../core/types.js';
+import { type StationSupervisorConfig } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
 
 export interface ITmuxExecutor {
@@ -22,7 +23,7 @@ export interface ITmuxExecutor {
 
 export class StationSupervisor {
   constructor(
-    private readonly baseDir: string,
+    private readonly config: Pick<StationSupervisorConfig, 'bundlePath'>,
     private readonly pm: IProcessManager,
     private readonly tmux: ITmuxExecutor,
   ) {}
@@ -225,13 +226,8 @@ export class StationSupervisor {
    * Spawns the mission worker inside a tmux session.
    */
   async launchMission(manifest: MissionManifest): Promise<number> {
-    const { sessionName, workDir, bundleDir } = manifest;
-
-    // ADR 0018: Use the bundleDir provided in the manifest (Resolved by ContextResolver)
-    const workerScript = path.join(
-      bundleDir || '/mnt/disks/data/bundle',
-      'mission.js',
-    );
+    const { sessionName, workDir } = manifest;
+    const workerScript = path.join(this.config.bundlePath, 'mission.js');
 
     console.log(`🚀 Launching mission worker: ${sessionName}`);
     const cmd = this.tmux.wrapMission(sessionName, `node ${workerScript}`, {

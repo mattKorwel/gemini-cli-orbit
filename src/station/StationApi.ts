@@ -7,6 +7,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   MissionManifestSchema,
   type StationSupervisorConfig,
@@ -19,6 +20,12 @@ import { DockerManager } from './DockerManager.js';
 import { MissionOrchestrator } from './MissionOrchestrator.js';
 import { hydrateStationSupervisorConfig } from './BlueprintHydrator.js';
 import { type IProcessManager } from '../core/interfaces.js';
+import {
+  buildMountAreas,
+  resolveCapsulePathFromAreas,
+  normalizeCapsulePath,
+  resolveHostPathFromAreas,
+} from './MountRegistry.js';
 
 export interface StationApiDependencies {
   config: StationSupervisorConfig;
@@ -81,6 +88,53 @@ export function createStationServer(
       new DockerManager(dockerExecutor, processManager, config),
       config,
     );
+  const mountAreas = buildMountAreas(config.mounts, config.areas);
+
+  const resolveSupervisorFsPath = (internalPath: string): string => {
+    const normalized = normalizeCapsulePath(internalPath);
+    const mapped =
+      resolveHostPathFromAreas(normalized, mountAreas) || normalized;
+
+    if (
+      config.hostRoot &&
+      mapped.startsWith(config.hostRoot.replace(/\\/g, '/'))
+    ) {
+      const relative = mapped
+        .slice(config.hostRoot.replace(/\\/g, '/').length)
+        .replace(/^\/+/, '');
+      return relative ? `/orbit/data/${relative}` : '/orbit/data';
+    }
+
+    if (
+      config.manifestRoot &&
+      mapped.startsWith(config.manifestRoot.replace(/\\/g, '/'))
+    ) {
+      return mapped;
+    }
+
+    return (
+      resolveCapsulePathFromAreas(mapped, buildMountAreas(config.mounts)) ||
+      normalized
+    );
+  };
+
+  const resolveGeminiSettingsPath = (): string => {
+    const geminiRoot =
+      config.areas?.globalGemini?.capsule ||
+      path.posix.join('/orbit', 'home', '.gemini');
+    return resolveSupervisorFsPath(
+      path.posix.join(geminiRoot, 'settings.json'),
+    );
+  };
+
+  const getGeminiSettingsHash = (): string | null => {
+    const settingsPath = resolveGeminiSettingsPath();
+    if (!fs.existsSync(settingsPath)) {
+      return null;
+    }
+    const content = fs.readFileSync(settingsPath, 'utf8');
+    return crypto.createHash('sha256').update(content).digest('hex');
+  };
 
   return http.createServer(async (req, res) => {
     const { method, url } = req;
@@ -95,6 +149,69 @@ export function createStationServer(
           mode: config.isUnlocked ? 'dev' : 'prod',
         }),
       );
+      return;
+    }
+
+    if (url === '/settings/gemini/hash' && method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ hash: getGeminiSettingsHash() }));
+      return;
+    }
+
+    if (url === '/settings/gemini' && method === 'PUT') {
+      try {
+        const body = await getJsonBody(req);
+        const content =
+          typeof body?.content === 'string' ? body.content : undefined;
+        const hash = typeof body?.hash === 'string' ? body.hash : undefined;
+
+        if (!content || !hash) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              error: 'INVALID_SETTINGS_PAYLOAD',
+              message: 'Expected string content and hash.',
+            }),
+          );
+          return;
+        }
+
+        const computedHash = crypto
+          .createHash('sha256')
+          .update(content)
+          .digest('hex');
+        if (computedHash !== hash) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              error: 'SETTINGS_HASH_MISMATCH',
+              message: 'Provided Gemini settings hash does not match content.',
+            }),
+          );
+          return;
+        }
+
+        if (getGeminiSettingsHash() === hash) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'UNCHANGED', hash }));
+          return;
+        }
+
+        const settingsPath = resolveGeminiSettingsPath();
+        fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+        fs.writeFileSync(settingsPath, content, 'utf8');
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'UPDATED', hash }));
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            error: 'SETTINGS_SYNC_FAILED',
+            message: err.message,
+          }),
+        );
+      }
       return;
     }
 
@@ -141,8 +258,8 @@ export function createStationServer(
         const receipt = await orchestrator.orchestrate(manifest);
 
         debugLog(`POST /missions - Launch successful: ${manifest.identifier}`);
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ACCEPTED', receipt }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'READY', receipt }));
       } catch (err: any) {
         debugLog(`❌ Launch Failure: ${err.message}`);
 
@@ -164,7 +281,9 @@ export function createStationServer(
         }
 
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'INVALID_ORDER', message: detail }));
+        res.end(
+          JSON.stringify({ error: 'MISSION_LAUNCH_FAILED', message: detail }),
+        );
       }
       return;
     }

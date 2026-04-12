@@ -5,12 +5,14 @@
  */
 
 import os from 'node:os';
-import { type Command } from './types.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { type Command } from '../types.js';
 import {
   type IRunOptions,
   type IProcessManager,
   type IProcessResult,
-} from '../interfaces.js';
+} from '../../interfaces.js';
 
 /**
  * SshExecutor: Managed execution of remote commands via raw SSH.
@@ -24,14 +26,13 @@ export interface ISshExecutor {
     options?: IRunOptions,
   ): Promise<IProcessResult>;
   create(target: string, command: string, options?: IRunOptions): Command;
-  rsync(
-    local: string,
-    remote: string,
+  copyTo(
+    target: string,
+    localPath: string,
+    remotePath: string,
     options?: {
-      delete?: boolean;
-      sudo?: boolean;
-      exclude?: string[];
       quiet?: boolean;
+      directory?: boolean;
     },
   ): IProcessResult;
 }
@@ -81,33 +82,15 @@ export class SshExecutor implements ISshExecutor {
     };
   }
 
-  public rsync(
-    local: string,
-    remote: string,
+  public copyTo(
+    target: string,
+    localPath: string,
+    remotePath: string,
     options: {
-      delete?: boolean;
-      sudo?: boolean;
-      exclude?: string[];
       quiet?: boolean;
+      directory?: boolean;
     } = {},
   ): IProcessResult {
-    const commonArgs = this.getCommonArgs().map(
-      (a) => `'${a.replace(/'/g, "'\\''")}'`,
-    );
-    const sshCmd = `ssh ${commonArgs.join(' ')}`;
-    const args = ['-avz'];
-
-    if (options.delete) args.push('--delete');
-    if (options.exclude) {
-      options.exclude.forEach((pattern) => args.push('--exclude', pattern));
-    }
-    if (options.sudo) {
-      args.push('--rsync-path', 'sudo rsync');
-    }
-
-    args.push('-e', sshCmd);
-    args.push(local, remote);
-
     const runOptions: IRunOptions = {
       stdio: options.quiet ? 'pipe' : 'inherit',
     };
@@ -115,10 +98,62 @@ export class SshExecutor implements ISshExecutor {
       runOptions.quiet = options.quiet;
     }
 
-    return this.pm.runSync('rsync', args, runOptions);
+    if (!options.directory) {
+      return this.pm.runSync(
+        'scp',
+        [...this.getCommonArgs(), localPath, `${target}:${remotePath}`],
+        runOptions,
+      );
+    }
+
+    const trimmedSource = localPath.replace(/[\\/]+$/, '');
+    const archivePath = path.join(
+      os.tmpdir(),
+      `orbit-sync-${Date.now()}-${Math.random().toString(16).slice(2)}.tar`,
+    );
+    const sourceDir = trimmedSource || localPath;
+
+    try {
+      const tar = this.pm.runSync(
+        'tar',
+        ['-cf', archivePath, '-C', sourceDir, '.'],
+        {
+          ...runOptions,
+          stdio: 'pipe',
+          quiet: true,
+        },
+      );
+      if (tar.status !== 0) {
+        return tar;
+      }
+
+      const remoteArchivePath = `/tmp/${path.posix.basename(archivePath)}`;
+      const upload = this.pm.runSync(
+        'scp',
+        [
+          ...this.getCommonArgs(),
+          archivePath,
+          `${target}:${remoteArchivePath}`,
+        ],
+        runOptions,
+      );
+      if (upload.status !== 0) {
+        return upload;
+      }
+
+      return this.exec(
+        target,
+        `tar -xf '${remoteArchivePath.replace(/'/g, "'\\''")}' -C '${remotePath.replace(/'/g, "'\\''")}' && rm -f '${remoteArchivePath.replace(/'/g, "'\\''")}'`,
+        runOptions,
+      );
+    } finally {
+      if (fs.existsSync(archivePath)) {
+        fs.unlinkSync(archivePath);
+      }
+    }
   }
 
-  private getCommonArgs(): string[] {
+  protected getCommonArgs(): string[] {
     return [
       '-o',
       'StrictHostKeyChecking=no',

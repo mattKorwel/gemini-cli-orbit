@@ -51,7 +51,18 @@ export class FleetManager {
    */
   async provision(options: ProvisionOptions): Promise<number> {
     const { destroy } = options;
-    const config = this.infra;
+    const explicitName =
+      options.stationName || options.instanceName || this.infra.instanceName;
+    const config: InfrastructureSpec = {
+      ...this.infra,
+      ...(options.schematicName ? { schematic: options.schematicName } : {}),
+      ...(explicitName
+        ? {
+            instanceName: explicitName,
+            stationName: explicitName,
+          }
+        : {}),
+    };
     const instanceName = config.instanceName || 'default';
     const sName = config.schematic || 'default';
 
@@ -148,6 +159,16 @@ export class FleetManager {
       // --- STARFLEET VERIFICATION ---
       const verified = await this.waitForSupervisor(provider, instanceName);
       if (!verified) return 1;
+
+      const settingsSync = await provider.syncGeminiSettings();
+      if (settingsSync !== 0) {
+        this.observer.onLog?.(
+          LogLevel.ERROR,
+          'SETUP',
+          'Failed to synchronize Gemini settings to the station.',
+        );
+        return 1;
+      }
 
       // Ensure Main Mirror exists on host for fast clones
       const remoteUrl = this.configManager.detectRemoteUrl(
@@ -323,6 +344,9 @@ export class FleetManager {
         ));
 
       if (confirmed) {
+        if (receipt.type === 'gce') {
+          await this.dependencyManager.ensurePulumi();
+        }
         this.observer.onLog?.(
           LogLevel.INFO,
           'CLEANUP',

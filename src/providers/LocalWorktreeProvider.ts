@@ -47,7 +47,7 @@ export class LocalWorktreeProvider extends BaseProvider {
   public readonly stationName: string;
 
   private readonly workspacesDir: string;
-  private readonly windowsGit?: WindowsGitExecutor;
+  private readonly windowsGit: WindowsGitExecutor | undefined;
 
   constructor(
     private readonly projectCtx: ProjectContext,

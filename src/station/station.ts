@@ -11,11 +11,11 @@
  */
 
 import { hideBin } from 'yargs/helpers';
-import { pathToFileURL, fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { hydrateStationSupervisorConfig } from './BlueprintHydrator.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { logger } from '../core/Logger.js';
 import {
@@ -27,16 +27,6 @@ import { getMissionManifest } from '../utils/MissionUtils.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 
-const getDirname = () => {
-  try {
-    return path.dirname(fileURLToPath(import.meta.url));
-  } catch {
-    return __dirname;
-  }
-};
-
-const _dirname = getDirname();
-
 /**
  * Main entry point for the worker.
  */
@@ -46,7 +36,8 @@ export async function main(
 ) {
   try {
     const tmux = new TmuxExecutor(pm);
-    const station = new StationSupervisor(_dirname, pm, tmux);
+    const stationConfig = hydrateStationSupervisorConfig();
+    const station = new StationSupervisor(stationConfig, pm, tmux);
 
     const action = argv[0] || 'start';
 

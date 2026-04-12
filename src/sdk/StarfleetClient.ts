@@ -22,8 +22,17 @@ export interface StarfleetReceipt {
 }
 
 export interface LaunchResponse {
-  status: string;
+  status: 'READY';
   receipt: StarfleetReceipt;
+}
+
+export interface GeminiSettingsHashResponse {
+  hash: string | null;
+}
+
+export interface GeminiSettingsSyncResponse {
+  status: 'UPDATED' | 'UNCHANGED';
+  hash: string;
 }
 
 /**
@@ -41,7 +50,7 @@ export class StarfleetClient {
 
   private async request<T>(
     path: string,
-    method: 'GET' | 'POST' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     body?: any,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -115,6 +124,25 @@ export class StarfleetClient {
   async launchMission(manifest: MissionManifest): Promise<LaunchResponse> {
     MissionManifestSchema.parse(manifest);
     return this.request<LaunchResponse>('/missions', 'POST', manifest);
+  }
+
+  async getGeminiSettingsHash(): Promise<string | null> {
+    const res = await this.request<GeminiSettingsHashResponse>(
+      '/settings/gemini/hash',
+      'GET',
+    );
+    return res.hash;
+  }
+
+  async syncGeminiSettings(payload: {
+    hash: string;
+    content: string;
+  }): Promise<GeminiSettingsSyncResponse> {
+    return this.request<GeminiSettingsSyncResponse>(
+      '/settings/gemini',
+      'PUT',
+      payload,
+    );
   }
 
   async exec(command: string | Command, options?: any): Promise<ExecResponse> {

@@ -53,7 +53,8 @@ import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { ShellIntegration } from '../utils/ShellIntegration.js';
 import { DependencyManager } from './DependencyManager.js';
 import { type IExecutors } from '../core/interfaces.js';
-import { SshExecutor } from '../core/executors/SshExecutor.js';
+import { SshExecutor } from '../core/executors/ssh/SshExecutor.js';
+import { WindowsSshExecutor } from '../core/executors/ssh/WindowsSshExecutor.js';
 
 export * from '../core/types.js';
 
@@ -118,7 +119,10 @@ export class OrbitSDK implements IOrbitSDK {
       tmux,
       node: new NodeExecutor(processManager),
       gemini: new GeminiExecutor(processManager),
-      ssh: new SshExecutor(processManager),
+      ssh:
+        process.platform === 'win32'
+          ? new WindowsSshExecutor(processManager)
+          : new SshExecutor(processManager),
     };
 
     // Dependencies
@@ -137,6 +141,7 @@ export class OrbitSDK implements IOrbitSDK {
     const provider = providerFactory.getProvider(
       this.projectCtx,
       this.context.infra as any,
+      this.context.state,
     );
 
     const transport = (provider as any).transport;
@@ -152,11 +157,13 @@ export class OrbitSDK implements IOrbitSDK {
       executors,
       stationRegistry,
       starfleetClient,
+      this.context.state,
       provider,
     );
     this.status = new StatusManager(
       this.projectCtx,
       this.context.infra,
+      this.context.state,
       providerFactory,
       executors,
       stationRegistry,

@@ -46,6 +46,8 @@ WORKDIR /orbit/bundle
 COPY bundle/mission.js .
 COPY bundle/hooks.js .
 COPY bundle/station.js .
+RUN mkdir -p /etc/gemini-cli
+COPY configs/gemini.system-settings.json /etc/gemini-cli/settings.json
 COPY starfleet-entrypoint.sh /usr/local/bin/
 RUN sed -i 's/\r$//' /usr/local/bin/starfleet-entrypoint.sh && \
     chmod +x /usr/local/bin/starfleet-entrypoint.sh

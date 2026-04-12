@@ -150,12 +150,17 @@ export class StationRegistry implements IStationRegistry {
       workspacesDir: receipt.workspacesDir,
       dnsSuffix: receipt.dnsSuffix,
       userSuffix: receipt.userSuffix,
+      sshUser: receipt.sshUser,
       schematic: receipt.schematic,
     };
 
+    const state = receipt.externalIp
+      ? { status: 'ready' as const, publicIp: receipt.externalIp }
+      : undefined;
+
     return {
       receipt,
-      provider: this.providerFactory.getProvider(projectCtx, infra),
+      provider: this.providerFactory.getProvider(projectCtx, infra, state),
     };
   }
 }

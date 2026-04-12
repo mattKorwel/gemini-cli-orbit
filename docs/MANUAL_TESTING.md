@@ -11,6 +11,13 @@ all three environments.
 npm run build
 ```
 
+**Remote GCE prerequisite:** Pulumi uses Google Application Default Credentials,
+so before running the remote flow you must complete:
+
+```bash
+gcloud auth application-default login
+```
+
 ---
 
 ## 1. Local Worktree (Fast Path)
@@ -21,7 +28,7 @@ bypassing Docker.
 ### 🚀 Launch & Attach
 
 ```bash
-node bundle/orbit-cli.js mission start test-local-worktree --local --action chat
+node bundle/orbit-cli.js mission start test-local-worktree chat --local
 ```
 
 _Expected:_ A new tmux session should open immediately. You should be in a new
@@ -39,7 +46,7 @@ variables are properly inherited. _(Detach from tmux: `Ctrl+B`, then `d`)_
 ### 💓 Pulse Check (On Host)
 
 ```bash
-node bundle/orbit-cli.js station pulse
+node bundle/orbit-cli.js constellation --pulse
 ```
 
 _Expected:_ You should see the `test-local-worktree` mission listed as active
@@ -73,7 +80,7 @@ npm run starfleet:local
 In your main terminal:
 
 ```bash
-node bundle/orbit-cli.js mission start test-local-docker --local-docker --action chat
+node bundle/orbit-cli.js mission start test-local-docker chat --local-docker
 ```
 
 _Expected:_ The CLI should communicate with the local API. A worker container
@@ -93,7 +100,7 @@ tmux: `Ctrl+B`, then `d`)_
 ### 💓 Pulse Check (On Host)
 
 ```bash
-node bundle/orbit-cli.js station pulse
+node bundle/orbit-cli.js constellation --pulse
 ```
 
 _Expected:_ The `test-local-docker` mission should be listed as active under the
@@ -119,16 +126,17 @@ Pulumi.
 ### 🏗️ Provision Station (Liftoff)
 
 ```bash
-node bundle/orbit-cli.js infra liftoff test-station --manageNetworking
+node bundle/orbit-cli.js infra liftoff test-station --schematic korwel-fresh
 ```
 
-_Expected:_ Pulumi provisions a VPC, NAT, and a GCE VM. The Starfleet Supervisor
-container is pulled and started on the VM.
+_Expected:_ Pulumi provisions or wakes the named GCE VM from the selected
+schematic. With `manageNetworking: false`, Orbit reuses the named VPC/subnet
+from the schematic instead of creating fresh networking.
 
 ### 🚀 Launch & Attach
 
 ```bash
-node bundle/orbit-cli.js mission start test-remote-gce --for-station test-station --action chat
+node bundle/orbit-cli.js mission start test-remote-gce chat --for-station test-station
 ```
 
 _Expected:_ The CLI communicates with the remote API over an SSH tunnel. A
@@ -147,7 +155,7 @@ the VM. _(Detach from tmux: `Ctrl+B`, then `d`)_
 ### 💓 Pulse Check (On Host)
 
 ```bash
-node bundle/orbit-cli.js station pulse
+node bundle/orbit-cli.js constellation --pulse
 ```
 
 _Expected:_ The `test-remote-gce` mission is listed under the `test-station`

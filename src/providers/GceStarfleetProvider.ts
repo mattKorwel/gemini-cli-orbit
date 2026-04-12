@@ -7,7 +7,9 @@
 import { StarfleetProvider } from './StarfleetProvider.js';
 import { LogLevel } from '../core/Logger.js';
 import { type OrbitObserver } from '../core/types.js';
-import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { GLOBAL_SETTINGS_FILE } from '../core/Constants.js';
 
 /**
  * GceStarfleetProvider: Specialized provider for GCP Container-Optimized OS.
@@ -16,20 +18,46 @@ import path from 'node:path';
 export class GceStarfleetProvider extends StarfleetProvider {
   public readonly type = 'gce';
 
-  /**
-   * Syncs the local ~/.gemini config to the remote host so containers
-   * can inherit trust and settings.
-   */
-  override async syncGlobalConfig(): Promise<number> {
-    const home = process.env.HOME || process.env.USERPROFILE || '';
-    const localConfig = path.join(home, '.gemini');
-    const remoteConfig = this.resolveGlobalConfigDir();
+  override resolveCapsuleOrbitRoot(): string {
+    return '/orbit/data';
+  }
 
-    // Use transport to sync files
-    return this.transport.sync(`${localConfig}/`, remoteConfig, {
-      delete: true,
-      sudo: true,
-      quiet: true,
+  private truncate(text: string | undefined, max = 220): string {
+    if (!text) return '';
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (normalized.length <= max) return normalized;
+    return `${normalized.slice(0, max - 3)}...`;
+  }
+
+  private describeExecResult(res: {
+    status: number;
+    stdout?: string;
+    stderr?: string;
+  }): string {
+    const parts = [`status=${res.status}`];
+    const stderr = this.truncate(res.stderr);
+    const stdout = this.truncate(res.stdout);
+    if (stderr) parts.push(`stderr=${JSON.stringify(stderr)}`);
+    if (stdout) parts.push(`stdout=${JSON.stringify(stdout)}`);
+    return parts.join(' ');
+  }
+
+  override async syncGeminiSettings(): Promise<number> {
+    if (!fs.existsSync(GLOBAL_SETTINGS_FILE)) {
+      return 0;
+    }
+
+    const content = fs.readFileSync(GLOBAL_SETTINGS_FILE, 'utf8');
+    const hash = crypto.createHash('sha256').update(content).digest('hex');
+
+    return this.withStationApi(async () => {
+      const remoteHash = await this.client.getGeminiSettingsHash();
+      if (remoteHash === hash) {
+        return 0;
+      }
+
+      await this.client.syncGeminiSettings({ hash, content });
+      return 0;
     });
   }
 
@@ -40,6 +68,7 @@ export class GceStarfleetProvider extends StarfleetProvider {
     const startTime = Date.now();
     const timeout = 5 * 60 * 1000;
     let step = 0;
+    let attempt = 0;
 
     const steps = [
       'Establishing connection (SSH)',
@@ -68,8 +97,19 @@ export class GceStarfleetProvider extends StarfleetProvider {
       'SETUP',
       '🛸 Starfleet GCE Ignition sequence started...',
     );
+    observer.onLog?.(
+      LogLevel.INFO,
+      'SETUP',
+      `   - Ignition target: ${this.transport.getConnectionHandle()}`,
+    );
+    observer.onLog?.(
+      LogLevel.INFO,
+      'SETUP',
+      `   - API endpoint: http://127.0.0.1:${await this.ensureApiEndpoint()} (via SSH tunnel)`,
+    );
 
     while (Date.now() - startTime < timeout) {
+      attempt += 1;
       try {
         const currentStep = steps[step];
         if (!currentStep) break;
@@ -87,6 +127,11 @@ export class GceStarfleetProvider extends StarfleetProvider {
             step = 1;
             continue;
           }
+          observer.onLog?.(
+            LogLevel.WARN,
+            'SETUP',
+            `   - SSH probe failed on attempt ${attempt}: ${this.describeExecResult(res)}`,
+          );
         }
 
         // Step 2: Disk Mount
@@ -100,12 +145,17 @@ export class GceStarfleetProvider extends StarfleetProvider {
             step = 2;
             continue;
           }
+          observer.onLog?.(
+            LogLevel.WARN,
+            'SETUP',
+            `   - Disk mount check failed on attempt ${attempt}: ${this.describeExecResult(res)}`,
+          );
         }
 
         // Step 3: Filesystem Paths
         if (step === 2) {
           const res = await this.transport.exec(
-            { bin: 'ls', args: ['-d', '/mnt/disks/data/workspaces'] },
+            { bin: 'ls', args: ['-d', '/mnt/disks/data'] },
             { quiet: true },
           );
           if (res.status === 0) {
@@ -113,6 +163,11 @@ export class GceStarfleetProvider extends StarfleetProvider {
             step = 3;
             continue;
           }
+          observer.onLog?.(
+            LogLevel.WARN,
+            'SETUP',
+            `   - Workspace path check failed on attempt ${attempt}: ${this.describeExecResult(res)}`,
+          );
         }
 
         // Step 4: Docker Daemon
@@ -126,6 +181,11 @@ export class GceStarfleetProvider extends StarfleetProvider {
             step = 4;
             continue;
           }
+          observer.onLog?.(
+            LogLevel.WARN,
+            'SETUP',
+            `   - Docker daemon check failed on attempt ${attempt}: ${this.describeExecResult(res)}`,
+          );
         }
 
         // Step 5: Supervisor Container
@@ -149,6 +209,11 @@ export class GceStarfleetProvider extends StarfleetProvider {
             step = 5;
             continue;
           }
+          observer.onLog?.(
+            LogLevel.WARN,
+            'SETUP',
+            `   - Supervisor container not ready on attempt ${attempt}: ${this.describeExecResult(res)}`,
+          );
         }
 
         // Step 6: API Connectivity
@@ -158,12 +223,21 @@ export class GceStarfleetProvider extends StarfleetProvider {
             updateUI(steps[5]!, true);
             return true;
           } else {
+            observer.onLog?.(
+              LogLevel.WARN,
+              'SETUP',
+              `   - API ping failed on attempt ${attempt}; ensuring local tunnel ${this.getSelectedApiPort()}->8080.`,
+            );
             // Ensure tunnel is open for remote API
-            await this.transport.ensureTunnel(8080, 8080);
+            await this.transport.ensureTunnel(this.getSelectedApiPort(), 8080);
           }
         }
-      } catch (_e: any) {
-        // Silent retry
+      } catch (e: any) {
+        observer.onLog?.(
+          LogLevel.WARN,
+          'SETUP',
+          `   - ${steps[step] || 'Ignition'} threw on attempt ${attempt}: ${this.truncate(e?.message || String(e))}`,
+        );
       }
 
       await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -171,6 +245,11 @@ export class GceStarfleetProvider extends StarfleetProvider {
 
     const finalStep = steps[step];
     if (finalStep) updateUI(finalStep, false, true);
+    observer.onLog?.(
+      LogLevel.ERROR,
+      'SETUP',
+      `   - Ignition timed out on step ${step + 1}/${steps.length}: ${finalStep || 'unknown step'}`,
+    );
     return false;
   }
 }

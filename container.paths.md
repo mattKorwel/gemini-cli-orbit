@@ -7,14 +7,14 @@ the scripts running inside them.
 
 _Image: `ghcr.io/mattkorwel/gemini-cli-orbit:latest`_
 
-| Path                      | Purpose       | Source/Expectation                   |
-| :------------------------ | :------------ | :----------------------------------- |
-| `/orbit`                  | Storage Root  | `workspaces/`, `main/`, `manifests/` |
-| `/orbit/bundle`           | Orbit Brain   | `station.js`, `orbit-cli.js`         |
-| `/etc/orbit/station.json` | Blueprint     | Station configuration                |
-| `/home/node/.gemini`      | User Identity | Auth tokens, settings                |
-| `/var/run/docker.sock`    | DooD Control  | Docker CLI communication             |
-| `/tmp`                    | Volatile      | Lock files, temp logs                |
+| Path                         | Purpose       | Source/Expectation                   |
+| :--------------------------- | :------------ | :----------------------------------- |
+| `/orbit`                     | Storage Root  | `workspaces/`, `main/`, `manifests/` |
+| `/orbit/bundle`              | Orbit Brain   | `station.js`, `orbit-cli.js`         |
+| `/orbit/config/station.json` | Blueprint     | Station configuration                |
+| `/home/node/.gemini`         | User Identity | Auth tokens, settings                |
+| `/var/run/docker.sock`       | DooD Control  | Docker CLI communication             |
+| `/tmp`                       | Volatile      | Lock files, temp logs                |
 
 ## 2. Orbit Worker (Mission Satellite)
 

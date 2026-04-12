@@ -37,10 +37,11 @@ describe('StationSupervisor', () => {
   };
 
   let supervisor: StationSupervisor;
+  const config = { bundlePath: '/orbit/bundle' };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    supervisor = new StationSupervisor('/base', mockPm, mockTmux);
+    supervisor = new StationSupervisor(config as any, mockPm, mockTmux);
     (fs.existsSync as any).mockReturnValue(false);
     (path.resolve as any).mockImplementation((p: string) => p);
   });

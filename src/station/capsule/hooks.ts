@@ -55,6 +55,18 @@ export async function beforeAgent(input: any) {
 }
 
 /**
+ * Hook triggered when a Gemini session starts.
+ */
+export async function sessionStart(input: any) {
+  updateState(input.cwd, {
+    status: 'IDLE',
+    ...(process.env.GCLI_ORBIT_MISSION_ID
+      ? { mission: process.env.GCLI_ORBIT_MISSION_ID }
+      : {}),
+  });
+}
+
+/**
  * Hook triggered AFTER the agent finishes its turn.
  */
 export async function afterAgent(input: any) {
@@ -104,29 +116,33 @@ if (
   import.meta.url === `file://${process.argv[1]}` ||
   (process.argv[1] && process.argv[1].endsWith('hooks.js'))
 ) {
-  const event = process.env.GEMINI_HOOK_EVENT;
-  const inputPath = process.env.GEMINI_HOOK_INPUT;
-
-  if (event && inputPath && fs.existsSync(inputPath)) {
-    try {
-      const input = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
-      // Optional: fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Hook: ${event}\n`);
-      switch (event) {
-        case 'BeforeAgent':
-          beforeAgent(input);
-          break;
-        case 'AfterAgent':
-          afterAgent(input);
-          break;
-        case 'BeforeTool':
-          beforeTool(input);
-          break;
-        case 'Notification':
-          notification(input);
-          break;
-      }
-    } catch (_e) {
-      // fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Error: ${e}\n`);
+  try {
+    const stdin = fs.readFileSync(0, 'utf8').trim();
+    if (!stdin) {
+      process.exit(0);
     }
+
+    const input = JSON.parse(stdin);
+    const event = input.hook_event_name || input.event || '';
+
+    switch (event) {
+      case 'SessionStart':
+        sessionStart(input);
+        break;
+      case 'BeforeAgent':
+        beforeAgent(input);
+        break;
+      case 'AfterAgent':
+        afterAgent(input);
+        break;
+      case 'BeforeTool':
+        beforeTool(input);
+        break;
+      case 'Notification':
+        notification(input);
+        break;
+    }
+  } catch (_e) {
+    process.exit(0);
   }
 }

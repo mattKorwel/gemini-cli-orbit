@@ -6,12 +6,19 @@
   "isUnlocked": false,
   "useSudo": false,
   "storage": {
-    "workspacesRoot": "/mnt/disks/data/workspaces",
-    "mirrorPath": "/mnt/disks/data/main"
+    "workspacesRoot": "/orbit/data/workspaces",
+    "mirrorPath": "/orbit/data/main"
   },
   "mounts": [
-    { "host": "/mnt/disks/data", "capsule": "/orbit" },
+    { "host": "/mnt/disks/data", "capsule": "/orbit/data" },
     { "host": "/dev/shm", "capsule": "/orbit/manifests" }
   ],
+  "areas": {
+    "globalGemini": {
+      "host": "./home/.gemini",
+      "capsule": "/orbit/home/.gemini",
+      "kind": "dir"
+    }
+  },
   "bundlePath": "/usr/local/lib/orbit/bundle"
 }

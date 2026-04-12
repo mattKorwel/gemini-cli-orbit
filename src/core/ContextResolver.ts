@@ -6,6 +6,7 @@
 
 import path from 'node:path';
 import os from 'node:os';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import {
   type OrbitContext,
   type InfrastructureSpec,
@@ -55,6 +56,7 @@ export class ContextResolver {
 
     // Start with empty spec and build up
     let infra: InfrastructureSpec = {};
+    let state: InfrastructureState | undefined;
 
     // Layer 0: Project Config (.gemini/config.json)
     infra = this.mergeDefined(infra, projectDefaults);
@@ -76,6 +78,14 @@ export class ContextResolver {
       const receipt = loadJson(receiptPath);
 
       if (receipt) {
+        if (receipt.externalIp || receipt.sshUser) {
+          state = {
+            status: 'ready',
+            ...(receipt.externalIp ? { publicIp: receipt.externalIp } : {}),
+            ...(receipt.sshUser ? { sshUser: receipt.sshUser } : {}),
+          };
+        }
+
         // Layer 2: Station Receipt
         const receiptSpec: InfrastructureSpec = {
           stationName: receipt.name,
@@ -133,7 +143,7 @@ export class ContextResolver {
       gitAuthMode: env.GCLI_ORBIT_GIT_AUTH as any,
       geminiAuthMode: env.GCLI_ORBIT_GEMINI_AUTH as any,
       repoToken: env.GCLI_ORBIT_REPO_TOKEN,
-      sshUser: env.USER || env.USERNAME,
+      sshUser: env.GCLI_ORBIT_SSH_USER,
       verbose: env.GCLI_ORBIT_VERBOSE === '1' ? true : undefined,
     };
     infra = this.mergeDefined(infra, envSpec);
@@ -150,7 +160,8 @@ export class ContextResolver {
       networkAccessType: (flags as any).networkAccessType,
       imageUri: flags.imageUri,
       upstreamRepo: flags.upstreamRepo,
-      manageNetworking: flags.manageNetworking,
+      useDefaultNetwork: (flags as any).useDefaultNetwork,
+      manageFirewallRules: (flags as any).manageFirewallRules,
       vpcName: flags.vpcName,
       subnetName: flags.subnetName,
       machineType: flags.machineType,
@@ -164,6 +175,7 @@ export class ContextResolver {
       reaperIdleLimit: flags.reaperIdleLimit,
       dnsSuffix: flags.dnsSuffix,
       userSuffix: flags.userSuffix,
+      sshUser: (flags as any).sshUser,
       gitAuthMode: (flags as any).gitAuthMode,
       geminiAuthMode: (flags as any).geminiAuthMode,
       repoToken: (flags as any).repoToken,
@@ -257,15 +269,22 @@ export class ContextResolver {
     if (!infra.workspacesDir) infra.workspacesDir = infra.worktreesDir;
     if (!infra.worktreesDir) infra.worktreesDir = infra.workspacesDir;
 
-    if (infra.manageNetworking === undefined) infra.manageNetworking = true;
+    if (infra.useDefaultNetwork === undefined) infra.useDefaultNetwork = false;
+    if (infra.manageFirewallRules === undefined)
+      infra.manageFirewallRules = true;
     if (!infra.vpcName)
-      infra.vpcName = infra.manageNetworking ? DEFAULT_VPC_NAME : 'default';
+      infra.vpcName = infra.useDefaultNetwork ? 'default' : DEFAULT_VPC_NAME;
     if (!infra.subnetName)
-      infra.subnetName = infra.manageNetworking
-        ? DEFAULT_SUBNET_NAME
-        : 'default';
+      infra.subnetName = infra.useDefaultNetwork
+        ? 'default'
+        : DEFAULT_SUBNET_NAME;
 
-    return { project, infra, isDev };
+    return {
+      project,
+      infra,
+      ...(state ? { state } : {}),
+      isDev,
+    };
   }
 
   /**
