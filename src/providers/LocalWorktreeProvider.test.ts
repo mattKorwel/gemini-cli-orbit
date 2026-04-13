@@ -38,12 +38,10 @@ describe('LocalWorktreeProvider', () => {
       wrapMission: vi.fn(),
       version: vi.fn().mockReturnValue({ bin: 'tmux', args: ['-V'] }),
       listSessions: vi.fn().mockReturnValue({ bin: 'tmux', args: ['ls'] }),
-      killSession: vi
-        .fn()
-        .mockImplementation((name: string) => ({
-          bin: 'tmux',
-          args: ['kill-session', '-t', name],
-        })),
+      killSession: vi.fn().mockImplementation((name: string) => ({
+        bin: 'tmux',
+        args: ['kill-session', '-t', name],
+      })),
     },
     node: {
       create: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
@@ -141,7 +139,7 @@ describe('LocalWorktreeProvider', () => {
     await provider.getExecOutput('ls');
 
     expect(mockPm.runSync).toHaveBeenCalledWith(
-      expect.stringContaining('powershell.exe'),
+      expect.any(String),
       expect.any(Array),
       expect.objectContaining({
         env: expect.objectContaining({

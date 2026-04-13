@@ -11,7 +11,6 @@ import {
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
-import { logger } from '../core/Logger.js';
 import {
   type IStationRegistry,
   type IProviderFactory,

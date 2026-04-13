@@ -45,20 +45,37 @@ describe('Mission Resolution Behavior', () => {
 
   const normalize = (manifest: any, history: string[]) => {
     const rootPath = harness.root.replaceAll('\\', '/');
-    const normalizePath = (p: string) =>
-      typeof p === 'string'
-        ? p.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>')
-        : p;
+    const normalizePath = (p: string) => {
+      if (typeof p !== 'string') return p;
+      let res = p.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>');
+      // Also normalize /tmp/orbit-git-worktrees/ to <tmp>/orbit-git-worktrees/ if it appears in Linux
+      res = res.replace(
+        /^\/tmp\/orbit-git-worktrees\//,
+        '<tmp>/orbit-git-worktrees/',
+      );
+      // And the Windows default C:/Users/.../Temp/orbit-git-worktrees/
+      res = res.replace(
+        /.*\/Temp\/orbit-git-worktrees\//,
+        '<tmp>/orbit-git-worktrees/',
+      );
+      return res;
+    };
+
     const normalizeEnv = (env: Record<string, string> | undefined) => {
       if (!env) return env;
 
-      return Object.fromEntries(
-        Object.entries(env).map(([key, value]) => {
-          if (key === 'WT_SESSION') return [key, '<wt-session>'];
-          if (key === 'TERM_SESSION_ID') return [key, '<term-session>'];
-          return [key, value];
-        }),
-      );
+      const filtered = { ...env };
+      // Remove environment variables that fluctuate between platforms and sessions
+      delete filtered.WT_SESSION;
+      delete filtered.TERM_SESSION_ID;
+      delete filtered.TERM_PROGRAM;
+      delete filtered.TERM_PROGRAM_VERSION;
+      delete filtered.SSH_AUTH_SOCK;
+      delete filtered.SSH_CLIENT;
+      delete filtered.SSH_CONNECTION;
+      delete filtered.SSH_TTY;
+
+      return filtered;
     };
 
     return {
@@ -69,10 +86,16 @@ describe('Mission Resolution Behavior', () => {
         mirrorPath: normalizePath(manifest.mirrorPath),
         policyPath: normalizePath(manifest.policyPath),
         tempDir: normalizePath(manifest.tempDir),
+        workDir: normalizePath(manifest.workDir),
+        workspaceName: (manifest.workspaceName || '').replaceAll('\\', '/'),
       },
-      history: history.map((line) =>
-        line.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>'),
-      ),
+      history: history.map((line) => {
+        let res = line.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>');
+        // Normalize the absolute path to the current working directory as well
+        const cwd = process.cwd().replaceAll('\\', '/');
+        res = res.replaceAll(cwd, '<cwd>');
+        return res;
+      }),
     };
   };
 

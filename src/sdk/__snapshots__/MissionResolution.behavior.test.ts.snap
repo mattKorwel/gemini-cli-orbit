@@ -3,7 +3,7 @@
 exports[`Mission Resolution Behavior > handles GitHub CLI failure gracefully (Phase 2) 1`] = `
 {
   "history": [
-    "[C:/dev/gemIni-cli-orbit/main] gh pr view 999 --json headRefName --template {{.headRefName}}",
+    "[<cwd>] gh pr view 999 --json headRefName --template {{.headRefName}}",
   ],
   "manifest": {
     "action": "chat",
@@ -14,7 +14,6 @@ exports[`Mission Resolution Behavior > handles GitHub CLI failure gracefully (Ph
       "COLORTERM": "truecolor",
       "FORCE_COLOR": "3",
       "TERM": "xterm-256color",
-      "WT_SESSION": "<wt-session>",
     },
     "geminiAuthMode": "env-chain",
     "gitAuthMode": "repo-token",
@@ -25,11 +24,11 @@ exports[`Mission Resolution Behavior > handles GitHub CLI failure gracefully (Ph
     "repoName": "test-repo",
     "sensitiveEnv": undefined,
     "sessionName": "test-repo/999",
-    "tempDir": "C:/Users/mattk/AppData/Local/Temp/orbit-git-worktrees/test-repo/999",
+    "tempDir": "<tmp>/orbit-git-worktrees/test-repo/999",
     "upstreamUrl": "https://github.com/google-gemini/gemini-cli.git",
     "verbose": undefined,
-    "workDir": "C:\\Users\\mattk\\AppData\\Local\\Temp\\orbit-git-worktrees\\test-repo\\999",
-    "workspaceName": "test-repo\\999",
+    "workDir": "<tmp>/orbit-git-worktrees/test-repo/999",
+    "workspaceName": "test-repo/999",
   },
 }
 `;
@@ -46,7 +45,6 @@ exports[`Mission Resolution Behavior > records resolution for GCE (Starfleet) pr
       "COLORTERM": "truecolor",
       "FORCE_COLOR": "3",
       "TERM": "xterm-256color",
-      "WT_SESSION": "<wt-session>",
     },
     "geminiAuthMode": "env-chain",
     "gitAuthMode": "repo-token",
@@ -78,7 +76,6 @@ exports[`Mission Resolution Behavior > records resolution of a complex branch na
       "COLORTERM": "truecolor",
       "FORCE_COLOR": "3",
       "TERM": "xterm-256color",
-      "WT_SESSION": "<wt-session>",
     },
     "geminiAuthMode": "env-chain",
     "gitAuthMode": "repo-token",
@@ -89,11 +86,11 @@ exports[`Mission Resolution Behavior > records resolution of a complex branch na
     "repoName": "test-repo",
     "sensitiveEnv": undefined,
     "sessionName": "test-repo/feature-big-change-v2",
-    "tempDir": "C:/Users/mattk/AppData/Local/Temp/orbit-git-worktrees/test-repo/feature-big-change-v2",
+    "tempDir": "<tmp>/orbit-git-worktrees/test-repo/feature-big-change-v2",
     "upstreamUrl": "https://github.com/google-gemini/gemini-cli.git",
     "verbose": undefined,
-    "workDir": "C:\\Users\\mattk\\AppData\\Local\\Temp\\orbit-git-worktrees\\test-repo\\feature-big-change-v2",
-    "workspaceName": "test-repo\\feature-big-change-v2",
+    "workDir": "<tmp>/orbit-git-worktrees/test-repo/feature-big-change-v2",
+    "workspaceName": "test-repo/feature-big-change-v2",
   },
 }
 `;
@@ -101,7 +98,7 @@ exports[`Mission Resolution Behavior > records resolution of a complex branch na
 exports[`Mission Resolution Behavior > records resolution of a numeric PR ID via GH CLI 1`] = `
 {
   "history": [
-    "[C:/dev/gemIni-cli-orbit/main] gh pr view 123 --json headRefName --template {{.headRefName}}",
+    "[<cwd>] gh pr view 123 --json headRefName --template {{.headRefName}}",
   ],
   "manifest": {
     "action": "chat",
@@ -112,7 +109,6 @@ exports[`Mission Resolution Behavior > records resolution of a numeric PR ID via
       "COLORTERM": "truecolor",
       "FORCE_COLOR": "3",
       "TERM": "xterm-256color",
-      "WT_SESSION": "<wt-session>",
     },
     "geminiAuthMode": "env-chain",
     "gitAuthMode": "repo-token",
@@ -123,11 +119,11 @@ exports[`Mission Resolution Behavior > records resolution of a numeric PR ID via
     "repoName": "test-repo",
     "sensitiveEnv": undefined,
     "sessionName": "test-repo/123",
-    "tempDir": "C:/Users/mattk/AppData/Local/Temp/orbit-git-worktrees/test-repo/123",
+    "tempDir": "<tmp>/orbit-git-worktrees/test-repo/123",
     "upstreamUrl": "https://github.com/google-gemini/gemini-cli.git",
     "verbose": undefined,
-    "workDir": "C:\\Users\\mattk\\AppData\\Local\\Temp\\orbit-git-worktrees\\test-repo\\123",
-    "workspaceName": "test-repo\\123",
+    "workDir": "<tmp>/orbit-git-worktrees/test-repo/123",
+    "workspaceName": "test-repo/123",
   },
 }
 `;
@@ -144,7 +140,6 @@ exports[`Mission Resolution Behavior > records resolution of shorthand id:action
       "COLORTERM": "truecolor",
       "FORCE_COLOR": "3",
       "TERM": "xterm-256color",
-      "WT_SESSION": "<wt-session>",
     },
     "geminiAuthMode": "env-chain",
     "gitAuthMode": "repo-token",
@@ -155,11 +150,11 @@ exports[`Mission Resolution Behavior > records resolution of shorthand id:action
     "repoName": "test-repo",
     "sensitiveEnv": undefined,
     "sessionName": "test-repo/456/experiment",
-    "tempDir": "C:/Users/mattk/AppData/Local/Temp/orbit-git-worktrees/test-repo/456",
+    "tempDir": "<tmp>/orbit-git-worktrees/test-repo/456",
     "upstreamUrl": "https://github.com/google-gemini/gemini-cli.git",
     "verbose": undefined,
-    "workDir": "C:\\Users\\mattk\\AppData\\Local\\Temp\\orbit-git-worktrees\\test-repo\\456",
-    "workspaceName": "test-repo\\456",
+    "workDir": "<tmp>/orbit-git-worktrees/test-repo/456",
+    "workspaceName": "test-repo/456",
   },
 }
 `;

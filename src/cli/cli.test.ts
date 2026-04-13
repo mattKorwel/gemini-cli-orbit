@@ -383,7 +383,9 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag changes working directory', async () => {
     await dispatch(['mission', 'start', '--repo-dir=/tmp/foo', '42']);
-    expect(chdirSpy).toHaveBeenCalledWith('C:\\tmp\\foo');
+    expect(chdirSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/[\\\/]tmp[\\\/]foo/),
+    );
     expect(mockResolveMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',
@@ -394,7 +396,9 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag with space changes working directory', async () => {
     await dispatch(['mission', 'start', '--repo-dir', '/tmp/bar', '42']);
-    expect(chdirSpy).toHaveBeenCalledWith('C:\\tmp\\bar');
+    expect(chdirSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/[\\\/]tmp[\\\/]bar/),
+    );
     expect(mockResolveMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',
@@ -405,7 +409,9 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag expands tilde (~)', async () => {
     await dispatch(['mission', 'start', '--repo-dir=~/dev/foo', '42']);
-    expect(chdirSpy).toHaveBeenCalledWith('C:\\home\\user\\dev\\foo');
+    expect(chdirSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/[\\\/]home[\\\/]user[\\\/]dev[\\\/]foo/),
+    );
     expect(mockResolveMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',

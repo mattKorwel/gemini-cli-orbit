@@ -253,19 +253,32 @@ process.exit(0);
           'none',
         ]);
 
-        const normalizedHistory = harness.getHistory().map((line) =>
-          line
-            .replaceAll('\\', '/')
-            .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
-            .replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo')
-            .replaceAll(orbitRoot.replaceAll('\\', '/'), '<tmp>/orbit-root')
-            .replaceAll(devShmRoot.replaceAll('\\', '/'), '<tmp>/dev-shm')
+        const normalizedHistory = harness.getHistory().map((line) => {
+          let res = line.replaceAll('\\', '/');
+          const cwd = process.cwd().replaceAll('\\', '/');
+          const repoRootNorm = repoRoot.replaceAll('\\', '/');
+          const orbitRootNorm = orbitRoot.replaceAll('\\', '/');
+          const devShmRootNorm = devShmRoot.replaceAll('\\', '/');
+
+          res = res.replaceAll(cwd, '<cwd>');
+          res = res.replaceAll(repoRootNorm, '<tmp>/repo');
+          res = res.replaceAll(orbitRootNorm, '<tmp>/orbit-root');
+          res = res.replaceAll(devShmRootNorm, '<tmp>/dev-shm');
+
+          // Handle platform-specific node/shell wrappers
+          res = res.replace(/^.*node(\.exe)?\s+/, '');
+          res = res.replace(
+            /^.*powershell(\.exe)?\s+-NoProfile\s+-EncodedCommand\s+[A-Za-z0-9+/=]+\s+/,
+            '',
+          );
+
+          return res
             .replace(/orbit-cli-123-\d+/g, 'orbit-cli-123-<ts>')
             .replace(
               /orbit-manifest-cli-123-\d+\.json/g,
               'orbit-manifest-cli-123-<ts>.json',
-            ),
-        );
+            );
+        });
 
         expect({
           exitCode,
