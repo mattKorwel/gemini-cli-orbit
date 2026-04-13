@@ -173,11 +173,26 @@ process.exit(0);
         );
         res = res.replaceAll(home.replaceAll('\\', '/'), '<tmp>/home');
         res = res.replaceAll(harness.bin.replaceAll('\\', '/'), '<bin>');
+
+        // Handle platform-specific node/shell wrappers
+        res = res.replace(/^.*node(\.exe)?\s+/, '');
+        res = res.replace(
+          /^.*powershell(\.exe)?\s+-NoProfile\s+-EncodedCommand\s+[A-Za-z0-9+/=]+\s+/,
+          '',
+        );
+
+        // Filter out environment variables that fluctuate between platforms/sessions
+        res = res.replace(/\s+-e\s+WT_SESSION=[^\s]+/g, '');
+        res = res.replace(/\s+-e\s+TERM=[^\s]+/g, '');
+        res = res.replace(/\s+-e\s+COLORTERM=[^\s]+/g, '');
+        res = res.replace(/\s+-e\s+FORCE_COLOR=[^\s]+/g, '');
+
         res = res.replaceAll('<bin>/tmux.exe', 'tmux');
         res = res.replaceAll('<bin>/tmux', 'tmux');
         res = res.replaceAll('tmux.exe', 'tmux');
         return res;
       });
+
       const manifestPath = getLocalMissionManifestPath('test-repo/local-123');
 
       expect(exitCode).toBe(0);

@@ -272,6 +272,12 @@ process.exit(0);
             '',
           );
 
+          // Filter out environment variables that fluctuate between platforms/sessions
+          res = res.replace(/\s+-e\s+WT_SESSION=[^\s]+/g, '');
+          res = res.replace(/\s+-e\s+TERM=[^\s]+/g, '');
+          res = res.replace(/\s+-e\s+COLORTERM=[^\s]+/g, '');
+          res = res.replace(/\s+-e\s+FORCE_COLOR=[^\s]+/g, '');
+
           return res
             .replace(/orbit-cli-123-\d+/g, 'orbit-cli-123-<ts>')
             .replace(
