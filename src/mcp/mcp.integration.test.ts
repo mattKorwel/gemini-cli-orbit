@@ -202,14 +202,12 @@ describe('MCP Server Integration', () => {
       await client.callTool({
         name: 'constellation',
         arguments: {
-          sync: true,
           pulse: true,
         },
       });
 
       expect(mockGetFleetState).toHaveBeenCalledWith(
         expect.objectContaining({
-          syncWithReality: true,
           includeMissions: true,
         }),
       );

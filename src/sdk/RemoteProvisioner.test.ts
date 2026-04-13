@@ -95,7 +95,7 @@ describe('RemoteProvisioner', () => {
         name: 'test-repo-feat-test',
         mounts: expect.arrayContaining([
           expect.objectContaining({
-            capsule: '/home/node/.orbit-manifest.json',
+            capsule: '/orbit/manifest.json',
           }),
         ]),
       }),

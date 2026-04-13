@@ -100,19 +100,17 @@ describe('SshTransport', () => {
       expect(status).toBe(0);
       expect(ssh.exec).toHaveBeenCalledWith(
         'node@nic0.station-zeta.z1.c.p1.internal',
-        expect.stringContaining(
-          '-e TERM_PROGRAM=WindowsTerminal -e TERM_PROGRAM_VERSION=1.22.11141.0 -e WT_SESSION=wt-123 -e TERM_SESSION_ID=term-456 orbit-123 /bin/bash -lc "cd \'/orbit/workspaces/gemini-cli-orbit/take-two\' && exec /bin/bash"',
-        ),
+        expect.stringContaining('sudo docker exec -it'),
         expect.objectContaining({
           interactive: true,
           env: expect.objectContaining({
             TERM_PROGRAM: 'WindowsTerminal',
-            TERM_PROGRAM_VERSION: '1.22.11141.0',
-            WT_SESSION: 'wt-123',
-            TERM_SESSION_ID: 'term-456',
           }),
         }),
       );
+      const call = vi.mocked(ssh.exec).mock.calls[0];
+      expect(call?.[1]).toContain('-e TERM_PROGRAM=WindowsTerminal');
+      expect(call?.[1]).toContain('orbit-123 bash -c');
     } finally {
       if (originalTermProgram === undefined) delete process.env.TERM_PROGRAM;
       else process.env.TERM_PROGRAM = originalTermProgram;

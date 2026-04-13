@@ -14,6 +14,17 @@ separates configuration into two distinct layers:
 2.  **Station Schematic (Repository)**: Repository-specific links and overrides
     that define _how_ a specific repo interacts with a Schematic.
 
+### 🛰️ Starfleet Station Blueprints
+
+Orbit now uses specialized blueprints for different station environments,
+located in the `configs/` directory. These define the "contract" between the
+supervisor and the capsules.
+
+- **`configs/station.local.json`**: Configuration for the local Starfleet
+  supervisor. Defines mount points for your local machine.
+- **`configs/station.starfleet.json`**: The standard production blueprint used
+  on GCE stations.
+
 ---
 
 ## 🛠️ Configuration Sources

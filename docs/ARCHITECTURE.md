@@ -1,41 +1,53 @@
-# Orbit Architecture: Tiered Handshake 🛰️
+# Orbit Architecture: The Starfleet Model 🛰️
 
-Orbit uses a two-tier "Chunky Handshake" model to minimize SSH overhead and
-maximize execution speed.
+Orbit has evolved into a distributed, three-tier orchestration system. This
+model, internally referred to as **Starfleet**, ensures that your development
+environment is persistent, portable, and performant.
 
-## 🏗️ The Two-Tier Model
+## 🪐 The Star Map (Core Identity)
 
-### Tier 1: Hardware & Base Software (`infra liftoff`)
+To maintain clarity across different environments (Local Docker, Local Worktree,
+and Remote GCE), we use a unified terminology mapped to technical roles:
 
-The local SDK uses Pulumi to provision the cloud resources.
+| Space Term             | Technical Role        | Responsibility                                                                                                                       |
+| :--------------------- | :-------------------- | :----------------------------------------------------------------------------------------------------------------------------------- |
+| **Fleet Commander**    | **Local CLI / SDK**   | The "Brain." It resolves user intent, manages infrastructure via Pulumi, and monitors the fleet via the Pulse API.                   |
+| **Station Supervisor** | **Control Plane API** | The "Manager." A lightweight Node.js API running on the host that handles workspace setup, capsule lifecycle, and state aggregation. |
+| **Agent Satellite**    | **Isolated Worker**   | The "Muscle." A Docker container (Capsule) where the Git worktree lives and the Gemini agent executes maneuvers.                     |
 
-1.  **GCE VM & Disk**: High-performance compute and a persistent 500GB data
-    disk.
-2.  **Supervisor**: A permanent Docker container that maintains the signal lock.
-3.  **Hashed Sync**: The extension `bundle/` and project `.gemini` configs are
-    synced to the host using MD5 content hashing to avoid redundant transfers.
+---
 
-### Tier 2: Execution & Mission Start (`mission start`)
+## 🏗️ The Three-Tier Execution Flow
 
-The local SDK performs a lightweight handshake with the remote **Station
-Supervisor**.
+### 1. Liftoff (Infrastructure & Provisioning)
 
-1.  **Capsule Provisioning**: A fresh, isolated container is started for the PR.
-2.  **Chunky Handshake**: The SDK sends exactly **one** "init" command and
-    **one** "run" command to the worker.
-3.  **The Station Supervisor (`src/station/station.ts`)**:
-    - **Init Phase**: The supervisor (running inside the capsule) initializes
-      the Git workspace from the host mirror using `--reference`.
-    - **Run Phase**: The supervisor executes the mission playbook (`review`,
-      `fix`, etc.).
+The **Fleet Commander** uses Pulumi to provision or wake the **Station**.
 
-## 🔄 Self-Healing & Lazy Sync
+1. **Host Setup**: Provisions a GCE VM (Remote) or ensures Docker is ready
+   (Local).
+2. **Signal Lock**: Launches the **Station Supervisor** to act as the permanent
+   management gateway.
 
-Orbit automatically detects if your local extension code or project policies
-have changed. It performs a content-hash check against the remote host before
-every mission start. This logic is managed by the `OrbitSDK` (in `src/sdk/`). If
-they match, zero bytes are transferred. If they differ, only the changed files
-are `rsync`'d.
+### 2. Ignition (Mission Orchestration)
+
+The **Fleet Commander** sends a mission manifest to the **Station Supervisor**.
+
+1. **Workspace Sync**: The Supervisor prepares a high-fidelity Git worktree
+   using a local mirror.
+2. **Capsule Ignition**: The Supervisor spawns an **Agent Satellite** (Capsule)
+   with the correct mounts, secrets, and environment.
+
+### 3. Maneuver (Execution & Pulse)
+
+The agent begins work inside the satellite.
+
+1. **Situational Awareness**: Every tool call or thought is written to a
+   `state.json` via hooks.
+2. **Pulse Aggregation**: The **Fleet Commander** polls the **Station
+   Supervisor**, which aggregates the pulse from all active satellites into a
+   single view.
+
+---
 
 ## 💾 Data Persistence
 

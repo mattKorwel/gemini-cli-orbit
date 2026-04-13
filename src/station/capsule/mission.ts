@@ -15,8 +15,8 @@ import { getMissionManifest } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
 
-import { runReviewPlaybook } from '../../playbooks/review.js';
 import { runFixPlaybook } from '../../playbooks/fix.js';
+import { runAgenticManeuver } from '../../playbooks/ManeuverRunner.js';
 import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
@@ -110,19 +110,19 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
 
     return res.status;
   } else {
-    logger.info('GENERAL', `🏃 Launching ${action} playbook...`);
+    logger.info('GENERAL', `🏃 Launching ${action} agentic maneuver...`);
 
     switch (action) {
       case 'review':
-        return runReviewPlaybook(
+        return runAgenticManeuver({
           identifier,
-          absWorkDir,
+          action,
+          targetDir: absWorkDir,
           policyPath,
-          'gemini',
           logDir,
-          missionHeader,
           pm,
-        );
+          protocolName: 'reviewer',
+        });
       case 'fix':
         return runFixPlaybook(
           identifier,

@@ -26,7 +26,7 @@ describe('DependencyManager', () => {
 
   it('should find pulumi in path', async () => {
     processManager.runSync.mockImplementation((bin: string) => {
-      if (bin === 'which')
+      if (bin === 'which' || bin === 'where')
         return { status: 0, stdout: '/usr/bin/pulumi', stderr: '' };
       if (bin === 'pulumi') return { status: 0, stdout: '', stderr: '' };
       return { status: 1, stdout: '', stderr: '' };
@@ -35,7 +35,7 @@ describe('DependencyManager', () => {
     const path = await manager.ensurePulumi();
     expect(path).toBe('/usr/bin/pulumi');
     expect(processManager.runSync).toHaveBeenCalledWith(
-      'which',
+      expect.stringMatching(/which|where/),
       ['pulumi'],
       expect.any(Object),
     );

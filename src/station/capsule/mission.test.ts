@@ -52,11 +52,11 @@ vi.mock('../../utils/TempManager.js', () => ({
 }));
 
 // Mock playbooks
-vi.mock('../../playbooks/review.js', () => ({
-  runReviewPlaybook: vi.fn().mockResolvedValue(0),
-}));
 vi.mock('../../playbooks/fix.js', () => ({
   runFixPlaybook: vi.fn().mockResolvedValue(0),
+}));
+vi.mock('../../playbooks/ManeuverRunner.js', () => ({
+  runAgenticManeuver: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('node:fs');
@@ -86,7 +86,7 @@ describe('mission entrypoint', () => {
     expect(logger.setVerbose).toHaveBeenCalledWith(true);
   });
 
-  it('should dispatch to review playbook', async () => {
+  it('should dispatch to agentic review maneuver', async () => {
     (MissionUtils.getMissionManifest as any).mockReturnValue({
       identifier: '123',
       action: 'review',
@@ -95,19 +95,20 @@ describe('mission entrypoint', () => {
     });
     (fs.existsSync as any).mockReturnValue(true);
 
-    const { runReviewPlaybook } = await import('../../playbooks/review.js');
+    const { runAgenticManeuver } =
+      await import('../../playbooks/ManeuverRunner.js');
 
     await main(mockPm);
 
-    expect(runReviewPlaybook).toHaveBeenCalledWith(
-      '123',
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      mockPm,
-    );
+    expect(runAgenticManeuver).toHaveBeenCalledWith({
+      identifier: '123',
+      action: 'review',
+      targetDir: expect.any(String),
+      policyPath: expect.any(String),
+      logDir: expect.any(String),
+      pm: mockPm,
+      protocolName: 'reviewer',
+    });
   });
 
   it('should launch chat with the capsule gemini binary and interactive cwd', async () => {

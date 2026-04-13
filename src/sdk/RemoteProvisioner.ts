@@ -52,7 +52,10 @@ export class RemoteProvisioner {
       action,
     } = mCtx;
 
-    const remoteWorkspaceDir = path.join(infra.workspacesDir!, workspaceName);
+    const remoteWorkspaceDir = path.posix.join(
+      infra.workspacesDir!.replace(/\\/g, '/'),
+      workspaceName.replace(/\\/g, '/'),
+    );
 
     // RAM-disk paths (ADR 14 + Manifest-on-Disk)
     const secretId = this.provider.resolveSecretId(repoSlug, idSlug, action);

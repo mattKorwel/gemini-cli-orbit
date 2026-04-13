@@ -10,6 +10,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
+vi.mock('./BlueprintHydrator.js', () => ({
+  hydrateStationSupervisorConfig: vi.fn().mockReturnValue({
+    port: 8080,
+    hostRoot: '/tmp',
+    storage: { workspacesRoot: '/tmp/workspaces', mirrorPath: '/tmp/main' },
+    mounts: [],
+    areas: {},
+  }),
+}));
+
 describe('Worker Integration (High-Fidelity)', () => {
   let tempDir: string;
   let workspaceDir: string;

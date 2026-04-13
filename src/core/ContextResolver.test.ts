@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import path from 'node:path';
 import { ContextResolver } from './ContextResolver.js';
 import * as ConfigManager from './ConfigManager.js';
 
@@ -59,8 +60,8 @@ describe('ContextResolver', () => {
     expect(context.infra.providerType).toBe('local-docker');
     expect(context.infra.projectId).toBe('local');
     expect(context.infra.zone).toBe('localhost');
-    expect(context.infra.workspacesDir).toBe(
-      './orbit-git-worktrees/workspaces',
+    expect(context.infra.workspacesDir).toContain(
+      path.join('.gemini', 'orbit', 'stations', 'local', 'workspaces'),
     );
   });
 

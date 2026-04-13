@@ -57,6 +57,7 @@ describe('StarfleetProvider.missionShell', () => {
     expect(missionShell).toHaveBeenCalledWith(
       'orbit-mission-main-123',
       '/orbit/workspaces/gemini-cli-orbit/mission-main',
+      undefined,
     );
   });
 
@@ -93,6 +94,7 @@ describe('StarfleetProvider.missionShell', () => {
     expect(missionShell).toHaveBeenCalledWith(
       'orbit-local-123',
       '/orbit/workspaces/gemini-cli-orbit/local-123',
+      undefined,
     );
   });
 });

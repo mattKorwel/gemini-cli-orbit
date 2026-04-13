@@ -207,7 +207,6 @@ describe('orbit-cli dispatch()', () => {
     await dispatch(['constellation']);
     expect(mockGetFleetState).toHaveBeenCalledWith(
       expect.objectContaining({
-        syncWithReality: true,
         includeMissions: false,
       }),
     );
@@ -217,7 +216,6 @@ describe('orbit-cli dispatch()', () => {
     await dispatch(['constellation', '--pulse']);
     expect(mockGetFleetState).toHaveBeenCalledWith(
       expect.objectContaining({
-        syncWithReality: true,
         includeMissions: true,
       }),
     );

@@ -27,6 +27,7 @@ describe('ProviderFactory', () => {
 
   it('should return a StarfleetProvider instance by default for GCE', () => {
     const infra: InfrastructureSpec = {
+      providerType: 'gce',
       projectId: 'test-project',
       zone: 'us-central1-a',
       instanceName: 'test-instance',

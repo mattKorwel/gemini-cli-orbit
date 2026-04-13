@@ -10,8 +10,10 @@ import { SshExecutor } from './SshExecutor.js';
 vi.mock('node:os', () => ({
   default: {
     homedir: () => '/Users/testuser',
+    platform: () => 'darwin',
   },
   homedir: () => '/Users/testuser',
+  platform: () => 'darwin',
 }));
 
 describe('SshExecutor', () => {

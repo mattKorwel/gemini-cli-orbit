@@ -151,7 +151,9 @@ describe('ConfigManager', () => {
 
   it('should detect repo name from origin remote (HTTPS)', () => {
     (spawnSync as any).mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === 'git' && args?.[0] === 'remote') {
+      const isGit = cmd.toLowerCase().includes('git');
+      const isRemote = args?.includes('remote');
+      if (isGit && isRemote) {
         return {
           status: 0,
           stdout: 'https://github.com/org/real-repo.git\n',
@@ -166,7 +168,9 @@ describe('ConfigManager', () => {
 
   it('should detect repo name from origin remote (SSH)', () => {
     (spawnSync as any).mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === 'git' && args?.[0] === 'remote') {
+      const isGit = cmd.toLowerCase().includes('git');
+      const isRemote = args?.includes('remote');
+      if (isGit && isRemote) {
         return {
           status: 0,
           stdout: 'git@github.com:org/ssh-repo.git\n',
@@ -181,8 +185,10 @@ describe('ConfigManager', () => {
 
   it('should fallback to git root basename if remote fails', () => {
     (spawnSync as any).mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === 'git' && args?.[0] === 'remote') return { status: 1 } as any;
-      if (cmd === 'git' && args?.[0] === 'rev-parse') {
+      const isGit = cmd.toLowerCase().includes('git');
+      const isRemote = args?.includes('remote');
+      if (isGit && isRemote) return { status: 1 } as any;
+      if (isGit && args?.includes('rev-parse')) {
         return {
           status: 0,
           stdout: '/path/to/my-git-root\n',

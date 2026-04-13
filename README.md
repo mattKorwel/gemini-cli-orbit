@@ -2,23 +2,31 @@
 
 ![CI](https://github.com/mattKorwel/gemini-cli-orbit/actions/workflows/test.yml/badge.svg)
 ![Tests](https://img.shields.io/badge/tests-Behavioral_Verified-green)
+![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue)
 
 **Escape the gravity of terrestrial constraints.**
 
-Orbit is a [Gemini CLI](https://github.com/google-gemini/gemini-cli) extension
-that launches your development presence into a persistent, isolated orbital
-environment. Built on the **Starfleet** architecture, Orbit orchestrates
-lightweight worker capsules via a remote or local supervisor API. Launch a
-mission, close your laptop, and re-attach later exactly where you left off.
+Gemini Orbit is a [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+extension and **self-hosted, elastic compute service** designed specifically for
+agentic engineering work. It launches your development presence into a
+persistent, **isolated orbital environment** across **Linux, macOS, and
+Windows**.
 
-## 🛰️ The Starfleet Architecture
+Built on the **Starfleet** architecture, Orbit orchestrates lightweight worker
+capsules via a remote or local supervisor API. Launch a mission, close your
+laptop, and re-attach later exactly where you left off.
 
-Orbit has transitioned to a unified, API-driven model:
+## 🛰️ The Star Map (Starfleet Architecture)
 
-- **Station Supervisor**: A lightweight Node.js API that manages missions and
-  hardware.
-- **Mission Capsules**: Isolated Docker containers (Workers) where the actual
-  engineering happens.
+Orbit uses a unified, API-driven model that maps space-themed roles to specific
+technical components:
+
+| Space Term             | Technical Role        | Description                                                        |
+| :--------------------- | :-------------------- | :----------------------------------------------------------------- |
+| **Fleet Commander**    | **Local CLI / SDK**   | Orchestrates infrastructure and monitors mission progress.         |
+| **Station Supervisor** | **Control Plane API** | A lightweight Node.js API that manages missions and hardware.      |
+| **Agent Satellite**    | **Isolated Worker**   | Docker containers (Capsules) where the actual engineering happens. |
+
 - **Unified Pathing**: Standardized `/orbit` root across all environments for
   seamless portability.
 

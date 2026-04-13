@@ -16,22 +16,13 @@ describe('MissionUtils', () => {
     vi.clearAllMocks();
   });
 
-  it('should resolve metadata and slugs, preferring current branch if non-numeric', () => {
-    const customMockPm = {
-      runSync: vi.fn().mockImplementation((bin, args) => {
-        if (bin === 'git' && args.includes('--abbrev-ref')) {
-          return { status: 0, stdout: 'actual-feature-branch' };
-        }
-        return { status: 1 };
-      }),
-    };
-
+  it('should resolve metadata and slugs for non-numeric identifiers', () => {
     const ctx = resolveMissionContext(
       'test-omega',
       'gemini-cli-orbit',
-      customMockPm as any,
+      mockPm as any,
     );
-    expect(ctx.branchName).toBe('actual-feature-branch');
+    expect(ctx.branchName).toBe('test-omega');
     expect(ctx.repoSlug).toBe('gemini-cli-orbit');
     expect(ctx.idSlug).toBe('test-omega');
   });

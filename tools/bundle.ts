@@ -6,6 +6,7 @@
 
 import * as esbuild from 'esbuild';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +67,25 @@ async function build() {
     entryPoints: ['src/utils/*.ts', 'src/utils/*.js', 'src/utils/*.mjs'],
     outdir: 'bundle/utils',
   });
+
+  // Copy Prompts
+  console.log('   - Copying Prompts -> bundle/playbooks/prompts/');
+  const promptsDir = path.join(__dirname, '../src/playbooks/prompts');
+  const destPromptsDir = path.join(__dirname, '../bundle/playbooks/prompts');
+  if (fs.existsSync(promptsDir)) {
+    if (!fs.existsSync(destPromptsDir)) {
+      fs.mkdirSync(destPromptsDir, { recursive: true });
+    }
+    const files = fs.readdirSync(promptsDir);
+    for (const file of files) {
+      if (file.endsWith('.md')) {
+        fs.copyFileSync(
+          path.join(promptsDir, file),
+          path.join(destPromptsDir, file),
+        );
+      }
+    }
+  }
 
   console.log('✨ Bundle complete!');
 }

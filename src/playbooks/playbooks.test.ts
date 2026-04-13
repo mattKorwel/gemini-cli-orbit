@@ -56,14 +56,6 @@ describe('Playbooks', () => {
     expect(mockRunAll).toHaveBeenCalled();
   });
 
-  it('should run review playbook', async () => {
-    const { runReviewPlaybook } = await import('./review.js');
-    const res = await runReviewPlaybook(pr, dir, policy, bin, logDir, header);
-    expect(res).toBe(0);
-    expect(mockRegister).toHaveBeenCalled();
-    expect(mockRunParallel).toHaveBeenCalled();
-  });
-
   it('should run implement playbook', async () => {
     const { runImplementPlaybook } = await import('./implement.js');
     const res = await runImplementPlaybook(

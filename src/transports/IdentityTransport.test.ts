@@ -147,9 +147,9 @@ describe('IdentityTransport', () => {
           '-e',
           'TERM_SESSION_ID=term-456',
           'orbit-123',
-          '/bin/bash',
-          '-lc',
-          'cd "/orbit/workspaces/gemini-cli-orbit/take-two" && exec /bin/bash',
+          'bash',
+          '-c',
+          'cd /orbit/workspaces/gemini-cli-orbit/take-two && exec /bin/bash',
         ],
         expect.objectContaining({
           interactive: true,
