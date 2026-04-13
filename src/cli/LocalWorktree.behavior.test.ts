@@ -10,6 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { logger } from '../core/Logger.js';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
+import { normalizeBehaviorHistory } from '../test/BehaviorSnapshot.js';
 
 let activeBinDir = '';
 
@@ -164,35 +165,14 @@ process.exit(0);
         'none',
       ]);
 
-      const normalizedHistory = harness.getHistory().map((line) => {
-        let res = line.replaceAll('\\', '/');
-        res = res.replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo');
-        res = res.replaceAll(
-          worktreeRoot.replaceAll('\\', '/'),
-          '<tmp>/worktrees',
-        );
-        res = res.replaceAll(home.replaceAll('\\', '/'), '<tmp>/home');
-        res = res.replaceAll(harness.bin.replaceAll('\\', '/'), '<bin>');
-
-        // Handle platform-specific node/shell wrappers
-        res = res.replace(/^.*node(\.exe)?\s+/, '');
-        res = res.replace(
-          /^.*powershell(\.exe)?\s+-NoProfile\s+-EncodedCommand\s+[A-Za-z0-9+/=]+\s+/,
-          '',
-        );
-
-        // Filter out environment variables that fluctuate between platforms/sessions
-        res = res.replace(/\s+-e\s+WT_SESSION=[^\s]+/g, '');
-        res = res.replace(/\s+-e\s+TERM=[^\s]+/g, '');
-        res = res.replace(/\s+-e\s+COLORTERM=[^\s]+/g, '');
-        res = res.replace(/\s+-e\s+FORCE_COLOR=[^\s]+/g, '');
-
-        res = res.replaceAll('<bin>/tmux.exe', 'tmux');
-        res = res.replaceAll('<bin>/tmux', 'tmux');
-        res = res.replaceAll('tmux.exe', 'tmux');
-        return res;
+      const normalizedHistory = normalizeBehaviorHistory(harness.getHistory(), {
+        placeholders: {
+          [repoRoot]: '<tmp>/repo',
+          [worktreeRoot]: '<tmp>/worktrees',
+          [home]: '<tmp>/home',
+          [harness.bin]: '<bin>',
+        },
       });
-
       const manifestPath = getLocalMissionManifestPath('test-repo/local-123');
 
       expect(exitCode).toBe(0);

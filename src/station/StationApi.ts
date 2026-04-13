@@ -21,12 +21,7 @@ import { MissionOrchestrator } from './MissionOrchestrator.js';
 import { StatusAggregator } from './StatusAggregator.js';
 import { hydrateStationSupervisorConfig } from './BlueprintHydrator.js';
 import { type IProcessManager } from '../core/interfaces.js';
-import {
-  buildMountAreas,
-  resolveCapsulePathFromAreas,
-  normalizeCapsulePath,
-  resolveHostPathFromAreas,
-} from './MountRegistry.js';
+import { StationPathResolver } from './StationPathResolver.js';
 
 export interface StationApiDependencies {
   config: StationSupervisorConfig;
@@ -37,11 +32,7 @@ export interface StationApiDependencies {
 }
 
 function resolveWorkspaceHostRoot(config: StationSupervisorConfig): string {
-  const mountAreas = buildMountAreas(config.mounts, config.areas);
-  return (
-    resolveHostPathFromAreas(config.storage.workspacesRoot, mountAreas) ||
-    config.storage.workspacesRoot
-  );
+  return new StationPathResolver(config).getWorkspaceHostRoot();
 }
 
 async function getJsonBody(req: http.IncomingMessage): Promise<any> {
@@ -98,44 +89,11 @@ export function createStationServer(
       new DockerManager(dockerExecutor, processManager, config),
       config,
     );
-  const mountAreas = buildMountAreas(config.mounts, config.areas);
+  const pathResolver = new StationPathResolver(config);
   const workspaceHostRoot = resolveWorkspaceHostRoot(config);
 
   const resolveSupervisorFsPath = (internalPath: string): string => {
-    const normalized = normalizeCapsulePath(internalPath);
-
-    // If it's an absolute host path already (e.g. from a mock or win32), return it
-    if (path.isAbsolute(normalized) && !normalized.startsWith('/orbit')) {
-      return normalized;
-    }
-
-    const mapped =
-      resolveHostPathFromAreas(normalized, mountAreas) || normalized;
-
-    if (process.platform === 'win32' && mapped !== normalized) {
-      return mapped;
-    }
-
-    if (
-      config.hostRoot &&
-      mapped.startsWith(config.hostRoot.replace(/\\/g, '/'))
-    ) {
-      // If we are in a test environment where hostRoot is a temporary directory,
-      // and the mapped path is inside it, it's already a valid host path.
-      return mapped;
-    }
-
-    if (
-      config.manifestRoot &&
-      mapped.startsWith(config.manifestRoot.replace(/\\/g, '/'))
-    ) {
-      return mapped;
-    }
-
-    return (
-      resolveCapsulePathFromAreas(mapped, buildMountAreas(config.mounts)) ||
-      normalized
-    );
+    return pathResolver.toHostPath(internalPath);
   };
 
   const resolveGeminiSettingsPath = (): string => {

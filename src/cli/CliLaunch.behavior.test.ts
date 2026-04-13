@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
+import { normalizeBehaviorHistory } from '../test/BehaviorSnapshot.js';
 import { createStationServer } from '../station/StationApi.js';
 import { logger } from '../core/Logger.js';
 
@@ -253,38 +254,24 @@ process.exit(0);
           'none',
         ]);
 
-        const normalizedHistory = harness.getHistory().map((line) => {
-          let res = line.replaceAll('\\', '/');
-          const cwd = process.cwd().replaceAll('\\', '/');
-          const repoRootNorm = repoRoot.replaceAll('\\', '/');
-          const orbitRootNorm = orbitRoot.replaceAll('\\', '/');
-          const devShmRootNorm = devShmRoot.replaceAll('\\', '/');
-
-          res = res.replaceAll(cwd, '<cwd>');
-          res = res.replaceAll(repoRootNorm, '<tmp>/repo');
-          res = res.replaceAll(orbitRootNorm, '<tmp>/orbit-root');
-          res = res.replaceAll(devShmRootNorm, '<tmp>/dev-shm');
-
-          // Handle platform-specific node/shell wrappers
-          res = res.replace(/^.*node(\.exe)?\s+/, '');
-          res = res.replace(
-            /^.*powershell(\.exe)?\s+-NoProfile\s+-EncodedCommand\s+[A-Za-z0-9+/=]+\s+/,
-            '',
-          );
-
-          // Filter out environment variables that fluctuate between platforms/sessions
-          res = res.replace(/\s+-e\s+WT_SESSION=[^\s]+/g, '');
-          res = res.replace(/\s+-e\s+TERM=[^\s]+/g, '');
-          res = res.replace(/\s+-e\s+COLORTERM=[^\s]+/g, '');
-          res = res.replace(/\s+-e\s+FORCE_COLOR=[^\s]+/g, '');
-
-          return res
-            .replace(/orbit-cli-123-\d+/g, 'orbit-cli-123-<ts>')
-            .replace(
-              /orbit-manifest-cli-123-\d+\.json/g,
-              'orbit-manifest-cli-123-<ts>.json',
-            );
-        });
+        const normalizedHistory = normalizeBehaviorHistory(
+          harness.getHistory(),
+          {
+            placeholders: {
+              [process.cwd()]: '<cwd>',
+              [repoRoot]: '<tmp>/repo',
+              [orbitRoot]: '<tmp>/orbit-root',
+              [devShmRoot]: '<tmp>/dev-shm',
+            },
+            volatileReplacements: [
+              [/orbit-cli-123-\d+/g, 'orbit-cli-123-<ts>'],
+              [
+                /orbit-manifest-cli-123-\d+\.json/g,
+                'orbit-manifest-cli-123-<ts>.json',
+              ],
+            ],
+          },
+        );
 
         expect({
           exitCode,

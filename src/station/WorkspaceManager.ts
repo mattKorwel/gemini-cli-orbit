@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { type IGitExecutor } from '../core/interfaces.js';
 import { type StationSupervisorConfig } from '../core/types.js';
-import { buildMountAreas, resolveHostPathFromAreas } from './MountRegistry.js';
+import { StationPathResolver } from './StationPathResolver.js';
 
 export interface WorkspaceOptions {
   workDir: string;
@@ -21,38 +21,17 @@ export interface WorkspaceOptions {
  * WorkspaceManager: Manages Git repositories on the Station host.
  */
 export class WorkspaceManager {
-  private readonly mountAreas;
+  private readonly paths;
 
   constructor(
     private readonly git: IGitExecutor,
     private readonly config: StationSupervisorConfig,
   ) {
-    this.mountAreas = buildMountAreas(config.mounts, config.areas);
+    this.paths = new StationPathResolver(config);
   }
 
   private resolveSupervisorPath(targetPath: string): string {
-    if (/^[A-Z]:/i.test(targetPath) || !targetPath.startsWith('/')) {
-      return targetPath;
-    }
-
-    const mappedPath = resolveHostPathFromAreas(targetPath, this.mountAreas);
-    if (process.platform === 'win32' && mappedPath) {
-      return mappedPath;
-    }
-
-    const hostRoot = this.config.hostRoot?.replace(/\\/g, '/');
-    if (mappedPath && hostRoot && mappedPath.startsWith(hostRoot)) {
-      // If we are in a test environment where hostRoot is a temporary directory,
-      // and the mapped path is inside it, it's already a valid host path.
-      return mappedPath;
-    }
-
-    const manifestRoot = this.config.manifestRoot?.replace(/\\/g, '/');
-    if (mappedPath && manifestRoot && mappedPath.startsWith(manifestRoot)) {
-      return mappedPath;
-    }
-
-    return targetPath;
+    return this.paths.toHostPath(targetPath);
   }
 
   /**
@@ -67,7 +46,9 @@ export class WorkspaceManager {
     } = options;
     const targetDir = this.resolveSupervisorPath(workDir);
 
-    const mirrorPath = manifestMirror || this.config.storage.mirrorPath;
+    const mirrorPath = this.resolveSupervisorPath(
+      manifestMirror || this.config.storage.mirrorPath,
+    );
 
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });

@@ -30,15 +30,23 @@ describe('MissionOrchestrator (Behavioral)', () => {
     const config: any = {
       port: 8080,
       workerImage: 'test-worker-image',
-      manifestRoot: harness.root,
+      manifestRoot: '/orbit/manifests',
       isUnlocked: true,
       useSudo: false,
       storage: {
         workspacesRoot: harness.resolve('workspaces'),
         mirrorPath: harness.resolve('mirror'),
       },
-      mounts: [{ host: harness.root, capsule: '/orbit' }],
+      mounts: [
+        { host: harness.root, capsule: '/orbit' },
+        { host: harness.resolve('dev-shm'), capsule: '/dev/shm' },
+      ],
       areas: {
+        manifests: {
+          host: harness.resolve('manifests'),
+          capsule: '/orbit/manifests',
+          kind: 'dir',
+        },
         homeRoot: {
           host: harness.resolve('home'),
           capsule: '/orbit/home',

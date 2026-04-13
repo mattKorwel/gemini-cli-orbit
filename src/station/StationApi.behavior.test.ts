@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
+import { normalizeBehaviorHistory } from '../test/BehaviorSnapshot.js';
 import { createStationServer } from './StationApi.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
 
@@ -193,21 +194,26 @@ process.exit(0);
           'utf8',
         );
 
-        const normalizedHistory = harness.getHistory().map((line) =>
-          line
-            .replaceAll('\\', '/')
-            .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
-            .replaceAll(orbitRoot.replaceAll('\\', '/'), '<tmp>/orbit')
-            .replaceAll(devShmRoot.replaceAll('\\', '/'), '<tmp>/dev-shm')
-            .replace(/orbit-api-123-\d+/g, 'orbit-api-123-<ts>')
-            .replace(
-              /orbit-manifest-api-123-\d+\.json/g,
-              'orbit-manifest-api-123-<ts>.json',
-            )
-            .replace(
-              /\.orbit-env-orbit-api-123-\d+/g,
-              '.orbit-env-orbit-api-123-<ts>',
-            ),
+        const normalizedHistory = normalizeBehaviorHistory(
+          harness.getHistory(),
+          {
+            placeholders: {
+              [process.cwd()]: '<cwd>',
+              [orbitRoot]: '<tmp>/orbit',
+              [devShmRoot]: '<tmp>/dev-shm',
+            },
+            volatileReplacements: [
+              [/orbit-api-123-\d+/g, 'orbit-api-123-<ts>'],
+              [
+                /orbit-manifest-api-123-\d+\.json/g,
+                'orbit-manifest-api-123-<ts>.json',
+              ],
+              [
+                /\.orbit-env-orbit-api-123-\d+/g,
+                '.orbit-env-orbit-api-123-<ts>',
+              ],
+            ],
+          },
         );
 
         const normalizedResponse = {
@@ -409,17 +415,22 @@ process.exit(0);
           bundleDir: '/orbit/bundle',
         } as any);
 
-        const normalizedHistory = harness.getHistory().map((line) =>
-          line
-            .replaceAll('\\', '/')
-            .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
-            .replaceAll(orbitRoot.replaceAll('\\', '/'), '<tmp>/orbit')
-            .replaceAll(devShmRoot.replaceAll('\\', '/'), '<tmp>/dev-shm')
-            .replace(/orbit-settings-link-\d+/g, 'orbit-settings-link-<ts>')
-            .replace(
-              /orbit-manifest-settings-link-\d+\.json/g,
-              'orbit-manifest-settings-link-<ts>.json',
-            ),
+        const normalizedHistory = normalizeBehaviorHistory(
+          harness.getHistory(),
+          {
+            placeholders: {
+              [process.cwd()]: '<cwd>',
+              [orbitRoot]: '<tmp>/orbit',
+              [devShmRoot]: '<tmp>/dev-shm',
+            },
+            volatileReplacements: [
+              [/orbit-settings-link-\d+/g, 'orbit-settings-link-<ts>'],
+              [
+                /orbit-manifest-settings-link-\d+\.json/g,
+                'orbit-manifest-settings-link-<ts>.json',
+              ],
+            ],
+          },
         );
 
         const runLine = normalizedHistory.find((line) =>

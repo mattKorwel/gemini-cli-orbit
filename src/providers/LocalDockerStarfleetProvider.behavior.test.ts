@@ -10,6 +10,7 @@ import path from 'node:path';
 import { LocalDockerStarfleetProvider } from './LocalDockerStarfleetProvider.js';
 import { ProviderFactory } from './ProviderFactory.js';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
+import { normalizeBehaviorHistory } from '../test/BehaviorSnapshot.js';
 import { LogLevel } from '../core/Logger.js';
 
 describe('Local Docker Starfleet Provider Behavior', () => {
@@ -103,14 +104,12 @@ process.exit(0);
         onLog: vi.fn(),
       } as any);
 
-      const normalizedHistory = harness
-        .getHistory()
-        .map((line) =>
-          line
-            .replaceAll('\\', '/')
-            .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
-            .replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo'),
-        );
+      const normalizedHistory = normalizeBehaviorHistory(harness.getHistory(), {
+        placeholders: {
+          [process.cwd()]: '<cwd>',
+          [repoRoot]: '<tmp>/repo',
+        },
+      });
 
       expect({
         ok,
@@ -193,14 +192,12 @@ process.exit(0);
 
     const ok = await provider.verifyIgnition(observer);
 
-    const normalizedHistory = harness
-      .getHistory()
-      .map((line) =>
-        line
-          .replaceAll('\\', '/')
-          .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
-          .replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo'),
-      );
+    const normalizedHistory = normalizeBehaviorHistory(harness.getHistory(), {
+      placeholders: {
+        [process.cwd()]: '<cwd>',
+        [repoRoot]: '<tmp>/repo',
+      },
+    });
 
     expect(ok).toBe(true);
     expect(client.ping).toHaveBeenCalled();

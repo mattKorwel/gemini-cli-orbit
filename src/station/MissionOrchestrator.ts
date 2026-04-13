@@ -15,12 +15,9 @@ import {
   CAPSULE_ROOT,
   CAPSULE_MANIFEST_PATH,
 } from '../core/Constants.js';
-import {
-  buildMountAreas,
-  normalizeCapsulePath,
-  resolveHostPathFromAreas,
-} from './MountRegistry.js';
+import { normalizeCapsulePath } from './MountRegistry.js';
 import { type StationPathArea } from '../core/types.js';
+import { StationPathResolver } from './StationPathResolver.js';
 
 export interface StarfleetReceipt {
   missionId: string;
@@ -35,6 +32,7 @@ export interface StarfleetReceipt {
  */
 export class MissionOrchestrator {
   private readonly mountAreas;
+  private readonly paths;
   private static readonly workerSecretEnvPath = '/run/orbit/mission.env';
   private static readonly workerAuthTmpfsPath = '/run/orbit/auth';
 
@@ -43,7 +41,8 @@ export class MissionOrchestrator {
     private readonly docker: DockerManager,
     private readonly config: StationSupervisorConfig,
   ) {
-    this.mountAreas = buildMountAreas(config.mounts, config.areas);
+    this.paths = new StationPathResolver(config);
+    this.mountAreas = this.paths.mountAreas;
   }
 
   private getMatchedMountArea(
@@ -66,42 +65,11 @@ export class MissionOrchestrator {
    * Required for DooD (Docker-out-of-Docker) volume mounts.
    */
   private toHostPath(internalPath: string): string {
-    if (/^[A-Z]:/i.test(internalPath)) {
-      return internalPath;
-    }
-
-    const mappedPath = resolveHostPathFromAreas(internalPath, this.mountAreas);
-    if (mappedPath) {
-      return mappedPath;
-    }
-
-    return internalPath;
+    return this.paths.toHostPath(internalPath);
   }
 
   private resolveSupervisorFsPath(internalPath: string): string {
-    if (/^[A-Z]:/i.test(internalPath) || !internalPath.startsWith('/')) {
-      return internalPath;
-    }
-
-    const normalizedPath = normalizeCapsulePath(internalPath);
-    const mappedPath = this.toHostPath(normalizedPath);
-    if (process.platform === 'win32' && mappedPath !== normalizedPath) {
-      return mappedPath;
-    }
-
-    const hostRoot = this.config.hostRoot?.replace(/\\/g, '/');
-    if (hostRoot && mappedPath.startsWith(hostRoot)) {
-      // If we are in a test environment where hostRoot is a temporary directory,
-      // and the mapped path is inside it, it's already a valid host path.
-      return mappedPath;
-    }
-
-    const manifestRoot = this.config.manifestRoot?.replace(/\\/g, '/');
-    if (manifestRoot && mappedPath.startsWith(manifestRoot)) {
-      return mappedPath;
-    }
-
-    return normalizedPath;
+    return this.paths.toHostPath(internalPath);
   }
 
   private createMissionSecretFile(
@@ -124,9 +92,8 @@ export class MissionOrchestrator {
       return undefined;
     }
 
-    const internalSecretPath = normalizeCapsulePath(
-      `/dev/shm/.orbit-env-${uniqueContainerName}`,
-    );
+    const internalSecretPath =
+      this.paths.getSecretEnvCapsulePath(uniqueContainerName);
     const secretLines = Object.entries(sensitiveEnv || {}).map(
       ([key, value]) => `export ${key}='${value.replace(/'/g, "'\\''")}'`,
     );
@@ -295,10 +262,7 @@ export class MissionOrchestrator {
     } as any);
 
     // 3. Prepare Mission Manifest
-    const manifestArea = this.config.areas?.manifests;
-    const internalManifestDir = normalizeCapsulePath(
-      manifestArea?.capsule || `${CAPSULE_ROOT}/manifests`,
-    );
+    const internalManifestDir = this.paths.getManifestCapsuleRoot();
     const supervisorManifestDir =
       this.resolveSupervisorFsPath(internalManifestDir);
     if (!fs.existsSync(supervisorManifestDir)) {

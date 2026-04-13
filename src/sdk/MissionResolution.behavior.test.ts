@@ -11,6 +11,11 @@ import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { StationRegistry } from './StationRegistry.js';
 import { StarfleetClient } from './StarfleetClient.js';
 import { ConfigManager } from '../core/ConfigManager.js';
+import {
+  normalizeBehaviorEnv,
+  normalizeBehaviorHistory,
+  normalizeBehaviorText,
+} from '../test/BehaviorSnapshot.js';
 
 describe('Mission Resolution Behavior', () => {
   let harness: StarfleetHarness;
@@ -44,58 +49,47 @@ describe('Mission Resolution Behavior', () => {
   };
 
   const normalize = (manifest: any, history: string[]) => {
-    const rootPath = harness.root.replaceAll('\\', '/');
-    const normalizePath = (p: string) => {
-      if (typeof p !== 'string') return p;
-      let res = p.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>');
-      // Also normalize /tmp/orbit-git-worktrees/ to <tmp>/orbit-git-worktrees/ if it appears in Linux
-      res = res.replace(
-        /^\/tmp\/orbit-git-worktrees\//,
-        '<tmp>/orbit-git-worktrees/',
-      );
-      // And the Windows default C:/Users/.../Temp/orbit-git-worktrees/
-      res = res.replace(
-        /.*\/Temp\/orbit-git-worktrees\//,
-        '<tmp>/orbit-git-worktrees/',
-      );
-      return res;
-    };
-
-    const normalizeEnv = (env: Record<string, string> | undefined) => {
-      if (!env) return env;
-
-      const filtered = { ...env };
-      // Remove environment variables that fluctuate between platforms and sessions
-      delete filtered.WT_SESSION;
-      delete filtered.TERM_SESSION_ID;
-      delete filtered.TERM_PROGRAM;
-      delete filtered.TERM_PROGRAM_VERSION;
-      delete filtered.SSH_AUTH_SOCK;
-      delete filtered.SSH_CLIENT;
-      delete filtered.SSH_CONNECTION;
-      delete filtered.SSH_TTY;
-
-      return filtered;
+    const snapshotOptions = {
+      placeholders: {
+        [harness.root]: '<tmp>',
+        [process.cwd()]: '<cwd>',
+      },
+      volatileReplacements: [
+        [/^\/tmp\/orbit-git-worktrees\//, '<tmp>/orbit-git-worktrees/'],
+        [/.*\/Temp\/orbit-git-worktrees\//, '<tmp>/orbit-git-worktrees/'],
+      ] as Array<[RegExp, string]>,
     };
 
     return {
       manifest: {
         ...manifest,
-        bundleDir: normalizePath(manifest.bundleDir),
-        env: normalizeEnv(manifest.env),
-        mirrorPath: normalizePath(manifest.mirrorPath),
-        policyPath: normalizePath(manifest.policyPath),
-        tempDir: normalizePath(manifest.tempDir),
-        workDir: normalizePath(manifest.workDir),
-        workspaceName: (manifest.workspaceName || '').replaceAll('\\', '/'),
+        bundleDir:
+          typeof manifest.bundleDir === 'string'
+            ? normalizeBehaviorText(manifest.bundleDir, snapshotOptions)
+            : manifest.bundleDir,
+        env: normalizeBehaviorEnv(manifest.env, snapshotOptions),
+        mirrorPath:
+          typeof manifest.mirrorPath === 'string'
+            ? normalizeBehaviorText(manifest.mirrorPath, snapshotOptions)
+            : manifest.mirrorPath,
+        policyPath:
+          typeof manifest.policyPath === 'string'
+            ? normalizeBehaviorText(manifest.policyPath, snapshotOptions)
+            : manifest.policyPath,
+        tempDir:
+          typeof manifest.tempDir === 'string'
+            ? normalizeBehaviorText(manifest.tempDir, snapshotOptions)
+            : manifest.tempDir,
+        workDir:
+          typeof manifest.workDir === 'string'
+            ? normalizeBehaviorText(manifest.workDir, snapshotOptions)
+            : manifest.workDir,
+        workspaceName: normalizeBehaviorText(
+          manifest.workspaceName || '',
+          snapshotOptions,
+        ),
       },
-      history: history.map((line) => {
-        let res = line.replaceAll('\\', '/').replaceAll(rootPath, '<tmp>');
-        // Normalize the absolute path to the current working directory as well
-        const cwd = process.cwd().replaceAll('\\', '/');
-        res = res.replaceAll(cwd, '<cwd>');
-        return res;
-      }),
+      history: normalizeBehaviorHistory(history, snapshotOptions),
     };
   };
 
