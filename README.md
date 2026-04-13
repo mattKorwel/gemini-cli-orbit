@@ -12,9 +12,9 @@ agentic engineering work. It launches your development presence into a
 persistent, **isolated orbital environment** across **Linux, macOS, and
 Windows**.
 
-Built on the **Starfleet** architecture, Orbit orchestrates lightweight worker
-capsules via a remote or local supervisor API. Launch a mission, close your
-laptop, and re-attach later exactly where you left off.
+Built around a **Starfleet-inspired conceptual model**, Orbit orchestrates
+lightweight worker capsules via a remote or local supervisor API. Launch a
+mission, close your laptop, and re-attach later exactly where you left off.
 
 ## 🛰️ The Star Map (Starfleet Architecture)
 
