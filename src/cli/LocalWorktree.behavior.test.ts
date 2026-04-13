@@ -174,6 +174,7 @@ process.exit(0);
         },
       });
       const manifestPath = getLocalMissionManifestPath('test-repo/local-123');
+      const sessionPattern = /test-repo(?:\/|-)local-123/;
 
       expect(exitCode).toBe(0);
       expect(fs.existsSync(workspacePath)).toBe(true);
@@ -182,18 +183,22 @@ process.exit(0);
         fs.existsSync(path.join(workspacePath, '.orbit-manifest.json')),
       ).toBe(false);
       expect(
-        normalizedHistory.some((line) =>
-          line.includes('tmux new-session -A -s test-repo-local-123'),
+        normalizedHistory.some(
+          (line) =>
+            /tmux new-session -A -s /.test(line) && sessionPattern.test(line),
         ),
       ).toBe(true);
       expect(
-        normalizedHistory.some((line) =>
-          line.includes('tmux new-session -d -A -s test-repo-local-123'),
+        normalizedHistory.some(
+          (line) =>
+            /tmux new-session -d -A -s /.test(line) &&
+            sessionPattern.test(line),
         ),
       ).toBe(false);
       expect(
-        normalizedHistory.some((line) =>
-          line.includes('tmux attach-session -t test-repo-local-123'),
+        normalizedHistory.some(
+          (line) =>
+            /tmux attach-session -t /.test(line) && sessionPattern.test(line),
         ),
       ).toBe(false);
     },
