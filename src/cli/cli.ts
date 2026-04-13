@@ -182,12 +182,10 @@ export async function dispatch(argv: string[]): Promise<number> {
     }
 
     async function runConstellation(args: any) {
-      const { sync, pulse, all, current, selectByName } = args;
+      const { pulse, all, current, selectByName } = args;
 
-      if ((sync || pulse) && !args.json) {
-        process.stderr.write(
-          `📡 ${pulse ? 'Requesting pulse' : 'Synchronizing'} constellation . . . . .\n`,
-        );
+      if (!args.json) {
+        process.stderr.write(`📡 Synchronizing constellation . . . . .\n`);
       }
 
       let repoFilter: string | undefined = undefined;
@@ -196,7 +194,6 @@ export async function dispatch(argv: string[]): Promise<number> {
       }
 
       const states = await sdk.getFleetState({
-        syncWithReality: sync,
         includeMissions: pulse,
         repoFilter,
         nameFilter: selectByName,
@@ -208,11 +205,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         return;
       }
 
-      renderFleet(
-        states,
-        pulse ? 'pulse' : sync ? 'health' : 'inventory',
-        args.peek,
-      );
+      renderFleet(states, pulse ? 'pulse' : 'health', args.peek);
     }
 
     // Handle repo:cmd syntax
@@ -303,15 +296,9 @@ QUICK START:
           );
 
           y2.group(
-            ['sync', 'pulse', 'all', 'current', 'select-by-name'],
+            ['pulse', 'all', 'current', 'select-by-name'],
             'Status Options:',
           )
-            .option('sync', {
-              alias: 's',
-              type: 'boolean',
-              default: true,
-              description: 'Sync hardware health',
-            })
             .option('pulse', {
               alias: 'p',
               type: 'boolean',
@@ -983,8 +970,7 @@ function renderFleet(
         const typeIcon = s.receipt.type === 'gce' ? '☁️' : '🏠';
         const activeMarker = s.isActive ? '➡️' : '  ';
         const status = s.reality?.status || s.receipt.status || 'READY';
-        const missionCount =
-          s.reality?.missions.length ?? (depth === 'inventory' ? '?' : 0);
+        const missionCount = s.reality?.missions.length ?? 0;
 
         const contextInfo =
           s.receipt.type === 'gce'
@@ -994,6 +980,10 @@ function renderFleet(
         console.log(
           `${activeMarker} ${typeIcon}  ${s.receipt.name.padEnd(20)} ${contextInfo} → ${status}, ${missionCount} missions`,
         );
+
+        if (s.reality && s.reality.missions.length > 0) {
+          renderMissionList(s.reality.missions, '      ', peek);
+        }
       });
     });
   }
@@ -1004,7 +994,6 @@ function renderMissionList(
   indent = '',
   peek = false,
 ): void {
-  console.log(`\n${indent}📦 ACTIVE MISSION CAPSULES:`);
   if (capsules.length === 0) {
     console.log(`${indent}  - No mission capsules found`);
   } else {
@@ -1031,11 +1020,15 @@ function renderMissionList(
       }
 
       if (!detail && c.lastThought) {
-        const isSnapshot = c.lastThought.includes('\n');
-        if (peek || !isSnapshot) {
+        const lines = c.lastThought.trim().split('\n');
+        const isSnapshot = lines.length > 1;
+        if (peek) {
           detail = isSnapshot
             ? `Terminal:\n\`\`\`\n${c.lastThought}\n\`\`\``
             : `Thought: ${c.lastThought}`;
+        } else {
+          // In non-peek mode, show the first line of the thought
+          detail = `Thought: ${lines[0]}${isSnapshot ? ' ...' : ''}`;
         }
       }
 

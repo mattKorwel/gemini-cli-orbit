@@ -153,6 +153,7 @@ export function createStationServer(
 
   return http.createServer(async (req, res) => {
     const { method, url } = req;
+    debugLog(`${method} ${url}`);
 
     if (url === '/health' && method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });

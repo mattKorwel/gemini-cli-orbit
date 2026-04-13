@@ -294,9 +294,7 @@ export class MissionManager {
     // If the station is hibernated, we must wake it before proceeding.
     const receipt = provider.getStationReceipt();
     if (receipt && this.fleet) {
-      const stations = await this.stationRegistry.listStations({
-        syncWithReality: true,
-      });
+      const stations = await this.stationRegistry.listStations();
       const current = stations.find((s) => s.receipt.name === receipt.name);
       if (
         current?.receipt?.status === 'HIBERNATED' ||

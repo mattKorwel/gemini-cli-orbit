@@ -205,12 +205,9 @@ export class OrbitSDK implements IOrbitSDK {
    * Parallel aggregator for fleet status.
    */
   async getFleetState(options: ListStationsOptions): Promise<StationState[]> {
-    const { syncWithReality, includeMissions, repoFilter, nameFilter } =
-      options;
+    const { includeMissions, repoFilter, nameFilter } = options;
 
-    let stations = await this.status['stationRegistry'].listStations({
-      syncWithReality: false, // We'll sync reality in the next step based on filters
-    });
+    let stations = await this.status['stationRegistry'].listStations();
 
     // 1. Apply Repository Filter
     if (repoFilter) {
@@ -225,10 +222,10 @@ export class OrbitSDK implements IOrbitSDK {
       );
     }
 
-    // 3. Fetch Reality for the filtered set
+    // 3. Fetch Reality for the filtered set (Health is the new baseline)
     const states = await this.status.fetchFleetState(
       stations,
-      includeMissions ? 'pulse' : syncWithReality ? 'health' : 'inventory',
+      includeMissions ? 'pulse' : 'health',
       options.peek,
     );
 
@@ -379,7 +376,7 @@ export class OrbitSDK implements IOrbitSDK {
    * List all provisioned stations and discovered local repos.
    */
   async listStations(
-    options: ListStationsOptions = { syncWithReality: true },
+    options: ListStationsOptions = { includeMissions: true },
   ): Promise<StationState[]> {
     return this.getFleetState(options);
   }

@@ -65,9 +65,7 @@ export class StationRegistry implements IStationRegistry {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
 
-  async listStations(
-    options: { syncWithReality?: boolean } = {},
-  ): Promise<HydratedStation[]> {
+  async listStations(): Promise<HydratedStation[]> {
     const settings = this.configManager.loadSettings();
     const files = fs
       .readdirSync(STATIONS_DIR)
@@ -107,29 +105,7 @@ export class StationRegistry implements IStationRegistry {
       }
     });
 
-    const stations: HydratedStation[] = receipts.map((r) =>
-      this.hydrateStation(r),
-    );
-
-    if (options.syncWithReality) {
-      for (const s of stations) {
-        try {
-          const reality = await s.provider.getStatus();
-          if (reality.status === 'NOT_FOUND' && s.receipt.type === 'gce') {
-            logger.info(
-              'STATION',
-              `🗑️  Pruning stale station record: ${s.receipt.name}`,
-            );
-            this.deleteReceipt(s.receipt.name);
-          }
-          s.receipt.status = reality.status;
-        } catch (_e: any) {
-          s.receipt.status = 'UNREACHABLE';
-        }
-      }
-    }
-
-    return stations;
+    return receipts.map((r) => this.hydrateStation(r));
   }
 
   /**

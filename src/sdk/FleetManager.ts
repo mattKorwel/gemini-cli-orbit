@@ -238,17 +238,11 @@ export class FleetManager {
     options: ListStationsOptions = {},
   ): Promise<StationState[]> {
     const settings = this.configManager.loadSettings();
-    const stations = await this.stationManager.listStations({
-      syncWithReality: !!options.syncWithReality,
-    });
-
+    const stations = await this.stationManager.listStations();
     const states = await this.statusManager.fetchFleetState(
       stations,
-      options.includeMissions
-        ? 'pulse'
-        : options.syncWithReality
-          ? 'health'
-          : 'inventory',
+      options.includeMissions ? 'pulse' : 'health',
+      options.peek,
     );
 
     // Set Active Marker based on settings

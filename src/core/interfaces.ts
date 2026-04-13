@@ -54,9 +54,7 @@ export interface HydratedStation {
 export interface IStationRegistry {
   saveReceipt(receipt: StationReceipt): void;
   deleteReceipt(name: string): void;
-  listStations(options?: {
-    syncWithReality?: boolean;
-  }): Promise<HydratedStation[]>;
+  listStations(): Promise<HydratedStation[]>;
 }
 
 /**
@@ -76,7 +74,8 @@ export interface IStatusManager {
   getGlobalLocalPulse(): Promise<import('./types.js').StationState[]>;
   fetchFleetState(
     stations: HydratedStation[],
-    depth: 'inventory' | 'health' | 'pulse',
+    depth: 'health' | 'pulse',
+    peek?: boolean,
   ): Promise<import('./types.js').StationState[]>;
 }
 

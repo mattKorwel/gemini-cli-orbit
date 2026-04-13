@@ -178,7 +178,6 @@ export interface ProvisionOptions {
  * Options for listing stations.
  */
 export interface ListStationsOptions {
-  syncWithReality?: boolean | undefined;
   includeMissions?: boolean | undefined;
   repoFilter?: string | undefined;
   nameFilter?: string | undefined;
