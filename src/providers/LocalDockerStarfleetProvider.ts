@@ -25,7 +25,8 @@ import os from 'node:os';
 export class LocalDockerStarfleetProvider extends StarfleetProvider {
   public readonly type = 'local-docker';
   private selectedPort: number = 8080;
-  private static readonly localWorkerDockerfile = 'orbit-worker.Dockerfile';
+  private static readonly localWorkerDockerfile =
+    'docker/orbit-worker.Dockerfile';
   private static readonly localWorkerImage = 'orbit-worker:local';
   private static readonly localWorkerGeminiBin =
     '/usr/local/share/npm-global/bin/gemini';
@@ -300,7 +301,7 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
               readonly: true,
             },
             {
-              host: path.join(root, 'starfleet-entrypoint.sh'),
+              host: path.join(root, 'docker', 'starfleet-entrypoint.sh'),
               capsule: entrypointCapsulePath,
               readonly: true,
             },

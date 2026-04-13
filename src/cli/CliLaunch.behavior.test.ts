@@ -102,8 +102,9 @@ describe('CLI Launch Behavior', () => {
       fs.mkdirSync(path.join(repoRoot, '.gemini', 'policies'), {
         recursive: true,
       });
+      fs.mkdirSync(path.join(repoRoot, 'docker'), { recursive: true });
       fs.writeFileSync(
-        path.join(repoRoot, 'starfleet-entrypoint.sh'),
+        path.join(repoRoot, 'docker', 'starfleet-entrypoint.sh'),
         '#!/bin/sh\nexit 0\n',
       );
       fs.mkdirSync(path.join(orbitRoot, 'manifests'), { recursive: true });
@@ -204,7 +205,7 @@ process.exit(0);
             readonly: true,
           },
           entrypoint: {
-            host: path.join(repoRoot, 'starfleet-entrypoint.sh'),
+            host: path.join(repoRoot, 'docker', 'starfleet-entrypoint.sh'),
             capsule: '/orbit/starfleet-entrypoint.sh',
             kind: 'file',
             readonly: true,

@@ -40,6 +40,7 @@ describe('Station API Behavior', () => {
         'state.json',
       );
       fs.mkdirSync(path.join(orbitRoot, 'bundle'), { recursive: true });
+      fs.mkdirSync(path.join(orbitRoot, 'docker'), { recursive: true });
       fs.mkdirSync(path.join(orbitRoot, '.gemini', 'policies'), {
         recursive: true,
       });
@@ -52,7 +53,7 @@ describe('Station API Behavior', () => {
       fs.writeFileSync(workerStatePath, JSON.stringify({ status: 'IDLE' }));
       fs.mkdirSync(devShmRoot, { recursive: true });
       fs.writeFileSync(
-        path.join(orbitRoot, 'starfleet-entrypoint.sh'),
+        path.join(orbitRoot, 'docker', 'starfleet-entrypoint.sh'),
         '#!/bin/sh\nexit 0\n',
       );
 
@@ -132,7 +133,7 @@ process.exit(0);
             readonly: true,
           },
           entrypoint: {
-            host: path.join(orbitRoot, 'starfleet-entrypoint.sh'),
+            host: path.join(orbitRoot, 'docker', 'starfleet-entrypoint.sh'),
             capsule: '/orbit/starfleet-entrypoint.sh',
             kind: 'file',
             readonly: true,
@@ -270,6 +271,7 @@ process.exit(0);
       );
 
       fs.mkdirSync(path.join(orbitRoot, 'bundle'), { recursive: true });
+      fs.mkdirSync(path.join(orbitRoot, 'docker'), { recursive: true });
       fs.mkdirSync(path.join(orbitRoot, '.gemini', 'policies'), {
         recursive: true,
       });
@@ -279,7 +281,7 @@ process.exit(0);
       fs.writeFileSync(workerStatePath, JSON.stringify({ status: 'IDLE' }));
       fs.mkdirSync(devShmRoot, { recursive: true });
       fs.writeFileSync(
-        path.join(orbitRoot, 'starfleet-entrypoint.sh'),
+        path.join(orbitRoot, 'docker', 'starfleet-entrypoint.sh'),
         '#!/bin/sh\nexit 0\n',
       );
 
@@ -359,7 +361,7 @@ process.exit(0);
             readonly: true,
           },
           entrypoint: {
-            host: path.join(orbitRoot, 'starfleet-entrypoint.sh'),
+            host: path.join(orbitRoot, 'docker', 'starfleet-entrypoint.sh'),
             capsule: '/orbit/starfleet-entrypoint.sh',
             kind: 'file',
             readonly: true,
