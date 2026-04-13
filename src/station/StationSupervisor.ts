@@ -184,9 +184,23 @@ export class StationSupervisor {
         run(GitExecutor.checkoutNew(targetDir, branch, remoteRef));
       } else {
         console.log(
-          `   - Branch '${branch}' not found anywhere. Creating fresh from HEAD...`,
+          `   - Branch '${branch}' not found anywhere. Creating from remote default branch...`,
         );
-        run(GitExecutor.checkoutNew(targetDir, branch));
+        const fetchDefaultCmd = GitExecutor.fetch(targetDir, 'origin', 'HEAD');
+        const fetchDefaultRes = this.pm.runSync(
+          fetchDefaultCmd.bin,
+          fetchDefaultCmd.args,
+          {
+            ...fetchDefaultCmd.options,
+            env: { ...fetchDefaultCmd.options?.env, GIT_TERMINAL_PROMPT: '0' },
+          },
+        );
+        if (fetchDefaultRes.status !== 0) {
+          throw new Error(
+            `Failed to fetch remote default branch for '${branch}': ${fetchDefaultRes.stderr}`,
+          );
+        }
+        run(GitExecutor.checkoutNew(targetDir, branch, 'FETCH_HEAD'));
       }
     }
 

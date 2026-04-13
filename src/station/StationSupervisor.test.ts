@@ -144,6 +144,47 @@ describe('StationSupervisor', () => {
       );
     });
 
+    it('should create a missing branch from remote default HEAD instead of empty local HEAD', async () => {
+      mockPm.runSync.mockImplementation((bin: string, args: string[]) => {
+        const cmd = args.join(' ');
+        if (cmd.includes('is-inside-work-tree')) {
+          return { status: 0 };
+        }
+        if (cmd.includes('remote get-url origin')) {
+          return { status: 0, stdout: manifest.upstreamUrl };
+        }
+        if (cmd.includes('rev-parse --abbrev-ref HEAD')) {
+          return { status: 0, stdout: 'main', stderr: '' };
+        }
+        if (cmd.includes('fetch --depth=1 origin feature-1')) {
+          return { status: 1, stdout: '', stderr: 'not found' };
+        }
+        if (cmd.includes('rev-parse --verify feature-1')) {
+          return { status: 1, stdout: '', stderr: 'not found' };
+        }
+        if (cmd.includes('rev-parse --verify origin/feature-1')) {
+          return { status: 1, stdout: '', stderr: 'not found' };
+        }
+        if (cmd.includes('fetch --depth=1 origin HEAD')) {
+          return { status: 0, stdout: '', stderr: '' };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      });
+
+      await supervisor.initGit(manifest);
+
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        ['fetch', '--depth=1', 'origin', 'HEAD'],
+        expect.anything(),
+      );
+      expect(mockPm.runSync).toHaveBeenCalledWith(
+        'git',
+        ['checkout', '-b', 'feature-1', 'FETCH_HEAD'],
+        expect.anything(),
+      );
+    });
+
     it('should throw error if Git command fails in run wrapper', async () => {
       // 1. is-inside-work-tree check -> fail (needs init)
       mockPm.runSync.mockReturnValueOnce({ status: 1 });

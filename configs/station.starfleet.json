@@ -14,8 +14,13 @@
     { "host": "/dev/shm", "capsule": "/orbit/manifests" }
   ],
   "areas": {
+    "homeRoot": {
+      "host": "/mnt/disks/data/home",
+      "capsule": "/orbit/home",
+      "kind": "dir"
+    },
     "globalGemini": {
-      "host": "./home/.gemini",
+      "host": "/mnt/disks/data/home/.gemini",
       "capsule": "/orbit/home/.gemini",
       "kind": "dir"
     }

@@ -93,6 +93,11 @@ process.exit(0);
             capsule: '/orbit',
             kind: 'dir',
           },
+          homeRoot: {
+            host: path.join(orbitRoot, 'home'),
+            capsule: '/orbit/home',
+            kind: 'dir',
+          },
           manifests: {
             host: path.join(orbitRoot, 'manifests'),
             capsule: '/orbit/manifests',
@@ -301,6 +306,11 @@ process.exit(0);
             capsule: '/orbit',
             kind: 'dir',
           },
+          homeRoot: {
+            host: path.join(orbitRoot, 'home'),
+            capsule: '/orbit/home',
+            kind: 'dir',
+          },
           manifests: {
             host: path.join(orbitRoot, 'manifests'),
             capsule: '/orbit/manifests',
@@ -399,6 +409,7 @@ process.exit(0);
         );
 
         expect(fs.readFileSync(settingsPath, 'utf8')).toBe(settingsContent);
+        expect(runLine).toContain('-v <tmp>/orbit/home:/orbit/home');
         expect(runLine).toContain(
           '-v <tmp>/orbit/home/.gemini:/orbit/home/.gemini',
         );

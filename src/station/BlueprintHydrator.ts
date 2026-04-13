@@ -83,11 +83,13 @@ function readBlueprint(
     `⚠️  Station Blueprint not found at ${blueprintPath}. Using internal defaults.`,
   );
 
+  const hostRoot = env.ORBIT_HOST_ROOT || '/mnt/disks/data';
+
   return {
     port: 8080,
     useSudo: env.USE_SUDO === '1',
     manifestRoot: env.ORBIT_MANIFEST_ROOT || '/dev/shm',
-    hostRoot: env.ORBIT_HOST_ROOT || '/mnt/disks/data',
+    hostRoot,
     workerImage: 'ghcr.io/mattkorwel/orbit-worker:latest',
     storage: {
       workspacesRoot: '/orbit/data/workspaces',
@@ -98,8 +100,13 @@ function readBlueprint(
       { host: '/dev/shm', capsule: '/orbit/manifests' },
     ],
     areas: {
+      homeRoot: {
+        host: path.posix.join(hostRoot, 'home'),
+        capsule: '/orbit/home',
+        kind: 'dir',
+      },
       globalGemini: {
-        host: './home/.gemini',
+        host: path.posix.join(hostRoot, 'home/.gemini'),
         capsule: '/orbit/home/.gemini',
         kind: 'dir',
       },

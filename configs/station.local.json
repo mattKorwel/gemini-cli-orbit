@@ -22,6 +22,11 @@
     { "host": "/dev/shm", "capsule": "/dev/shm" }
   ],
   "areas": {
+    "homeRoot": {
+      "host": "./home",
+      "capsule": "/orbit/home",
+      "kind": "dir"
+    },
     "globalGemini": {
       "host": "./home/.gemini",
       "capsule": "/orbit/home/.gemini",

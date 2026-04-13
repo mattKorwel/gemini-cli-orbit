@@ -192,7 +192,7 @@ export class MissionOrchestrator {
       });
     }
 
-    const namedAreas = ['globalGemini', 'policies', 'bundle']
+    const namedAreas = ['homeRoot', 'globalGemini', 'policies', 'bundle']
       .map((name) => this.config.areas?.[name])
       .filter(
         (
@@ -234,6 +234,20 @@ export class MissionOrchestrator {
     }
 
     return mounts;
+  }
+
+  private ensureWorkerHomeRoot(): void {
+    const homeRootArea = this.config.areas?.homeRoot;
+    if (!homeRootArea) {
+      return;
+    }
+
+    const supervisorHomeRoot = this.resolveSupervisorFsPath(
+      homeRootArea.capsule,
+    );
+    if (!fs.existsSync(supervisorHomeRoot)) {
+      fs.mkdirSync(supervisorHomeRoot, { recursive: true });
+    }
   }
 
   /**
@@ -345,6 +359,8 @@ export class MissionOrchestrator {
     };
 
     try {
+      this.ensureWorkerHomeRoot();
+
       const entrypoint = '/usr/local/bin/starfleet-entrypoint.sh';
 
       await this.docker.runMissionContainer({

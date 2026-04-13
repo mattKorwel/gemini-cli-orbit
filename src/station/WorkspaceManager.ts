@@ -157,19 +157,28 @@ export class WorkspaceManager {
     }
 
     console.warn(
-      `   ⚠️  Branch '${branchName}' not found. Creating from HEAD.`,
+      `   ⚠️  Branch '${branchName}' not found. Creating from remote default branch.`,
     );
+    const fetchDefaultRes = this.git.fetch(targetDir, 'origin', 'HEAD', {
+      quiet: true,
+    });
+    if (fetchDefaultRes.status !== 0) {
+      throw new Error(
+        `Failed to fetch remote default branch for '${branchName}': ${fetchDefaultRes.stderr}`,
+      );
+    }
+
     const checkoutNewRes = this.git.checkoutNew(
       targetDir,
       branchName,
-      undefined,
+      'FETCH_HEAD',
       {
         quiet: true,
       },
     );
     if (checkoutNewRes.status !== 0) {
       throw new Error(
-        `Failed to create branch '${branchName}' from HEAD: ${checkoutNewRes.stderr}`,
+        `Failed to create branch '${branchName}' from remote default branch: ${checkoutNewRes.stderr}`,
       );
     }
   }

@@ -311,3 +311,21 @@ change.
   traverse more orchestration hops than the local tmux-backed path should need.
 - Revisit whether `local-worktree` can skip generic mission orchestration layers
   that are only valuable for station/API-backed flows.
+- Replace the tactical GCE supervisor refresh path in `liftoff`.
+- Current implementation uses a shell-assembled remote refresh command in
+  `GceStarfleetProvider`; move this to structured executor/command building
+  instead of `sh -lc` string concatenation.
+- Keep the refresh behavior, but make it consistent with the executor-first
+  architecture and ensure the state logging reflects real Docker state rather
+  than fabricated fallback values.
+- Add a proper npm script for image publishing.
+- Current flow uses `npx tsx scripts/infra-push.ts`; add a stable script such as
+  `npm run infra:push` so the workflow is discoverable and consistent.
+- Revisit Starfleet mission-start order for API-backed stations.
+- For `gce` and `local-docker`, prefer an API-first happy path:
+  - hit `/health` first and launch immediately when the station API is already
+    healthy
+  - only run ignition diagnostics / wake / supervisor refresh when the API is
+    unavailable or the launch fails due to infrastructure connectivity
+- Keep local-worktree on its direct path and keep settings/auth sync in the
+  normal launch path even when ignition is skipped.

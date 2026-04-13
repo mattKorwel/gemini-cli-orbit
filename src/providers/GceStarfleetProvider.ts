@@ -14,6 +14,10 @@ import { type OrbitObserver } from '../core/types.js';
  */
 export class GceStarfleetProvider extends StarfleetProvider {
   public readonly type = 'gce';
+  private readonly supervisorContainerName = 'station-supervisor';
+  private readonly supervisorImage =
+    'ghcr.io/mattkorwel/gemini-cli-orbit:latest';
+  private readonly workerImage = 'ghcr.io/mattkorwel/orbit-worker:latest';
 
   override resolveCapsuleOrbitRoot(): string {
     return '/orbit/data';
@@ -39,6 +43,132 @@ export class GceStarfleetProvider extends StarfleetProvider {
     return parts.join(' ');
   }
 
+  private async inspectSupervisorContainer(): Promise<{
+    exists: boolean;
+    status: string;
+    observedStatus: string;
+    restarting: boolean;
+    restartCount: number;
+  }> {
+    const ps = await this.transport.exec(
+      {
+        bin: 'sudo',
+        args: [
+          'docker',
+          'ps',
+          '-a',
+          '--filter',
+          `name=^/${this.supervisorContainerName}$`,
+          '--format',
+          '{{.Status}}',
+        ],
+      },
+      { quiet: true },
+    );
+    const psStatus = (ps.stdout || '').trim();
+    const existsInPs = ps.status === 0 && psStatus.length > 0;
+
+    const res = await this.transport.exec(
+      {
+        bin: 'sudo',
+        args: [
+          'docker',
+          'inspect',
+          '--format',
+          '{{.State.Status}}|{{.State.Restarting}}|{{.RestartCount}}',
+          this.supervisorContainerName,
+        ],
+      },
+      { quiet: true },
+    );
+
+    if (res.status !== 0) {
+      const loweredPsStatus = psStatus.toLowerCase();
+      let normalizedStatus = 'missing';
+      if (existsInPs) {
+        if (loweredPsStatus.startsWith('up')) {
+          normalizedStatus = 'running';
+        } else if (loweredPsStatus.includes('restarting')) {
+          normalizedStatus = 'restarting';
+        } else if (loweredPsStatus.includes('exited')) {
+          normalizedStatus = 'exited';
+        } else if (loweredPsStatus.includes('dead')) {
+          normalizedStatus = 'dead';
+        } else {
+          normalizedStatus = 'unknown-existing';
+        }
+      }
+      return {
+        exists: existsInPs,
+        status: normalizedStatus,
+        observedStatus: existsInPs ? psStatus || 'unknown-existing' : 'missing',
+        restarting: loweredPsStatus.includes('restarting'),
+        restartCount: 0,
+      };
+    }
+
+    const [status = 'unknown', restarting = 'false', restartCount = '0'] = (
+      res.stdout || ''
+    )
+      .trim()
+      .split('|');
+
+    return {
+      exists: true,
+      status,
+      observedStatus: status,
+      restarting: restarting === 'true',
+      restartCount: Number.parseInt(restartCount, 10) || 0,
+    };
+  }
+
+  private async refreshSupervisorRuntime(): Promise<{
+    status: number;
+    stderr?: string;
+    stdout?: string;
+  }> {
+    return this.transport.exec(
+      {
+        bin: 'sh',
+        args: [
+          '-lc',
+          [
+            'set -eu',
+            'sudo chmod 666 /var/run/docker.sock',
+            `sudo docker pull ${this.supervisorImage}`,
+            `sudo docker pull ${this.workerImage}`,
+            `sudo docker rm -f ${this.supervisorContainerName} >/dev/null 2>&1 || true`,
+            [
+              'sudo docker run -d',
+              `--name ${this.supervisorContainerName}`,
+              '--restart always',
+              '-p 8080:8080',
+              '-v /var/run/docker.sock:/var/run/docker.sock',
+              '-v /mnt/disks/data:/orbit/data',
+              '-v /dev/shm:/dev/shm',
+              '-e ORBIT_SERVER_PORT=8080',
+              `-e GCLI_ORBIT_WORKER_IMAGE=${this.workerImage}`,
+              this.supervisorImage,
+            ].join(' '),
+          ].join(' && '),
+        ],
+      },
+      { quiet: true },
+    );
+  }
+
+  private async getSupervisorLogs(): Promise<string> {
+    const res = await this.transport.exec(
+      {
+        bin: 'sudo',
+        args: ['docker', 'logs', '--tail', '80', this.supervisorContainerName],
+      },
+      { quiet: true },
+    );
+
+    return this.truncate(res.stderr || res.stdout, 1200);
+  }
+
   /**
    * Performs deep verification of GCE hardware (SSH, Disk, Docker) before API check.
    */
@@ -53,9 +183,10 @@ export class GceStarfleetProvider extends StarfleetProvider {
       'Checking data disk mount',
       'Verifying filesystem paths',
       'Checking Docker daemon',
-      'Starting Station Supervisor container',
+      'Refreshing Station Supervisor container',
       'Connecting to Starfleet API',
     ];
+    let supervisorRefreshComplete = false;
 
     const updateUI = (message: string, isComplete = false, isError = false) => {
       const icon = isError ? '❌' : isComplete ? '✅' : '⏳';
@@ -168,34 +299,80 @@ export class GceStarfleetProvider extends StarfleetProvider {
 
         // Step 5: Supervisor Container
         if (step === 4) {
-          const res = await this.transport.exec(
-            {
-              bin: 'sudo',
-              args: [
-                'docker',
-                'ps',
-                '--filter',
-                'name=station-supervisor',
-                '--format',
-                '{{.Status}}',
-              ],
-            },
-            { quiet: true },
-          );
-          if (res.stdout.includes('Up')) {
+          if (!supervisorRefreshComplete) {
+            const refresh = await this.refreshSupervisorRuntime();
+            if (refresh.status !== 0) {
+              observer.onLog?.(
+                LogLevel.WARN,
+                'SETUP',
+                `   - Supervisor refresh failed on attempt ${attempt}: ${this.describeExecResult(refresh)}`,
+              );
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              continue;
+            }
+            supervisorRefreshComplete = true;
+          }
+
+          const state = await this.inspectSupervisorContainer();
+          if (state.status === 'running' && !state.restarting) {
             updateUI(steps[4]!, true);
             step = 5;
             continue;
           }
+          if (
+            state.restarting ||
+            state.status === 'restarting' ||
+            state.status === 'exited' ||
+            state.status === 'dead'
+          ) {
+            const logs = await this.getSupervisorLogs();
+            updateUI(steps[4]!, false, true);
+            observer.onLog?.(
+              LogLevel.ERROR,
+              'SETUP',
+              `   - Station supervisor is crash-looping: status=${state.status} observedStatus=${state.observedStatus} restarting=${state.restarting} restartCount=${state.restartCount}`,
+            );
+            if (logs) {
+              observer.onLog?.(
+                LogLevel.ERROR,
+                'SETUP',
+                `   - Supervisor logs: ${logs}`,
+              );
+            }
+            return false;
+          }
           observer.onLog?.(
             LogLevel.WARN,
             'SETUP',
-            `   - Supervisor container not ready on attempt ${attempt}: ${this.describeExecResult(res)}`,
+            `   - Supervisor container not ready on attempt ${attempt}: status=${state.status} observedStatus=${state.observedStatus} restarting=${state.restarting} restartCount=${state.restartCount}`,
           );
         }
 
         // Step 6: API Connectivity
         if (step === 5) {
+          const state = await this.inspectSupervisorContainer();
+          if (
+            state.restarting ||
+            state.status === 'restarting' ||
+            state.status === 'exited' ||
+            state.status === 'dead'
+          ) {
+            const logs = await this.getSupervisorLogs();
+            updateUI(steps[5]!, false, true);
+            observer.onLog?.(
+              LogLevel.ERROR,
+              'SETUP',
+              `   - Station supervisor crashed before API became ready: status=${state.status} observedStatus=${state.observedStatus} restarting=${state.restarting} restartCount=${state.restartCount}`,
+            );
+            if (logs) {
+              observer.onLog?.(
+                LogLevel.ERROR,
+                'SETUP',
+                `   - Supervisor logs: ${logs}`,
+              );
+            }
+            return false;
+          }
           const alive = await this.client.ping();
           if (alive) {
             updateUI(steps[5]!, true);

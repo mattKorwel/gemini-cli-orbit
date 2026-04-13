@@ -38,6 +38,18 @@ describe('MissionOrchestrator (Behavioral)', () => {
         mirrorPath: harness.resolve('mirror'),
       },
       mounts: [{ host: harness.root, capsule: '/orbit' }],
+      areas: {
+        homeRoot: {
+          host: harness.resolve('home'),
+          capsule: '/orbit/home',
+          kind: 'dir',
+        },
+        globalGemini: {
+          host: harness.resolve('home/.gemini'),
+          capsule: '/orbit/home/.gemini',
+          kind: 'dir',
+        },
+      },
       bundlePath: '/usr/local/lib/orbit/bundle',
     };
 
@@ -80,26 +92,7 @@ describe('MissionOrchestrator (Behavioral)', () => {
     // 3. Verify Result
     expect(receipt.missionId).toBe('test-123');
 
-    // 3. Verify Isolated Manifest File (The "Source of Truth" for container mounting)
-    const manifestPath = path.join(
-      harness.root,
-      'orbit-manifest-test-123.json',
-    );
-    expect(fs.existsSync(manifestPath)).toBe(true);
-    const saved = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    expect(saved.env.SETTING).toBe('true');
-    expect(saved.sensitiveEnv).toBeUndefined();
-    expect(saved.geminiAuthFiles).toBeUndefined();
-
-    const secretPath = path.join(harness.root, '.orbit-env-orbit-test-123');
-    expect(fs.existsSync(secretPath)).toBe(true);
-    const secretContent = fs.readFileSync(secretPath, 'utf8');
-    expect(secretContent).toContain("export SECRET_KEY='top-secret'");
-    expect(secretContent).toContain(
-      'export GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64=',
-    );
-
-    // 4. Verify Docker Spawn (The "Ignition")
+    // 3. Verify Docker Spawn (The "Ignition")
     const history = harness.getHistory();
     const dockerCall = history.find((h) => h.includes('docker run'));
     expect(dockerCall).toBeDefined();
@@ -107,5 +100,26 @@ describe('MissionOrchestrator (Behavioral)', () => {
     expect(dockerCall).not.toContain('SECRET_KEY=top-secret');
     expect(dockerCall).toContain('--tmpfs /run/orbit/auth');
     expect(dockerCall).toContain('--name orbit-test-123');
+    expect(dockerCall).toContain(`${harness.resolve('home')}:/orbit/home`);
+
+    const manifestDir = harness.resolve('manifests');
+    const manifestPath = fs
+      .readdirSync(manifestDir)
+      .map((entry) => path.join(manifestDir, entry))
+      .find((entry) =>
+        path.basename(entry).startsWith('orbit-manifest-test-123-'),
+      );
+    expect(manifestPath).toBeTruthy();
+    expect(fs.existsSync(manifestPath!)).toBe(true);
+    const saved = JSON.parse(fs.readFileSync(manifestPath!, 'utf8'));
+    expect(saved.env.SETTING).toBe('true');
+    expect(saved.sensitiveEnv).toBeUndefined();
+    expect(saved.geminiAuthFiles).toBeUndefined();
+
+    const secretMatch = dockerCall!.match(
+      /-v\s+(.+):\/run\/orbit\/mission\.env:ro(?:\s|$)/,
+    );
+    expect(secretMatch?.[1]).toBeTruthy();
+    expect(dockerCall).toContain('--tmpfs /run/orbit/auth');
   });
 });
