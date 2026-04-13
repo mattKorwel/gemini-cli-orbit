@@ -185,20 +185,24 @@ process.exit(0);
       expect(
         normalizedHistory.some(
           (line) =>
-            /tmux new-session -A -s /.test(line) && sessionPattern.test(line),
+            line.includes('new-session') &&
+            line.includes('-A') &&
+            line.includes('-s') &&
+            sessionPattern.test(line),
         ),
       ).toBe(true);
       expect(
         normalizedHistory.some(
           (line) =>
-            /tmux new-session -d -A -s /.test(line) &&
+            line.includes('new-session') &&
+            line.includes('-d') &&
             sessionPattern.test(line),
         ),
       ).toBe(false);
       expect(
         normalizedHistory.some(
           (line) =>
-            /tmux attach-session -t /.test(line) && sessionPattern.test(line),
+            line.includes('attach-session') && sessionPattern.test(line),
         ),
       ).toBe(false);
     },
