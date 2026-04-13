@@ -36,6 +36,7 @@ export interface StarfleetReceipt {
 export class MissionOrchestrator {
   private readonly mountAreas;
   private static readonly workerSecretEnvPath = '/run/orbit/mission.env';
+  private static readonly workerAuthTmpfsPath = '/run/orbit/auth';
 
   constructor(
     private readonly workspace: WorkspaceManager,
@@ -105,22 +106,58 @@ export class MissionOrchestrator {
   private createMissionSecretFile(
     uniqueContainerName: string,
     sensitiveEnv: Record<string, string> | undefined,
+    geminiAuthFiles:
+      | {
+          googleAccountsJson?: string | undefined;
+          geminiCredentialsJson?: string | undefined;
+        }
+      | undefined,
   ): string | undefined {
-    if (!sensitiveEnv || Object.keys(sensitiveEnv).length === 0) {
+    const hasSensitiveEnv =
+      sensitiveEnv && Object.keys(sensitiveEnv).length > 0;
+    const hasGeminiAuthFiles =
+      geminiAuthFiles &&
+      Object.values(geminiAuthFiles).some((value) => typeof value === 'string');
+
+    if (!hasSensitiveEnv && !hasGeminiAuthFiles) {
       return undefined;
     }
 
     const internalSecretPath = normalizeCapsulePath(
       `/dev/shm/.orbit-env-${uniqueContainerName}`,
     );
-    const envContent = Object.entries(sensitiveEnv)
-      .map(([key, value]) => `export ${key}='${value.replace(/'/g, "'\\''")}'`)
-      .join('\n');
+    const secretLines = Object.entries(sensitiveEnv || {}).map(
+      ([key, value]) => `export ${key}='${value.replace(/'/g, "'\\''")}'`,
+    );
+
+    if (geminiAuthFiles?.googleAccountsJson) {
+      secretLines.push(
+        `export GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64='${Buffer.from(
+          geminiAuthFiles.googleAccountsJson,
+          'utf8',
+        )
+          .toString('base64')
+          .replace(/'/g, "'\\''")}'`,
+      );
+    }
+
+    if (geminiAuthFiles?.geminiCredentialsJson) {
+      secretLines.push(
+        `export GCLI_ORBIT_GEMINI_CREDENTIALS_JSON_B64='${Buffer.from(
+          geminiAuthFiles.geminiCredentialsJson,
+          'utf8',
+        )
+          .toString('base64')
+          .replace(/'/g, "'\\''")}'`,
+      );
+    }
 
     const supervisorSecretPath =
       this.resolveSupervisorFsPath(internalSecretPath);
     fs.mkdirSync(path.dirname(supervisorSecretPath), { recursive: true });
-    fs.writeFileSync(supervisorSecretPath, `${envContent}\n`, { mode: 0o600 });
+    fs.writeFileSync(supervisorSecretPath, `${secretLines.join('\n')}\n`, {
+      mode: 0o600,
+    });
     return internalSecretPath;
   }
 
@@ -196,32 +233,7 @@ export class MissionOrchestrator {
       );
     }
 
-    const geminiSettingsCapsulePath = '/orbit/home/.gemini/settings.json';
-    const geminiSettingsHostPath = this.resolveOptionalHostFile(
-      geminiSettingsCapsulePath,
-    );
-    if (geminiSettingsHostPath) {
-      mounts.push({
-        host: geminiSettingsHostPath,
-        capsule: geminiSettingsCapsulePath,
-        readonly: true,
-      });
-    }
-
     return mounts;
-  }
-
-  private resolveOptionalHostFile(capsulePath: string): string | undefined {
-    const hostPath = this.toHostPath(capsulePath);
-    if (!fs.existsSync(hostPath)) {
-      return undefined;
-    }
-
-    try {
-      return fs.realpathSync.native(hostPath);
-    } catch {
-      return hostPath;
-    }
   }
 
   /**
@@ -280,7 +292,11 @@ export class MissionOrchestrator {
 
     const internalManifestPath = `${internalManifestDir}/orbit-manifest-${identifier}-${Date.now()}.json`;
 
-    const { sensitiveEnv: _sensitiveEnv, ...workerManifestBase } = manifest;
+    const {
+      sensitiveEnv: _sensitiveEnv,
+      geminiAuthFiles: _geminiAuthFiles,
+      ...workerManifestBase
+    } = manifest;
     const workerManifest = {
       ...workerManifestBase,
       workDir: internalWorkDir,
@@ -294,6 +310,7 @@ export class MissionOrchestrator {
     const internalSecretPath = this.createMissionSecretFile(
       uniqueContainerName,
       manifest.sensitiveEnv,
+      manifest.geminiAuthFiles,
     );
     if (internalSecretPath) {
       console.info(`[ORCH]    🔐 Secret env written to ${internalSecretPath}`);
@@ -337,6 +354,7 @@ export class MissionOrchestrator {
         user,
         env: fullEnv,
         mounts,
+        tmpfs: [MissionOrchestrator.workerAuthTmpfsPath],
         command: `${entrypoint} ${manifest.action}`,
         isDev,
       } as any);

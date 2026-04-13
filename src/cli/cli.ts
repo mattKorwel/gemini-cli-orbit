@@ -28,7 +28,7 @@ function expandPath(p: string): string {
 
 function applyGlobalOptions(y: Argv) {
   return y
-    .group(['verbose', 'json'], 'Global Options:')
+    .group(['verbose', 'json', 'yes'], 'Global Options:')
     .option('verbose', {
       type: 'boolean',
       description: 'Show detailed infrastructure logs',
@@ -36,6 +36,11 @@ function applyGlobalOptions(y: Argv) {
     .option('json', {
       type: 'boolean',
       description: 'Output raw JSON results',
+    })
+    .option('yes', {
+      alias: 'y',
+      type: 'boolean',
+      description: 'Auto-approve confirmation prompts',
     });
 }
 
@@ -126,10 +131,15 @@ export async function dispatch(argv: string[]): Promise<number> {
       .option('schematic', { type: 'string', alias: 's' })
       .option('dev', { type: 'boolean' })
       .option('verbose', { type: 'boolean' })
+      .option('yes', { type: 'boolean', alias: 'y' })
       .option('dry-run', { type: 'boolean', hidden: true });
 
     const preArgs = await preParser.parse(processedArgv);
     let repoRoot = process.cwd();
+
+    if (preArgs.yes) {
+      process.env.GCLI_ORBIT_AUTO_APPROVE = '1';
+    }
 
     if (preArgs['repo-dir']) {
       const val = expandPath(preArgs['repo-dir']);

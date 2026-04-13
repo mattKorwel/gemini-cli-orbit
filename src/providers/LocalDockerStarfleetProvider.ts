@@ -256,7 +256,6 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
             quiet: true,
           });
 
-          const home = os.homedir();
           const root = this.projectCtx.repoRoot;
           const orbitRoot = this.getHostOrbitRoot();
           const gid = this.getDockerSocketGid();
@@ -288,11 +287,6 @@ export class LocalDockerStarfleetProvider extends StarfleetProvider {
             {
               host: root,
               capsule: path.posix.join(CAPSULE_ROOT, 'main'),
-              readonly: true,
-            },
-            {
-              host: path.join(home, '.gemini'),
-              capsule: LocalDockerStarfleetProvider.localDockerGeminiDir,
               readonly: true,
             },
             {

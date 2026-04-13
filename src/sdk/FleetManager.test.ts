@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, type Mocked } from 'vitest';
+import fs from 'node:fs';
 import { FleetManager } from './FleetManager.js';
 import {
   type IStationRegistry,
@@ -36,6 +37,7 @@ describe('FleetManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.GCLI_ORBIT_AUTO_APPROVE;
 
     mockProvisioner = {
       up: vi.fn().mockResolvedValue({ status: 'ready', publicIp: '1.2.3.4' }),
@@ -44,6 +46,7 @@ describe('FleetManager', () => {
 
     mockProvider = {
       ensureReady: vi.fn().mockResolvedValue(0),
+      syncGeminiSettings: vi.fn().mockResolvedValue(0),
       listCapsules: vi.fn().mockResolvedValue([]),
       stopCapsule: vi.fn().mockResolvedValue(0),
       removeCapsule: vi.fn().mockResolvedValue(0),
@@ -105,7 +108,19 @@ describe('FleetManager', () => {
     );
   });
 
+  it('should fail early when an explicit schematic does not exist', async () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+
+    await expect(
+      fleet.provision({ schematicName: 'personal-gc=' }),
+    ).rejects.toThrow(/Schematic "personal-gc=" not found/);
+
+    expect(infraFactory.getProvisioner).not.toHaveBeenCalled();
+  });
+
   it('should use instanceName as the provisioner key for isolated stacks during provision', async () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(true);
+
     await fleet.provision({ schematicName: 'some-schematic' });
 
     expect(infraFactory.getProvisioner).toHaveBeenCalledWith(
@@ -154,6 +169,27 @@ describe('FleetManager', () => {
       expect.objectContaining({
         clearSecrets: true,
       }),
+    );
+  });
+
+  it('should auto-approve destructive splashdown prompts when requested globally', async () => {
+    process.env.GCLI_ORBIT_AUTO_APPROVE = '1';
+    const mockReceipt = {
+      name: 'test-station',
+      instanceName: 'actual-instance-name',
+      type: 'gce',
+      projectId: 'p',
+      zone: 'z',
+    };
+    stationRegistry.listStations.mockResolvedValue([
+      { receipt: mockReceipt, provider: mockProvider },
+    ] as any);
+
+    await fleet.splashdown({ name: 'test-station' });
+
+    expect(infraFactory.getProvisioner).toHaveBeenCalledWith(
+      'actual-instance-name',
+      expect.objectContaining({ name: 'test-station' }),
     );
   });
 });

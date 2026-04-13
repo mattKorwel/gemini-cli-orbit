@@ -14,7 +14,6 @@
   },
   "mounts": [
     { "host": "~/.gemini/orbit/stations/local-docker", "capsule": "/orbit" },
-    { "host": "~/.gemini", "capsule": "/orbit/home/.gemini", "readonly": true },
     {
       "host": "~/.config/gh",
       "capsule": "/orbit/home/.config/gh",
@@ -23,6 +22,11 @@
     { "host": "/dev/shm", "capsule": "/dev/shm" }
   ],
   "areas": {
+    "globalGemini": {
+      "host": "./home/.gemini",
+      "capsule": "/orbit/home/.gemini",
+      "kind": "dir"
+    },
     "policies": {
       "host": "./.gemini/policies",
       "capsule": "/orbit/.gemini/policies",

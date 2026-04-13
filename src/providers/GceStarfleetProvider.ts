@@ -7,9 +7,6 @@
 import { StarfleetProvider } from './StarfleetProvider.js';
 import { LogLevel } from '../core/Logger.js';
 import { type OrbitObserver } from '../core/types.js';
-import fs from 'node:fs';
-import crypto from 'node:crypto';
-import { GLOBAL_SETTINGS_FILE } from '../core/Constants.js';
 
 /**
  * GceStarfleetProvider: Specialized provider for GCP Container-Optimized OS.
@@ -40,25 +37,6 @@ export class GceStarfleetProvider extends StarfleetProvider {
     if (stderr) parts.push(`stderr=${JSON.stringify(stderr)}`);
     if (stdout) parts.push(`stdout=${JSON.stringify(stdout)}`);
     return parts.join(' ');
-  }
-
-  override async syncGeminiSettings(): Promise<number> {
-    if (!fs.existsSync(GLOBAL_SETTINGS_FILE)) {
-      return 0;
-    }
-
-    const content = fs.readFileSync(GLOBAL_SETTINGS_FILE, 'utf8');
-    const hash = crypto.createHash('sha256').update(content).digest('hex');
-
-    return this.withStationApi(async () => {
-      const remoteHash = await this.client.getGeminiSettingsHash();
-      if (remoteHash === hash) {
-        return 0;
-      }
-
-      await this.client.syncGeminiSettings({ hash, content });
-      return 0;
-    });
   }
 
   /**

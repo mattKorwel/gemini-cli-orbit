@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
 import { createStationServer } from './StationApi.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
@@ -163,7 +164,20 @@ process.exit(0);
           sensitiveEnv: {
             SECRET_TOKEN: 'hidden-value',
           },
+          geminiAuthFiles: {
+            googleAccountsJson: '{"active":"test-account"}',
+            geminiCredentialsJson: '{"refreshToken":"secret-refresh"}',
+          },
         } as any);
+
+        const secretFiles = fs
+          .readdirSync(devShmRoot)
+          .filter((entry) => entry.startsWith('.orbit-env-orbit-api-123-'));
+        expect(secretFiles).toHaveLength(1);
+        const secretContent = fs.readFileSync(
+          path.join(devShmRoot, secretFiles[0]!),
+          'utf8',
+        );
 
         const normalizedHistory = harness.getHistory().map((line) =>
           line
@@ -198,6 +212,13 @@ process.exit(0);
           response: normalizedResponse,
           history: normalizedHistory,
         }).toMatchSnapshot();
+        expect(secretContent).toContain("export SECRET_TOKEN='hidden-value'");
+        expect(secretContent).toContain(
+          'export GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64=',
+        );
+        expect(secretContent).toContain(
+          'export GCLI_ORBIT_GEMINI_CREDENTIALS_JSON_B64=',
+        );
       } finally {
         await new Promise<void>((resolve, reject) => {
           server.close((err) => (err ? reject(err) : resolve()));
@@ -207,13 +228,12 @@ process.exit(0);
   );
 
   it(
-    'mounts Gemini settings as a read-only file using the real host target',
+    'syncs Gemini settings into the station home and mounts the station-local Gemini directory',
     { timeout: 15000 },
     async () => {
       const orbitRoot = harness.resolve('orbit');
       const devShmRoot = harness.resolve('dev-shm');
-      const settingsTarget = harness.resolve('dotfiles/.gemini/settings.json');
-      const settingsLink = path.join(
+      const settingsPath = path.join(
         orbitRoot,
         'home',
         '.gemini',
@@ -229,12 +249,6 @@ process.exit(0);
         'state.json',
       );
 
-      fs.mkdirSync(path.dirname(settingsTarget), { recursive: true });
-      fs.writeFileSync(
-        settingsTarget,
-        JSON.stringify({ ui: { theme: 'test' } }),
-      );
-      fs.mkdirSync(path.dirname(settingsLink), { recursive: true });
       fs.mkdirSync(path.join(orbitRoot, 'bundle'), { recursive: true });
       fs.mkdirSync(path.join(orbitRoot, '.gemini', 'policies'), {
         recursive: true,
@@ -248,12 +262,6 @@ process.exit(0);
         path.join(orbitRoot, 'starfleet-entrypoint.sh'),
         '#!/bin/sh\nexit 0\n',
       );
-
-      try {
-        fs.symlinkSync(settingsTarget, settingsLink, 'file');
-      } catch {
-        fs.writeFileSync(settingsLink, fs.readFileSync(settingsTarget, 'utf8'));
-      }
 
       harness.stub('git', '');
       harness.stubScript(
@@ -345,6 +353,19 @@ process.exit(0);
 
         const client = new StarfleetClient(`http://127.0.0.1:${address.port}`);
 
+        const settingsContent = JSON.stringify(
+          { ui: { theme: 'test' }, hooks: { enabled: true } },
+          null,
+          2,
+        );
+        await client.syncGeminiSettings({
+          hash: crypto
+            .createHash('sha256')
+            .update(settingsContent)
+            .digest('hex'),
+          content: settingsContent,
+        });
+
         await client.launchMission({
           identifier: 'settings-link',
           repoName: 'test-repo',
@@ -360,20 +381,12 @@ process.exit(0);
           bundleDir: '/orbit/bundle',
         } as any);
 
-        const resolvedSettingsHost = fs.realpathSync.native(settingsLink);
-        const settingsLinkIsSymlink = fs
-          .lstatSync(settingsLink)
-          .isSymbolicLink();
         const normalizedHistory = harness.getHistory().map((line) =>
           line
             .replaceAll('\\', '/')
             .replaceAll(process.cwd().replaceAll('\\', '/'), '<cwd>')
             .replaceAll(orbitRoot.replaceAll('\\', '/'), '<tmp>/orbit')
             .replaceAll(devShmRoot.replaceAll('\\', '/'), '<tmp>/dev-shm')
-            .replaceAll(
-              resolvedSettingsHost.replaceAll('\\', '/'),
-              '<tmp>/settings-host',
-            )
             .replace(/orbit-settings-link-\d+/g, 'orbit-settings-link-<ts>')
             .replace(
               /orbit-manifest-settings-link-\d+\.json/g,
@@ -385,12 +398,11 @@ process.exit(0);
           line.includes('docker run'),
         );
 
-        expect(runLine).toContain('/orbit/home/.gemini/settings.json:ro');
-        if (settingsLinkIsSymlink) {
-          expect(runLine).toContain(
-            '-v <tmp>/settings-host:/orbit/home/.gemini/settings.json:ro',
-          );
-        }
+        expect(fs.readFileSync(settingsPath, 'utf8')).toBe(settingsContent);
+        expect(runLine).toContain(
+          '-v <tmp>/orbit/home/.gemini:/orbit/home/.gemini',
+        );
+        expect(runLine).not.toContain('/orbit/home/.gemini/settings.json:ro');
       } finally {
         await new Promise<void>((resolve, reject) => {
           server.close((err) => (err ? reject(err) : resolve()));

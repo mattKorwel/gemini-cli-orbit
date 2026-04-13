@@ -17,6 +17,7 @@ export interface MissionContainerOptions {
   user?: string;
   env?: Record<string, string>;
   mounts?: { host: string; capsule: string; readonly?: boolean }[];
+  tmpfs?: string[];
   command?: string;
   isDev?: boolean;
 }
@@ -36,7 +37,7 @@ export class DockerManager {
    * Spawns a new mission capsule container.
    */
   async runMissionContainer(options: MissionContainerOptions): Promise<void> {
-    const { name, image, user, env, mounts, isDev } = options;
+    const { name, image, user, env, mounts, tmpfs, isDev } = options;
 
     const containerName = name;
 
@@ -76,6 +77,7 @@ export class DockerManager {
         ...env,
         GCLI_TRUST: '1',
       },
+      tmpfs,
       label: 'orbit-mission',
       interactive: true,
     } as any);

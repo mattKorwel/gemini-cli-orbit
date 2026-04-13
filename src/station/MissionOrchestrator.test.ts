@@ -62,6 +62,9 @@ describe('MissionOrchestrator (Behavioral)', () => {
       containerName: 'orbit-test-123',
       env: { SETTING: 'true' },
       sensitiveEnv: { SECRET_KEY: 'top-secret' },
+      geminiAuthFiles: {
+        googleAccountsJson: '{"active":"test"}',
+      },
     };
 
     // 1. Run Orchestration (in background-ish because of verify loop)
@@ -85,14 +88,24 @@ describe('MissionOrchestrator (Behavioral)', () => {
     expect(fs.existsSync(manifestPath)).toBe(true);
     const saved = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     expect(saved.env.SETTING).toBe('true');
-    expect(saved.sensitiveEnv.SECRET_KEY).toBe('top-secret');
+    expect(saved.sensitiveEnv).toBeUndefined();
+    expect(saved.geminiAuthFiles).toBeUndefined();
+
+    const secretPath = path.join(harness.root, '.orbit-env-orbit-test-123');
+    expect(fs.existsSync(secretPath)).toBe(true);
+    const secretContent = fs.readFileSync(secretPath, 'utf8');
+    expect(secretContent).toContain("export SECRET_KEY='top-secret'");
+    expect(secretContent).toContain(
+      'export GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64=',
+    );
 
     // 4. Verify Docker Spawn (The "Ignition")
     const history = harness.getHistory();
     const dockerCall = history.find((h) => h.includes('docker run'));
     expect(dockerCall).toBeDefined();
     expect(dockerCall).toContain('-e SETTING=true');
-    expect(dockerCall).toContain('-e SECRET_KEY=top-secret');
+    expect(dockerCall).not.toContain('SECRET_KEY=top-secret');
+    expect(dockerCall).toContain('--tmpfs /run/orbit/auth');
     expect(dockerCall).toContain('--name orbit-test-123');
   });
 });

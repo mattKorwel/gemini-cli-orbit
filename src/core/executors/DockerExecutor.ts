@@ -76,6 +76,7 @@ export class DockerExecutor implements IDockerExecutor {
       name?: string;
       user?: string | undefined;
       mounts?: { host: string; capsule: string; readonly?: boolean }[];
+      tmpfs?: string[];
       label?: string;
       groupAdd?: string;
       ports?: { host: number; container: number }[];
@@ -85,6 +86,7 @@ export class DockerExecutor implements IDockerExecutor {
       name,
       user,
       mounts,
+      tmpfs,
       label,
       env,
       quiet,
@@ -116,6 +118,12 @@ export class DockerExecutor implements IDockerExecutor {
     if (mounts) {
       mounts.forEach((m) => {
         args.push('-v', `${m.host}:${m.capsule}${m.readonly ? ':ro' : ''}`);
+      });
+    }
+
+    if (tmpfs) {
+      tmpfs.forEach((target) => {
+        args.push('--tmpfs', target);
       });
     }
 

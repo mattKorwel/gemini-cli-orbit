@@ -7,6 +7,8 @@ MISSION_ID=${GCLI_ORBIT_MISSION_ID:-"unknown"}
 BUNDLE_DIR="/orbit/bundle"
 SESSION_NAME=${GCLI_ORBIT_SESSION_NAME:-"orbit-mission"}
 SECRET_ENV_PATH="/run/orbit/mission.env"
+GEMINI_HOME="/orbit/home/.gemini"
+GEMINI_AUTH_TMPFS="/run/orbit/auth"
 
 # 1. Stylize Terminal (for attach experience)
 export TERM=xterm-256color
@@ -18,6 +20,25 @@ if [ -f "${SECRET_ENV_PATH}" ]; then
   # Source mission-scoped secrets from the RAM-backed injection file.
   # Keep these out of docker run env and the persisted mission manifest.
   . "${SECRET_ENV_PATH}"
+fi
+
+mkdir -p "${GEMINI_HOME}"
+mkdir -p "${GEMINI_AUTH_TMPFS}"
+
+rm -f "${GEMINI_HOME}/google_accounts.json" "${GEMINI_HOME}/gemini-credentials.json"
+
+if [ -n "${GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64}" ]; then
+  printf '%s' "${GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64}" | base64 -d > "${GEMINI_AUTH_TMPFS}/google_accounts.json"
+  chmod 600 "${GEMINI_AUTH_TMPFS}/google_accounts.json"
+  ln -sf "${GEMINI_AUTH_TMPFS}/google_accounts.json" "${GEMINI_HOME}/google_accounts.json"
+  unset GCLI_ORBIT_GEMINI_ACCOUNTS_JSON_B64
+fi
+
+if [ -n "${GCLI_ORBIT_GEMINI_CREDENTIALS_JSON_B64}" ]; then
+  printf '%s' "${GCLI_ORBIT_GEMINI_CREDENTIALS_JSON_B64}" | base64 -d > "${GEMINI_AUTH_TMPFS}/gemini-credentials.json"
+  chmod 600 "${GEMINI_AUTH_TMPFS}/gemini-credentials.json"
+  ln -sf "${GEMINI_AUTH_TMPFS}/gemini-credentials.json" "${GEMINI_HOME}/gemini-credentials.json"
+  unset GCLI_ORBIT_GEMINI_CREDENTIALS_JSON_B64
 fi
 
 # 2. Prepare Tmux Config

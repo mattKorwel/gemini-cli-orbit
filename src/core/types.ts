@@ -31,6 +31,12 @@ export const MissionManifestSchema = z.object({
   geminiAuthMode: z.enum(['env-chain', 'accounts-file', 'none']).optional(),
   env: z.record(z.string(), z.string()).optional(), // Standard environment variables
   sensitiveEnv: z.record(z.string(), z.string()).optional(), // Secret environment variables (not logged)
+  geminiAuthFiles: z
+    .object({
+      googleAccountsJson: z.string().optional(),
+      geminiCredentialsJson: z.string().optional(),
+    })
+    .optional(),
 });
 
 /**

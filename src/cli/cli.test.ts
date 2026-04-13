@@ -76,8 +76,10 @@ vi.mock('node:fs', () => ({
 vi.mock('node:os', () => ({
   default: {
     homedir: () => '/home/user',
+    platform: () => 'linux',
   },
   homedir: () => '/home/user',
+  platform: () => 'linux',
 }));
 
 // Mock OrbitSDK
@@ -166,6 +168,7 @@ describe('orbit-cli dispatch()', () => {
     delete process.env.GCLI_ORBIT_SCHEMATIC;
     delete process.env.GCLI_MCP;
     delete process.env.GCLI_ORBIT_SHIM;
+    delete process.env.GCLI_ORBIT_AUTO_APPROVE;
 
     // Re-import to pick up fresh mocks
     const mod = await import('./cli.js');
@@ -286,6 +289,12 @@ describe('orbit-cli dispatch()', () => {
     });
   });
 
+  it('sets global auto-approve env when -y is provided', async () => {
+    await dispatch(['infra', 'liftoff', 'my-station', '-y']);
+
+    expect(process.env.GCLI_ORBIT_AUTO_APPROVE).toBe('1');
+  });
+
   it('routes "station hibernate <name>" to OrbitSDK.hibernate', async () => {
     await dispatch(['station', 'hibernate', 'my-box']);
     expect(mockHibernate).toHaveBeenCalledWith({ name: 'my-box' });
@@ -376,7 +385,7 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag changes working directory', async () => {
     await dispatch(['mission', 'start', '--repo-dir=/tmp/foo', '42']);
-    expect(chdirSpy).toHaveBeenCalledWith('/tmp/foo');
+    expect(chdirSpy).toHaveBeenCalledWith('C:\\tmp\\foo');
     expect(mockResolveMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',
@@ -387,7 +396,7 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag with space changes working directory', async () => {
     await dispatch(['mission', 'start', '--repo-dir', '/tmp/bar', '42']);
-    expect(chdirSpy).toHaveBeenCalledWith('/tmp/bar');
+    expect(chdirSpy).toHaveBeenCalledWith('C:\\tmp\\bar');
     expect(mockResolveMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',
@@ -398,7 +407,7 @@ describe('orbit-cli dispatch()', () => {
 
   it('--repo-dir flag expands tilde (~)', async () => {
     await dispatch(['mission', 'start', '--repo-dir=~/dev/foo', '42']);
-    expect(chdirSpy).toHaveBeenCalledWith('/home/user/dev/foo');
+    expect(chdirSpy).toHaveBeenCalledWith('C:\\home\\user\\dev\\foo');
     expect(mockResolveMission).toHaveBeenCalledWith({
       identifier: '42',
       action: 'chat',

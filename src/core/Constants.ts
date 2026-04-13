@@ -190,6 +190,10 @@ export const GLOBAL_ACCOUNTS_FILE = path.join(
   GLOBAL_GEMINI_DIR,
   'google_accounts.json',
 );
+export const GLOBAL_GEMINI_CREDENTIALS_FILE = path.join(
+  GLOBAL_GEMINI_DIR,
+  'gemini-credentials.json',
+);
 export function getGlobalGhConfigDir(): string {
   if (process.env.GH_CONFIG_DIR) {
     return process.env.GH_CONFIG_DIR;

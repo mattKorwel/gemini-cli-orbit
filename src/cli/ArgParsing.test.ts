@@ -61,6 +61,7 @@ vi.mock('../core/ContextResolver.js', () => ({
 describe('CLI Argument Parsing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.GCLI_ORBIT_AUTO_APPROVE;
   });
 
   describe('Infra Commands', () => {
@@ -87,6 +88,17 @@ describe('CLI Argument Parsing', () => {
         expect.objectContaining({
           schematicName: 'fast-box',
           destroy: true,
+        }),
+      );
+    });
+
+    it('should set auto-approve env when liftoff is run with -y', async () => {
+      await dispatch(['infra', 'liftoff', 'my-new-station', '-y']);
+
+      expect(process.env.GCLI_ORBIT_AUTO_APPROVE).toBe('1');
+      expect(mockProvisionStation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stationName: 'my-new-station',
         }),
       );
     });
@@ -204,6 +216,17 @@ describe('CLI Argument Parsing', () => {
           name: 'old-box',
           force: true,
           all: true,
+        }),
+      );
+    });
+
+    it('should set auto-approve env for infra splashdown with -y', async () => {
+      await dispatch(['infra', 'splashdown', 'old-box', '-y']);
+
+      expect(process.env.GCLI_ORBIT_AUTO_APPROVE).toBe('1');
+      expect(mockSplashdown).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'old-box',
         }),
       );
     });

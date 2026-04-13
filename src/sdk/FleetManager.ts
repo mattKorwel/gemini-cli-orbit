@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import readline from 'node:readline';
 import {
   type InfrastructureSpec,
   type ProjectContext,
   type OrbitConfig,
+  SCHEMATICS_DIR,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
 import {
@@ -30,6 +33,7 @@ import {
   type IExecutors,
   type IStatusManager,
 } from '../core/interfaces.js';
+import { sanitizeName } from '../core/ConfigManager.js';
 
 export class FleetManager {
   constructor(
@@ -65,6 +69,18 @@ export class FleetManager {
     };
     const instanceName = config.instanceName || 'default';
     const sName = config.schematic || 'default';
+
+    if (options.schematicName) {
+      const schematicPath = path.join(
+        SCHEMATICS_DIR,
+        `${sanitizeName(options.schematicName)}.json`,
+      );
+      if (!fs.existsSync(schematicPath)) {
+        throw new Error(
+          `Schematic "${options.schematicName}" not found at ${schematicPath}`,
+        );
+      }
+    }
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');
     this.observer.onLog?.(
@@ -414,6 +430,10 @@ export class FleetManager {
   }
 
   private async confirm(query: string): Promise<boolean> {
+    if (process.env.GCLI_ORBIT_AUTO_APPROVE === '1') {
+      return true;
+    }
+
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,

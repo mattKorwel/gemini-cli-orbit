@@ -6,6 +6,8 @@
 
 import { BaseProvider } from './BaseProvider.js';
 import { StarfleetClient } from '../sdk/StarfleetClient.js';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { findAvailablePort } from '../utils/DockerUtils.js';
@@ -25,6 +27,7 @@ import {
   CAPSULE_ROOT,
   CAPSULE_BUNDLE_PATH,
   ORBIT_ROOT,
+  GLOBAL_SETTINGS_FILE,
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
@@ -262,6 +265,25 @@ export abstract class StarfleetProvider extends BaseProvider {
     _options?: SyncOptions,
   ): Promise<number> {
     return 0;
+  }
+
+  override async syncGeminiSettings(): Promise<number> {
+    if (!fs.existsSync(GLOBAL_SETTINGS_FILE)) {
+      return 0;
+    }
+
+    const content = fs.readFileSync(GLOBAL_SETTINGS_FILE, 'utf8');
+    const hash = crypto.createHash('sha256').update(content).digest('hex');
+
+    return this.withStationApi(async () => {
+      const remoteHash = await this.client.getGeminiSettingsHash();
+      if (remoteHash === hash) {
+        return 0;
+      }
+
+      await this.client.syncGeminiSettings({ hash, content });
+      return 0;
+    });
   }
 
   async getStatus(): Promise<OrbitStatus> {

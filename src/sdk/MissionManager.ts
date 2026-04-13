@@ -28,6 +28,8 @@ import {
   type InfrastructureSpec,
   UPSTREAM_REPO_URL,
   GLOBAL_GH_CONFIG,
+  GLOBAL_ACCOUNTS_FILE,
+  GLOBAL_GEMINI_CREDENTIALS_FILE,
 } from '../core/Constants.js';
 import {
   resolveMissionContext,
@@ -185,6 +187,12 @@ export class MissionManager {
 
   private resolveMissionSensitiveEnv(manifest: MissionManifest): {
     sensitiveEnv: Record<string, string>;
+    geminiAuthFiles:
+      | {
+          googleAccountsJson?: string | undefined;
+          geminiCredentialsJson?: string | undefined;
+        }
+      | undefined;
     warnings: string[];
   } {
     const authEnv = loadAuthEnvChain(this.projectCtx.repoRoot);
@@ -196,6 +204,12 @@ export class MissionManager {
     const gitAuthMode = (manifest.gitAuthMode || 'repo-token') as GitAuthMode;
     const geminiAuthMode = (manifest.geminiAuthMode ||
       'env-chain') as GeminiAuthMode;
+    let geminiAuthFiles:
+      | {
+          googleAccountsJson?: string | undefined;
+          geminiCredentialsJson?: string | undefined;
+        }
+      | undefined;
 
     if (geminiAuthMode === 'env-chain') {
       const geminiApiKey =
@@ -205,6 +219,30 @@ export class MissionManager {
         authEnv.GOOGLE_API_KEY;
       if (geminiApiKey) {
         sensitiveEnv.GEMINI_API_KEY = geminiApiKey;
+      }
+    }
+
+    if (geminiAuthMode === 'accounts-file') {
+      geminiAuthFiles = {};
+
+      if (fs.existsSync(GLOBAL_ACCOUNTS_FILE)) {
+        geminiAuthFiles.googleAccountsJson = fs.readFileSync(
+          GLOBAL_ACCOUNTS_FILE,
+          'utf8',
+        );
+      }
+      if (fs.existsSync(GLOBAL_GEMINI_CREDENTIALS_FILE)) {
+        geminiAuthFiles.geminiCredentialsJson = fs.readFileSync(
+          GLOBAL_GEMINI_CREDENTIALS_FILE,
+          'utf8',
+        );
+      }
+
+      if (Object.keys(geminiAuthFiles).length === 0) {
+        geminiAuthFiles = undefined;
+        warnings.push(
+          'Gemini accounts-file auth selected, but no Gemini account files were found in ~/.gemini.',
+        );
       }
     }
 
@@ -240,7 +278,7 @@ export class MissionManager {
       }
     }
 
-    return { sensitiveEnv, warnings };
+    return { sensitiveEnv, geminiAuthFiles, warnings };
   }
 
   /**
@@ -309,9 +347,13 @@ export class MissionManager {
 
     manifest.workDir = capsuleWorkDir;
     manifest.tempDir = capsuleWorkDir;
-    const { sensitiveEnv: resolvedSensitiveEnv, warnings: authWarnings } =
-      this.resolveMissionSensitiveEnv(manifest);
+    const {
+      sensitiveEnv: resolvedSensitiveEnv,
+      geminiAuthFiles,
+      warnings: authWarnings,
+    } = this.resolveMissionSensitiveEnv(manifest);
     manifest.sensitiveEnv = resolvedSensitiveEnv;
+    manifest.geminiAuthFiles = geminiAuthFiles;
 
     authWarnings.forEach((warning) => {
       this.observer.onLog?.(LogLevel.WARN, 'AUTH', warning);

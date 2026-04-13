@@ -237,6 +237,7 @@ export interface IDockerExecutor {
       name?: string;
       user?: string | undefined;
       mounts?: { host: string; capsule: string; readonly?: boolean }[];
+      tmpfs?: string[];
       label?: string;
     },
   ): import('./executors/types.js').Command;

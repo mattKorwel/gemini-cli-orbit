@@ -106,6 +106,10 @@ export function createStationServer(
     const mapped =
       resolveHostPathFromAreas(normalized, mountAreas) || normalized;
 
+    if (process.platform === 'win32' && mapped !== normalized) {
+      return mapped;
+    }
+
     if (
       config.hostRoot &&
       mapped.startsWith(config.hostRoot.replace(/\\/g, '/'))
