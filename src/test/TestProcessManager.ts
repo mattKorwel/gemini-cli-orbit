@@ -26,11 +26,18 @@ export class TestProcessManager implements IProcessManager {
     bin: string,
     args: string[],
   ): { bin: string; args: string[] } {
+    let baseBin = bin;
+
     if (path.isAbsolute(bin)) {
-      return { bin, args };
+      if (!bin.startsWith(this.options.binDir)) {
+        return { bin, args };
+      }
+      baseBin = path.basename(bin);
     }
 
-    const scriptPath = path.join(this.options.binDir, `${bin}.js`);
+    // Strip .exe for stub resolution
+    baseBin = baseBin.endsWith('.exe') ? baseBin.slice(0, -4) : baseBin;
+    const scriptPath = path.join(this.options.binDir, `${baseBin}.js`);
     if (!fs.existsSync(scriptPath)) {
       return { bin, args };
     }

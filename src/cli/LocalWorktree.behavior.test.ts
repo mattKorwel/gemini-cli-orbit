@@ -121,9 +121,7 @@ process.exit(0);
 `,
       );
 
-      harness.stubScript(
-        'tmux.exe',
-        `
+      const tmuxStub = `
 if (args[0] === '-V') {
   process.stdout.write('tmux 3.4\\n');
   process.exit(0);
@@ -138,15 +136,17 @@ if (args[0] === 'attach-session') {
 }
 
 process.exit(0);
-`,
-      );
+`;
+
+      harness.stubScript('tmux', tmuxStub);
+      harness.stubScript('tmux.exe', tmuxStub);
 
       vi.stubEnv('HOME', home);
       vi.stubEnv('USERPROFILE', home);
       vi.stubEnv('APPDATA', appData);
       vi.stubEnv('GCLI_ORBIT_REPO_NAME', 'test-repo');
       vi.stubEnv('ORBIT_GIT_BIN', 'git');
-      vi.stubEnv('ORBIT_TMUX_BIN', 'tmux');
+      vi.stubEnv('ORBIT_TMUX_BIN', path.join(harness.bin, 'tmux.exe'));
 
       const { dispatch } = await import('./cli.js');
       const { getLocalMissionManifestPath } =
@@ -165,15 +165,20 @@ process.exit(0);
         'none',
       ]);
 
-      const normalizedHistory = harness
-        .getHistory()
-        .map((line) =>
-          line
-            .replaceAll('\\', '/')
-            .replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo')
-            .replaceAll(worktreeRoot.replaceAll('\\', '/'), '<tmp>/worktrees')
-            .replaceAll(home.replaceAll('\\', '/'), '<tmp>/home'),
+      const normalizedHistory = harness.getHistory().map((line) => {
+        let res = line.replaceAll('\\', '/');
+        res = res.replaceAll(repoRoot.replaceAll('\\', '/'), '<tmp>/repo');
+        res = res.replaceAll(
+          worktreeRoot.replaceAll('\\', '/'),
+          '<tmp>/worktrees',
         );
+        res = res.replaceAll(home.replaceAll('\\', '/'), '<tmp>/home');
+        res = res.replaceAll(harness.bin.replaceAll('\\', '/'), '<bin>');
+        res = res.replaceAll('<bin>/tmux.exe', 'tmux');
+        res = res.replaceAll('<bin>/tmux', 'tmux');
+        res = res.replaceAll('tmux.exe', 'tmux');
+        return res;
+      });
       const manifestPath = getLocalMissionManifestPath('test-repo/local-123');
 
       expect(exitCode).toBe(0);
@@ -184,17 +189,17 @@ process.exit(0);
       ).toBe(false);
       expect(
         normalizedHistory.some((line) =>
-          line.includes('tmux.exe new-session -A -s test-repo-local-123'),
+          line.includes('tmux new-session -A -s test-repo-local-123'),
         ),
       ).toBe(true);
       expect(
         normalizedHistory.some((line) =>
-          line.includes('tmux.exe new-session -d -A -s test-repo-local-123'),
+          line.includes('tmux new-session -d -A -s test-repo-local-123'),
         ),
       ).toBe(false);
       expect(
         normalizedHistory.some((line) =>
-          line.includes('tmux.exe attach-session -t test-repo-local-123'),
+          line.includes('tmux attach-session -t test-repo-local-123'),
         ),
       ).toBe(false);
     },

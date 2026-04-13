@@ -47,6 +47,10 @@ if (joined === '--version') {
   process.stdout.write('Google Cloud SDK 999.0.0\\n');
   process.exit(0);
 }
+if (joined === 'auth list --format=json') {
+  process.stdout.write(JSON.stringify([{ account: 'matt.korwel@gmail.com', status: 'ACTIVE' }]));
+  process.exit(0);
+}
 if (joined === 'config get-value account --quiet') {
   process.stdout.write('matt.korwel@gmail.com\\n');
   process.exit(0);

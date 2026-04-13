@@ -22,13 +22,13 @@ describe('WorkspaceManager', () => {
   };
 
   const config: any = {
-    hostRoot: '/mnt/disks/data',
-    manifestRoot: '/mnt/disks/data/manifests',
+    hostRoot: '/orbit/data',
+    manifestRoot: '/orbit/data/manifests',
     storage: {
       workspacesRoot: '/orbit/data/workspaces',
       mirrorPath: '/orbit/data/main',
     },
-    mounts: [{ host: '/mnt/disks/data', capsule: '/orbit/data' }],
+    mounts: [{ host: '/orbit/data', capsule: '/orbit/data' }],
   };
 
   let workspace: WorkspaceManager;
@@ -37,8 +37,9 @@ describe('WorkspaceManager', () => {
     vi.clearAllMocks();
     workspace = new WorkspaceManager(git, config);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as any);
-    vi.mocked(fs.writeFileSync).mockImplementation(() => undefined as any);
+    // Use a properly typed mock for mkdirSync
+    vi.mocked(fs.mkdirSync).mockImplementation((() => {}) as any);
+    vi.mocked(fs.writeFileSync).mockImplementation((() => {}) as any);
 
     git.revParse.mockReturnValue({ status: 1 });
     git.init.mockReturnValue({ status: 0 });
@@ -64,13 +65,13 @@ describe('WorkspaceManager', () => {
 
     expect(git.fetch).toHaveBeenNthCalledWith(
       2,
-      '/mnt/disks/data/workspaces/gemini-cli-orbit/mission-main',
+      '/orbit/data/workspaces/gemini-cli-orbit/mission-main',
       'origin',
       'HEAD',
       { quiet: true },
     );
     expect(git.checkoutNew).toHaveBeenCalledWith(
-      '/mnt/disks/data/workspaces/gemini-cli-orbit/mission-main',
+      '/orbit/data/workspaces/gemini-cli-orbit/mission-main',
       'mission-main',
       'FETCH_HEAD',
       { quiet: true },

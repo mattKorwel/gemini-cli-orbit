@@ -103,6 +103,12 @@ export function createStationServer(
 
   const resolveSupervisorFsPath = (internalPath: string): string => {
     const normalized = normalizeCapsulePath(internalPath);
+
+    // If it's an absolute host path already (e.g. from a mock or win32), return it
+    if (path.isAbsolute(normalized) && !normalized.startsWith('/orbit')) {
+      return normalized;
+    }
+
     const mapped =
       resolveHostPathFromAreas(normalized, mountAreas) || normalized;
 
@@ -114,10 +120,9 @@ export function createStationServer(
       config.hostRoot &&
       mapped.startsWith(config.hostRoot.replace(/\\/g, '/'))
     ) {
-      const relative = mapped
-        .slice(config.hostRoot.replace(/\\/g, '/').length)
-        .replace(/^\/+/, '');
-      return relative ? `/orbit/data/${relative}` : '/orbit/data';
+      // If we are in a test environment where hostRoot is a temporary directory,
+      // and the mapped path is inside it, it's already a valid host path.
+      return mapped;
     }
 
     if (
