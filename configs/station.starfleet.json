@@ -1,0 +1,29 @@
+{
+  "hostRoot": "/mnt/disks/data",
+  "port": 8080,
+  "workerImage": "ghcr.io/mattkorwel/orbit-worker:latest",
+  "manifestRoot": "/dev/shm",
+  "isUnlocked": false,
+  "useSudo": false,
+  "storage": {
+    "workspacesRoot": "/orbit/data/workspaces",
+    "mirrorPath": "/orbit/data/main"
+  },
+  "mounts": [
+    { "host": "/mnt/disks/data", "capsule": "/orbit/data" },
+    { "host": "/dev/shm", "capsule": "/orbit/manifests" }
+  ],
+  "areas": {
+    "homeRoot": {
+      "host": "/mnt/disks/data/home",
+      "capsule": "/orbit/home",
+      "kind": "dir"
+    },
+    "globalGemini": {
+      "host": "/mnt/disks/data/home/.gemini",
+      "capsule": "/orbit/home/.gemini",
+      "kind": "dir"
+    }
+  },
+  "bundlePath": "/usr/local/lib/orbit/bundle"
+}

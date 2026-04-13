@@ -27,8 +27,17 @@ import {
  * Centralizes naming policy with overridable defaults.
  */
 export abstract class BaseProvider {
-  abstract readonly type: 'gce' | 'local-worktree';
+  abstract readonly type: 'gce' | 'local-worktree' | 'local-docker';
   abstract readonly isPersistent: boolean;
+
+  /**
+   * Verifies that the provider infrastructure is ignited and ready for missions.
+   * Performs hardware handshakes or container spawning as needed.
+   */
+  abstract verifyIgnition(
+    observer: import('../core/types.js').OrbitObserver,
+  ): Promise<boolean>;
+
   abstract projectId: string;
   abstract zone: string;
   abstract stationName: string;
@@ -104,7 +113,7 @@ export abstract class BaseProvider {
   /**
    * Returns the absolute path to the workspace policy file in this environment.
    */
-  abstract resolvePolicyPath(repoRoot: string): string;
+  abstract resolvePolicyPath(): string;
 
   /**
    * Returns the absolute path to the git mirror repository in this environment.
@@ -192,7 +201,7 @@ export abstract class BaseProvider {
   /**
    * Attaches to an active mission.
    */
-  abstract attach(name: string): Promise<number>;
+  abstract attach(name: string, sessionName?: string): Promise<number>;
 
   /**
    * Launches a specific capsule configuration.
@@ -251,6 +260,11 @@ export abstract class BaseProvider {
   abstract listCapsules(): Promise<string[]>;
 
   /**
+   * Returns aggregated mission status manifests from the station.
+   */
+  abstract getMissionsStatus(): Promise<{ missions: any[] }>;
+
+  /**
    * Provisions a high-performance git mirror.
    */
   abstract provisionMirror(remoteUrl: string): Promise<number>;
@@ -261,9 +275,10 @@ export abstract class BaseProvider {
   abstract resolveGlobalConfigDir(): string;
 
   /**
-   * Synchronizes global user configurations (settings, auth) to the station.
+   * Synchronizes Gemini settings to the station when the provider needs a
+   * remote station-local copy.
    */
-  async syncGlobalConfig(): Promise<number> {
+  async syncGeminiSettings(): Promise<number> {
     return 0;
   }
 
@@ -275,7 +290,11 @@ export abstract class BaseProvider {
   /**
    * Drops into a raw interactive shell inside a mission capsule.
    */
-  abstract missionShell(capsuleName: string): Promise<number>;
+  abstract missionShell(
+    capsuleName: string,
+    workDir?: string,
+    sessionName?: string,
+  ): Promise<number>;
 
   /**
    * Generates the immutable receipt for this station.
@@ -367,25 +386,13 @@ export abstract class BaseProvider {
   async getMissionTelemetry(peek = false): Promise<CapsuleInfo[]> {
     const capsules: CapsuleInfo[] = [];
 
-    // 1. Request aggregated status from the worker
-    const bundlePath = this.resolveWorkerPath();
-    const workspacesRoot = this.resolveWorkspacesRoot();
-
-    const statusCmd = this.createNodeCommand(bundlePath, [
-      'status',
-      workspacesRoot,
-    ]);
-
-    const statusOutput = await this.getExecOutput(statusCmd, { quiet: true });
-
+    // 1. Request aggregated status from the station
     let aggregatedMissions: any[] = [];
-    if (statusOutput.status === 0) {
-      try {
-        const report = JSON.parse(statusOutput.stdout);
-        aggregatedMissions = report.missions || [];
-      } catch (_e) {
-        // Fallback
-      }
+    try {
+      const report = await this.getMissionsStatus();
+      aggregatedMissions = report.missions || [];
+    } catch (_e) {
+      // Fallback to basic discovery if status API fails or is not supported
     }
 
     // 2. Discover active capsules/containers

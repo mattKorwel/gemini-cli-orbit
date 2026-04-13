@@ -10,6 +10,7 @@ import { getMissionManifest } from '../utils/MissionUtils.js';
 import {
   CAPSULE_MANIFEST_PATH,
   LOCAL_MANIFEST_NAME,
+  LOCAL_MANIFEST_ENV,
 } from '../core/Constants.js';
 
 vi.mock('node:fs');
@@ -47,15 +48,22 @@ describe('Mission Manifest Loading', () => {
   });
 
   it('prioritizes local over global manifest', () => {
-    (fs.existsSync as any).mockReturnValue(true);
-    (fs.readFileSync as any).mockImplementation((p: string) => {
-      if (p.endsWith(LOCAL_MANIFEST_NAME))
-        return JSON.stringify({ identifier: 'local' });
-      return JSON.stringify({ identifier: 'global' });
-    });
+    const originalEnv = process.env[LOCAL_MANIFEST_ENV];
+    process.env[LOCAL_MANIFEST_ENV] = '/tmp/local-manifest.json';
+    try {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.readFileSync as any).mockImplementation((p: string) => {
+        if (p === '/tmp/local-manifest.json')
+          return JSON.stringify({ identifier: 'local' });
+        return JSON.stringify({ identifier: 'global' });
+      });
 
-    const result = getMissionManifest();
-    expect(result.identifier).toBe('local');
+      const result = getMissionManifest();
+      expect(result.identifier).toBe('local');
+    } finally {
+      if (originalEnv) process.env[LOCAL_MANIFEST_ENV] = originalEnv;
+      else delete process.env[LOCAL_MANIFEST_ENV];
+    }
   });
 
   it('throws error if no manifest is found anywhere', () => {

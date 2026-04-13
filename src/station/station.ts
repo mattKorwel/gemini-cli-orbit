@@ -11,30 +11,33 @@
  */
 
 import { hideBin } from 'yargs/helpers';
-import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { StationSupervisor } from './StationSupervisor.js';
 import { StatusAggregator } from './StatusAggregator.js';
+import { hydrateStationSupervisorConfig } from './BlueprintHydrator.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
 import { logger } from '../core/Logger.js';
 import {
   CAPSULE_MANIFEST_PATH,
+  LOCAL_MANIFEST_ENV,
   LOCAL_MANIFEST_NAME,
 } from '../core/Constants.js';
 import { getMissionManifest } from '../utils/MissionUtils.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 
-const getDirname = () => {
-  try {
-    return path.dirname(fileURLToPath(import.meta.url));
-  } catch {
-    return __dirname;
-  }
-};
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
 
-const _dirname = getDirname();
+  try {
+    return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Main entry point for the worker.
@@ -45,13 +48,14 @@ export async function main(
 ) {
   try {
     const tmux = new TmuxExecutor(pm);
-    const station = new StationSupervisor(_dirname, pm, tmux);
+    const stationConfig = hydrateStationSupervisorConfig();
+    const station = new StationSupervisor(stationConfig, pm, tmux);
 
     const action = argv[0] || 'start';
 
     // Special Case: status aggregation can run without a manifest
     if (action === 'status') {
-      const root = argv[1];
+      const root = argv[1] || '';
       const aggregator = new StatusAggregator(root);
       const result = await aggregator.getStatus(root);
       console.log(JSON.stringify(result, null, 2));
@@ -110,7 +114,7 @@ Usage:
   node station.js [action]
 
 Note: Mission parameters are read from the mounted manifest file:
-  ${CAPSULE_MANIFEST_PATH} or ${LOCAL_MANIFEST_NAME}
+  ${CAPSULE_MANIFEST_PATH}, $${LOCAL_MANIFEST_ENV}, or ${LOCAL_MANIFEST_NAME}
 
 Actions (determined by manifest.action if omitted):
   start          Unified mission start (init + hooks + run)
@@ -121,11 +125,7 @@ Actions (determined by manifest.action if omitted):
   `);
 }
 
-if (
-  process.argv[1] &&
-  (import.meta.url === pathToFileURL(process.argv[1]).href ||
-    import.meta.url === `file://${process.argv[1]}`)
-) {
+if (isDirectExecution()) {
   // Hide node and script path
   const args = hideBin(process.argv);
   main(args)

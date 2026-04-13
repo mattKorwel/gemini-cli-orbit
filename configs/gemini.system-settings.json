@@ -1,0 +1,69 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "orbit-session-start",
+            "type": "command",
+            "command": "node /orbit/bundle/hooks.js",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "BeforeAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "orbit-before-agent",
+            "type": "command",
+            "command": "node /orbit/bundle/hooks.js",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "orbit-after-agent",
+            "type": "command",
+            "command": "node /orbit/bundle/hooks.js",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "orbit-before-tool",
+            "type": "command",
+            "command": "node /orbit/bundle/hooks.js",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "orbit-notification",
+            "type": "command",
+            "command": "node /orbit/bundle/hooks.js",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}

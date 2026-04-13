@@ -1,0 +1,468 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { BaseProvider } from './BaseProvider.js';
+import { StarfleetClient } from '../sdk/StarfleetClient.js';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import { findAvailablePort } from '../utils/DockerUtils.js';
+import {
+  type OrbitStatus,
+  type StationReceipt,
+  type MissionManifest,
+  type ExecOptions,
+  type CapsuleConfig,
+  type CapsuleInfo,
+  type ExecResult,
+  type SyncOptions,
+  type OrbitObserver,
+} from '../core/types.js';
+import { type Command } from '../core/executors/types.js';
+import {
+  CAPSULE_ROOT,
+  CAPSULE_BUNDLE_PATH,
+  ORBIT_ROOT,
+  GLOBAL_SETTINGS_FILE,
+  type ProjectContext,
+  type InfrastructureSpec,
+} from '../core/Constants.js';
+import {
+  type StationTransport,
+  type IProcessManager,
+  type IExecutors,
+} from '../core/interfaces.js';
+import { type MissionContext } from '../utils/MissionUtils.js';
+
+/**
+ * StarfleetProvider: Abstract base for all providers that delegate to a
+ * Station Supervisor API.
+ */
+export abstract class StarfleetProvider extends BaseProvider {
+  public abstract readonly type: 'gce' | 'local-docker';
+  public readonly isPersistent = true;
+
+  public projectId: string;
+  public zone: string;
+  public stationName: string;
+  private selectedApiPort: number | null = null;
+  private apiPortPromise: Promise<number> | null = null;
+  private publicIp: string | undefined;
+  private launchedContainers = new Map<string, string>();
+
+  constructor(
+    protected readonly client: StarfleetClient,
+    protected readonly transport: StationTransport,
+    protected readonly pm: IProcessManager,
+    executors: IExecutors,
+    protected readonly projectCtx: ProjectContext,
+    protected readonly infra: InfrastructureSpec,
+    config: {
+      projectId: string;
+      zone: string;
+      stationName: string;
+    },
+  ) {
+    super(pm, executors);
+    this.projectId = config.projectId;
+    this.zone = config.zone;
+    this.stationName = config.stationName;
+  }
+
+  /**
+   * Environment-specific ignition sequence.
+   */
+  abstract verifyIgnition(observer: OrbitObserver): Promise<boolean>;
+
+  override resolveWorkspaceName(repoSlug: string, idSlug: string): string {
+    return `${repoSlug}/${idSlug}`;
+  }
+
+  override resolveSessionName(
+    repoSlug: string,
+    idSlug: string,
+    action: string,
+  ): string {
+    const parts = [repoSlug, idSlug];
+    if (action !== 'chat') parts.push(action);
+    return parts.join('/');
+  }
+
+  override resolveContainerName(
+    _repoSlug: string,
+    idSlug: string,
+    _action: string,
+  ): string {
+    return `orbit-${idSlug}`;
+  }
+
+  // --- Path Resolution (Station Host perspective) ---
+
+  /**
+   * Returns the primary root for Orbit data on the station host.
+   */
+  resolveOrbitRoot(): string {
+    return ORBIT_ROOT;
+  }
+
+  resolveWorkDir(workspaceName: string): string {
+    return path.join(this.resolveWorkspacesRoot(), workspaceName);
+  }
+
+  resolveWorkspacesRoot(): string {
+    return path.join(this.resolveOrbitRoot(), 'workspaces');
+  }
+
+  // --- Path Resolution (Mission Capsule perspective) ---
+
+  /**
+   * Returns the primary root for Orbit data inside the capsule.
+   */
+  resolveCapsuleOrbitRoot(): string {
+    return CAPSULE_ROOT;
+  }
+
+  /**
+   * Returns the absolute workspace path inside the capsule.
+   */
+  resolveCapsuleWorkDir(workspaceName: string): string {
+    return path.posix.join(
+      this.resolveCapsuleOrbitRoot(),
+      'workspaces',
+      workspaceName,
+    );
+  }
+
+  resolveBundlePath(): string {
+    return CAPSULE_BUNDLE_PATH;
+  }
+
+  resolveWorkerPath(): string {
+    return path.posix.join(CAPSULE_BUNDLE_PATH, 'station.js');
+  }
+
+  resolveProjectConfigDir(): string {
+    return path.posix.join(this.resolveOrbitRoot(), '.gemini');
+  }
+
+  resolvePolicyPath(): string {
+    return path.posix.join(
+      this.resolveCapsuleOrbitRoot(),
+      '.gemini/policies/workspace-policy.toml',
+    );
+  }
+
+  resolveMirrorPath(): string {
+    return path.posix.join(this.resolveOrbitRoot(), 'main');
+  }
+
+  resolveGlobalConfigDir(): string {
+    return '/home/node/.gemini';
+  }
+
+  // --- Core API Layer ---
+
+  protected async ensureApiEndpoint(): Promise<number> {
+    if (this.type !== 'gce') {
+      return 8080;
+    }
+
+    if (this.selectedApiPort !== null) {
+      return this.selectedApiPort;
+    }
+
+    if (!this.apiPortPromise) {
+      this.apiPortPromise = (async () => {
+        const basePort = 18080 + this.hashStationName(this.stationName);
+        const port = await findAvailablePort(basePort);
+        this.client.setBaseUrl(`http://127.0.0.1:${port}`);
+        this.selectedApiPort = port;
+        return port;
+      })();
+    }
+
+    return this.apiPortPromise;
+  }
+
+  protected async withStationApi<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.type === 'gce') {
+      const port = await this.ensureApiEndpoint();
+      await this.transport.ensureTunnel(port, 8080);
+    }
+
+    return operation();
+  }
+
+  protected getSelectedApiPort(): number {
+    return this.selectedApiPort ?? 8080;
+  }
+
+  private hashStationName(name: string): number {
+    let hash = 0;
+    for (const ch of name) {
+      hash = (hash * 31 + ch.charCodeAt(0)) % 1000;
+    }
+    return hash;
+  }
+
+  async ensureReady(): Promise<number> {
+    try {
+      // Basic connectivity check
+      const ping = await this.transport.exec(
+        { bin: 'echo', args: ['pong'] },
+        { quiet: true },
+      );
+      if (ping.status !== 0) return 1;
+
+      // Verify API connectivity through the correct station tunnel
+      const isAlive = await this.withStationApi(() => this.client.ping());
+      if (!isAlive) {
+        throw new Error('Starfleet API not responding');
+      }
+
+      return 0;
+    } catch (_err: any) {
+      return 1;
+    }
+  }
+
+  async getExecOutput(command: string | Command, options?: ExecOptions) {
+    return this.withStationApi(() => this.client.exec(command, options));
+  }
+
+  getRunCommand(): string {
+    return 'STARFLEET_API_CALL';
+  }
+
+  override createNodeCommand(scriptPath: string, args: string[] = []): Command {
+    // If we're on GCE, use the baked-in remote path
+    if (this.type === 'gce') {
+      return this.executors.node.createRemote(scriptPath, args);
+    }
+
+    // On local-docker, the scriptPath provided by telemetry is already the local host path
+    return {
+      bin: process.execPath,
+      args: [scriptPath, ...args],
+    };
+  }
+
+  async sync(
+    _localPath: string,
+    _remotePath: string,
+    _options?: SyncOptions,
+  ): Promise<number> {
+    return 0;
+  }
+
+  async syncIfChanged(
+    _localPath: string,
+    _remotePath: string,
+    _options?: SyncOptions,
+  ): Promise<number> {
+    return 0;
+  }
+
+  override async syncGeminiSettings(): Promise<number> {
+    if (!fs.existsSync(GLOBAL_SETTINGS_FILE)) {
+      return 0;
+    }
+
+    const content = fs.readFileSync(GLOBAL_SETTINGS_FILE, 'utf8');
+    const hash = crypto.createHash('sha256').update(content).digest('hex');
+
+    return this.withStationApi(async () => {
+      const remoteHash = await this.client.getGeminiSettingsHash();
+      if (remoteHash === hash) {
+        return 0;
+      }
+
+      await this.client.syncGeminiSettings({ hash, content });
+      return 0;
+    });
+  }
+
+  async getStatus(): Promise<OrbitStatus> {
+    const alive = await this.withStationApi(() => this.client.ping());
+    return {
+      name: this.stationName,
+      status: alive ? 'RUNNING' : 'UNREACHABLE',
+    };
+  }
+
+  async start(): Promise<number> {
+    return 0;
+  }
+  async stop(): Promise<number> {
+    return 0;
+  }
+
+  async getCapsuleStatus(name: string) {
+    const capsules = await this.withStationApi(() =>
+      this.client.listCapsules(),
+    );
+    const exists = capsules.includes(name);
+    return { exists, running: exists };
+  }
+
+  async getCapsuleStats(): Promise<string> {
+    return 'N/A';
+  }
+  async getCapsuleIdleTime(): Promise<number> {
+    return 0;
+  }
+  async attach(containerName: string, sessionName: string): Promise<number> {
+    try {
+      await this.ensureReady();
+      return await this.transport.attach(containerName, sessionName);
+    } catch (_err: any) {
+      return 1;
+    }
+  }
+  async runCapsule(_config: CapsuleConfig): Promise<number> {
+    return 0;
+  }
+  async stopCapsule(_name: string): Promise<number> {
+    return 0;
+  }
+  async removeCapsule(_name: string): Promise<number> {
+    return 0;
+  }
+  async jettisonMission(identifier: string, action?: string): Promise<number> {
+    try {
+      await this.ensureReady();
+      return await this.withStationApi(() =>
+        this.client.jettisonMission(identifier, action),
+      );
+    } catch (_err: any) {
+      return 1;
+    }
+  }
+  async splashdown(): Promise<number> {
+    return 0;
+  }
+  async removeSecret(): Promise<void> {}
+
+  async capturePane(capsuleName: string): Promise<string> {
+    return this.withStationApi(() => this.client.capturePane(capsuleName));
+  }
+
+  async listStations(): Promise<number> {
+    return 0;
+  }
+  async destroy(): Promise<number> {
+    return 0;
+  }
+  async listCapsules(): Promise<string[]> {
+    return this.withStationApi(() => this.client.listCapsules());
+  }
+
+  async getMissionsStatus(): Promise<{ missions: any[] }> {
+    return this.withStationApi(() => this.client.getMissionsStatus());
+  }
+
+  async provisionMirror(): Promise<number> {
+    return 0;
+  }
+  async stationShell(): Promise<number> {
+    const target = this.transport.getConnectionHandle();
+    const res = this.executors.ssh.exec(target, '', {
+      interactive: true,
+    });
+    return res.status;
+  }
+  async stationExec(
+    command: string | Command,
+    options?: ExecOptions,
+  ): Promise<ExecResult> {
+    return this.transport.exec(command, options);
+  }
+  getStationReceipt(): StationReceipt {
+    return {
+      name: this.stationName,
+      instanceName: this.stationName,
+      type: this.type,
+      projectId: this.projectId,
+      zone: this.zone,
+      repo: this.projectCtx.repoName,
+      upstreamUrl: this.infra.upstreamUrl,
+      networkAccessType: this.infra.networkAccessType as any,
+      schematic: this.infra.schematic,
+      dnsSuffix: this.infra.dnsSuffix,
+      userSuffix: this.infra.userSuffix,
+      sshUser: this.infra.sshUser,
+      externalIp: this.publicIp,
+      lastSeen: new Date().toISOString(),
+    };
+  }
+
+  async launchMission(
+    manifest: MissionManifest,
+    _hostWorkDir: string,
+  ): Promise<number> {
+    try {
+      await this.syncGeminiSettings();
+
+      const res = (await this.withStationApi(() =>
+        this.client.launchMission(manifest),
+      )) as any;
+
+      if (res.status === 'READY' && res.receipt) {
+        this.launchedContainers.set(
+          res.receipt.missionId,
+          res.receipt.containerName,
+        );
+        console.log(`\n✨ Starfleet Mission Ignited!`);
+        console.log(`   ID:        ${res.receipt.missionId}`);
+        console.log(`   Capsule:   ${res.receipt.containerName}`);
+        console.log(`   Workspace: ${res.receipt.workspacePath}`);
+        console.log(`   Time:      ${res.receipt.ignitedAt}`);
+        return 0;
+      }
+      return 1;
+    } catch (err: any) {
+      console.error(
+        `❌ Starfleet launch failed: ${err?.message || String(err)}`,
+      );
+      return 1;
+    }
+  }
+
+  async prepareMissionWorkspace(_mCtx: MissionContext): Promise<void> {}
+  injectState(state: InfrastructureState): void {
+    this.publicIp = state.publicIp;
+    if (state.publicIp && this.infra.networkAccessType === 'external') {
+      this.transport.setOverrideHost(state.publicIp);
+    }
+  }
+  protected async resolveLegacyCapsuleState(): Promise<CapsuleInfo['state']> {
+    return 'IDLE';
+  }
+  getLaunchedContainerName(missionId: string): string | undefined {
+    return this.launchedContainers.get(missionId);
+  }
+  override resolveIsolationId(mCtx: MissionContext): string {
+    return mCtx.containerName;
+  }
+
+  async missionShell(
+    capsuleName: string,
+    workDir?: string,
+    sessionName?: string,
+  ): Promise<number> {
+    try {
+      await this.ensureReady();
+      return await this.transport.missionShell(
+        capsuleName,
+        workDir,
+        sessionName,
+      );
+    } catch (_err: any) {
+      return 1;
+    }
+  }
+}

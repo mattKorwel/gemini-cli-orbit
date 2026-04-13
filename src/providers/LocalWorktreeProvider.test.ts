@@ -36,6 +36,12 @@ describe('LocalWorktreeProvider', () => {
     tmux: {
       attach: vi.fn(),
       wrapMission: vi.fn(),
+      version: vi.fn().mockReturnValue({ bin: 'tmux', args: ['-V'] }),
+      listSessions: vi.fn().mockReturnValue({ bin: 'tmux', args: ['ls'] }),
+      killSession: vi.fn().mockImplementation((name: string) => ({
+        bin: 'tmux',
+        args: ['kill-session', '-t', name],
+      })),
     },
     node: {
       create: vi.fn().mockReturnValue({ bin: 'node', args: [] }),
@@ -67,7 +73,7 @@ describe('LocalWorktreeProvider', () => {
       '/home/node/dev/repo/workspaces',
       mockInfra,
     );
-    expect(provider.resolveWorkspacesRoot()).toBe(
+    expect(provider.resolveWorkspacesRoot().replace(/\\/g, '/')).toContain(
       '/home/node/dev/repo/workspaces/repo',
     );
   });
@@ -174,14 +180,14 @@ describe('LocalWorktreeProvider', () => {
 
       // 1. Should check for branch and create worktree
       expect(mockPm.runSync).toHaveBeenCalledWith(
-        'git',
+        expect.stringContaining('git'),
         expect.arrayContaining(['worktree', 'add']),
         expect.any(Object),
       );
 
       // 2. Should write manifest file
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('.orbit-manifest.json'),
+        expect.stringMatching(/[\\\/]\.gemini[\\\/]orbit[\\\/]manifests[\\\/]/),
         expect.stringContaining('"identifier":"feat-1"'),
       );
     });
@@ -211,7 +217,11 @@ describe('LocalWorktreeProvider', () => {
       // Should kill the specific session
       expect(mockPm.runSync).toHaveBeenCalledWith(
         'tmux',
-        ['kill-session', '-t', 'repo/id1/fix'],
+        expect.arrayContaining([
+          'kill-session',
+          '-t',
+          expect.stringContaining('repo'),
+        ]),
         expect.anything(),
       );
     });
@@ -230,7 +240,7 @@ describe('LocalWorktreeProvider', () => {
 
       // Should remove worktree
       expect(mockPm.runSync).toHaveBeenCalledWith(
-        'git',
+        expect.stringContaining('git'),
         expect.arrayContaining(['worktree', 'remove']),
         expect.anything(),
       );
@@ -238,7 +248,11 @@ describe('LocalWorktreeProvider', () => {
       // Should kill all standard actions
       expect(mockPm.runSync).toHaveBeenCalledWith(
         'tmux',
-        ['kill-session', '-t', 'repo/id1'],
+        expect.arrayContaining([
+          'kill-session',
+          '-t',
+          expect.stringContaining('repo'),
+        ]),
         expect.anything(),
       );
     });

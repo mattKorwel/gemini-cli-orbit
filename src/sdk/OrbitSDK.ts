@@ -39,18 +39,22 @@ import { IntegrationManager } from './IntegrationManager.js';
 import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { SchematicManager } from './SchematicManager.js';
+import { StarfleetClient } from './StarfleetClient.js';
+import { ShadowManager } from './ShadowManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
 import { InfrastructureFactory } from '../infrastructure/InfrastructureFactory.js';
 import { ProcessManager } from '../core/ProcessManager.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { WindowsTmuxExecutor } from '../core/executors/WindowsTmuxExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
 import { ShellIntegration } from '../utils/ShellIntegration.js';
 import { DependencyManager } from './DependencyManager.js';
 import { type IExecutors } from '../core/interfaces.js';
-import { SshExecutor } from '../core/executors/SshExecutor.js';
+import { SshExecutor } from '../core/executors/ssh/SshExecutor.js';
+import { WindowsSshExecutor } from '../core/executors/ssh/WindowsSshExecutor.js';
 
 export * from '../core/types.js';
 
@@ -89,6 +93,7 @@ export class OrbitSDK implements IOrbitSDK {
   private readonly status: StatusManager;
   private readonly ci: CIManager;
   private readonly integrations: IntegrationManager;
+  private readonly shadow: ShadowManager;
 
   constructor(
     public readonly context: OrbitContext,
@@ -103,13 +108,21 @@ export class OrbitSDK implements IOrbitSDK {
 
     // Foundation
     const processManager = new ProcessManager();
+    const tmux =
+      process.platform === 'win32'
+        ? new WindowsTmuxExecutor(processManager)
+        : new TmuxExecutor(processManager);
+
     const executors: IExecutors = {
       git: new GitExecutor(processManager),
       docker: new DockerExecutor(processManager),
-      tmux: new TmuxExecutor(processManager),
+      tmux,
       node: new NodeExecutor(processManager),
       gemini: new GeminiExecutor(processManager),
-      ssh: new SshExecutor(processManager),
+      ssh:
+        process.platform === 'win32'
+          ? new WindowsSshExecutor(processManager)
+          : new SshExecutor(processManager),
     };
 
     // Dependencies
@@ -120,6 +133,19 @@ export class OrbitSDK implements IOrbitSDK {
     const dependencyManager = new DependencyManager(processManager);
     const stationRegistry = new StationRegistry(providerFactory, configManager);
     const schematicManager = new SchematicManager(configManager);
+    const starfleetClient = new StarfleetClient(
+      (this.context.infra as any).apiUrl || 'http://localhost:8080',
+    );
+
+    // Initializing provider once for the entire SDK session
+    const provider = providerFactory.getProvider(
+      this.projectCtx,
+      this.context.infra as any,
+      this.context.state,
+    );
+
+    const transport = (provider as any).transport;
+    this.shadow = new ShadowManager(transport, this.observer);
 
     this.missions = new MissionManager(
       this.projectCtx,
@@ -130,13 +156,18 @@ export class OrbitSDK implements IOrbitSDK {
       processManager,
       executors,
       stationRegistry,
+      starfleetClient,
+      this.context.state,
+      provider,
     );
     this.status = new StatusManager(
       this.projectCtx,
       this.context.infra,
+      this.context.state,
       providerFactory,
       executors,
       stationRegistry,
+      provider,
     );
     this.fleet = new FleetManager(
       this.projectCtx,
@@ -159,6 +190,8 @@ export class OrbitSDK implements IOrbitSDK {
       executors,
     );
     this.integrations = new IntegrationManager(this.observer, shellIntegration);
+
+    this.missions.setFleetManager(this.fleet);
   }
 
   /**
@@ -172,12 +205,9 @@ export class OrbitSDK implements IOrbitSDK {
    * Parallel aggregator for fleet status.
    */
   async getFleetState(options: ListStationsOptions): Promise<StationState[]> {
-    const { syncWithReality, includeMissions, repoFilter, nameFilter } =
-      options;
+    const { includeMissions, repoFilter, nameFilter } = options;
 
-    let stations = await this.status['stationRegistry'].listStations({
-      syncWithReality: false, // We'll sync reality in the next step based on filters
-    });
+    let stations = await this.status['stationRegistry'].listStations();
 
     // 1. Apply Repository Filter
     if (repoFilter) {
@@ -192,10 +222,10 @@ export class OrbitSDK implements IOrbitSDK {
       );
     }
 
-    // 3. Fetch Reality for the filtered set
+    // 3. Fetch Reality for the filtered set (Health is the new baseline)
     const states = await this.status.fetchFleetState(
       stations,
-      includeMissions ? 'pulse' : syncWithReality ? 'health' : 'inventory',
+      includeMissions ? 'pulse' : 'health',
       options.peek,
     );
 
@@ -231,6 +261,9 @@ export class OrbitSDK implements IOrbitSDK {
    * Launch or resume an isolated developer presence.
    */
   async startMission(manifest: MissionManifest): Promise<MissionResult> {
+    // Perform surgical shadow sync if --dev is enabled
+    await this.shadow.syncIfRequested({ dev: manifest.isDev } as any);
+
     return this.missions.start(manifest);
   }
 
@@ -238,7 +271,12 @@ export class OrbitSDK implements IOrbitSDK {
    * Resolve user intent into a concrete MissionManifest.
    */
   async resolveMission(options: MissionOptions): Promise<MissionManifest> {
-    return this.missions.resolve(options);
+    // Inject the isDev flag from the context into the mission options if not explicitly set
+    const mergedOptions = {
+      ...options,
+      dev: options.dev !== undefined ? options.dev : this.context.isDev,
+    };
+    return this.missions.resolve(mergedOptions as any);
   }
 
   /**
@@ -260,6 +298,22 @@ export class OrbitSDK implements IOrbitSDK {
    */
   async stationShell(): Promise<number> {
     return this.missions.stationShell();
+  }
+
+  /**
+   * Executes a command on the station host.
+   */
+  async stationExec(
+    command: string,
+    args: string[] = [],
+    options: any = {},
+  ): Promise<number> {
+    const provider = (this.missions as any).getProvider();
+    const res = await provider.getExecOutput(
+      { bin: command, args },
+      { ...options, interactive: true },
+    );
+    return res.status;
   }
 
   /**
@@ -322,7 +376,7 @@ export class OrbitSDK implements IOrbitSDK {
    * List all provisioned stations and discovered local repos.
    */
   async listStations(
-    options: ListStationsOptions = { syncWithReality: true },
+    options: ListStationsOptions = { includeMissions: true },
   ): Promise<StationState[]> {
     return this.getFleetState(options);
   }
@@ -377,7 +431,7 @@ export class OrbitSDK implements IOrbitSDK {
    */
   async runSchematicWizard(
     name: string,
-    cliFlags: Partial<OrbitConfig> = {},
+    cliFlags?: Partial<OrbitConfig>,
   ): Promise<void> {
     return this.fleet.runSchematicWizard(name, cliFlags);
   }

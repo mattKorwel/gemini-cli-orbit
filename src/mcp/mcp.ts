@@ -272,7 +272,6 @@ export function createOrbitMcpServer() {
     {
       description: 'The Fleet View: Unified status and monitoring.',
       inputSchema: z.object({
-        sync: z.boolean().default(true).describe('Sync hardware health'),
         pulse: z
           .boolean()
           .default(false)
@@ -285,10 +284,9 @@ export function createOrbitMcpServer() {
         name: z.string().optional().describe('Filter by station name pattern'),
       }).shape,
     },
-    async ({ sync, pulse, all, repo, name }) => {
+    async ({ pulse, all, repo, name }) => {
       const sdk = await getSDK();
       const states = await sdk.getFleetState({
-        syncWithReality: sync,
         includeMissions: pulse,
         repoFilter:
           repo || (all ? undefined : process.env.GCLI_ORBIT_REPO_NAME),

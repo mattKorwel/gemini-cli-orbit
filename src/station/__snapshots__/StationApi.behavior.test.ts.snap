@@ -1,0 +1,26 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Station API Behavior > records POST /missions through worker docker run 1`] = `
+{
+  "history": [
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git rev-parse --is-inside-work-tree",
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git init",
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git remote add origin https://github.com/org/repo.git",
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git fetch --quiet --depth=1 origin main",
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git rev-parse --verify refs/heads/main",
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git rev-parse --verify refs/remotes/origin/main",
+    "[<tmp>/orbit/workspaces/test-repo/api-123] git checkout main",
+    "[<cwd>] docker rm -f orbit-api-123-<ts>",
+    "[<cwd>] docker run -d -it --name orbit-api-123-<ts> --user root --label orbit-mission -v <tmp>/orbit/workspaces/test-repo/api-123:/orbit/workspaces/test-repo/api-123 -v <tmp>/orbit/manifests/orbit-manifest-api-123-<ts>.json:/orbit/manifest.json -v <tmp>/dev-shm/.orbit-env-orbit-api-123-<ts>:/run/orbit/mission.env:ro -v <tmp>/orbit/home:/orbit/home -v <tmp>/orbit/home/.gemini:/orbit/home/.gemini -v <tmp>/orbit/.gemini/policies:/orbit/.gemini/policies:ro -v <tmp>/orbit/bundle:/orbit/bundle:ro -v <tmp>/orbit/starfleet-entrypoint.sh:/usr/local/bin/starfleet-entrypoint.sh:ro --tmpfs /run/orbit/auth -e SAMPLE_FLAG=1 -e HOME=/orbit/home -e GCLI_ORBIT_MISSION_ID=api-123 -e GCLI_ORBIT_ACTION=chat -e GCLI_ORBIT_SESSION_NAME=test-repo/api-123/chat -e GCLI_TRUST=1 test-worker-image /bin/bash -c /usr/local/bin/starfleet-entrypoint.sh chat",
+  ],
+  "response": {
+    "receipt": {
+      "containerName": "orbit-api-123-<ts>",
+      "ignitedAt": "<iso>",
+      "missionId": "api-123",
+      "workspacePath": "/orbit/workspaces/test-repo/api-123",
+    },
+    "status": "READY",
+  },
+}
+`;

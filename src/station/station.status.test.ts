@@ -13,6 +13,16 @@ import os from 'node:os';
 import { main } from './station.js';
 import { ORBIT_STATE_PATH } from '../core/Constants.js';
 
+vi.mock('./BlueprintHydrator.js', () => ({
+  hydrateStationSupervisorConfig: vi.fn().mockReturnValue({
+    port: 8080,
+    hostRoot: '/tmp',
+    storage: { workspacesRoot: '/tmp/workspaces', mirrorPath: '/tmp/main' },
+    mounts: [],
+    areas: {},
+  }),
+}));
+
 describe('Worker Status Aggregator', () => {
   let workspacesDir: string;
 
@@ -21,12 +31,17 @@ describe('Worker Status Aggregator', () => {
       path.join(os.tmpdir(), 'orbit-workspaces-test-'),
     );
 
+    process.env.ORBIT_HOST_ROOT = '/tmp';
+    process.env.GCLI_ORBIT_HOST_PATH_BASE = '/tmp';
+
     // Mock console.log to capture output
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     fs.rmSync(workspacesDir, { recursive: true, force: true });
+    delete process.env.ORBIT_HOST_ROOT;
+    delete process.env.GCLI_ORBIT_HOST_PATH_BASE;
     vi.restoreAllMocks();
   });
 

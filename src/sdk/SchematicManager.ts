@@ -8,7 +8,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
-import { SCHEMATICS_DIR, type OrbitConfig } from '../core/Constants.js';
+import {
+  SCHEMATICS_DIR,
+  DEFAULT_VPC_NAME,
+  DEFAULT_SUBNET_NAME,
+  type OrbitConfig,
+} from '../core/Constants.js';
 import { sanitizeName } from '../core/ConfigManager.js';
 import { logger } from '../core/Logger.js';
 import { type SchematicInfo } from '../core/types.js';
@@ -48,15 +53,19 @@ export class SchematicManager implements ISchematicManager {
     const knownKeys = [
       'projectId',
       'zone',
-      'backendType',
+      'networkAccessType',
       'dnsSuffix',
       'userSuffix',
+      'useDefaultNetwork',
+      'manageFirewallRules',
       'vpcName',
       'subnetName',
       'instanceName',
       'machineType',
       'imageUri',
-      'manageNetworking',
+      'gitAuthMode',
+      'geminiAuthMode',
+      'repoToken',
       'sshSourceRanges',
       'bootDiskType',
       'dataDiskType',
@@ -67,7 +76,10 @@ export class SchematicManager implements ISchematicManager {
       let val = (cliFlags as any)[key];
       if (val !== undefined) {
         // Handle type casting from CLI strings
-        if (key === 'manageNetworking' && typeof val === 'string') {
+        if (
+          (key === 'useDefaultNetwork' || key === 'manageFirewallRules') &&
+          typeof val === 'string'
+        ) {
           val = val.toLowerCase() === 'true';
         }
         if (key === 'sshSourceRanges' && typeof val === 'string') {
@@ -105,12 +117,12 @@ export class SchematicManager implements ISchematicManager {
       base.zone ||
       'us-central1-a';
 
-    let backendType = base.backendType || 'direct-internal';
+    let networkAccessType = base.networkAccessType || 'direct-internal';
     const backendChoice = await ask(
-      `Backend Type (1: direct-internal, 2: external) [${backendType === 'external' ? '2' : '1'}]: `,
+      `Backend Type (1: direct-internal, 2: external) [${networkAccessType === 'external' ? '2' : '1'}]: `,
     );
-    if (backendChoice === '1') backendType = 'direct-internal';
-    if (backendChoice === '2') backendType = 'external';
+    if (backendChoice === '1') networkAccessType = 'direct-internal';
+    if (backendChoice === '2') networkAccessType = 'external';
 
     const dnsSuffix =
       (await ask(
@@ -122,15 +134,20 @@ export class SchematicManager implements ISchematicManager {
         `User Suffix (e.g. _google_com) [${base.userSuffix || ''}]: `,
       )) || base.userSuffix;
 
-    const vpcName =
-      (await ask(`VPC Network Name [${base.vpcName || 'default'}]: `)) ||
-      base.vpcName ||
-      'default';
+    const useDefaultNetworkRaw = await ask(
+      `Use the GCP default VPC/subnet? (y/n) [${base.useDefaultNetwork ? 'y' : 'n'}]: `,
+    );
+    const useDefaultNetwork = useDefaultNetworkRaw
+      ? useDefaultNetworkRaw.toLowerCase() === 'y'
+      : !!base.useDefaultNetwork;
 
-    const subnetName =
-      (await ask(`Subnet Name [${base.subnetName || 'default'}]: `)) ||
-      base.subnetName ||
-      'default';
+    const vpcName = useDefaultNetwork
+      ? 'default'
+      : base.vpcName || DEFAULT_VPC_NAME;
+
+    const subnetName = useDefaultNetwork
+      ? 'default'
+      : base.subnetName || DEFAULT_SUBNET_NAME;
 
     const instanceName =
       (await ask(
@@ -146,15 +163,15 @@ export class SchematicManager implements ISchematicManager {
       base.machineType ||
       'n2-standard-8';
 
-    const manageNetworkingRaw = await ask(
-      `Should Orbit automatically manage VPC, NAT, and Firewalls? (y/n) [${base.manageNetworking ? 'y' : 'n'}]: `,
+    const manageFirewallRulesRaw = await ask(
+      `Should Orbit manage SSH firewall rules on the chosen network? (y/n) [${base.manageFirewallRules === false ? 'n' : 'y'}]: `,
     );
-    const manageNetworking = manageNetworkingRaw
-      ? manageNetworkingRaw.toLowerCase() === 'y'
-      : !!base.manageNetworking;
+    const manageFirewallRules = manageFirewallRulesRaw
+      ? manageFirewallRulesRaw.toLowerCase() === 'y'
+      : base.manageFirewallRules !== false;
 
     let sshSourceRanges = base.sshSourceRanges;
-    if (manageNetworking) {
+    if (manageFirewallRules) {
       const rangesRaw = await ask(
         `Allowed SSH Source Ranges (comma separated) [${(base.sshSourceRanges || []).join(',')}]: `,
       );
@@ -167,14 +184,15 @@ export class SchematicManager implements ISchematicManager {
       ...base,
       projectId,
       zone,
-      backendType,
+      networkAccessType,
       dnsSuffix,
       userSuffix,
+      useDefaultNetwork,
+      manageFirewallRules,
       vpcName,
       subnetName,
       instanceName,
       machineType,
-      manageNetworking,
       sshSourceRanges,
     };
 
@@ -208,7 +226,7 @@ export class SchematicManager implements ISchematicManager {
       const config = JSON.parse(content);
 
       // --- 🛡️ BASIC SCHEMA VALIDATION ---
-      const required = ['projectId', 'zone', 'backendType'];
+      const required = ['projectId', 'zone', 'networkAccessType'];
       const missing = required.filter((f) => !config[f]);
       if (missing.length > 0) {
         throw new Error(
@@ -242,7 +260,8 @@ export class SchematicManager implements ISchematicManager {
       const info: SchematicInfo = { name };
       if (config?.projectId) info.projectId = config.projectId;
       if (config?.zone) info.zone = config.zone;
-      if (config?.backendType) info.backendType = config.backendType;
+      if (config?.networkAccessType)
+        info.networkAccessType = config.networkAccessType;
       if (config?.machineType) info.machineType = config.machineType;
       return info;
     });

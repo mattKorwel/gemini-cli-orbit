@@ -86,4 +86,27 @@ describe('ProcessManager', () => {
 
     stdoutSpy.mockRestore();
   });
+
+  it('spawn should respect detached option', () => {
+    const mockProcess = new EventEmitter() as any;
+    (spawn as any).mockReturnValue(mockProcess);
+
+    const pm = new ProcessManager();
+
+    // 1. Default should be false
+    pm.spawn('ls', []);
+    expect(spawn).toHaveBeenCalledWith(
+      'ls',
+      [],
+      expect.objectContaining({ detached: false }),
+    );
+
+    // 2. Explicitly true
+    pm.spawn('sleep', ['100'], { detached: true } as any);
+    expect(spawn).toHaveBeenCalledWith(
+      'sleep',
+      ['100'],
+      expect.objectContaining({ detached: true }),
+    );
+  });
 });

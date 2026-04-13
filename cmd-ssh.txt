@@ -1,0 +1,1 @@
+ssh -t -i %USERPROFILE%\.ssh\google_compute_engine matt_korwel_gmail_com@35.188.152.246 "sudo docker exec -it 868b91f025f5 tmux -u -f /dev/null new-session -s cmd-test 'tmux set-option -sg escape-time 0; tmux set-option -g status off; stty cols 100 rows 30; export TERM=xterm-256color; export FORCE_COLOR=1; export GCLI_NO_PROGRESS=1; /bin/bash'"

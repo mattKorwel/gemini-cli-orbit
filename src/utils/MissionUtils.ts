@@ -14,6 +14,7 @@ import {
 } from '../core/interfaces.js';
 import {
   CAPSULE_MANIFEST_PATH,
+  LOCAL_MANIFEST_ENV,
   LOCAL_MANIFEST_NAME,
 } from '../core/Constants.js';
 
@@ -44,7 +45,9 @@ export function resolveMissionContext(
   const actionPart = parts[1];
 
   let branchName = idPart;
-  if (/^\d+$/.test(idPart)) {
+  // Explicit shorthand like "123:review" is already fully hydrated input.
+  // Avoid a GH lookup here so resolution remains deterministic and offline-safe.
+  if (/^\d+$/.test(idPart) && !actionPart) {
     const res: IProcessResult = pm.runSync('gh', [
       'pr',
       'view',
@@ -82,10 +85,22 @@ export function resolveMissionContext(
 
 /**
  * Unified loader for Mission Manifests.
- * Prioritizes local worktree manifest, then global capsule manifest.
+ * Prioritizes global capsule manifest, then local worktree manifest.
  */
 export function getMissionManifest(): MissionManifest {
-  // 1. Try global capsule manifest (/home/node/.orbit-manifest.json)
+  // 1. Try explicit manifest path from environment (local worktree)
+  const explicitManifest = process.env[LOCAL_MANIFEST_ENV];
+  if (explicitManifest && fs.existsSync(explicitManifest)) {
+    try {
+      return JSON.parse(fs.readFileSync(explicitManifest, 'utf8'));
+    } catch (e: any) {
+      throw new Error(`❌ Failed to parse explicit manifest: ${e.message}`, {
+        cause: e,
+      });
+    }
+  }
+
+  // 2. Try global capsule manifest (/orbit/manifest.json)
   // ADR 0018: This is the primary manifest location for Agent Capsules
   if (fs.existsSync(CAPSULE_MANIFEST_PATH)) {
     try {
@@ -97,7 +112,26 @@ export function getMissionManifest(): MissionManifest {
     }
   }
 
-  // 2. Try local worktree manifest (./.orbit-manifest.json)
+  // 3. Try RAM-disk manifest (Starfleet Fast-Path injection)
+  // When running via Starfleet, the SDK may inject it here.
+  const shmManifests = fs.existsSync('/dev/shm')
+    ? fs.readdirSync('/dev/shm').filter((f) => f.includes('orbit-manifest'))
+    : [];
+
+  if (shmManifests.length > 0) {
+    // Pick the most recent if multiple (rare)
+    const latest = shmManifests.sort().reverse()[0];
+    if (latest) {
+      const shmPath = path.join('/dev/shm', latest);
+      try {
+        return JSON.parse(fs.readFileSync(shmPath, 'utf8'));
+      } catch (_e: any) {
+        // Continue to next fallback
+      }
+    }
+  }
+
+  // 4. Try legacy local worktree manifest (./.orbit-manifest.json)
   // Fallback for local development or manual worker testing
   const localManifest = path.resolve(process.cwd(), LOCAL_MANIFEST_NAME);
   if (fs.existsSync(localManifest)) {
@@ -111,7 +145,7 @@ export function getMissionManifest(): MissionManifest {
   }
 
   throw new Error(
-    `❌ Mission manifest not found. Looked in ${CAPSULE_MANIFEST_PATH} and ${localManifest}`,
+    `❌ Mission manifest not found. Looked in ${explicitManifest || `$${LOCAL_MANIFEST_ENV}`}, ${CAPSULE_MANIFEST_PATH} and ${localManifest}`,
   );
 }
 

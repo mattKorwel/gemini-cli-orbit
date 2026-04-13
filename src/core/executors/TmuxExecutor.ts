@@ -10,54 +10,25 @@ import {
   type IProcessManager,
   type IProcessResult,
 } from '../interfaces.js';
+import { getInteractiveTerminalEnv } from '../../utils/TerminalEnv.js';
 
+/**
+ * TmuxExecutor: Standard Linux implementation of tmux orchestration.
+ */
 export class TmuxExecutor implements ITmuxExecutor {
-  constructor(private readonly pm: IProcessManager) {}
+  constructor(protected readonly pm: IProcessManager) {}
 
-  /**
-   * Wraps an Orbit mission command in a professional, styled tmux session.
-   * This is metadata-only (Returns a command for execution elsewhere).
-   */
+  protected get bin(): string {
+    return process.env.ORBIT_TMUX_BIN || 'tmux';
+  }
+
   public wrapMission(
     sessionName: string,
     innerCommand: string,
     options: IRunOptions = {},
   ): Command {
-    return TmuxExecutor.wrapMission(sessionName, innerCommand, options);
-  }
-
-  /**
-   * Wraps a command in a new tmux session.
-   * This is metadata-only (Returns a command for execution elsewhere).
-   */
-  public wrap(
-    sessionName: string,
-    innerCommand: string,
-    options: IRunOptions & { detached?: boolean } = {},
-  ): Command {
-    return TmuxExecutor.wrap(sessionName, innerCommand, options);
-  }
-
-  /**
-   * Directly attaches to an existing session.
-   */
-  public attach(sessionName: string): IProcessResult {
-    const cmd = TmuxExecutor.attach(sessionName);
-    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
-  }
-
-  // --- Static Metadata Helpers ---
-
-  /**
-   * Wraps an Orbit mission command in a professional, styled tmux session.
-   * This is the single source of truth for the Orbit terminal environment.
-   */
-  public static wrapMission(
-    sessionName: string,
-    innerCommand: string,
-    options: IRunOptions = {},
-  ): Command {
     const { cwd, env } = options;
+    const binName = this.bin;
 
     // 1. Stealth UI Style Definitions
     const styles = [
@@ -71,46 +42,35 @@ export class TmuxExecutor implements ITmuxExecutor {
       'set-option -as terminal-features ",xterm-256color:RGB"',
       'set-option -g default-terminal "xterm-256color"',
     ]
-      .map((s) => `tmux ${s}`)
+      .map((s) => `${binName} ${s}`)
       .join('; ');
 
-    // 2. Pro Tip (ANSI: \x1b[38;5;244m = Gray, \x1b[38;5;39m = Blue, \x1b[0m = Reset)
+    // 2. Pro Tip
     const tip =
       'printf "\\n   \\x1b[38;5;244m💡 Tip: Press \\x1b[38;5;39mCtrl-b d\\x1b[38;5;244m to detach and keep mission running.\\x1b[0m\\n\\n"';
 
     // 3. Execution Environment
     const mergedEnv = {
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      ...(process.env.TERM_PROGRAM
-        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
-        : {}),
+      ...getInteractiveTerminalEnv(),
       ...(env || {}),
     };
 
     const envPrefix =
       Object.entries(mergedEnv)
-        .map(([k, v]) => `export ${k}=${TmuxExecutor.shellQuote(v as string)}`)
+        .map(([k, v]) => `export ${k}=${this.shellQuote(v as string)}`)
         .join('; ') + '; ';
-    const cdPrefix = cwd ? `cd ${TmuxExecutor.shellQuote(cwd)} && ` : '';
+    const cdPrefix = cwd ? `cd ${this.shellQuote(cwd)} && ` : '';
 
-    // 4. Combined Launch Script
-    // If command succeeds (exit 0), the session ends.
-    // If it fails (non-zero), we drop into zsh for debugging.
-    const fullLaunch = `${styles}; ${tip}; ${cdPrefix}${envPrefix}${innerCommand} || exec zsh`;
+    const fullLaunch = `${styles}; ${tip}; ${cdPrefix}${envPrefix}${innerCommand} || exec bash`;
 
     return {
-      bin: 'tmux',
+      bin: binName,
       args: ['new-session', '-d', '-A', '-s', sessionName, fullLaunch],
-      options: { ...options, env: {} }, // Env is handled in prefix
+      options: { ...options, env: {} },
     };
   }
 
-  /**
-   * Wraps a command in a new tmux session.
-   */
-  public static wrap(
+  public wrap(
     sessionName: string,
     innerCommand: string,
     options: IRunOptions & { detached?: boolean } = {},
@@ -120,53 +80,106 @@ export class TmuxExecutor implements ITmuxExecutor {
     const tmuxArgs = [
       'new-session',
       detached ? '-d' : '',
-      '-A', // Attach if exists
+      '-A',
       '-s',
       sessionName,
     ].filter(Boolean);
 
-    // Build the final command string to run inside tmux
     const mergedEnv = {
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      ...(process.env.TERM_PROGRAM
-        ? { TERM_PROGRAM: process.env.TERM_PROGRAM }
-        : {}),
+      ...getInteractiveTerminalEnv(),
       ...(env || {}),
     };
 
     const envPrefix =
       Object.entries(mergedEnv)
-        .map(([k, v]) => `export ${k}=${TmuxExecutor.shellQuote(v as string)}`)
+        .map(([k, v]) => `export ${k}=${this.shellQuote(v as string)}`)
         .join('; ') + '; ';
-    const cdPrefix = cwd ? `cd ${TmuxExecutor.shellQuote(cwd)} && ` : '';
-    const fullInner = `${cdPrefix}${envPrefix}${innerCommand}; exec zsh`;
+    const cdPrefix = cwd ? `cd ${this.shellQuote(cwd)} && ` : '';
+
+    // 4. Stealth UI Style Definitions
+    const binName = this.bin;
+    const styles = [
+      'set-option status on',
+      'set-option status-position top',
+      'set-option status-style "bg=colour235,fg=colour244"',
+      'set-option status-left "#[fg=colour39,bold] 🛰️  ORBIT #[fg=colour244]┃ "',
+      'set-option status-right "#[fg=colour244] #H "',
+      'set-option window-status-current-format "#[fg=colour45,bold] #S "',
+      'set-option -ga terminal-overrides ",xterm-256color:Tc"',
+      'set-option -as terminal-features ",xterm-256color:RGB"',
+      'set-option -g default-terminal "xterm-256color"',
+    ]
+      .map((s) => `${binName} ${s}`)
+      .join('; ');
+
+    const fullInner = `${styles}; ${cdPrefix}${envPrefix}${innerCommand}; exec zsh`;
 
     tmuxArgs.push(fullInner);
 
     const runOptions: IRunOptions = { ...options };
-    delete runOptions.env; // Env is handled inside the wrapper
+    delete runOptions.env;
 
     return {
-      bin: 'tmux',
+      bin: this.bin,
       args: tmuxArgs,
       options: runOptions,
     };
   }
 
-  public static attach(sessionName: string): Command {
+  public attach(sessionName: string): IProcessResult {
+    const cmd = this.getAttachCommand(sessionName);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  protected getAttachCommand(sessionName: string): Command {
     return {
-      bin: 'tmux',
+      bin: this.bin,
       args: ['attach-session', '-t', sessionName],
       options: { interactive: true },
     };
   }
 
-  /**
-   * Safe shell quoting for environment variables and paths.
-   */
-  private static shellQuote(val: string): string {
+  public hasSession(sessionName: string): Command {
+    return {
+      bin: this.bin,
+      args: ['has-session', '-t', sessionName],
+      options: { quiet: true },
+    };
+  }
+
+  public killSession(sessionName: string): Command {
+    return {
+      bin: this.bin,
+      args: ['kill-session', '-t', sessionName],
+      options: { quiet: true },
+    };
+  }
+
+  public listSessions(): Command {
+    return {
+      bin: this.bin,
+      args: ['list-sessions', '-F', '#S'],
+      options: { quiet: true },
+    };
+  }
+
+  public capturePane(sessionName: string): Command {
+    return {
+      bin: this.bin,
+      args: ['capture-pane', '-p', '-t', sessionName],
+      options: { quiet: true },
+    };
+  }
+
+  public version(): Command {
+    return {
+      bin: this.bin,
+      args: ['-V'],
+      options: { quiet: true },
+    };
+  }
+
+  protected shellQuote(val: string): string {
     return `'${val.replace(/'/g, "'\\''")}'`;
   }
 }

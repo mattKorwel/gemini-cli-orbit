@@ -114,10 +114,16 @@ export function getRepoConfig(
     projectId: process.env.GCLI_ORBIT_PROJECT_ID || config.projectId,
     zone: process.env.GCLI_ORBIT_ZONE || config.zone,
     instanceName: process.env.GCLI_ORBIT_INSTANCE_NAME || config.instanceName,
-    backendType: (process.env.GCLI_ORBIT_BACKEND as any) || config.backendType,
+    networkAccessType:
+      (process.env.GCLI_ORBIT_BACKEND as any) || config.networkAccessType,
     imageUri: process.env.GCLI_ORBIT_IMAGE || config.imageUri,
     providerType:
       (process.env.GCLI_ORBIT_PROVIDER as any) || config.providerType,
+    sshUser: process.env.GCLI_ORBIT_SSH_USER || config.sshUser,
+    gitAuthMode: (process.env.GCLI_ORBIT_GIT_AUTH as any) || config.gitAuthMode,
+    geminiAuthMode:
+      (process.env.GCLI_ORBIT_GEMINI_AUTH as any) || config.geminiAuthMode,
+    repoToken: process.env.GCLI_ORBIT_REPO_TOKEN || config.repoToken,
     verbose:
       process.env.GCLI_ORBIT_VERBOSE !== undefined
         ? process.env.GCLI_ORBIT_VERBOSE === '1'
@@ -149,17 +155,20 @@ export function getRepoConfig(
   }
   if (!config.worktreesDir) config.worktreesDir = config.workspacesDir;
 
-  if (config.manageNetworking === undefined) {
-    config.manageNetworking = true;
+  if (config.useDefaultNetwork === undefined) {
+    config.useDefaultNetwork = false;
+  }
+  if (config.manageFirewallRules === undefined) {
+    config.manageFirewallRules = true;
   }
 
   if (!config.vpcName) {
-    config.vpcName = config.manageNetworking ? DEFAULT_VPC_NAME : 'default';
+    config.vpcName = config.useDefaultNetwork ? 'default' : DEFAULT_VPC_NAME;
   }
   if (!config.subnetName) {
-    config.subnetName = config.manageNetworking
-      ? DEFAULT_SUBNET_NAME
-      : 'default';
+    config.subnetName = config.useDefaultNetwork
+      ? 'default'
+      : DEFAULT_SUBNET_NAME;
   }
 
   return config;
@@ -186,10 +195,11 @@ export function resolveContextBundles(
       instanceName: config.instanceName,
       stationName: config.stationName,
       providerType: config.providerType,
-      backendType: config.backendType,
+      networkAccessType: config.networkAccessType,
       imageUri: config.imageUri,
       upstreamRepo: config.upstreamRepo,
-      manageNetworking: config.manageNetworking,
+      useDefaultNetwork: config.useDefaultNetwork,
+      manageFirewallRules: config.manageFirewallRules,
       vpcName: config.vpcName,
       subnetName: config.subnetName,
       machineType: config.machineType,
@@ -203,6 +213,10 @@ export function resolveContextBundles(
       reaperIdleLimit: config.reaperIdleLimit,
       dnsSuffix: config.dnsSuffix,
       userSuffix: config.userSuffix,
+      sshUser: config.sshUser,
+      gitAuthMode: config.gitAuthMode,
+      geminiAuthMode: config.geminiAuthMode,
+      repoToken: config.repoToken,
     },
   };
 }
@@ -217,10 +231,13 @@ export function detectRepoName(
 
   try {
     // 1. Try to get the repo name from the remote URL (most accurate)
-    const remoteRes = pm.runSync('git', ['remote', 'get-url', 'origin'], {
-      quiet: true,
-      cwd: repoRoot,
-    });
+    const remoteRes = pm.runSync(
+      'git',
+      ['-C', repoRoot, 'remote', 'get-url', 'origin'],
+      {
+        quiet: true,
+      },
+    );
     if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
       const url = remoteRes.stdout.trim();
       const match = url.match(/\/([^\/]+)\.git$/);
@@ -228,10 +245,13 @@ export function detectRepoName(
     }
 
     // 2. Fallback to the basename of the git root
-    const rootRes = pm.runSync('git', ['rev-parse', '--show-toplevel'], {
-      quiet: true,
-      cwd: repoRoot,
-    });
+    const rootRes = pm.runSync(
+      'git',
+      ['-C', repoRoot, 'rev-parse', '--show-toplevel'],
+      {
+        quiet: true,
+      },
+    );
     if (rootRes.status === 0 && rootRes.stdout.trim()) {
       return path.basename(rootRes.stdout.trim());
     }
@@ -245,10 +265,13 @@ export function detectRemoteUrl(
   pm: IProcessManager = new ProcessManager(),
 ): string {
   try {
-    const remoteRes = pm.runSync('git', ['remote', 'get-url', 'origin'], {
-      quiet: true,
-      cwd: repoRoot,
-    });
+    const remoteRes = pm.runSync(
+      'git',
+      ['-C', repoRoot, 'remote', 'get-url', 'origin'],
+      {
+        quiet: true,
+      },
+    );
     if (remoteRes.status === 0 && remoteRes.stdout.trim()) {
       return remoteRes.stdout.trim();
     }

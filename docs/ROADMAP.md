@@ -1,89 +1,30 @@
-# Orbit Roadmap: Escaping Gravity 🚀
+# Orbit Roadmap 🗺️
 
-This document outlines the strategic evolution of Gemini Orbit. Our goal is to
-transform it from a CLI-based orchestration tool into a robust, high-performance
-distributed engineering platform.
+This document tracks the strategic engineering goals for the Gemini Orbit
+platform.
 
-## 🛰️ Phase 5: High-Performance Infrastructure
+## 🛰️ Current Priorities (Active Development)
 
-### 1. Hook Restoration & Situational Awareness
+- **Real-Time Log Streaming**: Implement chunked/streaming log uplink in
+  `StationApi` and `StarfleetClient` to support live `tail -f` mission
+  monitoring.
+- **Fleet Dashboard**: Create a high-fidelity terminal dashboard for a unified
+  view of all active stations, missions, and resource utilization.
+- **Dynamic Port Mapping**: Implement automatic discovery of available local
+  ports for Starfleet API tunnels to support multiple concurrent stations.
 
-- **Problem**: Current hooks (`BeforeAgent`, `AfterAgent`, etc.) are not
-  properly configured or wired, leaving mission states at `IDLE` even when the
-  agent is active.
-- **Solution**:
-  - Fix `GeminiExecutor` to correctly pass `--hook-*` flags to the Gemini CLI.
-  - Wire the `hooks.js` script in the mission entrypoint.
-  - Ensure `state.json` provides accurate status: `🧠 [THINKING]`,
-    `⏳ [WAITING]`, `🛑 [BLOCKED]`.
+## 🛠️ Infrastructure & Security
 
-### 2. Custom Supervisor Image
+- **Auth Pass-through**: Explore secure delegation of local GitHub CLI
+  authentication to remote capsules to reduce PAT management overhead.
+- **Pulumi Progress UI**: Enhance the visual feedback for long-running
+  infrastructure operations with clean progress bars and status summaries.
+- **GCE BeyondCorp Verification**: Finalize and document the
+  BeyondCorp-compatible ignition sequence for restricted corporate environments.
 
-- **Problem**: We currently sync the extension `bundle/` and project configs via
-  multiple SSH/rsync calls, causing churn and latency.
-- **Solution**: Move to a "Supervisor First" model. Build a custom Docker image
-  containing the Orbit SDK, supervisor logic, and common dependencies.
-- **Outcome**: `infra liftoff` becomes a single `docker pull` + `docker run`,
-  dramatically reducing cold-start time.
+## 🪐 Future Horizons
 
-### 3. New Infrastructure Providers
-
-- **Raw SSH**: Enable Orbit to target any SSH-reachable machine (e.g., on-prem
-  servers, physical workstations) without Pulumi overhead.
-- **Cloud Workstations**: Native integration with Google Cloud Workstations for
-  IDE-integrated, managed dev environments.
-
-### 4. Auto-Reaper & Resource Governance
-
-- **Goal**: Implement an automated resource cleanup strategy to prevent station
-  starvation and manage cloud costs.
-- **Features**: Configurable idle thresholds, automated capsule pruning (Reap),
-  and per-capsule CPU/Memory limits.
-
-## 📡 Phase 6: Mission Control API & Dashboard
-
-### 1. Orbit Persistence API
-
-- **Problem**: One-off SSH calls to a CLI are slow and make it hard to maintain
-  long-running state or streaming telemetry.
-- **Solution**: Implement a persistent API service (running in the Supervisor
-  container) that the local SDK communicates with.
-- **Outcome**: Faster status checks, real-time log streaming, and a foundation
-  for multi-client access.
-
-### 2. Web Constellation Dashboard
-
-- **Goal**: A high-fidelity web interface for monitoring the entire fleet.
-- **Features**: Real-time terminal snapshots (Peek), progress bars, detailed
-  "Handoff Notes," resource utilization graphs, and one-click "Attach."
-
-## 🛠️ Phase 7: Engineering Excellence
-
-### 1. PR Creation Utility
-
-- **Goal**: Automate the final step of the "Implement" and "Fix" missions by
-  providing a high-fidelity PR creation utility that includes mission logs and
-  assessments in the PR body.
-
-### 2. Centralized Observability
-
-- **Standard**: All logging must respect the `--verbose` flag.
-- **Output**: Public script output should be thin and high-signal, moving
-  detailed infrastructure logs to the background or the `--verbose` stream.
-
-### 3. Radical Testing Refactor
-
-- **Strategy**: Move away from heavy mocks in integration tests.
-- **Mechanism**: Use a real temporary filesystem for all tests. Hijack the `bin`
-  directory to provide "Process Mocks" (e.g., mock `git`, `docker`, `gcloud`)
-  that return deterministic output without running real side effects.
-- **Goal**: 100% reliable, fast integration tests that exercise the real logic
-  paths.
-
-## 🔮 Long-Term Horizon
-
-- **Teleportation**: Seamlessly move active missions between local and remote
-  stations.
-- **Autonomous Swarms**: Parallelize complex tasks across multiple capsules
-  simultaneously.
-- **Self-Healing Infra**: Automatically detect and repair station health issues.
+- **Auto-Scaling Clusters**: Dynamically provision worker nodes based on mission
+  load.
+- **Mission Checkpointing**: Support pausing and resuming mission capsules
+  across different hardware hosts.

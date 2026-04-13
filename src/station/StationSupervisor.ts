@@ -10,6 +10,7 @@ import { ORBIT_STATE_PATH } from '../core/Constants.js';
 import { type IProcessManager } from '../core/interfaces.js';
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { type MissionManifest } from '../core/types.js';
+import { type StationSupervisorConfig } from '../core/types.js';
 import { type Command } from '../core/executors/types.js';
 
 export interface ITmuxExecutor {
@@ -22,7 +23,7 @@ export interface ITmuxExecutor {
 
 export class StationSupervisor {
   constructor(
-    private readonly baseDir: string,
+    private readonly config: Pick<StationSupervisorConfig, 'bundlePath'>,
     private readonly pm: IProcessManager,
     private readonly tmux: ITmuxExecutor,
   ) {}
@@ -183,9 +184,23 @@ export class StationSupervisor {
         run(GitExecutor.checkoutNew(targetDir, branch, remoteRef));
       } else {
         console.log(
-          `   - Branch '${branch}' not found anywhere. Creating fresh from HEAD...`,
+          `   - Branch '${branch}' not found anywhere. Creating from remote default branch...`,
         );
-        run(GitExecutor.checkoutNew(targetDir, branch));
+        const fetchDefaultCmd = GitExecutor.fetch(targetDir, 'origin', 'HEAD');
+        const fetchDefaultRes = this.pm.runSync(
+          fetchDefaultCmd.bin,
+          fetchDefaultCmd.args,
+          {
+            ...fetchDefaultCmd.options,
+            env: { ...fetchDefaultCmd.options?.env, GIT_TERMINAL_PROMPT: '0' },
+          },
+        );
+        if (fetchDefaultRes.status !== 0) {
+          throw new Error(
+            `Failed to fetch remote default branch for '${branch}': ${fetchDefaultRes.stderr}`,
+          );
+        }
+        run(GitExecutor.checkoutNew(targetDir, branch, 'FETCH_HEAD'));
       }
     }
 
@@ -225,13 +240,8 @@ export class StationSupervisor {
    * Spawns the mission worker inside a tmux session.
    */
   async launchMission(manifest: MissionManifest): Promise<number> {
-    const { sessionName, workDir, bundleDir } = manifest;
-
-    // ADR 0018: Use the bundleDir provided in the manifest (Resolved by ContextResolver)
-    const workerScript = path.join(
-      bundleDir || '/mnt/disks/data/bundle',
-      'mission.js',
-    );
+    const { sessionName, workDir } = manifest;
+    const workerScript = path.join(this.config.bundlePath, 'mission.js');
 
     console.log(`🚀 Launching mission worker: ${sessionName}`);
     const cmd = this.tmux.wrapMission(sessionName, `node ${workerScript}`, {

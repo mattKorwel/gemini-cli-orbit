@@ -36,7 +36,7 @@ Google Compute Engine).
   "projectId": "my-cloud-project",
   "zone": "us-west1-a",
   "instanceName": "orbit-station-matt",
-  "backendType": "direct-internal"
+  "networkAccessType": "direct-internal"
 }
 ```
 

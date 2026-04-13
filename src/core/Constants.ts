@@ -51,12 +51,18 @@ export interface InfrastructureSpec {
   zone?: string | undefined;
   instanceName?: string | undefined; // Required primary key for provisioning
   stationName?: string | undefined;
-  providerType?: 'gce' | 'local-worktree' | 'local-workspace' | undefined;
-  backendType?: 'direct-internal' | 'external' | undefined;
+  providerType?:
+    | 'gce'
+    | 'local-worktree'
+    | 'local-git'
+    | 'local-docker'
+    | undefined;
+  networkAccessType?: 'direct-internal' | 'external' | undefined;
   imageUri?: string | undefined;
   upstreamRepo?: string | undefined;
   upstreamUrl?: string | undefined;
-  manageNetworking?: boolean | undefined;
+  useDefaultNetwork?: boolean | undefined;
+  manageFirewallRules?: boolean | undefined;
   vpcName?: string | undefined;
   subnetName?: string | undefined;
   machineType?: string | undefined;
@@ -71,8 +77,14 @@ export interface InfrastructureSpec {
   dnsSuffix?: string | undefined;
   userSuffix?: string | undefined;
   sshUser?: string | undefined;
+  allowDevUpdates?: boolean | undefined;
   schematic?: string | undefined;
   verbose?: boolean | undefined;
+  gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none' | undefined;
+  geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none' | undefined;
+  repoToken?: string | undefined;
+  env?: Record<string, string> | undefined;
+  sensitiveEnv?: Record<string, string> | undefined;
 }
 
 /**
@@ -81,6 +93,8 @@ export interface InfrastructureSpec {
 export interface OrbitContext {
   project: ProjectContext;
   infra: InfrastructureSpec;
+  state?: import('../infrastructure/InfrastructureState.js').InfrastructureState;
+  isDev?: boolean;
 }
 
 /**
@@ -125,7 +139,11 @@ export function getPrimaryRepoRoot(repoRoot: string = process.cwd()): string {
 /**
  * Standardized paths on the REMOTE station (Hardware Host)
  */
-export const ORBIT_ROOT = '/mnt/disks/data';
+export const ORBIT_ROOT =
+  process.env.GCLI_ORBIT_ROOT ||
+  (os.platform() === 'darwin'
+    ? path.join(os.homedir(), '.gemini/orbit')
+    : '/mnt/disks/data');
 export const MAIN_REPO_PATH = `${ORBIT_ROOT}/main`;
 export const SATELLITE_WORKSPACES_PATH = `${ORBIT_ROOT}/workspaces`;
 export const SATELLITE_WORKTREES_PATH = SATELLITE_WORKSPACES_PATH; // Compatibility
@@ -138,14 +156,17 @@ export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
 
 /**
  * Standardized paths INSIDE the Agent Capsule (Docker Container)
- * Aligned with orbit-capsule.Dockerfile
+ * ADR 0023: Unified Container Root
  */
-export const CAPSULE_WORKDIR = '/home/node/dev/main';
-export const CAPSULE_CLI_ROOT = '/usr/local/lib/gemini-cli';
-export const CAPSULE_BUNDLE_PATH = `${CAPSULE_CLI_ROOT}/bundle`;
-export const STATION_BUNDLE_PATH = `${BUNDLE_PATH}/station.js`;
-export const CAPSULE_MANIFEST_PATH = '/home/node/.orbit-manifest.json';
+export const CAPSULE_ROOT = '/orbit';
+export const CAPSULE_WORKDIR = `${CAPSULE_ROOT}/workspaces`;
+export const CAPSULE_BUNDLE_PATH = `${CAPSULE_ROOT}/bundle`;
+export const STATION_BUNDLE_PATH = `${CAPSULE_BUNDLE_PATH}/station.js`;
+export const CAPSULE_MANIFEST_PATH = `${CAPSULE_ROOT}/manifest.json`;
+export const SUPERVISOR_ENTRYPOINT_SOURCE_PATH =
+  '/tmp/orbit-starfleet-entrypoint.sh';
 export const LOCAL_MANIFEST_NAME = '.orbit-manifest.json';
+export const LOCAL_MANIFEST_ENV = 'GCLI_ORBIT_MANIFEST_PATH';
 
 /**
  * Standardized paths on the LOCAL machine (The Extension itself)
@@ -169,9 +190,25 @@ export const GLOBAL_ACCOUNTS_FILE = path.join(
   GLOBAL_GEMINI_DIR,
   'google_accounts.json',
 );
-export const GLOBAL_GH_CONFIG = path.join(os.homedir(), '.config/gh/hosts.yml');
+export const GLOBAL_GEMINI_CREDENTIALS_FILE = path.join(
+  GLOBAL_GEMINI_DIR,
+  'gemini-credentials.json',
+);
+export function getGlobalGhConfigDir(): string {
+  if (process.env.GH_CONFIG_DIR) {
+    return process.env.GH_CONFIG_DIR;
+  }
+  if (process.platform === 'win32' && process.env.APPDATA) {
+    return path.join(process.env.APPDATA, 'GitHub CLI');
+  }
+  return path.join(os.homedir(), '.config', 'gh');
+}
+export const GLOBAL_GH_CONFIG_DIR = getGlobalGhConfigDir();
+export const GLOBAL_GH_CONFIG = path.join(GLOBAL_GH_CONFIG_DIR, 'hosts.yml');
+export const GLOBAL_HOME_ENV_FILE = path.join(os.homedir(), '.env');
 
 export const GLOBAL_ORBIT_DIR = path.join(GLOBAL_GEMINI_DIR, 'orbit');
+export const GLOBAL_MANIFESTS_DIR = path.join(GLOBAL_ORBIT_DIR, 'manifests');
 export const GLOBAL_SETTINGS_PATH = path.join(
   GLOBAL_ORBIT_DIR,
   'settings.json',
@@ -202,6 +239,11 @@ export function getOrbitLogPath(repoRoot: string): string {
   return path.join(getProjectOrbitDir(repoRoot), 'orbit.log');
 }
 
+export function getLocalMissionManifestPath(sessionName: string): string {
+  const safeName = sessionName.replace(/[^a-zA-Z0-9\-_/]/g, '-');
+  return path.join(GLOBAL_MANIFESTS_DIR, 'local', `${safeName}.json`);
+}
+
 /**
  * Repository Metadata
  */
@@ -217,7 +259,7 @@ export const DEFAULT_DNS_SUFFIX = '';
 export const DEFAULT_USER_SUFFIX = '';
 export const DEFAULT_VPC_NAME = 'orbit';
 export const DEFAULT_SUBNET_NAME = 'orbit';
-export const DEFAULT_IMAGE_URI =
+export const DEFAULT_SUPERVISOR_IMAGE_URI =
   'us-docker.pkg.dev/gemini-code-dev/gemini-cli/development:latest';
 
 /**
@@ -234,8 +276,25 @@ export interface OrbitConfig extends InfrastructureSpec {
   profile?: string | undefined;
   schematic?: string | undefined;
   forStation?: string | undefined;
+  projectId?: string | undefined;
+  providerType?:
+    | 'gce'
+    | 'local-worktree'
+    | 'local-git'
+    | 'local-docker'
+    | undefined;
+  networkAccessType?: 'direct-internal' | 'external' | undefined;
   local?: boolean | undefined;
-  manageNetworking?: boolean | undefined;
+  localDocker?: boolean | undefined;
+  isDev?: boolean | undefined;
+  env?: Record<string, string> | undefined;
+  sensitiveEnv?: Record<string, string> | undefined;
+  gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none' | undefined;
+  geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none' | undefined;
+  repoToken?: string | undefined;
+  useDefaultNetwork?: boolean | undefined;
+  manageFirewallRules?: boolean | undefined;
+  allowDevUpdates?: boolean | undefined;
   tempDir?: string | undefined;
   autoClean?: boolean | undefined;
   verbose?: boolean | undefined;
@@ -258,5 +317,6 @@ export interface OrbitSettings {
   tempDir?: string | undefined;
   workspacesDir?: string | undefined;
   worktreesDir?: string | undefined; // Compatibility
+  localDocker?: boolean | undefined;
   autoClean?: boolean | undefined;
 }

@@ -4,8 +4,54 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { z } from 'zod';
 import { type OrbitConfig } from './Constants.js';
 import { type LogLevel } from './Logger.js';
+
+/**
+ * Zod schema for MissionManifest to ensure strict validation across the wire.
+ */
+export const MissionManifestSchema = z.object({
+  identifier: z.string(), // The user's ID (PR # or branch name)
+  repoName: z.string(), // The sanitized repository name
+  branchName: z.string(), // The resolved git branch
+  action: z.string(), // The playbook action (chat, fix, review, etc.)
+  workspaceName: z.string(), // The hierarchical workspace identifier (relative path)
+  workDir: z.string(), // The absolute path to the workspace
+  containerName: z.string(), // The name of the mission container
+  policyPath: z.string(), // The absolute path to the active policy
+  sessionName: z.string(), // The user-friendly hierarchical session name
+  upstreamUrl: z.string(), // The git remote origin URL
+  mirrorPath: z.string().optional(), // Optional path to local git mirror
+  bundleDir: z.string().optional(), // Root directory for orbit bundles
+  verbose: z.boolean().optional(), // Whether to enable detailed logging
+  tempDir: z.string().optional(), // Root directory for temporary logs
+  isDev: z.boolean().optional(), // Whether to use Shadow Mode (Dev override)
+  gitAuthMode: z.enum(['host-gh-config', 'repo-token', 'none']).optional(),
+  geminiAuthMode: z.enum(['env-chain', 'accounts-file', 'none']).optional(),
+  env: z.record(z.string(), z.string()).optional(), // Standard environment variables
+  sensitiveEnv: z.record(z.string(), z.string()).optional(), // Secret environment variables (not logged)
+  geminiAuthFiles: z
+    .object({
+      googleAccountsJson: z.string().optional(),
+      geminiCredentialsJson: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Immutable unit of truth for a mission's state and configuration.
+ * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
+ */
+export type MissionManifest = z.infer<typeof MissionManifestSchema>;
+
+export interface ExecResult {
+  status: number;
+  stdout: string;
+  stderr: string;
+}
+
+export type StationReceipt = import('./interfaces.js').StationReceipt;
 
 /**
  * Interface for observing SDK activities.
@@ -75,33 +121,15 @@ export interface CIStatus {
 }
 
 /**
- * Immutable unit of truth for a mission's state and configuration.
- * Loaded from .orbit-manifest.json or CAPSULE_MANIFEST_PATH.
- */
-export interface MissionManifest {
-  identifier: string; // The user's ID (PR # or branch name)
-  repoName: string; // The sanitized repository name
-  branchName: string; // The resolved git branch
-  action: string; // The playbook action (chat, fix, review, etc.)
-  workspaceName: string; // The hierarchical workspace identifier (relative path)
-  workDir: string; // The absolute path to the workspace
-  containerName: string; // The name of the mission container
-  policyPath: string; // The absolute path to the active policy
-  sessionName: string; // The user-friendly hierarchical session name
-  upstreamUrl: string; // The git remote origin URL
-  mirrorPath?: string; // Optional path to local git mirror
-  bundleDir?: string; // Root directory for orbit bundles (station.js, mission.js)
-  verbose?: boolean | undefined; // Whether to enable detailed logging
-  tempDir?: string | undefined; // Root directory for temporary logs and artifacts
-}
-
-/**
  * Options for starting a mission.
  */
 export interface MissionOptions {
   identifier: string;
   action: string;
   args?: string[];
+  dev?: boolean;
+  gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none';
+  geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none';
 }
 
 /**
@@ -141,6 +169,7 @@ export interface GetLogsOptions {
  */
 export interface ProvisionOptions {
   stationName?: string | undefined;
+  instanceName?: string | undefined;
   schematicName?: string | undefined;
   destroy?: boolean | undefined;
 }
@@ -149,7 +178,6 @@ export interface ProvisionOptions {
  * Options for listing stations.
  */
 export interface ListStationsOptions {
-  syncWithReality?: boolean | undefined;
   includeMissions?: boolean | undefined;
   repoFilter?: string | undefined;
   nameFilter?: string | undefined;
@@ -246,7 +274,7 @@ export interface SchematicInfo {
   name: string;
   projectId?: string;
   zone?: string;
-  backendType?: string;
+  networkAccessType?: string;
   machineType?: string;
 }
 
@@ -255,7 +283,7 @@ export interface SetupOptions {
   zone: string;
   dnsSuffix?: string;
   userSuffix?: string;
-  backendType?: string;
+  networkAccessType?: string;
 }
 export interface ExecOptions {
   interactive?: boolean;
@@ -294,6 +322,40 @@ export interface SyncOptions {
   exclude?: string[];
   sudo?: boolean;
   quiet?: boolean;
+}
+
+export interface MountPoint {
+  host: string;
+  capsule: string;
+  readonly?: boolean;
+}
+
+export interface StationPathArea {
+  host: string;
+  capsule: string;
+  readonly?: boolean;
+  kind?: 'dir' | 'file';
+}
+
+/**
+ * Configuration for the Station Supervisor (Server).
+ * Used for early hydration to eliminate inline defaults.
+ */
+export interface StationSupervisorConfig {
+  port: number;
+  workerImage: string;
+  workerUser?: string;
+  manifestRoot: string;
+  hostRoot?: string;
+  isUnlocked: boolean;
+  useSudo: boolean;
+  storage: {
+    workspacesRoot: string;
+    mirrorPath: string;
+  };
+  mounts: MountPoint[];
+  areas?: Record<string, StationPathArea>;
+  bundlePath: string;
 }
 
 export interface OrbitStatus {

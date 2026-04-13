@@ -11,6 +11,8 @@ import { ConfigManager } from '../core/ConfigManager.js';
 import { StationRegistry } from './StationRegistry.js';
 import { ContextResolver } from '../core/ContextResolver.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
+import { StarfleetClient } from './StarfleetClient.js';
+import { GceStarfleetProvider } from '../providers/GceStarfleetProvider.js';
 import fs from 'node:fs';
 
 vi.mock('node:fs');
@@ -56,10 +58,10 @@ describe('Config Propagation Integration', () => {
           .mockImplementation(async (target, command, options) =>
             mockPm.runSync('ssh', [target, command], options),
           ),
-        rsync: vi
+        copyTo: vi
           .fn()
-          .mockImplementation((local, remote, options) =>
-            mockPm.runSync('rsync', [local, remote], options),
+          .mockImplementation((target, local, remote, options) =>
+            mockPm.runSync('scp', [local, `${target}:${remote}`], options),
           ),
       },
       git: {
@@ -90,7 +92,7 @@ describe('Config Propagation Integration', () => {
       zone: 'us-east1-b',
       dnsSuffix: 'internal.gcpnode.com',
       userSuffix: '_google_com',
-      backendType: 'direct-internal',
+      networkAccessType: 'direct-internal',
     };
 
     const receiptData = {
@@ -110,6 +112,15 @@ describe('Config Propagation Integration', () => {
       if (n.includes('settings.json')) return JSON.stringify({ repos: {} });
       return '{}';
     });
+
+    // Surgical spies on the real class to avoid unhandled loops/rejections in test
+    vi.spyOn(
+      GceStarfleetProvider.prototype,
+      'verifyIgnition',
+    ).mockResolvedValue(true);
+    vi.spyOn(GceStarfleetProvider.prototype, 'launchMission').mockResolvedValue(
+      0,
+    );
   });
 
   it('should propagate dnsSuffix from schematic to SSH commands during mission launch', async () => {
@@ -138,6 +149,7 @@ describe('Config Propagation Integration', () => {
       mockPm,
       executors,
       stationRegistry,
+      new StarfleetClient(),
     );
 
     // Start mission in background so we can advance timers

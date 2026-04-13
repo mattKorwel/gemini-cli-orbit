@@ -9,22 +9,40 @@ import {
   type ProjectContext,
 } from '../core/Constants.js';
 import { type StationState } from '../core/types.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import {
   type IProviderFactory,
   type IExecutors,
   type IStationRegistry,
   type HydratedStation,
-  type IStatusManager,
 } from '../core/interfaces.js';
 
-export class StatusManager implements IStatusManager {
+export class StatusManager {
+  private _cachedProvider:
+    | import('../providers/BaseProvider.js').BaseProvider
+    | null = null;
+
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
+    private readonly state: InfrastructureState | undefined,
     private readonly providerFactory: IProviderFactory,
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
-  ) {}
+    provider?: import('../providers/BaseProvider.js').BaseProvider,
+  ) {
+    if (provider) this._cachedProvider = provider;
+  }
+
+  private getProvider() {
+    if (this._cachedProvider) return this._cachedProvider;
+    this._cachedProvider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+      this.state,
+    );
+    return this._cachedProvider;
+  }
 
   /**
    * Check station health and active mission status for the active project.
@@ -52,7 +70,7 @@ export class StatusManager implements IStatusManager {
    */
   async fetchFleetState(
     stations: HydratedStation[],
-    depth: 'inventory' | 'health' | 'pulse',
+    depth: 'health' | 'pulse',
     peek = false,
   ): Promise<StationState[]> {
     return Promise.all(
@@ -61,8 +79,6 @@ export class StatusManager implements IStatusManager {
           receipt: s.receipt,
           isActive: false, // Will be set by caller based on context
         };
-
-        if (depth === 'inventory') return state;
 
         try {
           const reality = await s.provider.getStatus();
@@ -73,17 +89,11 @@ export class StatusManager implements IStatusManager {
           if (reality.internalIp) state.reality.internalIp = reality.internalIp;
           if (reality.externalIp) state.reality.externalIp = reality.externalIp;
 
-          // Always fetch missions for local stations (zero-cost)
-          // For remote stations, only fetch if depth is 'pulse'
-          const shouldFetchMissions =
-            depth === 'pulse' || s.receipt.type === 'local-worktree';
-
-          if (
-            shouldFetchMissions &&
-            reality.status === 'RUNNING' &&
-            state.reality
-          ) {
-            const missions = await s.provider.getMissionTelemetry(peek);
+          // Always fetch missions for all stations (zero-cost for local, mandatory for remote)
+          if (reality.status === 'RUNNING' && state.reality) {
+            const missions = await s.provider.getMissionTelemetry(
+              peek || depth === 'pulse',
+            );
             // Standardize repo attribution for scoped aggregation
             missions.forEach((m) => {
               if (m.repo === 'unknown' || !m.repo) m.repo = s.receipt.repo;

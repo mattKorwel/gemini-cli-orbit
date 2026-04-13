@@ -6,6 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const ORBIT_STATE_PATH = '.gemini/orbit/state.json';
 
@@ -55,6 +56,18 @@ export async function beforeAgent(input: any) {
 }
 
 /**
+ * Hook triggered when a Gemini session starts.
+ */
+export async function sessionStart(input: any) {
+  updateState(input.cwd, {
+    status: 'IDLE',
+    ...(process.env.GCLI_ORBIT_MISSION_ID
+      ? { mission: process.env.GCLI_ORBIT_MISSION_ID }
+      : {}),
+  });
+}
+
+/**
  * Hook triggered AFTER the agent finishes its turn.
  */
 export async function afterAgent(input: any) {
@@ -99,34 +112,47 @@ export async function beforeTool(input: any) {
   updateState(input.cwd, { status: 'THINKING' });
 }
 
-// Entry point for command-line hooks
-if (
-  import.meta.url === `file://${process.argv[1]}` ||
-  (process.argv[1] && process.argv[1].endsWith('hooks.js'))
-) {
-  const event = process.env.GEMINI_HOOK_EVENT;
-  const inputPath = process.env.GEMINI_HOOK_INPUT;
+export function isDirectHookExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
 
-  if (event && inputPath && fs.existsSync(inputPath)) {
-    try {
-      const input = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
-      // Optional: fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Hook: ${event}\n`);
-      switch (event) {
-        case 'BeforeAgent':
-          beforeAgent(input);
-          break;
-        case 'AfterAgent':
-          afterAgent(input);
-          break;
-        case 'BeforeTool':
-          beforeTool(input);
-          break;
-        case 'Notification':
-          notification(input);
-          break;
-      }
-    } catch (_e) {
-      // fs.appendFileSync('.gemini/orbit/hooks.log', `[${new Date().toISOString()}] Error: ${e}\n`);
+  try {
+    return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+export async function runHookCli() {
+  try {
+    const stdin = fs.readFileSync(0, 'utf8').trim();
+    if (!stdin) {
+      return 0;
     }
+
+    const input = JSON.parse(stdin);
+    const event = input.hook_event_name || input.event || '';
+
+    switch (event) {
+      case 'SessionStart':
+        await sessionStart(input);
+        break;
+      case 'BeforeAgent':
+        await beforeAgent(input);
+        break;
+      case 'AfterAgent':
+        await afterAgent(input);
+        break;
+      case 'BeforeTool':
+        await beforeTool(input);
+        break;
+      case 'Notification':
+        await notification(input);
+        break;
+    }
+
+    return 0;
+  } catch {
+    return 0;
   }
 }

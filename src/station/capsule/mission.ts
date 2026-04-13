@@ -6,66 +6,53 @@
 
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { logger } from '../../core/Logger.js';
 import { GeminiExecutor } from '../../core/executors/GeminiExecutor.js';
-import { GitExecutor } from '../../core/executors/GitExecutor.js';
+import { WindowsGeminiExecutor } from '../../core/executors/WindowsGeminiExecutor.js';
 import { getMissionManifest } from '../../utils/MissionUtils.js';
 import { type IProcessManager } from '../../core/interfaces.js';
 import { ProcessManager } from '../../core/ProcessManager.js';
 
-import { runReviewPlaybook } from '../../playbooks/review.js';
 import { runFixPlaybook } from '../../playbooks/fix.js';
+import { runAgenticManeuver } from '../../playbooks/ManeuverRunner.js';
 import { SessionManager } from '../../utils/SessionManager.js';
 import { TempManager } from '../../utils/TempManager.js';
 import { updateState } from './hooks.js';
 
-const getDirname = () => {
-  try {
-    return path.dirname(fileURLToPath(import.meta.url));
-  } catch {
-    return __dirname;
-  }
-};
+const CAPSULE_GEMINI_BIN = '/usr/local/share/npm-global/bin/gemini';
 
-const _dirname = getDirname();
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+
+  try {
+    return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
 
 /**
- * Entrypoint for Orbit missions inside the capsule/worktree.
- * Orchestrates doctor checks and dispatches to either a playbook or chat.
+ * Entrypoint for Orbit missions inside the capsule.
+ * Pure Workflow Dispatcher: Assumes environment is already prepared by the Supervisor.
  */
 export async function main(pm: IProcessManager = new ProcessManager()) {
-  // ADR 0018: Hydrate context from environment manifest
+  console.log('🚩 SEMAPHORE: Mission Logic Version - v7');
   const manifest = getMissionManifest();
   logger.setVerbose(manifest.verbose === true);
   const { identifier, action, workDir, policyPath } = manifest;
 
   const absWorkDir = path.resolve(workDir);
-  logger.divider('ORBIT DOCTOR');
 
-  // 1. Doctor Checks
-  logger.info('GENERAL', '🩺 Running Orbit Doctor...');
-  if (!fs.existsSync(absWorkDir)) {
-    logger.error('GENERAL', `❌ Work directory missing: ${absWorkDir}`);
-    return 1;
-  }
+  // Note: Redundant "Doctor Checks" (Git/FS) have been removed.
+  // The Starfleet Supervisor handles infrastructure health before spawning this container.
 
-  const gitCheck = pm.runSync(
-    'git',
-    GitExecutor.revParse(absWorkDir, ['--is-inside-work-tree']).args,
-    { cwd: absWorkDir, quiet: true },
-  );
-  if (gitCheck.status !== 0) {
-    logger.error('GENERAL', '❌ Work directory is not a valid git worktree.');
-    return 1;
-  }
-  logger.info('GENERAL', '   ✅ Git worktree health verified.');
-
-  // Transition from INITIALIZING to IDLE
+  // Transition to IDLE state
   updateState(absWorkDir, { status: 'IDLE' });
 
-  // Resolve log directory and other mission-specific paths
+  // Resolve mission-specific paths
   const tempManager = new TempManager({ tempDir: manifest.tempDir });
   const sessionId =
     SessionManager.getSessionIdFromEnv() ||
@@ -74,7 +61,7 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
 
   const missionHeader = `🚀 Mission: ${identifier} | Action: ${action}`;
 
-  // 2. Dispatching
+  // Dispatching Logic
   if (action === 'chat') {
     logger.info('GENERAL', '✨ Orbit ready. Joining interactive session...');
 
@@ -82,20 +69,17 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
     const hasSessions =
       fs.existsSync(sessionsDir) && fs.readdirSync(sessionsDir).length > 0;
 
-    const geminiBin = 'gemini';
-    const env = {
-      ...process.env,
-      GEMINI_AUTO_UPDATE: '0',
-      GCLI_ORBIT_MISSION_ID: identifier,
-      GCLI_ORBIT_ACTION: action,
-    };
-
-    // ADR 0017: Inject mission-control hooks
     const geminiOpts: any = {
       approvalMode: 'plan',
       policy: policyPath,
       cwd: absWorkDir,
-      env,
+      env: {
+        ...process.env,
+        GEMINI_AUTO_UPDATE: '0',
+        GCLI_ORBIT_MISSION_ID: identifier,
+        GCLI_ORBIT_ACTION: action,
+        GCLI_TRUST: '1',
+      },
       interactive: true,
     };
 
@@ -103,28 +87,42 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
       geminiOpts.resume = 'latest';
     }
 
-    const geminiCmd = GeminiExecutor.create(geminiBin, geminiOpts);
-    logger.info(
-      'GENERAL',
-      `🏃 Executing: ${geminiCmd.bin} ${geminiCmd.args.join(' ')}`,
-    );
+    const geminiBin = fs.existsSync(CAPSULE_GEMINI_BIN)
+      ? CAPSULE_GEMINI_BIN
+      : 'gemini';
+
+    const geminiExecutor =
+      process.platform === 'win32'
+        ? new WindowsGeminiExecutor(pm)
+        : new GeminiExecutor(pm);
+
+    const geminiCmd = geminiExecutor.create(geminiBin, geminiOpts);
     const res = pm.runSync(geminiCmd.bin, geminiCmd.args, geminiCmd.options);
+
+    if (res.status !== 0) {
+      const details = res.stderr?.trim() || res.stdout?.trim();
+      console.error(
+        `❌ Gemini failed with status ${res.status}${details ? `: ${details}` : ''}`,
+      );
+    } else {
+      console.info('✅ Interactive session complete.');
+    }
+
     return res.status;
   } else {
-    // Playbook Dispatch
-    logger.info('GENERAL', `🏃 Launching ${action} playbook...`);
+    logger.info('GENERAL', `🏃 Launching ${action} agentic maneuver...`);
 
     switch (action) {
       case 'review':
-        return runReviewPlaybook(
+        return runAgenticManeuver({
           identifier,
-          absWorkDir,
+          action,
+          targetDir: absWorkDir,
           policyPath,
-          'gemini',
           logDir,
-          missionHeader,
           pm,
-        );
+          protocolName: 'reviewer',
+        });
       case 'fix':
         return runFixPlaybook(
           identifier,
@@ -155,15 +153,9 @@ export async function main(pm: IProcessManager = new ProcessManager()) {
   }
 }
 
-if (
-  process.argv[1] &&
-  (import.meta.url === pathToFileURL(process.argv[1]).href ||
-    import.meta.url === `file://${process.argv[1]}`)
-) {
+if (isDirectExecution()) {
   main()
-    .then((code) => {
-      process.exit(code);
-    })
+    .then((code) => process.exit(code))
     .catch((err) => {
       console.error(err);
       process.exit(1);

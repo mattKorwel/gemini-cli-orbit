@@ -24,16 +24,13 @@ export interface GeminiOptions extends IRunOptions {
   hookNotification?: string;
 }
 
+/**
+ * GeminiExecutor: Standard Linux implementation for gemini CLI.
+ */
 export class GeminiExecutor implements IGeminiExecutor {
-  constructor(private readonly _pm: IProcessManager) {}
+  constructor(protected readonly _pm: IProcessManager) {}
 
   public create(bin: string, options: GeminiOptions = {}): Command {
-    return GeminiExecutor.create(bin, options);
-  }
-
-  // --- Static Metadata Helpers ---
-
-  public static create(bin: string, options: GeminiOptions = {}): Command {
     const {
       approvalMode,
       policy,
@@ -53,9 +50,22 @@ export class GeminiExecutor implements IGeminiExecutor {
     if (prompt) args.push('--prompt', prompt);
 
     return {
-      bin,
+      bin: this.resolveBin(bin),
       args,
       options: runOpts,
     };
+  }
+
+  protected resolveBin(bin: string): string {
+    return bin;
+  }
+
+  /**
+   * Static helper for simple cases where an instance isn't available.
+   * Prefer using the instance-based create() for platform-aware behavior.
+   */
+  public static create(bin: string, options: GeminiOptions = {}): Command {
+    const pm = null as any; // Static doesn't have PM
+    return new GeminiExecutor(pm).create(bin, options);
   }
 }

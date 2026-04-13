@@ -62,15 +62,19 @@ export class ProcessManager implements IProcessManager {
       stdio:
         mergedOptions.stdio ||
         (interactive ? 'inherit' : quiet ? 'pipe' : 'inherit'),
-      shell: false,
+      shell: mergedOptions.shell ?? false,
     };
+
+    if (process.env.GCLI_ORBIT_VERBOSE === '1') {
+      logger.debug('EXEC', `   Environment PATH: ${spawnOptions.env?.PATH}`);
+    }
 
     const res = spawnSync(effectiveBin, effectiveArgs, spawnOptions);
 
     return {
       status: res.status ?? (res.error ? 1 : 0),
       stdout: res.stdout?.toString() || '',
-      stderr: res.stderr?.toString() || '',
+      stderr: res.stderr?.toString() || res.error?.message || '',
     };
   }
 
@@ -97,12 +101,38 @@ export class ProcessManager implements IProcessManager {
       effectiveArgs = [bin, ...args];
     }
 
-    return spawn(effectiveBin, effectiveArgs, {
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: mergedOptions.stdio || 'inherit',
-      detached: true,
-    });
+    if (process.env.GCLI_ORBIT_VERBOSE === '1') {
+      logger.debug(
+        'EXEC',
+        `[DEBUG] ProcessManager.spawn: bin=${effectiveBin}, args=${effectiveArgs.join(' ')}`,
+      );
+      logger.debug('EXEC', `[DEBUG] ProcessManager.spawn: cwd=${cwd}`);
+    }
+
+    try {
+      const child = spawn(effectiveBin, effectiveArgs, {
+        cwd,
+        env: { ...process.env, ...env },
+        stdio: mergedOptions.stdio || 'inherit',
+        detached: mergedOptions.detached || false,
+        shell: mergedOptions.shell ?? false,
+      });
+
+      child.on('error', (err) => {
+        logger.error(
+          'EXEC',
+          `[DEBUG] ProcessManager.spawn ERROR event: ${err.message}`,
+        );
+      });
+
+      return child;
+    } catch (err: any) {
+      logger.error(
+        'EXEC',
+        `[DEBUG] ProcessManager.spawn THROW: ${err.message}`,
+      );
+      throw err;
+    }
   }
 
   /**
@@ -117,43 +147,65 @@ export class ProcessManager implements IProcessManager {
     const { onStdout, onStderr } = mergedOptions;
 
     return new Promise((resolve) => {
-      const child = this.spawn(bin, args, { ...options, stdio: 'pipe' });
-      let stdout = '';
-      let stderr = '';
+      try {
+        const child = this.spawn(bin, args, { ...options, stdio: 'pipe' });
+        let stdout = '';
+        let stderr = '';
 
-      child.stdout?.on('data', (data) => {
-        const str = data.toString();
-        stdout += str;
-        if (mergedOptions.stream) {
-          process.stdout.write(str);
-        }
-        onStdout?.(str);
-      });
-
-      child.stderr?.on('data', (data) => {
-        const str = data.toString();
-        stderr += str;
-        if (mergedOptions.stream) {
-          process.stderr.write(str);
-        }
-        onStderr?.(str);
-      });
-
-      child.on('close', (status) => {
-        resolve({
-          status: status ?? 0,
-          stdout,
-          stderr,
+        child.stdout?.on('data', (data) => {
+          const str = data.toString();
+          stdout += str;
+          if (mergedOptions.stream) {
+            process.stdout.write(str);
+          }
+          onStdout?.(str);
         });
-      });
 
-      child.on('error', (err) => {
+        child.stderr?.on('data', (data) => {
+          const str = data.toString();
+          stderr += str;
+          if (mergedOptions.stream) {
+            process.stderr.write(str);
+          }
+          onStderr?.(str);
+        });
+
+        child.on('close', (status) => {
+          if (process.env.GCLI_ORBIT_VERBOSE === '1') {
+            logger.debug(
+              'EXEC',
+              `[DEBUG] ProcessManager.run CLOSE: status=${status}`,
+            );
+          }
+          resolve({
+            status: status ?? 0,
+            stdout,
+            stderr,
+          });
+        });
+
+        child.on('error', (err) => {
+          logger.error(
+            'EXEC',
+            `[DEBUG] ProcessManager.run error event: ${err.message}`,
+          );
+          resolve({
+            status: 1,
+            stdout,
+            stderr: stderr + err.message,
+          });
+        });
+      } catch (err: any) {
+        logger.error(
+          'EXEC',
+          `[DEBUG] ProcessManager.run try-catch error: ${err.message}`,
+        );
         resolve({
           status: 1,
-          stdout,
-          stderr: stderr + err.message,
+          stdout: '',
+          stderr: err.message,
         });
-      });
+      }
     });
   }
 

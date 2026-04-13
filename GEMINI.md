@@ -57,8 +57,7 @@ clean state, use the following sequence:
 
 ```bash
 # 1. Force cleanup of previous test artifacts
-git worktree remove --force "../../workspaces/orbit-test-run" || true
-tmux kill-session -t orbit-test-run || true
+node bundle/orbit-cli.js infra splashdown
 
 # 2. Rebuild and launch fresh mission
 npm run build && node bundle/orbit-cli.js mission start test-run --local --verbose

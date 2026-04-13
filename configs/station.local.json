@@ -1,0 +1,55 @@
+{
+  "name": "local",
+  "providerType": "local-docker",
+  "hostRoot": "~/.gemini/orbit/stations/local-docker",
+  "port": 8080,
+  "workerImage": "orbit-worker:local",
+  "workerUser": "root",
+  "manifestRoot": "/orbit/manifests",
+  "isUnlocked": true,
+  "useSudo": false,
+  "storage": {
+    "workspacesRoot": "/orbit/workspaces",
+    "mirrorPath": "/orbit/main"
+  },
+  "mounts": [
+    { "host": "~/.gemini/orbit/stations/local-docker", "capsule": "/orbit" },
+    {
+      "host": "~/.config/gh",
+      "capsule": "/orbit/home/.config/gh",
+      "readonly": true
+    },
+    { "host": "/dev/shm", "capsule": "/dev/shm" }
+  ],
+  "areas": {
+    "homeRoot": {
+      "host": "./home",
+      "capsule": "/orbit/home",
+      "kind": "dir"
+    },
+    "globalGemini": {
+      "host": "./home/.gemini",
+      "capsule": "/orbit/home/.gemini",
+      "kind": "dir"
+    },
+    "policies": {
+      "host": "./.gemini/policies",
+      "capsule": "/orbit/.gemini/policies",
+      "kind": "dir",
+      "readonly": true
+    },
+    "bundle": {
+      "host": "./bundle",
+      "capsule": "/orbit/bundle",
+      "kind": "dir",
+      "readonly": true
+    },
+    "entrypoint": {
+      "host": "./starfleet-entrypoint.sh",
+      "capsule": "/orbit/starfleet-entrypoint.sh",
+      "kind": "file",
+      "readonly": true
+    }
+  },
+  "bundlePath": "/orbit/bundle"
+}

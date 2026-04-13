@@ -29,6 +29,8 @@ const mockHibernate = vi.fn().mockResolvedValue(undefined);
 const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
 const mockGetFleetState = vi.fn().mockResolvedValue([]);
 
+const mockGetLogs = vi.fn().mockResolvedValue(0);
+
 vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
     provisionStation: mockProvisionStation,
@@ -36,6 +38,7 @@ vi.mock('../sdk/OrbitSDK.js', () => ({
     resolveMission: mockResolveMission,
     missionExec: mockMissionExec,
     attach: mockAttach,
+    getLogs: mockGetLogs,
     jettisonMission: mockJettisonMission,
     splashdown: mockSplashdown,
     hibernate: mockHibernate,
@@ -58,6 +61,7 @@ vi.mock('../core/ContextResolver.js', () => ({
 describe('CLI Argument Parsing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.GCLI_ORBIT_AUTO_APPROVE;
   });
 
   describe('Infra Commands', () => {
@@ -87,6 +91,17 @@ describe('CLI Argument Parsing', () => {
         }),
       );
     });
+
+    it('should set auto-approve env when liftoff is run with -y', async () => {
+      await dispatch(['infra', 'liftoff', 'my-new-station', '-y']);
+
+      expect(process.env.GCLI_ORBIT_AUTO_APPROVE).toBe('1');
+      expect(mockProvisionStation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stationName: 'my-new-station',
+        }),
+      );
+    });
   });
 
   describe('Mission Commands', () => {
@@ -98,6 +113,39 @@ describe('CLI Argument Parsing', () => {
           identifier: '123',
           action: 'review',
           args: ['extra-arg'],
+        }),
+      );
+    });
+
+    it('should pass dev flag to sdk.resolveMission', async () => {
+      await dispatch(['mission', 'start', '123', '--dev']);
+
+      expect(mockResolveMission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '123',
+          dev: true,
+        }),
+      );
+    });
+
+    it('should handle "mission launch" alias identically to start', async () => {
+      await dispatch(['mission', 'launch', '789', 'implement']);
+
+      expect(mockResolveMission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '789',
+          action: 'implement',
+        }),
+      );
+    });
+
+    it('should handle "mission uplink" with action', async () => {
+      await dispatch(['mission', 'uplink', '101', 'chat']);
+
+      expect(mockGetLogs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '101',
+          action: 'chat',
         }),
       );
     });
@@ -168,6 +216,17 @@ describe('CLI Argument Parsing', () => {
           name: 'old-box',
           force: true,
           all: true,
+        }),
+      );
+    });
+
+    it('should set auto-approve env for infra splashdown with -y', async () => {
+      await dispatch(['infra', 'splashdown', 'old-box', '-y']);
+
+      expect(process.env.GCLI_ORBIT_AUTO_APPROVE).toBe('1');
+      expect(mockSplashdown).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'old-box',
         }),
       );
     });

@@ -13,22 +13,26 @@ import {
   type CapsuleInfo,
 } from '../core/types.js';
 import {
+  getLocalMissionManifestPath,
   type ProjectContext,
   type InfrastructureSpec,
-  LOCAL_BUNDLE_PATH,
-  LOCAL_MANIFEST_NAME,
+  LOCAL_MANIFEST_ENV,
 } from '../core/Constants.js';
 import { type Command } from '../core/executors/types.js';
 import {
   type MissionContext,
   resolveMissionContext,
 } from '../utils/MissionUtils.js';
+import { sanitizeName } from '../core/ConfigManager.js';
+import { WindowsGitExecutor } from '../core/executors/WindowsGitExecutor.js';
+import { StatusAggregator } from '../station/StatusAggregator.js';
 import {
   type IExecutors,
   type IProcessManager,
   type IRunOptions,
   type StationReceipt,
 } from '../core/interfaces.js';
+import { getInteractiveTerminalEnv } from '../utils/TerminalEnv.js';
 
 import type fsNamespace from 'node:fs';
 
@@ -45,6 +49,7 @@ export class LocalWorktreeProvider extends BaseProvider {
   public readonly stationName: string;
 
   private readonly workspacesDir: string;
+  private readonly windowsGit: WindowsGitExecutor | undefined;
 
   constructor(
     private readonly projectCtx: ProjectContext,
@@ -58,11 +63,128 @@ export class LocalWorktreeProvider extends BaseProvider {
     super(pm, executors);
     this.stationName = config.stationName || `local-${projectCtx.repoName}`;
     this.workspacesDir = workspacesDir;
+    this.windowsGit =
+      process.platform === 'win32' ? new WindowsGitExecutor(pm) : undefined;
   }
 
   private hasTmux(): boolean {
-    const res = this.pm.runSync('which', ['tmux'], { quiet: true });
+    const cmd = this.executors.tmux.version();
+    const res = this.pm.runSync(cmd.bin, cmd.args, {
+      ...cmd.options,
+      quiet: true,
+    });
     return res.status === 0;
+  }
+
+  private resolveExistingWorkspacePath(
+    target: string,
+    fallbackName: string,
+  ): string {
+    const parts = target.split('/');
+    const workspaceName =
+      parts.length >= 2 ? path.join(parts[0]!, parts[1]!) : fallbackName;
+    const directPath = path.join(this.workspacesDir, workspaceName);
+    if (this.fs.existsSync(directPath)) {
+      return directPath;
+    }
+
+    const idSlug = parts.length >= 2 ? parts[1] : fallbackName.split('/').pop();
+    if (!idSlug || !this.fs.existsSync(this.workspacesDir)) {
+      return directPath;
+    }
+
+    try {
+      const repoDirs = this.fs.readdirSync(this.workspacesDir);
+      for (const repoDir of repoDirs) {
+        const candidate = path.join(this.workspacesDir, repoDir, idSlug);
+        if (this.fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    } catch (_e) {}
+
+    return directPath;
+  }
+
+  private writeLocalManifest(manifest: Record<string, unknown>): string {
+    const sessionName = String(manifest.sessionName || 'local-mission');
+    const manifestPath = getLocalMissionManifestPath(sessionName);
+    this.fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    this.fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    return manifestPath;
+  }
+
+  private gitRun(
+    args: string[],
+    options: IRunOptions = {},
+  ): { status: number; stdout: string; stderr: string } {
+    if (this.windowsGit) {
+      return this.windowsGit.runSync(args, options);
+    }
+    return this.pm.runSync('git', args, options);
+  }
+
+  private resolveWorkspaceNameFromCapsule(name: string): string {
+    if (name.includes('/')) {
+      const [repoSlug, idSlug] = name.split('/');
+      return path.join(repoSlug || this.projectCtx.repoName, idSlug || name);
+    }
+
+    const repoSlug = sanitizeName(this.projectCtx.repoName);
+    if (process.platform === 'win32' && name.startsWith(`${repoSlug}-`)) {
+      let idSlug = name.slice(repoSlug.length + 1);
+      for (const action of ['review', 'fix', 'implement']) {
+        const suffix = `-${action}`;
+        if (idSlug.endsWith(suffix)) {
+          idSlug = idSlug.slice(0, -suffix.length);
+          break;
+        }
+      }
+      return path.join(repoSlug, idSlug);
+    }
+
+    return name;
+  }
+
+  private listWorkspaceNames(): string[] {
+    if (!this.fs.existsSync(this.workspacesDir)) {
+      return [];
+    }
+
+    const workspaces: string[] = [];
+
+    try {
+      const repoDirs = this.fs.readdirSync(this.workspacesDir);
+      for (const repoDir of repoDirs) {
+        const repoPath = path.join(this.workspacesDir, repoDir);
+        if (!this.fs.statSync(repoPath).isDirectory()) {
+          continue;
+        }
+
+        const missionDirs = this.fs.readdirSync(repoPath);
+        for (const missionDir of missionDirs) {
+          const missionPath = path.join(repoPath, missionDir);
+          if (this.fs.statSync(missionPath).isDirectory()) {
+            workspaces.push(path.join(repoDir, missionDir));
+          }
+        }
+      }
+    } catch (_e) {}
+
+    return workspaces;
+  }
+
+  private isOrbitSession(name: string): boolean {
+    if (name.includes('/')) {
+      return true;
+    }
+
+    if (process.platform !== 'win32') {
+      return false;
+    }
+
+    const repoSlug = sanitizeName(this.projectCtx.repoName);
+    return name.startsWith(`${repoSlug}-`);
   }
 
   /**
@@ -76,12 +198,19 @@ export class LocalWorktreeProvider extends BaseProvider {
     return path.join(this.workspacesDir, this.projectCtx.repoName);
   }
 
-  override resolveBundlePath(): string {
-    return LOCAL_BUNDLE_PATH;
+  /**
+   * Returns the primary root for Orbit data inside the capsule.
+   */
+  resolveCapsuleOrbitRoot(): string {
+    return this.projectCtx.repoRoot;
   }
 
-  override resolveWorkerPath(): string {
-    return `${LOCAL_BUNDLE_PATH}/station.js`;
+  resolveBundlePath(): string {
+    return path.resolve(this.projectCtx.repoRoot, 'bundle');
+  }
+
+  resolveWorkerPath(): string {
+    return path.resolve(this.projectCtx.repoRoot, 'bundle/station.js');
   }
 
   override resolveProjectConfigDir(): string {
@@ -92,8 +221,11 @@ export class LocalWorktreeProvider extends BaseProvider {
     return path.join(os.homedir(), '.gemini');
   }
 
-  override resolvePolicyPath(repoRoot: string): string {
-    return path.join(repoRoot, '.gemini/policies/workspace-policy.toml');
+  override resolvePolicyPath(): string {
+    return path.join(
+      this.projectCtx.repoRoot,
+      '.gemini/policies/workspace-policy.toml',
+    );
   }
 
   override resolveMirrorPath(): string {
@@ -102,6 +234,11 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async ensureReady(): Promise<number> {
     return 0;
+  }
+
+  async verifyIgnition(): Promise<boolean> {
+    // Local worktrees are always "ignited" as they use the host machine
+    return true;
   }
 
   override createNodeCommand(scriptPath: string, args: string[] = []): Command {
@@ -139,13 +276,14 @@ export class LocalWorktreeProvider extends BaseProvider {
 
     const env: any = {
       ...process.env,
+      ...getInteractiveTerminalEnv(),
       ...mergedOptions.env,
-      COLORTERM: 'truecolor',
-      FORCE_COLOR: '3',
-      TERM: 'xterm-256color',
-      TERM_PROGRAM: process.env.TERM_PROGRAM || 'iTerm.app',
       GEMINI_AUTO_UPDATE: '0',
     };
+
+    if (options.manifest) {
+      env[LOCAL_MANIFEST_ENV] = this.writeLocalManifest(options.manifest);
+    }
 
     const runOptions: IRunOptions = {
       stdio: 'pipe',
@@ -157,7 +295,12 @@ export class LocalWorktreeProvider extends BaseProvider {
     }
 
     if (typeof command === 'string') {
-      return this.pm.runSync('/bin/bash', ['-c', command], runOptions);
+      const isWin = process.platform === 'win32';
+      const shellBin = isWin ? 'powershell.exe' : '/bin/bash';
+      const shellArgs = isWin
+        ? ['-NoProfile', '-Command', command]
+        : ['-c', command];
+      return this.pm.runSync(shellBin, shellArgs, runOptions);
     }
 
     return this.pm.runSync(command.bin, command.args, runOptions);
@@ -188,17 +331,15 @@ export class LocalWorktreeProvider extends BaseProvider {
         this.fs.mkdirSync(path.dirname(wtPath), { recursive: true });
       } catch (_e) {}
 
-      this.pm.runSync('git', ['-C', sourceDir, 'fetch', 'origin'], {
+      this.gitRun(['-C', sourceDir, 'fetch', 'origin', branchName], {
         quiet: true,
       });
 
-      const localCheck = this.pm.runSync(
-        'git',
+      const localCheck = this.gitRun(
         ['-C', sourceDir, 'show-ref', '--verify', `refs/heads/${branchName}`],
         { quiet: true },
       );
-      const remoteCheck = this.pm.runSync(
-        'git',
+      const remoteCheck = this.gitRun(
         [
           '-C',
           sourceDir,
@@ -222,7 +363,7 @@ export class LocalWorktreeProvider extends BaseProvider {
         args.push('-b', branchName, wtPath);
       }
 
-      const res = this.pm.runSync('git', args, { quiet: true });
+      const res = this.gitRun(args, { quiet: true });
 
       if (res.status !== 0 && !this.fs.existsSync(wtPath)) {
         throw new Error(
@@ -231,8 +372,15 @@ export class LocalWorktreeProvider extends BaseProvider {
       }
     }
 
-    // 2. Write Manifest-on-Disk (replaces environment variable)
-    const manifestJson = JSON.stringify({
+    const legacyManifestPath = path.join(wtPath, '.orbit-manifest.json');
+    if (this.fs.existsSync(legacyManifestPath)) {
+      try {
+        this.fs.rmSync(legacyManifestPath, { force: true });
+      } catch (_e) {}
+    }
+
+    // 2. Persist manifest outside the workspace to avoid repo/worktree noise.
+    this.writeLocalManifest({
       identifier: mCtx.idSlug,
       repoName: this.projectCtx.repoName,
       branchName: mCtx.branchName,
@@ -240,14 +388,12 @@ export class LocalWorktreeProvider extends BaseProvider {
       workDir: wtPath,
       containerName: mCtx.containerName,
       sessionName: mCtx.sessionName,
-      policyPath: this.resolvePolicyPath(wtPath),
+      policyPath: this.resolvePolicyPath(),
       upstreamUrl: (infra as any).upstreamUrl,
       mirrorPath: sourceDir,
       bundleDir: this.resolveBundlePath(),
       tempDir: this.workspacesDir,
     });
-
-    this.fs.writeFileSync(path.join(wtPath, LOCAL_MANIFEST_NAME), manifestJson);
   }
 
   async getStatus(): Promise<OrbitStatus> {
@@ -271,7 +417,9 @@ export class LocalWorktreeProvider extends BaseProvider {
   ): Promise<{ running: boolean; exists: boolean }> {
     // For local, we check tmux sessions
     if (!this.hasTmux()) return { running: false, exists: false };
-    const res = this.pm.runSync('tmux', ['has-session', '-t', name], {
+    const cmd = this.executors.tmux.hasSession(name);
+    const res = this.pm.runSync(cmd.bin, cmd.args, {
+      ...cmd.options,
       quiet: true,
     });
     return { running: res.status === 0, exists: res.status === 0 };
@@ -285,11 +433,89 @@ export class LocalWorktreeProvider extends BaseProvider {
     return 0;
   }
 
-  async attach(name: string): Promise<number> {
-    if (!this.hasTmux()) throw new Error('tmux is required for local missions');
-    return this.pm.runSync('tmux', ['attach-session', '-t', name], {
-      stdio: 'inherit',
-    }).status;
+  /**
+   * STARFLEET FAST-PATH: Local worktrees run directly on the host.
+   */
+  async launchMission(manifest: any): Promise<number> {
+    const {
+      sessionName,
+      workDir,
+      bundleDir,
+      identifier,
+      action,
+      env = {},
+    } = manifest;
+
+    console.info(
+      `[LOCAL] 🚀 Launching mission '${identifier}' via local tmux...`,
+    );
+
+    // 1. Prepare Environment
+    const missionEnv = {
+      ...getInteractiveTerminalEnv(),
+      ...env,
+      GCLI_ORBIT_MISSION_ID: identifier,
+      GCLI_ORBIT_ACTION: action,
+      GCLI_ORBIT_SESSION_NAME: sessionName,
+      GCLI_ORBIT_BUNDLE_DIR: bundleDir,
+      [LOCAL_MANIFEST_ENV]: getLocalMissionManifestPath(sessionName),
+      GCLI_TRUST: '1',
+    };
+
+    // 2. Prepare Command
+    const workerScript = path.join(bundleDir, 'mission.js');
+
+    if (!this.hasTmux()) {
+      throw new Error(
+        'tmux is required for local-worktree missions but is not available.',
+      );
+    }
+
+    if (action === 'chat') {
+      const cmd = this.executors.tmux.wrap(
+        sessionName,
+        `node ${this.shellQuote(workerScript)}`,
+        {
+          cwd: workDir,
+          env: missionEnv,
+          detached: false,
+          interactive: true,
+          stdio: 'inherit',
+        },
+      );
+
+      return this.pm.runSync(cmd.bin, cmd.args, cmd.options).status;
+    }
+
+    const cmd = this.executors.tmux.wrapMission(
+      sessionName,
+      `node ${this.shellQuote(workerScript)}`,
+      {
+        cwd: workDir,
+        env: missionEnv,
+      },
+    );
+
+    // 3. Launch in Background
+    this.pm.spawn(cmd.bin, cmd.args, cmd.options);
+
+    console.info(
+      `[LOCAL] ✨ Mission worker launched in session: ${sessionName}`,
+    );
+    return 0;
+  }
+
+  async attach(name: string, _sessionName?: string): Promise<number> {
+    const target = _sessionName || name;
+
+    if (!this.hasTmux()) {
+      console.error(
+        '❌ tmux is required to attach to a local-worktree mission.',
+      );
+      return 1;
+    }
+
+    return this.executors.tmux.attach(target).status;
   }
 
   async runCapsule(): Promise<number> {
@@ -299,27 +525,31 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async stopCapsule(name: string): Promise<number> {
     if (!this.hasTmux()) return 0;
-    return this.pm.runSync('tmux', ['kill-session', '-t', name], {
-      quiet: true,
-    }).status;
+    const cmd = this.executors.tmux.killSession(name);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options).status;
   }
 
   async removeCapsule(name: string): Promise<number> {
-    const wtPath = path.join(this.workspacesDir, name);
+    const workspaceName = this.resolveWorkspaceNameFromCapsule(name);
+    const wtPath = path.join(this.workspacesDir, workspaceName);
 
     // 1. Remove the worktree
-    this.pm.runSync(
-      'git',
+    this.gitRun(
       ['-C', this.projectCtx.repoRoot, 'worktree', 'remove', wtPath, '--force'],
       { quiet: true },
     );
 
     // 2. Kill associated tmux sessions
-    // Cleanup session if name represents a session-safe slug
     if (this.hasTmux()) {
-      // Try both slashed and hyphenated names for robust cleanup
-      this.pm.runSync('tmux', ['kill-session', '-t', name.replace(/\//g, '-')]);
-      this.pm.runSync('tmux', ['kill-session', '-t', name]);
+      // Robust: try both names to ensure cleanup on Windows vs Linux
+      const slashed = name;
+      const hyphenated = name.replace(/\//g, '-');
+      let cmd = this.executors.tmux.killSession(hyphenated);
+      this.pm.runSync(cmd.bin, cmd.args, { ...cmd.options, quiet: true });
+      if (slashed !== hyphenated) {
+        cmd = this.executors.tmux.killSession(slashed);
+        this.pm.runSync(cmd.bin, cmd.args, { ...cmd.options, quiet: true });
+      }
     }
     return 0;
   }
@@ -335,9 +565,8 @@ export class LocalWorktreeProvider extends BaseProvider {
       // 1. Surgical Action Cleanup: Kill only the specific session
       const sessionName = this.resolveSessionName(repoSlug, idSlug, action);
       if (this.hasTmux()) {
-        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
-          quiet: true,
-        });
+        const cmd = this.executors.tmux.killSession(sessionName);
+        this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       }
 
       // ADR: If this was the LAST session for this mission ID, clean up the worktree too
@@ -345,9 +574,12 @@ export class LocalWorktreeProvider extends BaseProvider {
         const missionPrefix = `${repoSlug}/${idSlug}/`; // Trailing slash is key
         const chatSession = this.resolveSessionName(repoSlug, idSlug, 'chat'); // The non-action one
 
-        const listRes = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
-          quiet: true,
-        });
+        const listCmd = this.executors.tmux.listSessions();
+        const listRes = this.pm.runSync(
+          listCmd.bin,
+          listCmd.args,
+          listCmd.options,
+        );
         const sessions = (listRes.stdout || '').split('\n');
 
         const otherSessions = sessions.filter((s) => {
@@ -371,9 +603,8 @@ export class LocalWorktreeProvider extends BaseProvider {
       const actions = ['chat', 'fix', 'review', 'implement'];
       for (const act of actions) {
         const sessionName = this.resolveSessionName(repoSlug, idSlug, act);
-        this.pm.runSync('tmux', ['kill-session', '-t', sessionName], {
-          quiet: true,
-        });
+        const cmd = this.executors.tmux.killSession(sessionName);
+        this.pm.runSync(cmd.bin, cmd.args, cmd.options);
       }
     }
 
@@ -382,9 +613,9 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async splashdown(): Promise<number> {
     // Local splashdown: Remove all local mission capsules
-    const capsules = await this.listCapsules();
-    for (const capsule of capsules) {
-      await this.removeCapsule(capsule);
+    const workspaces = this.listWorkspaceNames();
+    for (const workspace of workspaces) {
+      await this.removeCapsule(workspace);
     }
     return 0;
   }
@@ -396,11 +627,11 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async capturePane(name: string): Promise<string> {
     if (!this.hasTmux()) return 'N/A (No Tmux)';
-    const res = this.pm.runSync(
-      'tmux',
-      ['capture-pane', '-pt', this.shellQuote(name)],
-      { quiet: true },
-    );
+    const cmd = this.executors.tmux.capturePane(name);
+    const res = this.pm.runSync(cmd.bin, cmd.args, {
+      ...cmd.options,
+      quiet: true,
+    });
     if (res.status !== 0) return 'N/A (Capture failed)';
 
     const lines = (res.stdout || '')
@@ -428,14 +659,23 @@ export class LocalWorktreeProvider extends BaseProvider {
 
   async listCapsules(): Promise<string[]> {
     if (!this.hasTmux()) return [];
-    const res = this.pm.runSync('tmux', ['list-sessions', '-F', '#S'], {
+    const cmd = this.executors.tmux.listSessions();
+    const res = this.pm.runSync(cmd.bin, cmd.args, {
+      ...cmd.options,
       quiet: true,
     });
     if (res.status !== 0) return [];
 
-    const sessions = (res.stdout || '').split('\n').filter(Boolean);
-    // Find sessions that look like Orbit sessions (repo/id or repo/id/action)
-    return sessions.filter((s) => s.includes('/'));
+    const sessions = (res.stdout || '')
+      .split('\n')
+      .filter(Boolean)
+      .map((s) => s.split(':')[0] || s);
+    return sessions.filter((s) => this.isOrbitSession(s));
+  }
+
+  async getMissionsStatus(): Promise<{ missions: any[] }> {
+    const aggregator = new StatusAggregator(this.workspacesDir);
+    return aggregator.getStatus();
   }
 
   async provisionMirror(): Promise<number> {
@@ -446,7 +686,11 @@ export class LocalWorktreeProvider extends BaseProvider {
     return this.pm.runSync('/bin/zsh', [], { stdio: 'inherit' }).status;
   }
 
-  async missionShell(name: string): Promise<number> {
+  async missionShell(
+    name: string,
+    _workDir?: string,
+    _sessionName?: string,
+  ): Promise<number> {
     return this.attach(name);
   }
 
@@ -459,7 +703,7 @@ export class LocalWorktreeProvider extends BaseProvider {
       zone: 'local',
       repo: this.projectCtx.repoName,
       upstreamUrl: this.infra.upstreamUrl,
-      backendType: 'direct-internal',
+      networkAccessType: 'direct-internal',
       lastSeen: new Date().toISOString(),
     };
   }

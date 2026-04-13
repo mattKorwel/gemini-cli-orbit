@@ -22,12 +22,19 @@ const PULUMI_VERSION = '3.229.0';
 export class DependencyManager implements IDependencyManager {
   constructor(private readonly processManager: IProcessManager) {}
 
+  private getLocalPulumiBin(): string {
+    if (process.platform === 'win32') {
+      return path.join(ORBIT_BIN_DIR, 'pulumi', 'bin', 'pulumi.exe');
+    }
+    return path.join(ORBIT_BIN_DIR, 'pulumi', 'pulumi');
+  }
+
   /**
    * Ensures Pulumi CLI is available, downloading it if necessary.
    */
   async ensurePulumi(): Promise<string> {
     const systemPath = this.findInPath('pulumi');
-    const localPath = path.join(ORBIT_BIN_DIR, 'pulumi', 'pulumi');
+    const localPath = this.getLocalPulumiBin();
     let binPath = systemPath;
 
     if (!binPath && fs.existsSync(localPath)) {
@@ -40,7 +47,13 @@ export class DependencyManager implements IDependencyManager {
         'SETUP',
         '☁️  Pulumi CLI is required for cloud provisioning.',
       );
-      const confirmed = await this.confirmInstallation();
+
+      let confirmed = process.env.GCLI_ORBIT_AUTO_APPROVE === '1';
+      if (!confirmed) {
+        confirmed = await this.confirmInstallation();
+      } else {
+        logger.info('SETUP', '👉 Auto-approving installation...');
+      }
 
       if (!confirmed) {
         throw new Error(
@@ -100,9 +113,15 @@ export class DependencyManager implements IDependencyManager {
   }
 
   private findInPath(bin: string): string | null {
-    const res = this.processManager.runSync('which', [bin], { quiet: true });
+    const cmd = process.platform === 'win32' ? 'where' : 'which';
+    const res = this.processManager.runSync(cmd, [bin], { quiet: true });
     if (res.status === 0 && res.stdout.trim()) {
-      return res.stdout.trim();
+      // 'where' can return multiple lines, take the first one
+      const firstMatch = res.stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .find(Boolean);
+      return firstMatch || null;
     }
     return null;
   }
@@ -133,15 +152,32 @@ export class DependencyManager implements IDependencyManager {
   }
 
   private async installPulumi(): Promise<void> {
-    const platform = process.platform; // darwin, linux
-    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-    const ext = 'tar.gz';
-    const url = `https://get.pulumi.com/releases/sdk/pulumi-v${PULUMI_VERSION}-${platform}-${arch}.${ext}`;
-
     if (!fs.existsSync(ORBIT_BIN_DIR)) {
       fs.mkdirSync(ORBIT_BIN_DIR, { recursive: true });
     }
+    if (process.platform === 'win32') {
+      await this.installPulumiWindows();
+    } else {
+      await this.installPulumiUnix();
+    }
+    logger.info('SETUP', '✅ Pulumi installed successfully.');
+  }
 
+  private updateProcessPath(): void {
+    const localBin =
+      process.platform === 'win32'
+        ? path.join(ORBIT_BIN_DIR, 'pulumi', 'bin')
+        : path.join(ORBIT_BIN_DIR, 'pulumi');
+    if (!process.env.PATH?.includes(localBin)) {
+      process.env.PATH = `${localBin}${path.delimiter}${process.env.PATH}`;
+    }
+  }
+
+  private async installPulumiUnix(): Promise<void> {
+    const platform = process.platform;
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    const ext = 'tar.gz';
+    const url = `https://get.pulumi.com/releases/sdk/pulumi-v${PULUMI_VERSION}-${platform}-${arch}.${ext}`;
     const tempArchive = path.join(ORBIT_BIN_DIR, `pulumi.${ext}`);
 
     logger.info('SETUP', `   - Downloading Pulumi v${PULUMI_VERSION}...`);
@@ -171,14 +207,53 @@ export class DependencyManager implements IDependencyManager {
     }
 
     fs.unlinkSync(tempArchive);
-    logger.info('SETUP', '✅ Pulumi installed successfully.');
   }
 
-  private updateProcessPath(): void {
-    const localBin = path.join(ORBIT_BIN_DIR, 'pulumi');
-    if (!process.env.PATH?.includes(localBin)) {
-      process.env.PATH = `${localBin}${path.delimiter}${process.env.PATH}`;
+  private async installPulumiWindows(): Promise<void> {
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    const ext = 'zip';
+    const platform = 'windows';
+    const url = `https://get.pulumi.com/releases/sdk/pulumi-v${PULUMI_VERSION}-${platform}-${arch}.${ext}`;
+    const tempArchive = path.join(ORBIT_BIN_DIR, `pulumi.${ext}`);
+
+    logger.info('SETUP', `   - Downloading Pulumi v${PULUMI_VERSION}...`);
+    const downloadRes = this.processManager.runSync(
+      'curl',
+      ['-L', url, '-o', tempArchive],
+      {
+        stdio: 'inherit',
+      } as any,
+    );
+
+    if (downloadRes.status !== 0) {
+      throw new Error('Failed to download Pulumi.');
     }
+
+    logger.info('SETUP', '   - Extracting binary...');
+    const extractRes = this.processManager.runSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        [
+          'Add-Type -AssemblyName System.IO.Compression.FileSystem',
+          `$zip = '${tempArchive.replace(/'/g, "''")}'`,
+          `$dest = '${ORBIT_BIN_DIR.replace(/'/g, "''")}'`,
+          "$pulumiDir = Join-Path $dest 'pulumi'",
+          'if (Test-Path $pulumiDir) { Remove-Item -Recurse -Force $pulumiDir }',
+          '[System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)',
+        ].join('; '),
+      ],
+      {
+        stdio: 'inherit',
+      } as any,
+    );
+
+    if (extractRes.status !== 0) {
+      throw new Error('Failed to extract Pulumi.');
+    }
+
+    fs.unlinkSync(tempArchive);
   }
 
   /**

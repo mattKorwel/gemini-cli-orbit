@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import path from 'node:path';
 import { ContextResolver } from './ContextResolver.js';
 import * as ConfigManager from './ConfigManager.js';
 
@@ -47,6 +48,21 @@ describe('ContextResolver', () => {
 
     expect(context.infra.providerType).toBe('local-worktree');
     expect(context.infra.projectId).toBe('local');
+  });
+
+  it('should map --local-docker flag to local-docker provider', async () => {
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: { localDocker: true } as any,
+      env: {},
+    });
+
+    expect(context.infra.providerType).toBe('local-docker');
+    expect(context.infra.projectId).toBe('local');
+    expect(context.infra.zone).toBe('localhost');
+    expect(context.infra.workspacesDir).toContain(
+      path.join('.gemini', 'orbit', 'stations', 'local', 'workspaces'),
+    );
   });
 
   it('should resolve to GCE when a projectId is provided via flags', async () => {
@@ -108,6 +124,32 @@ describe('ContextResolver', () => {
     expect(context.infra.providerType).toBe('gce');
   });
 
+  it('should hydrate runtime connection state from station receipt without pushing it into infra', async () => {
+    vi.spyOn(ConfigManager, 'loadJson').mockReturnValue({
+      name: 'my-station',
+      type: 'gce',
+      projectId: 'real-project',
+      zone: 'us-west1-a',
+      instanceName: 'my-station',
+      externalIp: '34.1.2.3',
+      sshUser: 'oslogin-user',
+    });
+
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: { forStation: 'my-station' },
+      env: {},
+    });
+
+    expect(context.state).toEqual({
+      status: 'ready',
+      publicIp: '34.1.2.3',
+      sshUser: 'oslogin-user',
+    });
+    expect(context.infra.instanceName).toBe('my-station');
+    expect((context.infra as any).externalIp).toBeUndefined();
+  });
+
   it('should prioritize explicit flags over schematic values', async () => {
     vi.spyOn(ConfigManager, 'loadSchematic').mockReturnValue({
       projectId: 'schematic-project',
@@ -156,5 +198,74 @@ describe('ContextResolver', () => {
     expect(context.infra.projectId).toBe('real-remote-project');
     expect(context.infra.providerType).toBe('gce');
     expect(context.infra.zone).toBe('us-central1-a');
+  });
+
+  it('should prioritize schematic values over receipt values', async () => {
+    // 1. Receipt has old dnsSuffix
+    vi.spyOn(ConfigManager, 'loadJson').mockReturnValue({
+      name: 'my-station',
+      type: 'gce',
+      dnsSuffix: 'old-suffix.internal',
+      schematic: 'new-blueprint',
+    });
+
+    // 2. Schematic has new dnsSuffix
+    vi.spyOn(ConfigManager, 'loadSchematic').mockReturnValue({
+      projectId: 'real-project',
+      dnsSuffix: 'new-suffix.gcpnode.com',
+    });
+
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: { forStation: 'my-station' },
+      env: {},
+    });
+
+    // Schematic must win
+    expect(context.infra.dnsSuffix).toBe('new-suffix.gcpnode.com');
+  });
+
+  it('should prioritize explicit flags over schematic values', async () => {
+    vi.spyOn(ConfigManager, 'loadSchematic').mockReturnValue({
+      projectId: 'schematic-project',
+      dnsSuffix: 'schematic.suffix',
+    });
+
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: {
+        schematic: 'any',
+        dnsSuffix: 'flag.suffix', // Overrides schematic
+      },
+      env: {},
+    });
+
+    expect(context.infra.dnsSuffix).toBe('flag.suffix');
+  });
+
+  it('should propagate isDev from flags or environment', async () => {
+    // 1. From Flag (alias 'dev')
+    const ctx1 = await ContextResolver.resolve({
+      repoRoot,
+      flags: { dev: true } as any,
+      env: {},
+    });
+    expect(ctx1.isDev).toBe(true);
+
+    // 2. From Flag (explicit 'isDev')
+    const ctx2 = await ContextResolver.resolve({
+      repoRoot,
+      flags: { isDev: true } as any,
+      env: {},
+    });
+    expect(ctx2.isDev).toBe(true);
+
+    // 3. From Environment
+    const ctx3 = await ContextResolver.resolve({
+      repoRoot,
+      flags: {},
+      env: { GCLI_ORBIT_DEV: '1' },
+    });
+    expect(ctx3.isDev).toBe(true);
   });
 });

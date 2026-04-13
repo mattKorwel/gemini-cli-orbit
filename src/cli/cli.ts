@@ -28,7 +28,7 @@ function expandPath(p: string): string {
 
 function applyGlobalOptions(y: Argv) {
   return y
-    .group(['verbose', 'json'], 'Global Options:')
+    .group(['verbose', 'json', 'yes'], 'Global Options:')
     .option('verbose', {
       type: 'boolean',
       description: 'Show detailed infrastructure logs',
@@ -36,6 +36,11 @@ function applyGlobalOptions(y: Argv) {
     .option('json', {
       type: 'boolean',
       description: 'Output raw JSON results',
+    })
+    .option('yes', {
+      alias: 'y',
+      type: 'boolean',
+      description: 'Auto-approve confirmation prompts',
     });
 }
 
@@ -60,7 +65,10 @@ function applyContextOptions(y: Argv) {
 
 function applyHardwareOptions(y: Argv) {
   return y
-    .group(['for-station', 'schematic'], 'Hardware Targets:')
+    .group(
+      ['for-station', 'schematic', 'dev', 'local-docker'],
+      'Hardware Targets:',
+    )
     .option('for-station', {
       type: 'string',
       description: 'Target a specific station instance',
@@ -68,6 +76,14 @@ function applyHardwareOptions(y: Argv) {
     .option('schematic', {
       type: 'string',
       description: 'The blueprint to use for liftoff',
+    })
+    .option('dev', {
+      type: 'boolean',
+      description: 'Enable development mode (shadow sync)',
+    })
+    .option('local-docker', {
+      type: 'boolean',
+      description: 'Use local Starfleet (Docker on Mac)',
     });
 }
 
@@ -110,13 +126,20 @@ export async function dispatch(argv: string[]): Promise<number> {
       .option('repo-dir', { type: 'string' })
       .option('repo', { type: 'string', alias: 'r' })
       .option('local', { type: 'boolean', alias: 'l' })
+      .option('local-docker', { type: 'boolean' })
       .option('for-station', { type: 'string' })
       .option('schematic', { type: 'string', alias: 's' })
+      .option('dev', { type: 'boolean' })
       .option('verbose', { type: 'boolean' })
+      .option('yes', { type: 'boolean', alias: 'y' })
       .option('dry-run', { type: 'boolean', hidden: true });
 
     const preArgs = await preParser.parse(processedArgv);
     let repoRoot = process.cwd();
+
+    if (preArgs.yes) {
+      process.env.GCLI_ORBIT_AUTO_APPROVE = '1';
+    }
 
     if (preArgs['repo-dir']) {
       const val = expandPath(preArgs['repo-dir']);
@@ -150,18 +173,19 @@ export async function dispatch(argv: string[]): Promise<number> {
         identifier: args.identifier || args.id,
         action,
         args: args.extra || [],
+        dev: args.dev,
+        gitAuthMode: args.gitAuth,
+        geminiAuthMode: args.geminiAuth,
       });
       const result = await sdk.startMission(manifest);
       args.exitCode = result.exitCode;
     }
 
     async function runConstellation(args: any) {
-      const { sync, pulse, all, current, selectByName } = args;
+      const { pulse, all, current, selectByName } = args;
 
-      if ((sync || pulse) && !args.json) {
-        process.stderr.write(
-          `📡 ${pulse ? 'Requesting pulse' : 'Synchronizing'} constellation . . . . .\n`,
-        );
+      if (!args.json) {
+        process.stderr.write(`📡 Synchronizing constellation . . . . .\n`);
       }
 
       let repoFilter: string | undefined = undefined;
@@ -170,7 +194,6 @@ export async function dispatch(argv: string[]): Promise<number> {
       }
 
       const states = await sdk.getFleetState({
-        syncWithReality: sync,
         includeMissions: pulse,
         repoFilter,
         nameFilter: selectByName,
@@ -182,11 +205,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         return;
       }
 
-      renderFleet(
-        states,
-        pulse ? 'pulse' : sync ? 'health' : 'inventory',
-        args.peek,
-      );
+      renderFleet(states, pulse ? 'pulse' : 'health', args.peek);
     }
 
     // Handle repo:cmd syntax
@@ -277,15 +296,9 @@ QUICK START:
           );
 
           y2.group(
-            ['sync', 'pulse', 'all', 'current', 'select-by-name'],
+            ['pulse', 'all', 'current', 'select-by-name'],
             'Status Options:',
           )
-            .option('sync', {
-              alias: 's',
-              type: 'boolean',
-              default: true,
-              description: 'Sync hardware health',
-            })
             .option('pulse', {
               alias: 'p',
               type: 'boolean',
@@ -368,11 +381,22 @@ QUICK START:
                 y2.positional('identifier', {
                   type: 'string',
                   description: 'PR or Issue ID',
-                }).positional('action', {
-                  type: 'string',
-                  default: 'chat',
-                  description: 'Verb: chat, fix, review, implement',
-                });
+                })
+                  .positional('action', {
+                    type: 'string',
+                    default: 'chat',
+                    description: 'Verb: chat, fix, review, implement',
+                  })
+                  .option('git-auth', {
+                    type: 'string',
+                    choices: ['host-gh-config', 'repo-token', 'none'],
+                    description: 'Override Git auth mode for this mission',
+                  })
+                  .option('gemini-auth', {
+                    type: 'string',
+                    choices: ['env-chain', 'accounts-file', 'none'],
+                    description: 'Override Gemini auth mode for this mission',
+                  });
                 return applyGlobalOptions(
                   applyHardwareOptions(applyContextOptions(y2)),
                 );
@@ -600,6 +624,25 @@ QUICK START:
               },
             )
             .command(
+              'exec <command> [args..]',
+              'Execute a command on the station host.',
+              (y2) => {
+                y2.positional('command', { type: 'string' }).positional(
+                  'args',
+                  { type: 'string', array: true },
+                );
+                return applyGlobalOptions(
+                  applyHardwareOptions(applyContextOptions(y2)),
+                );
+              },
+              async (args: any) => {
+                args.exitCode = await sdk.stationExec(
+                  args.command,
+                  args.args || [],
+                );
+              },
+            )
+            .command(
               'reap',
               'Identify and remove idle missions.',
               (y2) => {
@@ -699,7 +742,9 @@ QUICK START:
                     type: 'boolean',
                     description: 'Decommission infrastructure',
                   });
-                return applyGlobalOptions(applyContextOptions(yLocal));
+                return applyHardwareOptions(
+                  applyGlobalOptions(applyContextOptions(yLocal)),
+                );
               },
               async (args: any) => {
                 args.exitCode = await sdk.provisionStation({
@@ -741,7 +786,9 @@ QUICK START:
                   schematics.forEach((s) => {
                     const project = s.projectId ? ` [${s.projectId}]` : '';
                     const zone = s.zone ? ` [${s.zone}]` : '';
-                    const type = s.backendType ? ` (${s.backendType})` : '';
+                    const type = s.networkAccessType
+                      ? ` (${s.networkAccessType})`
+                      : '';
                     console.log(
                       `   ${s.name.padEnd(20)}${project}${zone}${type}`,
                     );
@@ -923,8 +970,7 @@ function renderFleet(
         const typeIcon = s.receipt.type === 'gce' ? '☁️' : '🏠';
         const activeMarker = s.isActive ? '➡️' : '  ';
         const status = s.reality?.status || s.receipt.status || 'READY';
-        const missionCount =
-          s.reality?.missions.length ?? (depth === 'inventory' ? '?' : 0);
+        const missionCount = s.reality?.missions.length ?? 0;
 
         const contextInfo =
           s.receipt.type === 'gce'
@@ -934,6 +980,10 @@ function renderFleet(
         console.log(
           `${activeMarker} ${typeIcon}  ${s.receipt.name.padEnd(20)} ${contextInfo} → ${status}, ${missionCount} missions`,
         );
+
+        if (s.reality && s.reality.missions.length > 0) {
+          renderMissionList(s.reality.missions, '      ', peek);
+        }
       });
     });
   }
@@ -944,7 +994,6 @@ function renderMissionList(
   indent = '',
   peek = false,
 ): void {
-  console.log(`\n${indent}📦 ACTIVE MISSION CAPSULES:`);
   if (capsules.length === 0) {
     console.log(`${indent}  - No mission capsules found`);
   } else {
@@ -971,14 +1020,15 @@ function renderMissionList(
       }
 
       if (!detail && c.lastThought) {
-        const isSnapshot = c.lastThought.includes('\n');
-        console.log(
-          `DEBUG: render mission=${c.name} isSnapshot=${isSnapshot} peek=${peek}`,
-        );
-        if (peek || !isSnapshot) {
+        const lines = c.lastThought.trim().split('\n');
+        const isSnapshot = lines.length > 1;
+        if (peek) {
           detail = isSnapshot
             ? `Terminal:\n\`\`\`\n${c.lastThought}\n\`\`\``
             : `Thought: ${c.lastThought}`;
+        } else {
+          // In non-peek mode, show the first line of the thought
+          detail = `Thought: ${lines[0]}${isSnapshot ? ' ...' : ''}`;
         }
       }
 

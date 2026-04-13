@@ -16,21 +16,23 @@ describe('MissionUtils', () => {
     vi.clearAllMocks();
   });
 
-  it('should resolve metadata and slugs', () => {
+  it('should resolve metadata and slugs for non-numeric identifiers', () => {
     const ctx = resolveMissionContext(
-      'test-branch',
+      'test-omega',
       'gemini-cli-orbit',
-      mockPm,
+      mockPm as any,
     );
-    expect(ctx.branchName).toBe('test-branch');
+    expect(ctx.branchName).toBe('test-omega');
     expect(ctx.repoSlug).toBe('gemini-cli-orbit');
-    expect(ctx.idSlug).toBe('test-branch');
+    expect(ctx.idSlug).toBe('test-omega');
   });
 
   it('should resolve named mission with suffix (id:name)', () => {
     const ctx = resolveMissionContext('123:debug', 'gemini-cli-orbit', mockPm);
     expect(ctx.idSlug).toBe('123');
     expect(ctx.action).toBe('debug');
+    expect(ctx.branchName).toBe('123');
+    expect(mockPm.runSync).not.toHaveBeenCalled();
   });
 
   it('should resolve PR metadata using GH CLI for numeric IDs', () => {

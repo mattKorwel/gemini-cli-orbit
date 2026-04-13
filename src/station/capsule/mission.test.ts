@@ -52,11 +52,11 @@ vi.mock('../../utils/TempManager.js', () => ({
 }));
 
 // Mock playbooks
-vi.mock('../../playbooks/review.js', () => ({
-  runReviewPlaybook: vi.fn().mockResolvedValue(0),
-}));
 vi.mock('../../playbooks/fix.js', () => ({
   runFixPlaybook: vi.fn().mockResolvedValue(0),
+}));
+vi.mock('../../playbooks/ManeuverRunner.js', () => ({
+  runAgenticManeuver: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('node:fs');
@@ -86,7 +86,7 @@ describe('mission entrypoint', () => {
     expect(logger.setVerbose).toHaveBeenCalledWith(true);
   });
 
-  it('should dispatch to review playbook', async () => {
+  it('should dispatch to agentic review maneuver', async () => {
     (MissionUtils.getMissionManifest as any).mockReturnValue({
       identifier: '123',
       action: 'review',
@@ -95,18 +95,58 @@ describe('mission entrypoint', () => {
     });
     (fs.existsSync as any).mockReturnValue(true);
 
-    const { runReviewPlaybook } = await import('../../playbooks/review.js');
+    const { runAgenticManeuver } =
+      await import('../../playbooks/ManeuverRunner.js');
 
     await main(mockPm);
 
-    expect(runReviewPlaybook).toHaveBeenCalledWith(
-      '123',
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      mockPm,
+    expect(runAgenticManeuver).toHaveBeenCalledWith({
+      identifier: '123',
+      action: 'review',
+      targetDir: expect.any(String),
+      policyPath: expect.any(String),
+      logDir: expect.any(String),
+      pm: mockPm,
+      protocolName: 'reviewer',
+    });
+  });
+
+  it('should launch chat with the capsule gemini binary and interactive cwd', async () => {
+    (MissionUtils.getMissionManifest as any).mockReturnValue({
+      identifier: 'chat-123',
+      action: 'chat',
+      workDir: '/orbit/workspaces/test-repo/chat-123',
+      policyPath: '/orbit/.gemini/policies/workspace-policy.toml',
+    });
+    (fs.existsSync as any).mockImplementation((target: string) => {
+      return target === '/usr/local/share/npm-global/bin/gemini';
+    });
+    (fs.readdirSync as any).mockReturnValue([]);
+    mockPm.runSync.mockReturnValue({ status: 0, stdout: '', stderr: '' });
+
+    await main(mockPm);
+
+    const [bin, args, options] = mockPm.runSync.mock.calls[0];
+    expect(bin).toBe('/usr/local/share/npm-global/bin/gemini');
+    expect(args).toEqual([
+      '--approval-mode',
+      'plan',
+      '--policy',
+      '/orbit/.gemini/policies/workspace-policy.toml',
+    ]);
+    expect(options).toEqual(
+      expect.objectContaining({
+        interactive: true,
+        env: expect.objectContaining({
+          GEMINI_AUTO_UPDATE: '0',
+          GCLI_ORBIT_MISSION_ID: 'chat-123',
+          GCLI_ORBIT_ACTION: 'chat',
+          GCLI_TRUST: '1',
+        }),
+      }),
+    );
+    expect(String(options.cwd).replaceAll('\\', '/')).toContain(
+      '/orbit/workspaces/test-repo/chat-123',
     );
   });
 });

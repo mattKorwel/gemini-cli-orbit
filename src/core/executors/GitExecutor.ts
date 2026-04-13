@@ -12,6 +12,9 @@ import {
   type IProcessResult,
 } from '../interfaces.js';
 
+/**
+ * GitExecutor: High-level wrapper for Git commands.
+ */
 export class GitExecutor implements IGitExecutor {
   constructor(private readonly pm: IProcessManager) {}
 
@@ -49,6 +52,16 @@ export class GitExecutor implements IGitExecutor {
     return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
   }
 
+  public checkoutNew(
+    cwd: string,
+    branch: string,
+    base?: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.checkoutNew(cwd, branch, base, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
   public worktreeAdd(
     cwd: string,
     path: string,
@@ -59,10 +72,35 @@ export class GitExecutor implements IGitExecutor {
     return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
   }
 
-  // --- Static Metadata Helpers ---
+  public verify(
+    cwd: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.verify(cwd, branch, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  /**
+   * Instance-based revParse that uses the injected ProcessManager.
+   */
+  public revParse(
+    cwd: string,
+    args: string[],
+    options: IRunOptions = {},
+  ): IProcessResult {
+    const cmd = GitExecutor.revParse(cwd, args, options);
+    return this.pm.runSync(cmd.bin, cmd.args, cmd.options);
+  }
+
+  // --- Static Metadata Helpers (Can remain for dry-runs/string building) ---
 
   public static init(cwd: string, options: IRunOptions = {}): Command {
-    return { bin: 'git', args: ['init'], options: { ...options, cwd } };
+    return {
+      bin: 'git',
+      args: ['init'],
+      options: { ...options, cwd },
+    };
   }
 
   public static remoteAdd(
@@ -84,33 +122,13 @@ export class GitExecutor implements IGitExecutor {
     branch: string,
     options: IRunOptions = {},
   ): Command {
-    return {
-      bin: 'git',
-      args: ['fetch', '--depth=1', remote, branch],
-      options: { ...options, cwd },
-    };
-  }
+    const args = ['fetch'];
+    if (options.quiet) args.push('--quiet');
+    args.push('--depth=1', remote, branch);
 
-  public static revParse(
-    cwd: string,
-    args: string[],
-    options: IRunOptions = {},
-  ): Command {
     return {
       bin: 'git',
-      args: ['rev-parse', ...args],
-      options: { ...options, cwd },
-    };
-  }
-
-  public static verify(
-    cwd: string,
-    ref: string,
-    options: IRunOptions = {},
-  ): Command {
-    return {
-      bin: 'git',
-      args: ['rev-parse', '--verify', ref],
+      args,
       options: { ...options, cwd },
     };
   }
@@ -133,9 +151,9 @@ export class GitExecutor implements IGitExecutor {
     base?: string,
     options: IRunOptions = {},
   ): Command {
-    const args = base
-      ? ['checkout', '-b', branch, base]
-      : ['checkout', '-b', branch];
+    const args = ['checkout', '-b', branch];
+    if (base) args.push(base);
+
     return {
       bin: 'git',
       args,
@@ -152,6 +170,30 @@ export class GitExecutor implements IGitExecutor {
     return {
       bin: 'git',
       args: ['worktree', 'add', path, branch],
+      options: { ...options, cwd },
+    };
+  }
+
+  public static verify(
+    cwd: string,
+    branch: string,
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'git',
+      args: ['rev-parse', '--verify', branch],
+      options: { ...options, cwd },
+    };
+  }
+
+  public static revParse(
+    cwd: string,
+    args: string[],
+    options: IRunOptions = {},
+  ): Command {
+    return {
+      bin: 'git',
+      args: ['rev-parse', ...args],
       options: { ...options, cwd },
     };
   }

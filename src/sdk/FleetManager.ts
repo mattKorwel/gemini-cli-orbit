@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import readline from 'node:readline';
 import {
   type InfrastructureSpec,
   type ProjectContext,
   type OrbitConfig,
+  SCHEMATICS_DIR,
 } from '../core/Constants.js';
 import { LogLevel } from '../core/Logger.js';
 import {
@@ -30,6 +33,7 @@ import {
   type IExecutors,
   type IStatusManager,
 } from '../core/interfaces.js';
+import { sanitizeName } from '../core/ConfigManager.js';
 
 export class FleetManager {
   constructor(
@@ -50,9 +54,33 @@ export class FleetManager {
    * Build or wake Orbital Station infrastructure. (Idempotent Liftoff)
    */
   async provision(options: ProvisionOptions): Promise<number> {
-    const { schematicName, stationName, destroy } = options;
-    const instanceName = stationName || this.infra.instanceName || 'default';
-    const sName = schematicName || (this.infra as any).schematic || 'default';
+    const { destroy } = options;
+    const explicitName =
+      options.stationName || options.instanceName || this.infra.instanceName;
+    const config: InfrastructureSpec = {
+      ...this.infra,
+      ...(options.schematicName ? { schematic: options.schematicName } : {}),
+      ...(explicitName
+        ? {
+            instanceName: explicitName,
+            stationName: explicitName,
+          }
+        : {}),
+    };
+    const instanceName = config.instanceName || 'default';
+    const sName = config.schematic || 'default';
+
+    if (options.schematicName) {
+      const schematicPath = path.join(
+        SCHEMATICS_DIR,
+        `${sanitizeName(options.schematicName)}.json`,
+      );
+      if (!fs.existsSync(schematicPath)) {
+        throw new Error(
+          `Schematic "${options.schematicName}" not found at ${schematicPath}`,
+        );
+      }
+    }
 
     this.observer.onDivider?.('ORBIT MISSION LIFTOFF');
     this.observer.onLog?.(
@@ -61,25 +89,20 @@ export class FleetManager {
       `📡 Instance: ${instanceName} | Schematic: ${sName}`,
     );
 
-    const schematic = this.configManager.loadSchematic(sName);
-    const config = {
-      ...this.infra,
-      ...schematic,
-      instanceName,
-      stationName: instanceName,
-      schematic: sName,
-    };
+    const isLocal =
+      config.providerType === 'local-worktree' ||
+      config.providerType === 'local-docker';
 
-    if (!config.projectId && config.providerType !== 'local-worktree') {
+    if (!config.projectId && !isLocal) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'SETUP',
-        `❌ No active infrastructure schematic found. Please run "orbit schematic create ${sName}" to set up your blueprints.`,
+        `❌ No active infrastructure project found. Please specify a projectId or use a local provider.`,
       );
       return 1;
     }
 
-    if (config.providerType !== 'local-worktree') {
+    if (!isLocal) {
       await this.dependencyManager.ensurePulumi();
     }
 
@@ -146,10 +169,22 @@ export class FleetManager {
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
-        `✅ Station is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
+        `✅ Station hardware is active at ${state.privateIp || state.publicIp || 'internal IP'}`,
       );
-      const readyStatus = await provider.ensureReady();
-      if (readyStatus !== 0) return readyStatus;
+
+      // --- STARFLEET VERIFICATION ---
+      const verified = await this.waitForSupervisor(provider, instanceName);
+      if (!verified) return 1;
+
+      const settingsSync = await provider.syncGeminiSettings();
+      if (settingsSync !== 0) {
+        this.observer.onLog?.(
+          LogLevel.ERROR,
+          'SETUP',
+          'Failed to synchronize Gemini settings to the station.',
+        );
+        return 1;
+      }
 
       // Ensure Main Mirror exists on host for fast clones
       const remoteUrl = this.configManager.detectRemoteUrl(
@@ -203,17 +238,11 @@ export class FleetManager {
     options: ListStationsOptions = {},
   ): Promise<StationState[]> {
     const settings = this.configManager.loadSettings();
-    const stations = await this.stationManager.listStations({
-      syncWithReality: !!options.syncWithReality,
-    });
-
+    const stations = await this.stationManager.listStations();
     const states = await this.statusManager.fetchFleetState(
       stations,
-      options.includeMissions
-        ? 'pulse'
-        : options.syncWithReality
-          ? 'health'
-          : 'inventory',
+      options.includeMissions ? 'pulse' : 'health',
+      options.peek,
     );
 
     // Set Active Marker based on settings
@@ -325,6 +354,9 @@ export class FleetManager {
         ));
 
       if (confirmed) {
+        if (receipt.type === 'gce') {
+          await this.dependencyManager.ensurePulumi();
+        }
         this.observer.onLog?.(
           LogLevel.INFO,
           'CLEANUP',
@@ -359,7 +391,43 @@ export class FleetManager {
     return 0;
   }
 
+  private async waitForSupervisor(
+    provider: any,
+    name: string,
+  ): Promise<boolean> {
+    this.observer.onLog?.(
+      LogLevel.INFO,
+      'SETUP',
+      `🧪 Waiting for Station '${name}' to ignite...`,
+    );
+
+    // Capability Check: If provider has its own ignition logic, use it
+    if (provider.verifyIgnition) {
+      return provider.verifyIgnition(this.observer);
+    }
+
+    // Fallback: Simple ensureReady loop
+    const startTime = Date.now();
+    const timeout = 5 * 60 * 1000;
+    while (Date.now() - startTime < timeout) {
+      const readyStatus = await provider.ensureReady();
+      if (readyStatus === 0) return true;
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+
+    this.observer.onLog?.(
+      LogLevel.ERROR,
+      'SETUP',
+      `❌ Station verification timed out for '${name}'.`,
+    );
+    return false;
+  }
+
   private async confirm(query: string): Promise<boolean> {
+    if (process.env.GCLI_ORBIT_AUTO_APPROVE === '1') {
+      return true;
+    }
+
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,

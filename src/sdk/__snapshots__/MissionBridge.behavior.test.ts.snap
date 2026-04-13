@@ -1,0 +1,26 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Mission Bridge Behavior > records the known-good GCE launch command stream 1`] = `
+[
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c ls -d /mnt/disks/data/main",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c grep -q "/mnt/disks/data" /proc/mounts",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo mkdir -p /mnt/disks/data/bundle /mnt/disks/data/workspaces /mnt/disks/data/main /mnt/disks/data/.gemini /mnt/disks/data/gemini-cli-config/.gemini /mnt/disks/data/tmp && sudo chown -R 1000:1000 /mnt/disks/data && sudo chmod -R 2775 /mnt/disks/data",
+  "sync: rsync <repo>/bundle/ node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/bundle",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' corp-remote-v1",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' corp-remote-v1",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c ls -d /mnt/disks/data/main",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c grep -q "/mnt/disks/data" /proc/mounts",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo mkdir -p /mnt/disks/data/bundle /mnt/disks/data/workspaces /mnt/disks/data/main /mnt/disks/data/.gemini /mnt/disks/data/gemini-cli-config/.gemini /mnt/disks/data/tmp && sudo chown -R 1000:1000 /mnt/disks/data && sudo chmod -R 2775 /mnt/disks/data",
+  "sync: rsync <repo>/bundle/ node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/bundle",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' corp-remote-v1",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' corp-remote-v1",
+  "sync: rsync <home>/.gemini/settings.json node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/gemini-cli-config/.gemini",
+  "sync: rsync <home>/.gemini/google_accounts.json node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/gemini-cli-config/.gemini",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo mkdir -p /mnt/disks/data/gemini-cli-config/.config/gh",
+  "sync: rsync <home>/AppData/Roaming/GitHub CLI/hosts.yml node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/gemini-cli-config/.config/gh",
+  "sync: rsync <tmp>/.gemini/ node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/mnt/disks/data/.gemini",
+  "sync: rsync <os-tmp>/.orbit-manifest-real-repo-bridge-test-1-review.json node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal:/dev/shm/.orbit-manifest-real-repo-bridge-test-1-review.json",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal /bin/sh -c sudo docker inspect -f '{{.State.Running}}' real-repo-bridge-test-1-review",
+  "async: ssh node@nic0.corp-remote-v1.us-west1-a.c.corp-project-99.internal sudo docker exec real-repo-bridge-test-1-review /bin/bash -c "node /orbit/bundle/station.js start" [cwd=/mnt/disks/data/workspaces/real-repo/bridge-test-1]",
+]
+`;

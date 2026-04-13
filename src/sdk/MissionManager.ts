@@ -6,49 +6,103 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import os from 'node:os';
 import {
-  type InfrastructureSpec,
-  type ProjectContext,
-  UPSTREAM_REPO_URL,
-} from '../core/Constants.js';
-import { LogLevel } from '../core/Logger.js';
-import {
-  type IConfigManager,
-  type IProviderFactory,
-  type IStationRegistry,
-  type IProcessManager,
-} from '../core/interfaces.js';
-import {
+  type MissionManifest,
   type MissionResult,
   type MissionOptions,
-  type MissionManifest,
-  type OrbitObserver,
   type JettisonOptions,
   type ReapOptions,
   type GetLogsOptions,
 } from '../core/types.js';
 import {
+  type IOrbitObserver,
+  type IProviderFactory,
+  type IConfigManager,
+  type IStationRegistry,
+  type IProcessManager,
+  type IExecutors,
+} from '../core/interfaces.js';
+import { LogLevel } from '../core/Logger.js';
+import {
+  type ProjectContext,
+  type InfrastructureSpec,
+  UPSTREAM_REPO_URL,
+  GLOBAL_GH_CONFIG,
+  GLOBAL_ACCOUNTS_FILE,
+  GLOBAL_GEMINI_CREDENTIALS_FILE,
+} from '../core/Constants.js';
+import {
   resolveMissionContext,
   type MissionContext,
 } from '../utils/MissionUtils.js';
-import { type IExecutors } from '../core/interfaces.js';
+import { type StarfleetClient } from './StarfleetClient.js';
+import { loadAuthEnvChain } from '../utils/EnvResolver.js';
+import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
+import { getInteractiveTerminalEnv } from '../utils/TerminalEnv.js';
+
+type GitAuthMode = 'host-gh-config' | 'repo-token' | 'none';
+type GeminiAuthMode = 'env-chain' | 'accounts-file' | 'none';
 
 /**
- * FleetCommander: SDK-level mission orchestrator.
- * High-level workflow state machine.
+ * MissionManager: Orchestrates the mission lifecycle across different providers.
  */
 export class MissionManager {
+  private _cachedProvider:
+    | import('../providers/BaseProvider.js').BaseProvider
+    | null = null;
+
   constructor(
     private readonly projectCtx: ProjectContext,
     private readonly infra: InfrastructureSpec,
-    private readonly observer: OrbitObserver,
+    private readonly observer: IOrbitObserver,
     private readonly providerFactory: IProviderFactory,
     private readonly configManager: IConfigManager,
     private readonly pm: IProcessManager,
     private readonly executors: IExecutors,
     private readonly stationRegistry: IStationRegistry,
-  ) {}
+    private readonly starfleetClient: StarfleetClient,
+    private readonly state?: InfrastructureState,
+    private readonly provider?: import('../providers/BaseProvider.js').BaseProvider,
+    private fleet?: import('./FleetManager.js').FleetManager,
+  ) {
+    if (provider) this._cachedProvider = provider;
+  }
+
+  public setFleetManager(fleet: import('./FleetManager.js').FleetManager) {
+    this.fleet = fleet;
+  }
+
+  private getProvider() {
+    if (this._cachedProvider) return this._cachedProvider;
+    this._cachedProvider = this.providerFactory.getProvider(
+      this.projectCtx,
+      this.infra as any,
+      this.state,
+    );
+    return this._cachedProvider;
+  }
+
+  private sanitizeMissionEnv(
+    env: Record<string, string> | undefined,
+  ): Record<string, string> | undefined {
+    if (!env) return undefined;
+
+    const blockedPrefixes = ['GCLI_ORBIT_', 'ORBIT_'];
+    const blockedExact = new Set([
+      'DOCKER_HOST',
+      'COMPOSE_FILE',
+      'COMPOSE_PROJECT_NAME',
+    ]);
+
+    const sanitized = Object.fromEntries(
+      Object.entries(env).filter(([key]) => {
+        if (blockedExact.has(key)) return false;
+        return !blockedPrefixes.some((prefix) => key.startsWith(prefix));
+      }),
+    );
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+  }
 
   /**
    * Stage 2 Hydration: Resolves user intent into a concrete MissionManifest.
@@ -56,10 +110,7 @@ export class MissionManager {
   async resolve(options: MissionOptions): Promise<MissionManifest> {
     const { identifier: rawIdentifier, action: rawAction } = options;
 
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
 
     // 1. Resolve Raw Metadata
     const {
@@ -79,8 +130,19 @@ export class MissionManager {
       action,
     );
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
-    const workDir = provider.resolveWorkDir(workspaceName);
-    const policyPath = provider.resolvePolicyPath(workDir);
+    const hostWorkDir = provider.resolveWorkDir(workspaceName);
+    const workDir = (provider as any).resolveCapsuleWorkDir
+      ? (provider as any).resolveCapsuleWorkDir(workspaceName)
+      : hostWorkDir;
+    const policyPath = provider.resolvePolicyPath();
+
+    const isDev = options.dev ?? false;
+    const gitAuthMode =
+      options.gitAuthMode ||
+      this.infra.gitAuthMode ||
+      (provider.type === 'local-docker' ? 'host-gh-config' : 'repo-token');
+    const geminiAuthMode =
+      options.geminiAuthMode || this.infra.geminiAuthMode || 'env-chain';
 
     const upstreamUrl =
       this.infra.upstreamUrl ||
@@ -90,7 +152,7 @@ export class MissionManager {
           UPSTREAM_REPO_URL);
     this.infra.upstreamUrl = upstreamUrl;
 
-    return {
+    const manifest: MissionManifest = {
       identifier,
       repoName: this.projectCtx.repoName,
       branchName,
@@ -101,11 +163,122 @@ export class MissionManager {
       sessionName,
       policyPath,
       upstreamUrl,
-      mirrorPath: provider.resolveMirrorPath(),
-      bundleDir: provider.resolveBundlePath(),
       verbose: this.infra.verbose,
+      isDev: isDev,
+      gitAuthMode,
+      geminiAuthMode,
       tempDir: workDir,
+      env: {
+        ...getInteractiveTerminalEnv(),
+        ...(this.sanitizeMissionEnv(this.infra.env) || {}),
+      },
+      sensitiveEnv: this.infra.sensitiveEnv,
     };
+
+    // Starfleet stations own their runtime layout via baked supervisor config.
+    // Only local-worktree still needs station path details carried in manifest.
+    if (provider.type === 'local-worktree') {
+      manifest.mirrorPath = provider.resolveMirrorPath();
+      manifest.bundleDir = provider.resolveBundlePath();
+    }
+
+    return manifest;
+  }
+
+  private resolveMissionSensitiveEnv(manifest: MissionManifest): {
+    sensitiveEnv: Record<string, string>;
+    geminiAuthFiles:
+      | {
+          googleAccountsJson?: string | undefined;
+          geminiCredentialsJson?: string | undefined;
+        }
+      | undefined;
+    warnings: string[];
+  } {
+    const authEnv = loadAuthEnvChain(this.projectCtx.repoRoot);
+    const sensitiveEnv: Record<string, string> = {
+      ...((this.infra as any).sensitiveEnv || {}),
+      ...(manifest.sensitiveEnv || {}),
+    };
+    const warnings: string[] = [];
+    const gitAuthMode = (manifest.gitAuthMode || 'repo-token') as GitAuthMode;
+    const geminiAuthMode = (manifest.geminiAuthMode ||
+      'env-chain') as GeminiAuthMode;
+    let geminiAuthFiles:
+      | {
+          googleAccountsJson?: string | undefined;
+          geminiCredentialsJson?: string | undefined;
+        }
+      | undefined;
+
+    if (geminiAuthMode === 'env-chain') {
+      const geminiApiKey =
+        process.env.GEMINI_API_KEY ||
+        authEnv.GEMINI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        authEnv.GOOGLE_API_KEY;
+      if (geminiApiKey) {
+        sensitiveEnv.GEMINI_API_KEY = geminiApiKey;
+      }
+    }
+
+    if (geminiAuthMode === 'accounts-file') {
+      geminiAuthFiles = {};
+
+      if (fs.existsSync(GLOBAL_ACCOUNTS_FILE)) {
+        geminiAuthFiles.googleAccountsJson = fs.readFileSync(
+          GLOBAL_ACCOUNTS_FILE,
+          'utf8',
+        );
+      }
+      if (fs.existsSync(GLOBAL_GEMINI_CREDENTIALS_FILE)) {
+        geminiAuthFiles.geminiCredentialsJson = fs.readFileSync(
+          GLOBAL_GEMINI_CREDENTIALS_FILE,
+          'utf8',
+        );
+      }
+
+      if (Object.keys(geminiAuthFiles).length === 0) {
+        geminiAuthFiles = undefined;
+        warnings.push(
+          'Gemini accounts-file auth selected, but no Gemini account files were found in ~/.gemini.',
+        );
+      }
+    }
+
+    if (gitAuthMode === 'repo-token') {
+      const repoToken =
+        this.infra.repoToken ||
+        process.env.GCLI_ORBIT_REPO_TOKEN ||
+        authEnv.GCLI_ORBIT_REPO_TOKEN ||
+        process.env.WORKSPACE_GH_TOKEN ||
+        authEnv.WORKSPACE_GH_TOKEN;
+
+      if (repoToken) {
+        sensitiveEnv.GH_TOKEN = repoToken;
+        sensitiveEnv.GITHUB_TOKEN = repoToken;
+      } else if (fs.existsSync(GLOBAL_GH_CONFIG)) {
+        try {
+          const content = fs.readFileSync(GLOBAL_GH_CONFIG, 'utf8');
+          const match = content.match(/oauth_token:\s+([^\s\n]+)/);
+          if (match && match[1]) {
+            sensitiveEnv.GH_TOKEN = match[1];
+            sensitiveEnv.GITHUB_TOKEN = match[1];
+            warnings.push(
+              'Using global GitHub auth fallback for this mission. Configure repoToken or GCLI_ORBIT_REPO_TOKEN to reduce scope.',
+            );
+          }
+        } catch (e: any) {
+          this.observer.onLog?.(
+            LogLevel.DEBUG,
+            'AUTH',
+            `Failed to read GH config: ${e.message}`,
+          );
+        }
+      }
+    }
+
+    return { sensitiveEnv, geminiAuthFiles, warnings };
   }
 
   /**
@@ -115,15 +288,31 @@ export class MissionManager {
     const { identifier, action } = manifest;
     const missionId = identifier;
 
-    this.observer.onLog?.(
-      LogLevel.INFO,
-      'MISSION',
-      `🚀 Initializing '${action}' mission for ${identifier}...`,
-    );
+    const provider = this.getProvider();
 
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
+    // --- PHASE 0: SITUATIONAL AWARENESS (Wake-on-Mission) ---
+    // If the station is hibernated, we must wake it before proceeding.
+    const receipt = provider.getStationReceipt();
+    if (receipt && this.fleet) {
+      const stations = await this.stationRegistry.listStations();
+      const current = stations.find((s) => s.receipt.name === receipt.name);
+      if (
+        current?.receipt?.status === 'HIBERNATED' ||
+        current?.receipt?.status === 'TERMINATED'
+      ) {
+        this.observer.onLog?.(
+          LogLevel.INFO,
+          'MISSION',
+          `💤 Station '${receipt.name}' is hibernated. Waking up...`,
+        );
+        await this.fleet.provision({ instanceName: receipt.name } as any);
+      }
+    }
+
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'MISSION',
+      `Provider resolved: ${provider.type}`,
     );
 
     // 1. Resolve naming authority components for the provider
@@ -149,9 +338,98 @@ export class MissionManager {
 
     // ADR 0018: Explicitly set tempDir to workDir for log isolation
     manifest.tempDir = mCtx.workspaceName;
-    const workDir = provider.resolveWorkDir(mCtx.workspaceName);
-    manifest.workDir = workDir;
-    manifest.tempDir = workDir;
+    const hostWorkDir = provider.resolveWorkDir(mCtx.workspaceName);
+    const capsuleWorkDir = (provider as any).resolveCapsuleWorkDir
+      ? (provider as any).resolveCapsuleWorkDir(mCtx.workspaceName)
+      : hostWorkDir;
+
+    manifest.workDir = capsuleWorkDir;
+    manifest.tempDir = capsuleWorkDir;
+    const {
+      sensitiveEnv: resolvedSensitiveEnv,
+      geminiAuthFiles,
+      warnings: authWarnings,
+    } = this.resolveMissionSensitiveEnv(manifest);
+    manifest.sensitiveEnv = resolvedSensitiveEnv;
+    manifest.geminiAuthFiles = geminiAuthFiles;
+
+    authWarnings.forEach((warning) => {
+      this.observer.onLog?.(LogLevel.WARN, 'AUTH', warning);
+    });
+
+    // --- PHASE 1: IGNITION ---
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'MISSION',
+      'Verifying station ignition...',
+    );
+    const ignited = await provider.verifyIgnition(this.observer);
+    if (!ignited) {
+      throw new Error(`Station ignition failed for ${manifest.identifier}`);
+    }
+
+    // --- LOCAL WORKTREE DIRECT PATH ---
+    if (provider.type === 'local-worktree' && (provider as any).launchMission) {
+      this.observer.onLog?.(
+        LogLevel.DEBUG,
+        'MISSION',
+        'Entering local-worktree direct path',
+      );
+
+      await provider.ensureReady();
+      this.stationRegistry.saveReceipt(provider.getStationReceipt());
+      await provider.prepareMissionWorkspace(mCtx, {
+        ...this.infra,
+        sensitiveEnv: {
+          ...(this.infra as any).sensitiveEnv,
+          ...resolvedSensitiveEnv,
+        },
+      } as any);
+
+      this.observer.onProgress?.(
+        'PHASE 1',
+        '🚀 Launching local worktree mission...',
+      );
+
+      const exitCode = await (provider as any).launchMission(manifest);
+      if (exitCode !== 0) {
+        throw new Error(
+          `Local worktree launch failed for ${manifest.identifier}`,
+        );
+      }
+
+      return { missionId: manifest.identifier, exitCode: 0 };
+    }
+
+    // --- STARFLEET FAST-PATH ---
+    if ((provider as any).launchMission) {
+      this.observer.onLog?.(
+        LogLevel.DEBUG,
+        'MISSION',
+        'Entering Starfleet fast-path',
+      );
+      this.observer.onProgress?.(
+        'PHASE 1',
+        '🚀 Launching Starfleet Mission...',
+      );
+      const exitCode = await (provider as any).launchMission(
+        manifest,
+        hostWorkDir,
+      );
+      if (exitCode === 0) {
+        this.stationRegistry.saveReceipt(provider.getStationReceipt());
+
+        if (action === 'chat') {
+          // Give tmux a moment to spawn the session
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          const attachCode = await this.attach({ identifier, action });
+          return { missionId: manifest.identifier, exitCode: attachCode };
+        }
+
+        return { missionId: manifest.identifier, exitCode: 0 };
+      }
+      throw new Error(`Starfleet launch failed for ${manifest.identifier}`);
+    }
 
     // 2. Ensure Hardware/Station is Ready
     await provider.ensureReady();
@@ -165,57 +443,18 @@ export class MissionManager {
       '📂 Synchronizing project configurations...',
     );
 
-    // 1. Sync global user settings (Auth, etc.)
-    await provider.syncGlobalConfig();
-
-    // 2. Lazy Sync Project Configs (.gemini)
+    // 1. Lazy Sync Project Configs (.gemini)
     const localConfigDir = path.join(this.projectCtx.repoRoot, '.gemini');
     const targetConfigDir = provider.resolveProjectConfigDir();
     await provider.syncIfChanged(`${localConfigDir}/`, targetConfigDir, {
       sudo: true,
     });
 
-    // 5. Mission Preparation (Hardware/Container Layer)
-    // Gather sensitive credentials from local environment
-    const sensitiveEnv: Record<string, string> = {};
-    const creds = ['GH_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY'];
-    creds.forEach((key) => {
-      if (process.env[key]) sensitiveEnv[key] = process.env[key]!;
-    });
-
-    // ADR: Also try to extract token from gh hosts.yml if not in env
-    if (!sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
-      try {
-        const ghConfigPath = path.join(os.homedir(), '.config/gh/hosts.yml');
-        if (fs.existsSync(ghConfigPath)) {
-          const content = fs.readFileSync(ghConfigPath, 'utf8');
-          // Match any token under github.com or other hosts
-          const match = content.match(/oauth_token:\s+([^\s\n]+)/);
-          if (match && match[1]) {
-            sensitiveEnv.GH_TOKEN = match[1];
-          }
-        }
-      } catch (e: any) {
-        this.observer.onLog?.(
-          LogLevel.DEBUG,
-          'MISSION',
-          `Failed to read GH config: ${e.message}`,
-        );
-      }
-    }
-
-    // Ensure at least one is set if found
-    if (sensitiveEnv.GH_TOKEN && !sensitiveEnv.GITHUB_TOKEN) {
-      sensitiveEnv.GITHUB_TOKEN = sensitiveEnv.GH_TOKEN;
-    } else if (sensitiveEnv.GITHUB_TOKEN && !sensitiveEnv.GH_TOKEN) {
-      sensitiveEnv.GH_TOKEN = sensitiveEnv.GITHUB_TOKEN;
-    }
-
     await provider.prepareMissionWorkspace(mCtx, {
       ...this.infra,
       sensitiveEnv: {
         ...(this.infra as any).sensitiveEnv,
-        ...sensitiveEnv,
+        ...resolvedSensitiveEnv,
       },
     } as any);
 
@@ -236,8 +475,8 @@ export class MissionManager {
       interactive: false,
       manifest,
       stream: true, // Provide real-time feedback during initialization
-      env: sensitiveEnv,
-      sensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
+      env: resolvedSensitiveEnv,
+      sensitiveEnv: resolvedSensitiveEnv, // Pass explicitly for providers that handle secrets uniquely
     });
 
     if (startRes.status !== 0) {
@@ -273,10 +512,7 @@ export class MissionManager {
    * Drops into a raw interactive shell on the hardware host.
    */
   async stationShell(): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     await provider.ensureReady();
     this.observer.onLog?.(
       LogLevel.INFO,
@@ -290,10 +526,18 @@ export class MissionManager {
    * Drops into a raw interactive shell inside a mission capsule.
    */
   async missionShell(options: { identifier: string }): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
+    const provider = this.getProvider();
+    const { repoSlug, idSlug } = resolveMissionContext(
+      options.identifier,
+      this.projectCtx.repoName,
+      this.pm,
     );
+    const workspaceName = provider.resolveWorkspaceName(repoSlug, idSlug);
+    const sessionName = `${repoSlug}-${idSlug}-debug-${Date.now()}`;
+    const workDir =
+      typeof (provider as any).resolveCapsuleWorkDir === 'function'
+        ? (provider as any).resolveCapsuleWorkDir(workspaceName)
+        : provider.resolveWorkDir(workspaceName);
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -311,7 +555,7 @@ export class MissionManager {
       'SHELL',
       `🛰️ Entering mission shell: ${target}`,
     );
-    return provider.missionShell(target);
+    return provider.missionShell(target, workDir, sessionName);
   }
 
   /**
@@ -321,12 +565,9 @@ export class MissionManager {
     identifier: string;
     action?: string | undefined;
   }): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
 
-    // 1. Calculate canonical session name via Provider Hook
+    // 1. Calculate canonical names
     const {
       repoSlug,
       idSlug,
@@ -344,13 +585,31 @@ export class MissionManager {
       `👋 Resuming existing '${action}' for ${idSlug}...`,
     );
 
+    const launchedContainerName =
+      typeof (provider as any).getLaunchedContainerName === 'function'
+        ? (provider as any).getLaunchedContainerName(options.identifier)
+        : undefined;
+    const containerName =
+      launchedContainerName ||
+      provider.resolveContainerName(repoSlug, idSlug, action);
     const sessionName = provider.resolveSessionName(repoSlug, idSlug, action);
 
-    // 2. Try direct attach to canonical name first
-    const directRes = await provider.attach(sessionName);
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'ATTACH',
+      `Direct attach attempt: container=${containerName}, session=${sessionName}`,
+    );
+
+    // 2. Try direct attach to canonical container first
+    const directRes = await provider.attach(containerName, sessionName);
+    this.observer.onLog?.(
+      LogLevel.DEBUG,
+      'ATTACH',
+      `Direct attach result: ${directRes}`,
+    );
     if (directRes === 0) return 0;
 
-    // 3. Fallback: List Capsules to find the right one (Legacy support)
+    // 3. Fallback: List Capsules to find the right one (Legacy support or slug mismatch)
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -363,8 +622,8 @@ export class MissionManager {
       return 1;
     }
 
-    // 4. Attach via Provider
-    return provider.attach(target);
+    // 4. Attach via Provider with identified container
+    return provider.attach(target, sessionName);
   }
 
   /**
@@ -374,10 +633,7 @@ export class MissionManager {
     identifier: string;
     command: string;
   }): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const { branchName, repoSlug, idSlug } = resolveMissionContext(
       options.identifier,
       this.projectCtx.repoName,
@@ -402,10 +658,7 @@ export class MissionManager {
   async jettison(options: JettisonOptions): Promise<MissionResult> {
     const { identifier, action } = options;
 
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
 
     // Delegate ALL cleanup (sessions, worktrees, and secrets) to the provider.
     // This ensures surgical cleanup for specific actions vs. full mission cleanup.
@@ -418,10 +671,7 @@ export class MissionManager {
    * Removes idle mission capsules.
    */
   async reap(options: ReapOptions): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const capsules = await provider.listCapsules();
     const threshold = options.threshold || 24; // 24 hours default
 
@@ -445,10 +695,7 @@ export class MissionManager {
    * Retrieves logs from a mission capsule.
    */
   async getLogs(options: GetLogsOptions): Promise<number> {
-    const provider = this.providerFactory.getProvider(
-      this.projectCtx,
-      this.infra as any,
-    );
+    const provider = this.getProvider();
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 

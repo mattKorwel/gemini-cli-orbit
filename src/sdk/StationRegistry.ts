@@ -11,7 +11,6 @@ import {
   type ProjectContext,
   type InfrastructureSpec,
 } from '../core/Constants.js';
-import { logger } from '../core/Logger.js';
 import {
   type IStationRegistry,
   type IProviderFactory,
@@ -65,9 +64,7 @@ export class StationRegistry implements IStationRegistry {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
 
-  async listStations(
-    options: { syncWithReality?: boolean } = {},
-  ): Promise<HydratedStation[]> {
+  async listStations(): Promise<HydratedStation[]> {
     const settings = this.configManager.loadSettings();
     const files = fs
       .readdirSync(STATIONS_DIR)
@@ -107,29 +104,7 @@ export class StationRegistry implements IStationRegistry {
       }
     });
 
-    const stations: HydratedStation[] = receipts.map((r) =>
-      this.hydrateStation(r),
-    );
-
-    if (options.syncWithReality) {
-      for (const s of stations) {
-        try {
-          const reality = await s.provider.getStatus();
-          if (reality.status === 'NOT_FOUND' && s.receipt.type === 'gce') {
-            logger.info(
-              'STATION',
-              `🗑️  Pruning stale station record: ${s.receipt.name}`,
-            );
-            this.deleteReceipt(s.receipt.name);
-          }
-          s.receipt.status = reality.status;
-        } catch (_e: any) {
-          s.receipt.status = 'UNREACHABLE';
-        }
-      }
-    }
-
-    return stations;
+    return receipts.map((r) => this.hydrateStation(r));
   }
 
   /**
@@ -146,16 +121,21 @@ export class StationRegistry implements IStationRegistry {
       zone: receipt.zone,
       instanceName: receipt.instanceName || receipt.name,
       providerType: receipt.type,
-      backendType: receipt.backendType,
+      networkAccessType: receipt.networkAccessType,
       workspacesDir: receipt.workspacesDir,
       dnsSuffix: receipt.dnsSuffix,
       userSuffix: receipt.userSuffix,
+      sshUser: receipt.sshUser,
       schematic: receipt.schematic,
     };
 
+    const state = receipt.externalIp
+      ? { status: 'ready' as const, publicIp: receipt.externalIp }
+      : undefined;
+
     return {
       receipt,
-      provider: this.providerFactory.getProvider(projectCtx, infra),
+      provider: this.providerFactory.getProvider(projectCtx, infra, state),
     };
   }
 }

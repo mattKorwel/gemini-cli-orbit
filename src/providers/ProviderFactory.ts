@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GceCosProvider } from './GceCosProvider.js';
 import { LocalWorktreeProvider } from './LocalWorktreeProvider.js';
+import { GceStarfleetProvider } from './GceStarfleetProvider.js';
+import { LocalDockerStarfleetProvider } from './LocalDockerStarfleetProvider.js';
+import { StarfleetClient } from '../sdk/StarfleetClient.js';
 import type { OrbitProvider } from './BaseProvider.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
-import { GceSSHManager } from './SSHManager.js';
+import { SshTransport } from '../transports/ssh/SshTransport.js';
+import { IdentityTransport } from '../transports/IdentityTransport.js';
 import {
   getPrimaryRepoRoot,
   type InfrastructureSpec,
@@ -24,9 +27,12 @@ import {
 import { GitExecutor } from '../core/executors/GitExecutor.js';
 import { DockerExecutor } from '../core/executors/DockerExecutor.js';
 import { TmuxExecutor } from '../core/executors/TmuxExecutor.js';
+import { WindowsTmuxExecutor } from '../core/executors/WindowsTmuxExecutor.js';
 import { NodeExecutor } from '../core/executors/NodeExecutor.js';
 import { GeminiExecutor } from '../core/executors/GeminiExecutor.js';
-import { SshExecutor } from '../core/executors/SshExecutor.js';
+import { SshExecutor } from '../core/executors/ssh/SshExecutor.js';
+import { WindowsSshExecutor } from '../core/executors/ssh/WindowsSshExecutor.js';
+import { WindowsSshTransport } from '../transports/ssh/WindowsSshTransport.js';
 
 export class ProviderFactory implements IProviderFactory {
   constructor(
@@ -35,13 +41,21 @@ export class ProviderFactory implements IProviderFactory {
   ) {}
 
   static getExecutors(pm: IProcessManager): IExecutors {
+    const tmux =
+      process.platform === 'win32'
+        ? new WindowsTmuxExecutor(pm)
+        : new TmuxExecutor(pm);
+
     return {
       git: new GitExecutor(pm),
       docker: new DockerExecutor(pm),
-      tmux: new TmuxExecutor(pm),
+      tmux,
       node: new NodeExecutor(pm),
       gemini: new GeminiExecutor(pm),
-      ssh: new SshExecutor(pm),
+      ssh:
+        process.platform === 'win32'
+          ? new WindowsSshExecutor(pm)
+          : new SshExecutor(pm),
     };
   }
 
@@ -50,16 +64,12 @@ export class ProviderFactory implements IProviderFactory {
     infra: InfrastructureSpec,
     state?: InfrastructureState,
   ): OrbitProvider {
-    const isLocal =
-      !infra.projectId ||
-      infra.projectId === 'local' ||
-      infra.providerType === 'local-worktree';
-    const effectiveProvider =
-      infra.providerType || (isLocal ? 'local-worktree' : 'gce');
-
+    // 1. High-Level Provider Mapping (ADR 0022: Simplified Orbit Buckets)
+    const providerType = infra.providerType || 'local-worktree';
     const stationName = infra.stationName || `station-${projectCtx.repoName}`;
 
-    if (effectiveProvider === 'local-worktree') {
+    // TIER A: Local Git (Legacy Worktrees)
+    if (providerType === 'local-worktree') {
       return new LocalWorktreeProvider(
         projectCtx,
         fs,
@@ -75,37 +85,74 @@ export class ProviderFactory implements IProviderFactory {
       );
     }
 
-    // GCE flow: Initialize SSH Manager first
-    const ssh = new GceSSHManager(
-      infra.projectId!,
-      infra.zone!,
-      infra.instanceName!,
-      infra,
-      this.pm,
-      this.executors.ssh,
-    );
+    // TIER B: Local Docker (Starfleet on Mac)
+    if (providerType === 'local-docker') {
+      const transport = new IdentityTransport(this.pm);
+      const client = new StarfleetClient(
+        (infra as any).apiUrl || 'http://localhost:8080',
+      );
 
-    const gceConfig: { imageUri?: string; stationName?: string } = {};
-    if (infra.imageUri) gceConfig.imageUri = infra.imageUri;
-    if (stationName) gceConfig.stationName = stationName;
-
-    const provider = new GceCosProvider(
-      projectCtx,
-      infra.projectId!,
-      infra.zone!,
-      infra.instanceName!,
-      getPrimaryRepoRoot(projectCtx.repoRoot),
-      ssh,
-      this.pm,
-      this.executors,
-      infra,
-      gceConfig,
-    );
-
-    if (state && provider.injectState) {
-      provider.injectState(state);
+      return new LocalDockerStarfleetProvider(
+        client,
+        transport,
+        this.pm,
+        this.executors,
+        projectCtx,
+        infra,
+        {
+          projectId: 'local',
+          zone: 'localhost',
+          stationName: infra.instanceName || stationName,
+        },
+      );
     }
 
-    return provider;
+    // TIER C: GCE (Starfleet)
+    if (providerType === 'gce') {
+      const transport =
+        process.platform === 'win32'
+          ? new WindowsSshTransport(
+              infra.projectId!,
+              infra.zone!,
+              infra.instanceName!,
+              infra,
+              this.pm,
+              this.executors.ssh,
+            )
+          : new SshTransport(
+              infra.projectId!,
+              infra.zone!,
+              infra.instanceName!,
+              infra,
+              this.pm,
+              this.executors.ssh,
+            );
+
+      const client = new StarfleetClient(
+        (infra as any).apiUrl || 'http://localhost:8080',
+      );
+
+      const provider = new GceStarfleetProvider(
+        client,
+        transport,
+        this.pm,
+        this.executors,
+        projectCtx,
+        infra,
+        {
+          projectId: infra.projectId!,
+          zone: infra.zone!,
+          stationName: infra.instanceName || stationName,
+        },
+      );
+
+      if (state && provider.injectState) {
+        provider.injectState(state);
+      }
+
+      return provider;
+    }
+
+    throw new Error(`Unknown provider type: ${providerType}`);
   }
 }
