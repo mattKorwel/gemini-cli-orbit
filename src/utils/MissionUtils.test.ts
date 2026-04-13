@@ -31,6 +31,8 @@ describe('MissionUtils', () => {
     const ctx = resolveMissionContext('123:debug', 'gemini-cli-orbit', mockPm);
     expect(ctx.idSlug).toBe('123');
     expect(ctx.action).toBe('debug');
+    expect(ctx.branchName).toBe('123');
+    expect(mockPm.runSync).not.toHaveBeenCalled();
   });
 
   it('should resolve PR metadata using GH CLI for numeric IDs', () => {

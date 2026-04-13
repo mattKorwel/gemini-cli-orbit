@@ -45,7 +45,9 @@ export function resolveMissionContext(
   const actionPart = parts[1];
 
   let branchName = idPart;
-  if (/^\d+$/.test(idPart)) {
+  // Explicit shorthand like "123:review" is already fully hydrated input.
+  // Avoid a GH lookup here so resolution remains deterministic and offline-safe.
+  if (/^\d+$/.test(idPart) && !actionPart) {
     const res: IProcessResult = pm.runSync('gh', [
       'pr',
       'view',
