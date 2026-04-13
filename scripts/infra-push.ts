@@ -26,11 +26,11 @@ async function main() {
   const images = [
     {
       name: 'gemini-cli-orbit',
-      file: 'orbit-capsule.Dockerfile',
+      file: 'docker/orbit-capsule.Dockerfile',
     },
     {
       name: 'orbit-worker',
-      file: 'orbit-worker.Dockerfile',
+      file: 'docker/orbit-worker.Dockerfile',
     },
   ];
 

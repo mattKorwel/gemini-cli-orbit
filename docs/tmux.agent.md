@@ -98,7 +98,7 @@ image generally.
 
 That means the next things to inspect are:
 
-- tmux config/features we set in starfleet-entrypoint.sh
+- tmux config/features we set in `docker/starfleet-entrypoint.sh`
 - whether TERM=xterm-256color outside tmux vs tmux-256color inside tmux changes
   Gemini’s UI path
 - whether one of our tmux options is provoking redraw churn

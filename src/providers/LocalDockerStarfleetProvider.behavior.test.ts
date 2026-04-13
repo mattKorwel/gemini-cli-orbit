@@ -57,7 +57,7 @@ if (joined === 'run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orb
   process.exit(1);
 }
 
-if (joined === 'build -t orbit-worker:local -f orbit-worker.Dockerfile .') {
+if (joined === 'build -t orbit-worker:local -f docker/orbit-worker.Dockerfile .') {
   fs.writeFileSync(markerPath, 'ready');
   process.stdout.write('built\\n');
   process.exit(0);

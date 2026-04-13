@@ -78,8 +78,8 @@ npm run local:scorch
 The local supervisor now resolves relative host paths in
 `configs/station.local.json` against the startup directory via one explicit
 host-path base. Repo assets such as `./bundle`, `./.gemini/policies`, and
-`./starfleet-entrypoint.sh` should resolve into the current repo root, while
-station data stays under `~/.gemini/orbit/stations/local-docker`.
+`./docker/starfleet-entrypoint.sh` should resolve into the current repo root,
+while station data stays under `~/.gemini/orbit/stations/local-docker`.
 
 ### 🛸 Start Supervisor (Background)
 

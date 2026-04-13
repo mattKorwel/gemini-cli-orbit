@@ -73,3 +73,5 @@ bundle/
 dist/
 mcp.json
 coverage/
+.audit-home*/
+~/
