@@ -10,7 +10,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { logger } from '../core/Logger.js';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
-import { normalizeBehaviorHistory } from '../test/BehaviorSnapshot.js';
 
 let activeBinDir = '';
 
@@ -165,14 +164,7 @@ process.exit(0);
         'none',
       ]);
 
-      const normalizedHistory = normalizeBehaviorHistory(harness.getHistory(), {
-        placeholders: {
-          [repoRoot]: '<tmp>/repo',
-          [worktreeRoot]: '<tmp>/worktrees',
-          [home]: '<tmp>/home',
-          [harness.bin]: '<bin>',
-        },
-      });
+      const rawHistory = harness.getHistory();
       const manifestPath = getLocalMissionManifestPath('test-repo/local-123');
       const sessionPattern = /test-repo(?:\/|-)local-123/;
 
@@ -183,7 +175,7 @@ process.exit(0);
         fs.existsSync(path.join(workspacePath, '.orbit-manifest.json')),
       ).toBe(false);
       expect(
-        normalizedHistory.some(
+        rawHistory.some(
           (line) =>
             line.includes('new-session') &&
             line.includes('-A') &&
@@ -192,7 +184,7 @@ process.exit(0);
         ),
       ).toBe(true);
       expect(
-        normalizedHistory.some(
+        rawHistory.some(
           (line) =>
             line.includes('new-session') &&
             line.includes('-d') &&
@@ -200,7 +192,7 @@ process.exit(0);
         ),
       ).toBe(false);
       expect(
-        normalizedHistory.some(
+        rawHistory.some(
           (line) =>
             line.includes('attach-session') && sessionPattern.test(line),
         ),
