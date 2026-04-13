@@ -529,6 +529,17 @@ export class MissionManager {
    */
   async missionShell(options: { identifier: string }): Promise<number> {
     const provider = this.getProvider();
+    const { repoSlug, idSlug } = resolveMissionContext(
+      options.identifier,
+      this.projectCtx.repoName,
+      this.pm,
+    );
+    const workspaceName = provider.resolveWorkspaceName(repoSlug, idSlug);
+    const sessionName = `${repoSlug}-${idSlug}-debug-${Date.now()}`;
+    const workDir =
+      typeof (provider as any).resolveCapsuleWorkDir === 'function'
+        ? (provider as any).resolveCapsuleWorkDir(workspaceName)
+        : provider.resolveWorkDir(workspaceName);
     const capsules = await provider.listCapsules();
     const target = capsules.find((c) => c.includes(options.identifier));
 
@@ -546,7 +557,7 @@ export class MissionManager {
       'SHELL',
       `🛰️ Entering mission shell: ${target}`,
     );
-    return provider.missionShell(target);
+    return provider.missionShell(target, workDir, sessionName);
   }
 
   /**

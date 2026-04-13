@@ -34,6 +34,10 @@ export class SshTransport implements StationTransport {
   protected activeTunnels: Set<number> = new Set();
   private overrideHost: string | null = null;
 
+  private shellQuote(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
+  }
+
   constructor(
     private readonly projectId: string,
     private readonly zone: string,
@@ -106,6 +110,31 @@ export class SshTransport implements StationTransport {
     const attachCmd = `sudo docker exec -it ${dockerEnvArgs} ${containerName} tmux attach -t ${sessionName} || sudo docker exec -it ${dockerEnvArgs} ${containerName} /bin/bash`;
 
     const res = this.ssh.exec(target, attachCmd, {
+      interactive: true,
+      env: {
+        ...getDefinedProcessEnv(),
+        ...terminalEnv,
+      },
+    });
+    return res.status;
+  }
+
+  public async missionShell(
+    containerName: string,
+    workDir?: string,
+    _sessionName?: string,
+  ): Promise<number> {
+    const target = this.getConnectionHandle();
+    const terminalEnv = getInteractiveTerminalEnv();
+    const dockerEnvArgs = Object.entries(terminalEnv)
+      .map(([key, value]) => `-e ${key}=${value}`)
+      .join(' ');
+
+    const shellCmd = `sudo docker exec -it ${dockerEnvArgs} ${containerName} bash -c ${this.shellQuote(
+      `cd ${workDir || '/'} && exec /bin/bash`,
+    )}`;
+
+    const res = this.ssh.exec(target, shellCmd, {
       interactive: true,
       env: {
         ...getDefinedProcessEnv(),

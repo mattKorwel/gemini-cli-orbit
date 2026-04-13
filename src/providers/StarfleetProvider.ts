@@ -381,10 +381,6 @@ export abstract class StarfleetProvider extends BaseProvider {
   ): Promise<ExecResult> {
     return this.transport.exec(command, options);
   }
-  async missionShell(): Promise<number> {
-    return 0;
-  }
-
   getStationReceipt(): StationReceipt {
     return {
       name: this.stationName,
@@ -451,5 +447,22 @@ export abstract class StarfleetProvider extends BaseProvider {
   }
   override resolveIsolationId(mCtx: MissionContext): string {
     return mCtx.containerName;
+  }
+
+  async missionShell(
+    capsuleName: string,
+    workDir?: string,
+    sessionName?: string,
+  ): Promise<number> {
+    try {
+      await this.ensureReady();
+      return await this.transport.missionShell(
+        capsuleName,
+        workDir,
+        sessionName,
+      );
+    } catch (_err: any) {
+      return 1;
+    }
   }
 }

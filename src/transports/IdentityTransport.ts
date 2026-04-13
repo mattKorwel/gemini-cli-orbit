@@ -78,6 +78,33 @@ export class IdentityTransport implements StationTransport {
     return res.status;
   }
 
+  async missionShell(
+    containerName: string,
+    workDir?: string,
+    _sessionName?: string,
+  ): Promise<number> {
+    const terminalEnv = getInteractiveTerminalEnv();
+    const dockerEnvArgs = Object.entries(terminalEnv).flatMap(
+      ([key, value]) => ['-e', `${key}=${value}`],
+    );
+
+    const shellCmd = `cd ${workDir || '/'} && exec /bin/bash`;
+
+    const res = this.pm.runSync(
+      'docker',
+      ['exec', '-it', ...dockerEnvArgs, containerName, 'bash', '-c', shellCmd],
+      {
+        interactive: true,
+        env: {
+          ...getDefinedProcessEnv(),
+          ...terminalEnv,
+        },
+      },
+    );
+
+    return res.status;
+  }
+
   async sync(
     _localPath: string,
     _remotePath: string,

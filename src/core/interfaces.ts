@@ -119,6 +119,15 @@ export interface StationTransport {
   attach(containerName: string, sessionName: string): Promise<number>;
 
   /**
+   * Opens a raw interactive shell inside a running mission container.
+   */
+  missionShell(
+    containerName: string,
+    workDir?: string,
+    sessionName?: string,
+  ): Promise<number>;
+
+  /**
    * Transfers files between local and host.
    */
   sync(

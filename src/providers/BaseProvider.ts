@@ -290,7 +290,11 @@ export abstract class BaseProvider {
   /**
    * Drops into a raw interactive shell inside a mission capsule.
    */
-  abstract missionShell(capsuleName: string): Promise<number>;
+  abstract missionShell(
+    capsuleName: string,
+    workDir?: string,
+    sessionName?: string,
+  ): Promise<number>;
 
   /**
    * Generates the immutable receipt for this station.

@@ -686,7 +686,11 @@ export class LocalWorktreeProvider extends BaseProvider {
     return this.pm.runSync('/bin/zsh', [], { stdio: 'inherit' }).status;
   }
 
-  async missionShell(name: string): Promise<number> {
+  async missionShell(
+    name: string,
+    _workDir?: string,
+    _sessionName?: string,
+  ): Promise<number> {
     return this.attach(name);
   }
 
