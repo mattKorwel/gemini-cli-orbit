@@ -94,13 +94,13 @@ export function normalizeBehaviorHistory(
 
     normalized = normalized.replace(
       new RegExp(
-        `(^\\[[^\\]]+\\]\\s+)(?:[A-Za-z]:)?[^\\s]*\\/(${commandPattern})(?:\\.exe)?(?=\\s|$)`,
+        `(^\\[[^\\]]+\\]\\s+)(?:[A-Za-z]:)?[^\\s]*\\/(${commandPattern})(?:\\.exe|\\.js)?(?=\\s|$)`,
         'i',
       ),
       '$1$2',
     );
     normalized = normalized.replace(
-      new RegExp(`\\b(${commandPattern})\\.exe\\b`, 'gi'),
+      new RegExp(`\\b(${commandPattern})(?:\\.exe|\\.js)\\b`, 'gi'),
       '$1',
     );
     return normalized;
