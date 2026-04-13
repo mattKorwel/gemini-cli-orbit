@@ -36,7 +36,11 @@ export class TestProcessManager implements IProcessManager {
     }
 
     // Strip .exe for stub resolution
-    baseBin = baseBin.endsWith('.exe') ? baseBin.slice(0, -4) : baseBin;
+    if (baseBin.toLowerCase().endsWith('.exe')) {
+      baseBin = baseBin.slice(0, -4);
+    }
+
+    // Try finding the stub with or without .js extension (harness.stubScript adds .js)
     const scriptPath = path.join(this.options.binDir, `${baseBin}.js`);
     if (!fs.existsSync(scriptPath)) {
       return { bin, args };

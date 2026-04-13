@@ -101,10 +101,18 @@ process.exit(0);
       { mode: 0o755 },
     );
 
-    fs.writeFileSync(
-      path.join(harness.bin, 'gcloud.cmd'),
-      `@echo off\r\n"${process.execPath}" "${gcloudScriptPath}" %*\r\n`,
-    );
+    if (process.platform === 'win32') {
+      fs.writeFileSync(
+        path.join(harness.bin, 'gcloud.cmd'),
+        `@echo off\r\n"${process.execPath}" "${gcloudScriptPath}" %*\r\n`,
+      );
+    } else {
+      fs.writeFileSync(
+        path.join(harness.bin, 'gcloud'),
+        `#!/bin/sh\n"${process.execPath}" "${gcloudScriptPath}" "$@"\n`,
+        { mode: 0o755 },
+      );
+    }
 
     fs.writeFileSync(
       sshKeygenScriptPath,
@@ -121,18 +129,28 @@ if (args[0] === '--version') {
 }
 
 const keyPath = args[args.indexOf('-f') + 1];
-fs.mkdirSync(path.dirname(keyPath), { recursive: true });
-fs.writeFileSync(keyPath, 'private');
-fs.writeFileSync(keyPath + '.pub', 'ssh-rsa AAA test-key');
+if (keyPath) {
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, 'private');
+  fs.writeFileSync(keyPath + '.pub', 'ssh-rsa AAA test-key');
+}
 process.exit(0);
 `,
       { mode: 0o755 },
     );
 
-    fs.writeFileSync(
-      path.join(harness.bin, 'ssh-keygen.cmd'),
-      `@echo off\r\n"${process.execPath}" "${sshKeygenScriptPath}" %*\r\n`,
-    );
+    if (process.platform === 'win32') {
+      fs.writeFileSync(
+        path.join(harness.bin, 'ssh-keygen.cmd'),
+        `@echo off\r\n"${process.execPath}" "${sshKeygenScriptPath}" %*\r\n`,
+      );
+    } else {
+      fs.writeFileSync(
+        path.join(harness.bin, 'ssh-keygen'),
+        `#!/bin/sh\n"${process.execPath}" "${sshKeygenScriptPath}" "$@"\n`,
+        { mode: 0o755 },
+      );
+    }
 
     const result = spawnSync(
       process.execPath,

@@ -93,6 +93,16 @@ process.exit(0);
             capsule: '/orbit',
             kind: 'dir',
           },
+          workspaces: {
+            host: path.join(orbitRoot, 'workspaces'),
+            capsule: '/orbit/workspaces',
+            kind: 'dir',
+          },
+          main: {
+            host: path.join(orbitRoot, 'main'),
+            capsule: '/orbit/main',
+            kind: 'dir',
+          },
           homeRoot: {
             host: path.join(orbitRoot, 'home'),
             capsule: '/orbit/home',
@@ -303,6 +313,16 @@ process.exit(0);
           orbitRoot: {
             host: orbitRoot,
             capsule: '/orbit',
+            kind: 'dir',
+          },
+          workspaces: {
+            host: path.join(orbitRoot, 'workspaces'),
+            capsule: '/orbit/workspaces',
+            kind: 'dir',
+          },
+          main: {
+            host: path.join(orbitRoot, 'main'),
+            capsule: '/orbit/main',
             kind: 'dir',
           },
           homeRoot: {

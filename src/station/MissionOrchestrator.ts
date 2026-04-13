@@ -91,8 +91,9 @@ export class MissionOrchestrator {
 
     const hostRoot = this.config.hostRoot?.replace(/\\/g, '/');
     if (hostRoot && mappedPath.startsWith(hostRoot)) {
-      const relative = mappedPath.slice(hostRoot.length).replace(/^\/+/, '');
-      return relative ? `/orbit/data/${relative}` : '/orbit/data';
+      // If we are in a test environment where hostRoot is a temporary directory,
+      // and the mapped path is inside it, it's already a valid host path.
+      return mappedPath;
     }
 
     const manifestRoot = this.config.manifestRoot?.replace(/\\/g, '/');

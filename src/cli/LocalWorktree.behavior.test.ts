@@ -139,14 +139,13 @@ process.exit(0);
 `;
 
       harness.stubScript('tmux', tmuxStub);
-      harness.stubScript('tmux.exe', tmuxStub);
 
       vi.stubEnv('HOME', home);
       vi.stubEnv('USERPROFILE', home);
       vi.stubEnv('APPDATA', appData);
       vi.stubEnv('GCLI_ORBIT_REPO_NAME', 'test-repo');
       vi.stubEnv('ORBIT_GIT_BIN', 'git');
-      vi.stubEnv('ORBIT_TMUX_BIN', path.join(harness.bin, 'tmux.exe'));
+      vi.stubEnv('ORBIT_TMUX_BIN', 'tmux');
 
       const { dispatch } = await import('./cli.js');
       const { getLocalMissionManifestPath } =
