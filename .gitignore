@@ -41,6 +41,7 @@ dist
 
 # Docker folder to help skip auth refreshes
 .docker
+.orbit-manifest.json
 
 bundle
 
