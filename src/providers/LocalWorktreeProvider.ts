@@ -6,7 +6,6 @@
 
 import path from 'node:path';
 import os from 'node:os';
-import { logger } from '../core/Logger.js';
 import { BaseProvider } from './BaseProvider.js';
 import {
   type ExecOptions,
@@ -74,11 +73,6 @@ export class LocalWorktreeProvider extends BaseProvider {
       ...cmd.options,
       quiet: true,
     });
-    if (res.status !== 0) {
-      console.error(
-        `[TMUX] Check failed for ${cmd.bin}: ${res.stderr} (exit ${res.status})`,
-      );
-    }
     return res.status === 0;
   }
 

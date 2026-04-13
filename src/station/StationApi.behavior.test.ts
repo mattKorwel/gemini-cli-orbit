@@ -80,8 +80,8 @@ process.exit(0);
         isUnlocked: true,
         useSudo: false,
         storage: {
-          workspacesRoot: '/orbit/workspaces',
-          mirrorPath: '/orbit/main',
+          workspacesRoot: path.join(orbitRoot, 'workspaces'),
+          mirrorPath: path.join(orbitRoot, 'main'),
         },
         mounts: [
           { host: orbitRoot, capsule: '/orbit' },
@@ -96,7 +96,6 @@ process.exit(0);
           homeRoot: {
             host: path.join(orbitRoot, 'home'),
             capsule: '/orbit/home',
-            kind: 'dir',
           },
           manifests: {
             host: path.join(orbitRoot, 'manifests'),
@@ -293,8 +292,8 @@ process.exit(0);
         isUnlocked: true,
         useSudo: false,
         storage: {
-          workspacesRoot: '/orbit/workspaces',
-          mirrorPath: '/orbit/main',
+          workspacesRoot: path.join(orbitRoot, 'workspaces'),
+          mirrorPath: path.join(orbitRoot, 'main'),
         },
         mounts: [
           { host: orbitRoot, capsule: '/orbit' },
@@ -309,7 +308,6 @@ process.exit(0);
           homeRoot: {
             host: path.join(orbitRoot, 'home'),
             capsule: '/orbit/home',
-            kind: 'dir',
           },
           manifests: {
             host: path.join(orbitRoot, 'manifests'),
