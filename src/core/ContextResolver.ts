@@ -107,7 +107,18 @@ export class ContextResolver {
     }
 
     // Layer 3: Schematic (Explicit or linked in receipt)
-    const sName = flags.schematic || infra.schematic;
+    let sName = flags.schematic || infra.schematic;
+
+    // ADR 0022/ADR 0016: Schematic Fallback
+    // If no explicit schematic is provided, and we don't have a station receipt,
+    // check if the targetStation name itself matches a known schematic.
+    if (!sName && targetStation && !state) {
+      const possibleSchematic = loadSchematic(targetStation);
+      if (Object.keys(possibleSchematic).length > 0) {
+        sName = targetStation;
+      }
+    }
+
     if (sName) {
       const schematic = loadSchematic(sName);
       // ADR 0016: Schematic is a blueprint.

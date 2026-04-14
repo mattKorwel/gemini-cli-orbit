@@ -268,4 +268,33 @@ describe('ContextResolver', () => {
     });
     expect(ctx3.isDev).toBe(true);
   });
+
+  it('should fallback to using the station name as the schematic name if no receipt exists', async () => {
+    // 1. No receipt for 'beta-schematic'
+    vi.spyOn(ConfigManager, 'loadJson').mockReturnValue(null);
+
+    // 2. But a schematic exists with that same name
+    vi.spyOn(ConfigManager, 'loadSchematic').mockImplementation((name) => {
+      if (name === 'beta-schematic') {
+        return {
+          projectId: 'schematic-project',
+          zone: 'us-east4-b',
+          providerType: 'gce',
+        };
+      }
+      return {};
+    });
+
+    const context = await ContextResolver.resolve({
+      repoRoot,
+      flags: { forStation: 'beta-schematic' },
+      env: {},
+    });
+
+    // SHOULD have picked up the schematic settings
+    expect(context.infra.projectId).toBe('schematic-project');
+    expect(context.infra.zone).toBe('us-east4-b');
+    expect(context.infra.providerType).toBe('gce');
+    expect(context.infra.stationName).toBe('beta-schematic');
+  });
 });

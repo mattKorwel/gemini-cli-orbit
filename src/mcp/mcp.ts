@@ -399,17 +399,29 @@ export function createOrbitMcpServer() {
       }).shape,
     },
     async ({ name, schematic }) => {
-      const sdk = await getSDK(undefined, name, schematic);
-      const code = await sdk.provisionStation({
-        stationName: name,
-        schematicName: schematic,
-      });
-      const output = observer.getOutput();
-      return {
-        content: [
-          { type: 'text', text: `Exit Code: ${code}\n\nLogs:\n${output}` },
-        ],
-      };
+      try {
+        const sdk = await getSDK(undefined, name, schematic);
+        const code = await sdk.provisionStation({
+          stationName: name,
+          schematicName: schematic,
+        });
+        const output = observer.getOutput();
+        return {
+          content: [
+            { type: 'text', text: `Exit Code: ${code}\n\nLogs:\n${output}` },
+          ],
+        };
+      } catch (err: any) {
+        const output = observer.getOutput();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `❌ Infrastructure Liftoff Failed: ${err.message}\n\n${output}\n\nDetails:\n- Project logs: ~/.gemini/orbit/orbit.log\n- Pulumi logs: ~/.gemini/orbit/state/gcp-cos-${name}/pulumi.log`,
+            },
+          ],
+        };
+      }
     },
   );
 
@@ -427,16 +439,28 @@ export function createOrbitMcpServer() {
       }).shape,
     },
     async ({ name }) => {
-      const sdk = await getSDK(undefined, name);
-      // sdk.splashdown calls deleteStation/down internally.
-      // For MCP, we force it to skip confirmation by passing force or equivalent.
-      const code = await sdk.splashdown({ name });
-      const output = observer.getOutput();
-      return {
-        content: [
-          { type: 'text', text: `Exit Code: ${code}\n\nLogs:\n${output}` },
-        ],
-      };
+      try {
+        const sdk = await getSDK(undefined, name);
+        // sdk.splashdown calls deleteStation/down internally.
+        // For MCP, we force it to skip confirmation by passing force or equivalent.
+        const code = await sdk.splashdown({ name });
+        const output = observer.getOutput();
+        return {
+          content: [
+            { type: 'text', text: `Exit Code: ${code}\n\nLogs:\n${output}` },
+          ],
+        };
+      } catch (err: any) {
+        const output = observer.getOutput();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `❌ Infrastructure Splashdown Failed: ${err.message}\n\n${output}`,
+            },
+          ],
+        };
+      }
     },
   );
 
@@ -716,6 +740,9 @@ const isMain = () => {
 };
 
 if (isMain()) {
+  process.env.GCLI_ORBIT_AUTO_APPROVE = '1';
+  process.env.GCLI_MCP = '1';
+
   const server = createOrbitMcpServer();
   const transport = new StdioServerTransport();
   server.connect(transport).catch((err) => {
