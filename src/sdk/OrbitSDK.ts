@@ -450,4 +450,13 @@ export class OrbitSDK implements IOrbitSDK {
   ): Promise<void> {
     return this.fleet.runSchematicWizard(name, cliFlags);
   }
+
+  /**
+   * Preflight and optionally prepare a GCP project for remote stations.
+   */
+  async prepareGcp(
+    options: import('../utils/GcpPrepare.js').PrepareOptions,
+  ): Promise<import('../utils/GcpPrepare.js').CheckResult[]> {
+    return this.fleet.prepareGcp(options);
+  }
 }

@@ -22,6 +22,11 @@ import {
   type ISchematicManager,
   type IConfigManager,
 } from '../core/interfaces.js';
+import {
+  runGcpPrepare,
+  type PrepareOptions,
+  type CheckResult,
+} from '../utils/GcpPrepare.js';
 
 function ask(query: string): Promise<string> {
   const rl = readline.createInterface({
@@ -294,5 +299,9 @@ export class SchematicManager implements ISchematicManager {
       if (config?.machineType) info.machineType = config.machineType;
       return info;
     });
+  }
+
+  async prepareGcp(options: PrepareOptions): Promise<CheckResult[]> {
+    return runGcpPrepare(options);
   }
 }

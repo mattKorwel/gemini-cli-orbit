@@ -44,7 +44,7 @@ orbit infra schematic edit corporate --projectId <YOUR_PROJECT_ID>
 orbit infra schematic edit personal --projectId <YOUR_PROJECT_ID> --sshSourceRanges <YOUR_PUBLIC_IP>/32
 ```
 
-> **💡 Pro Tip**: For personal GCP projects, run `npm run infra:gcp:prep -- --apply` to
+> **💡 Pro Tip**: For personal GCP projects, run `orbit infra prepare --apply` to
 > automatically enable APIs, generate SSH keys, and setup your schematic.
 
 ### 5. Achieving Liftoff

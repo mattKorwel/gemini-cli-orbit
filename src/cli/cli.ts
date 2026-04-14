@@ -710,6 +710,72 @@ QUICK START:
         (y: Argv) => {
           return y
             .command(
+              'prepare',
+              'Preflight and prepare a GCP project for Orbit.',
+              (y2) => {
+                applyFriendlyUsage(
+                  y2,
+                  'infra prepare',
+                  'Ensures your GCP project is ready for Orbit stations. It checks for APIs, generates SSH keys, and can automatically fix issues with the --apply flag.',
+                  [
+                    [
+                      'infra prepare --project my-id --apply',
+                      'Automated setup of a fresh project.',
+                    ],
+                  ],
+                );
+                return applyGlobalOptions(
+                  y2
+                    .option('project', {
+                      type: 'string',
+                      description: 'Override active gcloud project',
+                    })
+                    .option('zone', {
+                      type: 'string',
+                      description: 'Target GCE zone',
+                    })
+                    .option('schematic', {
+                      type: 'string',
+                      description: 'Schematic name to save',
+                    })
+                    .option('apply', {
+                      type: 'boolean',
+                      description: 'Apply fixes and save schematic',
+                    }),
+                );
+              },
+              async (args: any) => {
+                const results = await sdk.prepareGcp({
+                  apply: args.apply,
+                  projectId: args.project,
+                  zone: args.zone,
+                  schematicName: args.schematic,
+                });
+
+                console.log('\nSummary');
+                for (const result of results) {
+                  console.log(
+                    `${result.status.padEnd(4)} ${result.name}: ${result.detail}`,
+                  );
+                }
+
+                const hasFailures = results.some((r) => r.status === 'FAIL');
+                if (!hasFailures) {
+                  console.log('\nNext');
+                  if (args.schematic) {
+                    console.log(
+                      `orbit infra liftoff <station-name> --schematic ${args.schematic}`,
+                    );
+                  } else {
+                    console.log(
+                      'orbit infra liftoff <station-name> --schematic <schematic-name>',
+                    );
+                  }
+                }
+                args.exitCode = hasFailures ? 1 : 0;
+              },
+            )
+            .command(
               'liftoff [name]',
               'Build or wake infrastructure.',
               (y2) => {

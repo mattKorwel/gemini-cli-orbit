@@ -99,7 +99,7 @@ For heavy workloads, achieve **Liftoff** to provision a persistent GCE station:
 
 ```bash
 # Prepare a personal-project schematic if you have not already
-npm run infra:gcp:prep
+orbit infra prepare --apply
 
 # Provision a new station from a schematic
 orbit infra liftoff my-station --schematic personal

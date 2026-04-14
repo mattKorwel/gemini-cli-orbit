@@ -484,12 +484,21 @@ export class FleetManager {
   }
 
   /**
-   * Run the interactive schematic creation/editing wizard.
+   * Runs the interactive schematic creation/editing wizard.
    */
   async runSchematicWizard(
     name: string,
-    cliFlags: Partial<OrbitConfig> = {},
+    cliFlags?: Partial<OrbitConfig>,
   ): Promise<void> {
-    await this.schematicManager.runWizard(name, cliFlags);
+    return this.schematicManager.runWizard(name, cliFlags);
+  }
+
+  /**
+   * Preflight and optionally prepare a GCP project for remote stations.
+   */
+  async prepareGcp(
+    options: import('../utils/GcpPrepare.js').PrepareOptions,
+  ): Promise<import('../utils/GcpPrepare.js').CheckResult[]> {
+    return this.schematicManager.prepareGcp(options);
   }
 }

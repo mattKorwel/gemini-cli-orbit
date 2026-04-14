@@ -24,7 +24,7 @@
     "fleet:smoke": "tsx scripts/station-smoke.ts",
     "infra:liftoff": "node bundle/orbit-cli.js infra liftoff",
     "infra:splashdown": "node bundle/orbit-cli.js infra splashdown",
-    "infra:gcp:prep": "tsx scripts/gcp-prepare-personal.ts",
+    "infra:gcp:prep": "node bundle/orbit-cli.js infra prepare",
     "infra:pulumi:install": "tsx scripts/ensure-pulumi.ts",
     "maint:release": "tsx tools/prepare-release.ts"
   },

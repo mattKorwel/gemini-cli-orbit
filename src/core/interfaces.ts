@@ -65,6 +65,9 @@ export interface ISchematicManager {
   listSchematics(): SchematicInfo[];
   importSchematic(source: string): Promise<string>;
   runWizard(name: string, cliFlags?: Partial<OrbitConfig>): Promise<void>;
+  prepareGcp(
+    options: import('../utils/GcpPrepare.js').PrepareOptions,
+  ): Promise<import('../utils/GcpPrepare.js').CheckResult[]>;
 }
 
 /**
