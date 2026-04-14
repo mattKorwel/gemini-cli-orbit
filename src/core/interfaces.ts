@@ -61,6 +61,7 @@ export interface IStationRegistry {
  * Schematic Manager: Management of infrastructure blueprints.
  */
 export interface ISchematicManager {
+  seed(): void;
   listSchematics(): SchematicInfo[];
   importSchematic(source: string): Promise<string>;
   runWizard(name: string, cliFlags?: Partial<OrbitConfig>): Promise<void>;

@@ -77,11 +77,12 @@ export class ShellIntegration implements IShellIntegration {
   getProfilePaths(shell: string): string[] {
     const paths: string[] = [];
     switch (shell) {
-      case 'zsh':
+      case 'zsh': {
         paths.push(path.join(this.home, '.zshrc'));
         const zprofile = path.join(this.home, '.zprofile');
         if (fs.existsSync(zprofile)) paths.push(zprofile);
         break;
+      }
       case 'bash': {
         const bashrc = path.join(this.home, '.bashrc');
         const bashProfile = path.join(this.home, '.bash_profile');

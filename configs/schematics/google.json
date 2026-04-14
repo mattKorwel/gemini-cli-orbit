@@ -1,0 +1,10 @@
+{
+  "projectId": "my-corporate-project",
+  "zone": "us-central1-a",
+  "networkAccessType": "direct-internal",
+  "useDefaultNetwork": false,
+  "manageFirewallRules": true,
+  "machineType": "n2-standard-8",
+  "dnsSuffix": "internal.gcpnode.com",
+  "userSuffix": "_google_com"
+}

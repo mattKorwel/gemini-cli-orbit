@@ -1,0 +1,8 @@
+{
+  "projectId": "my-personal-project",
+  "zone": "us-central1-a",
+  "networkAccessType": "external",
+  "useDefaultNetwork": true,
+  "manageFirewallRules": true,
+  "machineType": "n2-standard-8"
+}

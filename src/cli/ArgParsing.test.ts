@@ -26,7 +26,6 @@ const mockAttach = vi.fn().mockResolvedValue(0);
 const mockJettisonMission = vi.fn().mockResolvedValue({ exitCode: 0 });
 const mockSplashdown = vi.fn().mockResolvedValue(0);
 const mockHibernate = vi.fn().mockResolvedValue(undefined);
-const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
 const mockGetFleetState = vi.fn().mockResolvedValue([]);
 
 const mockGetLogs = vi.fn().mockResolvedValue(0);
