@@ -189,6 +189,20 @@ describe('MCP Server Integration', () => {
       );
     });
 
+    it('should catch errors in infra_liftoff and return them as text', async () => {
+      mockProvisionStation.mockRejectedValueOnce(new Error('GCP Quota exceeded'));
+
+      const result = await client.callTool({
+        name: 'infra_liftoff',
+        arguments: {
+          name: 'failed-station',
+        },
+      });
+
+      expect((result.content as any)[0].text).toContain('❌ Infrastructure Liftoff Failed: GCP Quota exceeded');
+      expect((result.content as any)[0].text).toContain('~/.gemini/orbit/orbit.log');
+    });
+
     it('should call infra_manage list correctly', async () => {
       const result = await client.callTool({
         name: 'infra_manage',

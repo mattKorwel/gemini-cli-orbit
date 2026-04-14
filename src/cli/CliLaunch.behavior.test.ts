@@ -241,6 +241,7 @@ process.exit(0);
         vi.stubEnv('GCLI_ORBIT_REPO_NAME', 'test-repo');
 
         const { dispatch } = await import('./cli.js');
+        process.chdir(repoRoot);
         const exitCode = await dispatch([
           '--repo-dir',
           repoRoot,
@@ -254,15 +255,15 @@ process.exit(0);
           '--gemini-auth',
           'none',
         ]);
+const normalizedHistory = normalizeBehaviorHistory(
+  harness.getHistory(),
+  {
+    placeholders: {
+      [repoRoot]: '<tmp>/repo',
+      [orbitRoot]: '<tmp>/orbit-root',
+      [devShmRoot]: '<tmp>/dev-shm',
+    },
 
-        const normalizedHistory = normalizeBehaviorHistory(
-          harness.getHistory(),
-          {
-            placeholders: {
-              [repoRoot]: '<tmp>/repo',
-              [orbitRoot]: '<tmp>/orbit-root',
-              [devShmRoot]: '<tmp>/dev-shm',
-            },
             volatileReplacements: [
               [/orbit-cli-123-\d+/g, 'orbit-cli-123-<ts>'],
               [

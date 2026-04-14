@@ -41,6 +41,7 @@ function normalizeSlashes(value: string): string {
   // Replace globally as it may appear in different parts of a log string
   normalized = normalized.replaceAll('/private/var', '/var');
   normalized = normalized.replaceAll('/private/tmp', '/tmp');
+  normalized = normalized.replaceAll('/private/var/folders', '/var/folders');
   return normalized;
 }
 
@@ -88,7 +89,7 @@ export function normalizeBehaviorHistory(
       '$1',
     );
     normalized = normalized.replace(
-      /^.*powershell(\.exe)?\s+-NoProfile(?:\s+-ExecutionPolicy\s+\S+)?\s+-EncodedCommand\s+[A-Za-z0-9+/=]+\s+/,
+      /^(\[[^\]]+\]\s+).*powershell(\.exe)?\s+-NoProfile(?:\s+-ExecutionPolicy\s+\S+)?\s+-EncodedCommand\s+[A-Za-z0-9+/=]+\s+/,
       '',
     );
 
