@@ -102,7 +102,7 @@ Before `orbit infra liftoff`, make sure:
 Orbit now includes a standalone preflight/apply helper for this exact setup:
 
 ```bash
-npm run infra:gcp:prep -- --project my-project --schematic personal-gcp
+npm run infra:gcp:prep -- --project my-project --schematic personal
 ```
 
 This runs in **dry-run mode** by default. It checks:
@@ -118,7 +118,7 @@ This runs in **dry-run mode** by default. It checks:
 To let it fix what it safely can, re-run with `--apply`:
 
 ```bash
-npm run infra:gcp:prep -- --project my-project --schematic personal-gcp --apply
+npm run infra:gcp:prep -- --project my-project --schematic personal --apply
 ```
 
 With `--apply`, the helper will:

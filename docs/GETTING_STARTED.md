@@ -28,8 +28,8 @@ node ~/.gemini/extensions/orbit/bundle/orbit-cli.js config install
 ### 3. Choose Your Schematic
 Orbit uses "Schematics" as blueprints for your hardware. Two templates are
 pre-seeded for you:
-- **`google`**: Optimized for internal corporate networks (BeyondCorp).
-- **`personal-gcp`**: Optimized for standard personal GCP projects.
+- **`corporate`**: Optimized for internal corporate networks (BeyondCorp).
+- **`personal`**: Optimized for standard personal GCP projects.
 
 ### 4. Configure Your Project ID
 Before liftoff, you must point the schematic to your actual GCP project. Run the
@@ -37,11 +37,11 @@ wizard headlessly:
 
 ```bash
 # If you are on a corporate setup:
-orbit infra schematic edit google --projectId <YOUR_PROJECT_ID>
+orbit infra schematic edit corporate --projectId <YOUR_PROJECT_ID>
 
 # For personal sandboxes:
 # (Strongly recommended to also lock down SSH access to your current IP)
-orbit infra schematic edit personal-gcp --projectId <YOUR_PROJECT_ID> --sshSourceRanges <YOUR_PUBLIC_IP>/32
+orbit infra schematic edit personal --projectId <YOUR_PROJECT_ID> --sshSourceRanges <YOUR_PUBLIC_IP>/32
 ```
 
 > **💡 Pro Tip**: For personal GCP projects, run `npm run infra:gcp:prep -- --apply` to
@@ -52,7 +52,7 @@ Now, provision and wake your remote hardware. This command is idempotent—run i
 any time to wake or update your station:
 
 ```bash
-orbit infra liftoff my-station --schematic <google|personal-gcp>
+orbit infra liftoff my-station --schematic <corporate|personal>
 ```
 
 **✅ Success!** Your station is now ready to host missions.
@@ -78,7 +78,7 @@ orbit mission launch my-first-mission chat --for-station my-station
 
 ## 💡 Tips for Corporate Users
 
-- **Networking**: Always use the `google` schematic. It handles internal
+- **Networking**: Always use the `corporate` schematic. It handles internal
   corporate DNS (`internal.gcpnode.com`) and VPC requirements automatically.
 - **IAP**: Do not use Gcloud IAP flags. Orbit uses a direct SSH relay that is
   significantly more stable in corporate environments.

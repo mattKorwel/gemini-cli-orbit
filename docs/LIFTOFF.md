@@ -40,10 +40,10 @@ To provision or wake your default station:
 orbit infra liftoff
 ```
 
-To use a specific blueprint (Schematic) or one of the built-in templates (`google`, `personal-gcp`):
+To use a specific blueprint (Schematic) or one of the built-in templates (`corporate`, `personal`):
 
 ```bash
-orbit infra liftoff --schematic google
+orbit infra liftoff --schematic corporate
 ```
 
 For a deep dive into creating and managing blueprints, see the [Schematics Guide](./SCHEMATICS.md).

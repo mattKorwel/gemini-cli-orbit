@@ -159,7 +159,7 @@ process.exit(0);
         path.join(repoRoot, 'scripts', 'gcp-prepare-personal.ts'),
         '--apply',
         '--schematic',
-        'personal-gcp',
+        'personal',
         '--zone',
         'us-central1-a',
       ],
@@ -189,7 +189,7 @@ process.exit(0);
     );
     const schematicPath =
       savedPathMatch?.[1] ||
-      path.join(home, '.gemini', 'orbit', 'schematics', 'personal-gcp.json');
+      path.join(home, '.gemini', 'orbit', 'schematics', 'personal.json');
     const schematic = JSON.parse(fs.readFileSync(schematicPath, 'utf8'));
 
     expect(

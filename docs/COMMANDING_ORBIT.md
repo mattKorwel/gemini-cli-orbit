@@ -20,7 +20,7 @@ orbit mission attach 123 review
 orbit mission uplink 123 review
 orbit constellation --pulse
 orbit infra schematic list
-orbit infra liftoff my-station --schematic personal-gcp
+orbit infra liftoff my-station --schematic personal
 ```
 
 Use direct CLI commands when:

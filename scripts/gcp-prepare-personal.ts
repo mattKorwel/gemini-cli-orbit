@@ -43,7 +43,7 @@ for Orbit remote stations using public IP + raw SSH.
 Options:
   --project <id>        Override the active gcloud project
   --zone <zone>         Zone to save into the schematic (default: us-central1-a)
-  --schematic <name>    Save a recommended external/default-network schematic
+  --schematic <name>    Save a recommended external/default-network schematic (default: personal)
   --machine-type <t>    Machine type for the saved schematic (default: n2-standard-8)
   --apply               Enable missing APIs, generate/register SSH key, and save schematic
   --help                Show this help

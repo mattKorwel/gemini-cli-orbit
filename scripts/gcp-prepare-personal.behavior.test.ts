@@ -146,7 +146,7 @@ process.exit(0);
     const exitCode = await runPersonalGcpPrepare([
       '--apply',
       '--schematic',
-      'personal-gcp',
+      'personal',
       '--zone',
       'us-central1-a',
     ]);
@@ -157,7 +157,7 @@ process.exit(0);
       '.gemini',
       'orbit',
       'schematics',
-      'personal-gcp.json',
+      'personal.json',
     );
     const schematic = JSON.parse(fs.readFileSync(schematicPath, 'utf8'));
 

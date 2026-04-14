@@ -43,7 +43,7 @@ This runs the Supervisor and Worker capsules in Docker on your local machine.
 ### 3. Remote GCE (Cloud Starfleet)
 Full production path using Pulumi to provision real infrastructure.
 
-- **Liftoff**: `orbit infra liftoff smoke-remote --schematic personal-gcp`
+- **Liftoff**: `orbit infra liftoff smoke-remote --schematic personal`
 - **Launch**: `orbit mission start smoke-remote chat --for-station smoke-remote`
 - **Verify Gemini**: Inside the remote tmux, run `gemini "ls -R"`.
 - **Cleanup**: `orbit infra splashdown smoke-remote`

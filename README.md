@@ -102,7 +102,7 @@ For heavy workloads, achieve **Liftoff** to provision a persistent GCE station:
 npm run infra:gcp:prep
 
 # Provision a new station from a schematic
-orbit infra liftoff my-station --schematic personal-gcp
+orbit infra liftoff my-station --schematic personal
 
 # Launch missions to that station
 orbit mission launch 42 chat --for-station my-station

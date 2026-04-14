@@ -10,7 +10,7 @@ sandbox vs. a corporate project).
 
 ## 🚀 The Lifecycle of a Schematic
 
-1.  **Discovery**: Built-in templates like `google` and `personal-gcp` are
+1.  **Discovery**: Built-in templates like `corporate` and `personal` are
     automatically available when you install Orbit.
 2.  **Creation**: Use the **Interactive Wizard** to create a new blueprint.
 3.  **Refinement**: Use **Headless Flags** to surgically update specific fields.
@@ -43,21 +43,21 @@ orbit infra schematic create my-remote-vm
 
 Orbit ships with two optimized templates to get you started:
 
-### 1. `google` (Internal Corporate Standard)
+### 1. `corporate` (Internal Corporate Standard)
 Optimized for internal corporate networks (e.g., those using BeyondCorp or
 similar zero-trust proxies). It uses `direct-internal` access and
 pre-configured DNS suffixes.
 
 ```bash
-orbit infra liftoff --schematic google
+orbit infra liftoff --schematic corporate
 ```
 
-### 2. `personal-gcp` (Personal Sandbox Standard)
+### 2. `personal` (Personal Sandbox Standard)
 Optimized for personal sandboxes and standard cloud projects. It uses `external`
 access and the `default` GCP network for maximum simplicity.
 
 ```bash
-orbit infra liftoff --schematic personal-gcp
+orbit infra liftoff --schematic personal
 ```
 
 ---

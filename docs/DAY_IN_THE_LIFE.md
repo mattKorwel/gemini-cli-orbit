@@ -13,7 +13,7 @@ When you start your day (or work on a new repository), you need to ensure your
 
 ```bash
 # Provision or wake up your station
-orbit infra liftoff my-station --schematic personal-gcp
+orbit infra liftoff my-station --schematic personal
 ```
 
 - **What happens**: Orbit checks if your Station exists. If not, it creates it.
