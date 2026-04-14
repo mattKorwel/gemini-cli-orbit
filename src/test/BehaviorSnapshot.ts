@@ -33,7 +33,10 @@ const DEFAULT_ENV_KEYS = [
 const DEFAULT_COMMAND_NAMES = ['tmux', 'git', 'docker', 'gh'];
 
 function normalizeSlashes(value: string): string {
-  return value.replaceAll('\\', '/');
+  let normalized = value.replaceAll('\\', '/');
+  // Normalize macOS /private prefix which is inconsistent across environments
+  normalized = normalized.replace(/^\/private\/(var|tmp)/, '/$1');
+  return normalized;
 }
 
 function applyPlaceholders(
