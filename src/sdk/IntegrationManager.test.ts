@@ -20,7 +20,9 @@ describe('IntegrationManager', () => {
     vi.clearAllMocks();
     shellIntegration = {
       detectShell: vi.fn(),
+      getAvailableShells: vi.fn().mockReturnValue(['zsh']),
       getProfilePath: vi.fn(),
+      getProfilePaths: vi.fn().mockReturnValue(['/home/user/.zshrc']),
       install: vi.fn(),
       isInstalled: vi.fn(),
     } as any;
@@ -31,10 +33,11 @@ describe('IntegrationManager', () => {
     // Mock FS to find a shim
     (fs.existsSync as any).mockReturnValue(true);
     shellIntegration.install.mockReturnValue(true);
+    shellIntegration.getAvailableShells.mockReturnValue(['zsh', 'bash']);
 
     await manager.installShell();
 
-    expect(shellIntegration.install).toHaveBeenCalled();
+    expect(shellIntegration.install).toHaveBeenCalledTimes(2);
     expect(observer.onLog).toHaveBeenCalledWith(
       expect.any(Number),
       'SETUP',
@@ -45,6 +48,7 @@ describe('IntegrationManager', () => {
   it('should handle installation failure', async () => {
     (fs.existsSync as any).mockReturnValue(true);
     shellIntegration.install.mockReturnValue(false);
+    shellIntegration.getAvailableShells.mockReturnValue(['zsh']);
 
     await manager.installShell();
 
@@ -58,6 +62,8 @@ describe('IntegrationManager', () => {
   it('should return integration status', async () => {
     shellIntegration.detectShell.mockReturnValue('zsh');
     shellIntegration.getProfilePath.mockReturnValue('/home/user/.zshrc');
+    shellIntegration.getProfilePaths.mockReturnValue(['/home/user/.zshrc']);
+    shellIntegration.getAvailableShells.mockReturnValue(['zsh']);
     shellIntegration.isInstalled.mockReturnValue(true);
 
     const status = await manager.getIntegrationStatus();
@@ -66,6 +72,7 @@ describe('IntegrationManager', () => {
       installed: true,
       shell: 'zsh',
       profile: '/home/user/.zshrc',
+      availableShells: ['zsh'],
     });
   });
 });

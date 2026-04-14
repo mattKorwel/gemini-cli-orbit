@@ -45,8 +45,22 @@ export async function runInstallShell(): Promise<void> {
 
   logger.info('SETUP', `Found Orbit CLI at: ${shimPath}`);
 
-  const success = integration.install(shimPath);
-  if (!success) {
-    throw new Error('Failed to install shell integration.');
+  const availableShells = integration.getAvailableShells();
+  logger.info('SETUP', `Installing for shells: ${availableShells.join(', ')}`);
+
+  let successCount = 0;
+  for (const shell of availableShells) {
+    if (integration.install(shimPath, shell)) {
+      successCount++;
+    }
   }
+
+  if (successCount === 0) {
+    throw new Error('Failed to install shell integration for any shell.');
+  }
+
+  logger.info(
+    'SETUP',
+    `Successfully installed Orbit integration for ${successCount} shell(s).`,
+  );
 }

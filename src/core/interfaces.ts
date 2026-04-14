@@ -310,7 +310,9 @@ export interface IDependencyManager {
  */
 export interface IShellIntegration {
   detectShell(): string;
+  getAvailableShells(): string[];
   getProfilePath(shell: string): string | null;
+  getProfilePaths(shell: string): string[];
   install(shimPath: string, targetShell?: string): boolean;
   isInstalled(profilePath: string): boolean;
 }

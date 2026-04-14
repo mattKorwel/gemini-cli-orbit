@@ -379,6 +379,7 @@ export class OrbitSDK implements IOrbitSDK {
     installed: boolean;
     shell: string;
     profile: string | null;
+    availableShells: string[];
   }> {
     return this.integrations.getIntegrationStatus();
   }

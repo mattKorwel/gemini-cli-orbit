@@ -41,21 +41,68 @@ export class ShellIntegration implements IShellIntegration {
   }
 
   /**
-   * Returns the appropriate profile path for the detected shell.
+   * Returns all shells that are available and have a profile on the system.
+   */
+  getAvailableShells(): string[] {
+    const shells = ['zsh', 'bash', 'fish', 'powershell'];
+    const available: string[] = [];
+
+    for (const shell of shells) {
+      const profilePaths = this.getProfilePaths(shell);
+      if (profilePaths.some((p) => fs.existsSync(p))) {
+        available.push(shell);
+      }
+    }
+
+    // Always include the detected current shell even if profile doesn't exist yet
+    const current = this.detectShell();
+    if (current !== 'unknown' && !available.includes(current)) {
+      available.push(current);
+    }
+
+    return available;
+  }
+
+  /**
+   * Returns the primary profile path for the detected shell.
    */
   getProfilePath(shell: string): string | null {
+    const paths = this.getProfilePaths(shell);
+    return paths.length > 0 ? paths[0] : null;
+  }
+
+  /**
+   * Returns all possible profile paths for a given shell.
+   */
+  getProfilePaths(shell: string): string[] {
+    const paths: string[] = [];
     switch (shell) {
       case 'zsh':
-        return path.join(this.home, '.zshrc');
+        paths.push(path.join(this.home, '.zshrc'));
+        const zprofile = path.join(this.home, '.zprofile');
+        if (fs.existsSync(zprofile)) paths.push(zprofile);
+        break;
       case 'bash': {
+        const bashrc = path.join(this.home, '.bashrc');
         const bashProfile = path.join(this.home, '.bash_profile');
-        if (os.platform() === 'darwin' || fs.existsSync(bashProfile)) {
-          return bashProfile;
+        const profile = path.join(this.home, '.profile');
+
+        // On Darwin, .bash_profile is the primary login shell profile
+        if (os.platform() === 'darwin') {
+          paths.push(bashProfile);
+          if (fs.existsSync(bashrc)) paths.push(bashrc);
+          if (fs.existsSync(profile)) paths.push(profile);
+        } else {
+          // On Linux, .bashrc is the primary interactive profile
+          paths.push(bashrc);
+          if (fs.existsSync(bashProfile)) paths.push(bashProfile);
+          if (fs.existsSync(profile)) paths.push(profile);
         }
-        return path.join(this.home, '.bashrc');
+        break;
       }
       case 'fish':
-        return path.join(this.home, '.config', 'fish', 'config.fish');
+        paths.push(path.join(this.home, '.config', 'fish', 'config.fish'));
+        break;
       case 'powershell': {
         const psDirName =
           os.platform() === 'win32' ? 'PowerShell' : 'powershell';
@@ -66,11 +113,11 @@ export class ShellIntegration implements IShellIntegration {
           : fs.existsSync(psConfigPath)
             ? psConfigPath
             : psDocsPath;
-        return path.join(targetDir, 'Microsoft.PowerShell_profile.ps1');
+        paths.push(path.join(targetDir, 'Microsoft.PowerShell_profile.ps1'));
+        break;
       }
-      default:
-        return null;
     }
+    return [...new Set(paths)]; // Deduplicate
   }
 
   /**
@@ -78,64 +125,81 @@ export class ShellIntegration implements IShellIntegration {
    */
   install(shimPath: string, targetShell?: string): boolean {
     const shell = targetShell || this.detectShell();
-    const profilePath = this.getProfilePath(shell);
+    const profilePaths = this.getProfilePaths(shell);
 
-    if (!profilePath) {
+    if (profilePaths.length === 0) {
       logger.error(
         'SHELL',
-        `Could not determine profile path for shell: ${shell}`,
+        `Could not determine profile paths for shell: ${shell}`,
       );
       return false;
     }
 
     const integration = this.generateIntegration(shell, shimPath);
-    if (this.isInstalled(profilePath)) {
-      logger.info(
-        'SHELL',
-        `Orbit integration already present in ${profilePath}. Updating...`,
-      );
-      this.uninstall(profilePath);
+    let anySuccess = false;
+
+    for (const profilePath of profilePaths) {
+      if (this.isInstalled(profilePath)) {
+        logger.info(
+          'SHELL',
+          `Orbit integration already present in ${profilePath}. Updating...`,
+        );
+        this.uninstall(profilePath);
+      }
+
+      try {
+        const dir = path.dirname(profilePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+        // Create a backup before modifying if it exists
+        if (fs.existsSync(profilePath)) {
+          const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, '-')
+            .slice(0, 19);
+          const backupPath = `${profilePath}.bak.${timestamp}`;
+          fs.copyFileSync(profilePath, backupPath);
+          logger.info('SHELL', `Created backup of your profile: ${backupPath}`);
+        } else {
+          // Only create files that are "standard" for the shell if they don't exist
+          const isStandard =
+            (shell === 'zsh' && profilePath.endsWith('.zshrc')) ||
+            (shell === 'bash' &&
+              (profilePath.endsWith('.bashrc') ||
+                profilePath.endsWith('.bash_profile'))) ||
+            shell === 'fish' ||
+            shell === 'powershell';
+
+          if (!isStandard) continue;
+
+          fs.writeFileSync(profilePath, '', { mode: 0o644 });
+        }
+
+        fs.appendFileSync(profilePath, `\n${integration}\n`);
+        logger.info(
+          'SHELL',
+          `✅ Added orbit CLI and autocompletion to ${profilePath}`,
+        );
+        anySuccess = true;
+      } catch (e) {
+        logger.error('SHELL', `Failed to write to ${profilePath}: ${e}`);
+      }
     }
 
-    try {
-      const dir = path.dirname(profilePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-      // Create a backup before modifying
-      if (fs.existsSync(profilePath)) {
-        const timestamp = new Date()
-          .toISOString()
-          .replace(/[:.]/g, '-')
-          .slice(0, 19);
-        const backupPath = `${profilePath}.bak.${timestamp}`;
-        fs.copyFileSync(profilePath, backupPath);
-        logger.info('SHELL', `Created backup of your profile: ${backupPath}`);
-      }
-
-      if (!fs.existsSync(profilePath)) {
-        fs.writeFileSync(profilePath, '', { mode: 0o644 });
-      }
-
-      fs.appendFileSync(profilePath, `\n${integration}\n`);
-      logger.info(
-        'SHELL',
-        `✅ Added orbit CLI and autocompletion to ${profilePath}`,
-      );
-
+    if (anySuccess) {
       const sourceCmd =
         shell === 'powershell'
           ? `. $PROFILE`
           : shell === 'fish'
-            ? `source ${profilePath}`
-            : `source ${profilePath}`;
+            ? `source ${profilePaths[0]}`
+            : `source ${profilePaths[0]}`;
 
       logger.info('SHELL', `👉 Restart your shell or run: ${sourceCmd}`);
-      return true;
-    } catch (e) {
-      logger.error('SHELL', `Failed to write to ${profilePath}: ${e}`);
-      return false;
     }
+
+    return anySuccess;
   }
+
 
   /**
    * Removes the integration block from a profile.

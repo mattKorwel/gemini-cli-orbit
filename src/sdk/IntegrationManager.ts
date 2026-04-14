@@ -53,8 +53,22 @@ export class IntegrationManager {
       return;
     }
 
-    const success = this.integration.install(shimPath);
-    if (success) {
+    const shells = this.integration.getAvailableShells();
+    let anySuccess = false;
+
+    for (const shell of shells) {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'SETUP',
+        `Attempting installation for ${shell}...`,
+      );
+      const success = this.integration.install(shimPath, shell);
+      if (success) {
+        anySuccess = true;
+      }
+    }
+
+    if (anySuccess) {
       this.observer.onLog?.(
         LogLevel.INFO,
         'SETUP',
@@ -64,7 +78,7 @@ export class IntegrationManager {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'SETUP',
-        '❌ Failed to install shell integration.',
+        '❌ Failed to install shell integration for any shell.',
       );
     }
   }
@@ -76,11 +90,21 @@ export class IntegrationManager {
     installed: boolean;
     shell: string;
     profile: string | null;
+    availableShells: string[];
   }> {
     const shell = this.integration.detectShell();
     const profile = this.integration.getProfilePath(shell);
-    const installed = profile ? this.integration.isInstalled(profile) : false;
+    const availableShells = this.integration.getAvailableShells();
 
-    return { installed, shell, profile };
+    let installed = false;
+    for (const s of availableShells) {
+      const paths = this.integration.getProfilePaths(s);
+      if (paths.some((p) => this.integration.isInstalled(p))) {
+        installed = true;
+        break;
+      }
+    }
+
+    return { installed, shell, profile, availableShells };
   }
 }
