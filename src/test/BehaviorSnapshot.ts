@@ -38,6 +38,7 @@ function normalizeSlashes(value: string): string {
   // Replace globally as it may appear in different parts of a log string
   normalized = normalized.replaceAll('/private/var', '/var');
   normalized = normalized.replaceAll('/private/tmp', '/tmp');
+  normalized = normalized.replaceAll('/private/var/folders', '/var/folders');
   return normalized;
 }
 
