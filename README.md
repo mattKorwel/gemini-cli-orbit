@@ -22,6 +22,24 @@ Start with the full docs:
 - [Full Documentation Index](docs/README.md)
 - [Commanding Orbit: CLI, MCP, and Natural Language](docs/COMMANDING_ORBIT.md)
 
+## 🌌 Why Orbit?
+
+- **Terrestrial Freedom**: Decouple your work from your physical hardware. Run
+  heavy builds, exhaustive test suites, and complex tasks without spinning up
+  local fans or being tethered to a power outlet.
+- **Persistent Orbital Presence**: Your environment stays alive in orbit.
+  Disconnect from your terrestrial machine, close your laptop, and re-attach
+  later from any device — your shells, state, and progress are exactly where you
+  left them.
+- **Autonomous Missions**: Launch high-intelligence missions that work for you
+  while you're offline. Whether it's a multi-file refactor or a deep PR review,
+  your Orbit executes independently and surfaces results when complete.
+- **Parallel Productivity**: Run multiple isolated Mission Capsules for
+  different workstreams simultaneously — without your terrestrial machine
+  slowing to a crawl.
+
+---
+
 ## 🛰️ The Star Map
 
 Orbit uses a unified, API-driven model that maps space-themed roles to specific
