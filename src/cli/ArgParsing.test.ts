@@ -30,6 +30,16 @@ const mockDeleteStation = vi.fn().mockResolvedValue(undefined);
 const mockGetFleetState = vi.fn().mockResolvedValue([]);
 
 const mockGetLogs = vi.fn().mockResolvedValue(0);
+const mockMissionShell = vi.fn().mockResolvedValue(0);
+const mockActivateStation = vi.fn().mockResolvedValue(undefined);
+const mockStationShell = vi.fn().mockResolvedValue(0);
+const mockStationExec = vi.fn().mockResolvedValue(0);
+const mockReapMissions = vi.fn().mockResolvedValue(undefined);
+const mockListSchematics = vi.fn().mockReturnValue([]);
+const mockGetSchematic = vi.fn().mockReturnValue(null);
+const mockImportSchematic = vi.fn().mockResolvedValue('imported-schematic');
+const mockRunSchematicWizard = vi.fn().mockResolvedValue(undefined);
+const mockInstallShell = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
@@ -37,12 +47,21 @@ vi.mock('../sdk/OrbitSDK.js', () => ({
     startMission: mockStartMission,
     resolveMission: mockResolveMission,
     missionExec: mockMissionExec,
+    missionShell: mockMissionShell,
     attach: mockAttach,
     getLogs: mockGetLogs,
     jettisonMission: mockJettisonMission,
     splashdown: mockSplashdown,
     hibernate: mockHibernate,
-    deleteStation: mockDeleteStation,
+    activateStation: mockActivateStation,
+    stationShell: mockStationShell,
+    stationExec: mockStationExec,
+    reapMissions: mockReapMissions,
+    listSchematics: mockListSchematics,
+    getSchematic: mockGetSchematic,
+    importSchematic: mockImportSchematic,
+    runSchematicWizard: mockRunSchematicWizard,
+    installShell: mockInstallShell,
     getFleetState: mockGetFleetState,
   })),
 }));
@@ -102,6 +121,44 @@ describe('CLI Argument Parsing', () => {
         }),
       );
     });
+
+    describe('Schematic Commands', () => {
+      it('should handle schematic list', async () => {
+        await dispatch(['infra', 'schematic', 'list']);
+        expect(mockListSchematics).toHaveBeenCalled();
+      });
+
+      it('should handle schematic show', async () => {
+        await dispatch(['infra', 'schematic', 'show', 'my-schematic']);
+        expect(mockGetSchematic).toHaveBeenCalledWith('my-schematic');
+      });
+
+      it('should handle schematic view (alias for show)', async () => {
+        await dispatch(['infra', 'schematic', 'view', 'my-schematic']);
+        expect(mockGetSchematic).toHaveBeenCalledWith('my-schematic');
+      });
+
+      it('should handle schematic import', async () => {
+        await dispatch(['infra', 'schematic', 'import', 'http://some-url']);
+        expect(mockImportSchematic).toHaveBeenCalledWith('http://some-url');
+      });
+
+      it('should handle schematic create', async () => {
+        await dispatch(['infra', 'schematic', 'create', 'new-schematic']);
+        expect(mockRunSchematicWizard).toHaveBeenCalledWith(
+          'new-schematic',
+          expect.anything(),
+        );
+      });
+
+      it('should handle schematic edit', async () => {
+        await dispatch(['infra', 'schematic', 'edit', 'existing-schematic']);
+        expect(mockRunSchematicWizard).toHaveBeenCalledWith(
+          'existing-schematic',
+          expect.anything(),
+        );
+      });
+    });
   });
 
   describe('Mission Commands', () => {
@@ -124,6 +181,26 @@ describe('CLI Argument Parsing', () => {
         expect.objectContaining({
           identifier: '123',
           dev: true,
+        }),
+      );
+    });
+
+    it('should pass auth flags to sdk.resolveMission', async () => {
+      await dispatch([
+        'mission',
+        'start',
+        '123',
+        '--git-auth',
+        'repo-token',
+        '--gemini-auth',
+        'none',
+      ]);
+
+      expect(mockResolveMission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '123',
+          gitAuthMode: 'repo-token',
+          geminiAuthMode: 'none',
         }),
       );
     });
@@ -157,6 +234,16 @@ describe('CLI Argument Parsing', () => {
         expect.objectContaining({
           identifier: '456',
           command: 'ls -la',
+        }),
+      );
+    });
+
+    it('should handle "mission shell"', async () => {
+      await dispatch(['mission', 'shell', '456']);
+
+      expect(mockMissionShell).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '456',
         }),
       );
     });
@@ -208,6 +295,25 @@ describe('CLI Argument Parsing', () => {
         }),
       );
     });
+
+    it('should pass filter flags to getFleetState', async () => {
+      await dispatch([
+        'constellation',
+        '--all',
+        '--current',
+        '--select-by-name',
+        'my-station*',
+      ]);
+
+      expect(mockGetFleetState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          all: true,
+          repoFilter: 'test-repo',
+          nameFilter: 'my-station*',
+        }),
+      );
+    });
+
     it('should handle infra splashdown', async () => {
       await dispatch(['infra', 'splashdown', 'old-box', '--force', '--all']);
 
@@ -233,6 +339,11 @@ describe('CLI Argument Parsing', () => {
   });
 
   describe('Station Commands', () => {
+    it('should handle station activate', async () => {
+      await dispatch(['station', 'activate', 'my-box']);
+      expect(mockActivateStation).toHaveBeenCalledWith('my-box');
+    });
+
     it('should handle station hibernate', async () => {
       await dispatch(['station', 'hibernate', 'my-box']);
 
@@ -241,6 +352,24 @@ describe('CLI Argument Parsing', () => {
           name: 'my-box',
         }),
       );
+    });
+
+    it('should handle station shell', async () => {
+      await dispatch(['station', 'shell', 'my-box']);
+      expect(mockStationShell).toHaveBeenCalled();
+    });
+
+    it('should handle station exec', async () => {
+      await dispatch(['station', 'exec', 'ls', '--', '-la']);
+      expect(mockStationExec).toHaveBeenCalledWith('ls', ['-la']);
+    });
+
+    it('should handle station reap', async () => {
+      await dispatch(['station', 'reap', '--threshold', '24', '--force']);
+      expect(mockReapMissions).toHaveBeenCalledWith({
+        threshold: 24,
+        force: true,
+      });
     });
 
     it('should handle station delete', async () => {
@@ -253,4 +382,17 @@ describe('CLI Argument Parsing', () => {
       );
     });
   });
+
+  describe('Config Commands', () => {
+    it('should handle config install', async () => {
+      await dispatch(['config', 'install']);
+      expect(mockInstallShell).toHaveBeenCalled();
+    });
+
+    it('should handle config show', async () => {
+      await dispatch(['config', 'show']);
+      // Just verifying it doesn't crash as it mainly prints to console
+    });
+  });
 });
+

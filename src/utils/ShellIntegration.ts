@@ -68,7 +68,7 @@ export class ShellIntegration implements IShellIntegration {
    */
   getProfilePath(shell: string): string | null {
     const paths = this.getProfilePaths(shell);
-    return paths.length > 0 ? paths[0] : null;
+    return (paths.length > 0 ? paths[0] : null) as string | null;
   }
 
   /**

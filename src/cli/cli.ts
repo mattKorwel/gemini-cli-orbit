@@ -134,7 +134,7 @@ export async function dispatch(argv: string[]): Promise<number> {
       .option('yes', { type: 'boolean', alias: 'y' })
       .option('dry-run', { type: 'boolean', hidden: true });
 
-    const preArgs = await preParser.parse(processedArgv);
+    const preArgs = await preParser.parse();
     let repoRoot = process.cwd();
 
     if (preArgs.yes) {
@@ -198,6 +198,7 @@ export async function dispatch(argv: string[]): Promise<number> {
         repoFilter,
         nameFilter: selectByName,
         peek: args.peek,
+        all,
       });
 
       if (args.json) {
@@ -244,6 +245,9 @@ export async function dispatch(argv: string[]): Promise<number> {
 
     const parser = yargs(processedArgv)
       .scriptName('orbit')
+      .parserConfiguration({
+        'populate--': true,
+      })
       .usage(
         `Usage: $0 <command> [args]
 
@@ -609,37 +613,33 @@ QUICK START:
               },
             )
             .command(
-              'shell [name]',
-              'Drop into a raw shell on the hardware host.',
-              (y2) =>
-                applyGlobalOptions(
-                  applyHardwareOptions(
-                    applyContextOptions(
-                      y2.positional('name', { type: 'string' }),
-                    ),
-                  ),
-                ),
-              async (args: any) => {
-                args.exitCode = await sdk.stationShell();
-              },
-            )
-            .command(
-              'exec <command> [args..]',
-              'Execute a command on the station host.',
+              ['delete <name>', 'rm <name>', 'splashdown <name>'],
+              'Decommission Orbit hardware.',
               (y2) => {
-                y2.positional('command', { type: 'string' }).positional(
-                  'args',
-                  { type: 'string', array: true },
+                applyFriendlyUsage(
+                  y2,
+                  'station delete <name>',
+                  'PERMANENTLY DELETES all cloud resources (Disks, VPCs, VMs) for the station. This cannot be undone.',
+                  [
+                    [
+                      'station delete my-old-vm',
+                      'Full decommissioning of a station.',
+                    ],
+                  ],
                 );
                 return applyGlobalOptions(
-                  applyHardwareOptions(applyContextOptions(y2)),
+                  applyHardwareOptions(
+                    applyContextOptions(
+                      y2.positional('name', {
+                        type: 'string',
+                        demandOption: true,
+                      }),
+                    ),
+                  ),
                 );
               },
               async (args: any) => {
-                args.exitCode = await sdk.stationExec(
-                  args.command,
-                  args.args || [],
-                );
+                await sdk.splashdown({ name: args.name });
               },
             )
             .command(
@@ -678,33 +678,35 @@ QUICK START:
               },
             )
             .command(
-              ['delete <name>', 'rm <name>', 'splashdown <name>'],
-              'Decommission Orbit hardware.',
-              (y2) => {
-                applyFriendlyUsage(
-                  y2,
-                  'station delete <name>',
-                  'PERMANENTLY DELETES all cloud resources (Disks, VPCs, VMs) for the station. This cannot be undone.',
-                  [
-                    [
-                      'station delete my-old-vm',
-                      'Full decommissioning of a station.',
-                    ],
-                  ],
-                );
-                return applyGlobalOptions(
+              'shell <name>',
+              'Drop into a raw shell on the hardware host.',
+              (y2) =>
+                applyGlobalOptions(
                   applyHardwareOptions(
                     applyContextOptions(
-                      y2.positional('name', {
-                        type: 'string',
-                        demandOption: true,
-                      }),
+                      y2.positional('name', { type: 'string' }),
                     ),
                   ),
+                ),
+              async (args: any) => {
+                args.exitCode = await sdk.stationShell();
+              },
+            )
+            .command(
+              'exec <command> [args..]',
+              'Execute a command on the station host.',
+              (y2) => {
+                y2.positional('command', { type: 'string' }).positional(
+                  'args',
+                  { type: 'string', array: true },
                 );
+                return applyGlobalOptions(
+                  applyHardwareOptions(applyContextOptions(y2)),
+                ).strict(false);
               },
               async (args: any) => {
-                await sdk.splashdown({ name: args.name });
+                const commandArgs = args['--'] || args.args || [];
+                args.exitCode = await sdk.stationExec(args.command, commandArgs);
               },
             )
             .demandCommand(1, 'Please specify a station action.');
@@ -760,7 +762,7 @@ QUICK START:
               (y2) => {
                 const yLocal = y2
                   .positional('action', {
-                    choices: ['list', 'show', 'import', 'create', 'edit'],
+                    choices: ['list', 'show', 'view', 'import', 'create', 'edit'],
                     demandOption: true,
                   })
                   .positional('name', {
@@ -793,7 +795,7 @@ QUICK START:
                       `   ${s.name.padEnd(20)}${project}${zone}${type}`,
                     );
                   });
-                } else if (sub === 'show') {
+                } else if (sub === 'show' || sub === 'view') {
                   if (!sName) throw new Error('Schematic name required.');
                   const config = sdk.getSchematic(sName);
                   if (!config) {
