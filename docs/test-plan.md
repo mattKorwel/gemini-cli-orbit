@@ -12,8 +12,8 @@ mission orchestration are fully functional.
 corporate-ready blueprint.
 
 1.  **Shell Integration**:
-    - `orbit config install`
-    - [x] **Verification**: `~/.zshrc` contains Orbit aliases and path exports.
+    - `node ~/.gemini/extensions/orbit/bundle/orbit-cli.js config install`
+    - [x] **Verification**: `~/.zshrc` (or equivalent) contains Orbit aliases and path exports.
 2.  **Schematic Creation**:
     - Create a schematic with `orbit infra schematic create corp-val`.
     - Fill the wizard with BeyondCorp-compatible settings and automated

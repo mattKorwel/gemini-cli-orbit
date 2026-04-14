@@ -66,14 +66,30 @@ That script prepares a recommended personal-project schematic under
 
 ## Installation
 
-Install the extension into Gemini CLI:
+### 1. Install the Extension
+Add Orbit to your Gemini CLI environment:
 
 ```bash
 gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
-orbit config install
 ```
 
-`orbit config install` sets up shell integration and command discovery.
+### 2. Setup Shell Integration
+Since the `orbit` command is provided by the extension, you must bootstrap it to your shell.
+
+#### Option A: Natural Language (Recommended)
+If you are already in a Gemini session with the Orbit extension loaded, simply ask:
+> "Use the orbit mcp server to install orbit shell integration"
+
+This will automatically trigger the `config_install` tool to set up your aliases.
+
+#### Option B: Direct Bootstrap
+If you prefer the terminal, you can run the bundled CLI entry point directly from the extension folder to install the `orbit` shim:
+
+```bash
+node ~/.gemini/extensions/orbit/bundle/orbit-cli.js config install
+```
+
+Once installed, you can use the `orbit` command directly.
 
 ## Core Workflow
 
