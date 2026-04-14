@@ -17,6 +17,9 @@ const DEFAULT_HISTORY_ENV_VARS = [
   'TERM',
   'COLORTERM',
   'FORCE_COLOR',
+  'TERM_PROGRAM',
+  'TERM_PROGRAM_VERSION',
+  'TERM_SESSION_ID',
 ];
 
 const DEFAULT_ENV_KEYS = [
@@ -91,8 +94,10 @@ export function normalizeBehaviorHistory(
 
     for (const envVar of stripEnvVars) {
       const escaped = envVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Matches: -e VAR=VAL or -e VAR='VAL' or -e VAR="VAL"
+      // Handles values without spaces or quoted values
       normalized = normalized.replace(
-        new RegExp(`\\s+-e\\s+${escaped}=[^\\s]+`, 'g'),
+        new RegExp(`\\s+-e\\s+${escaped}=([^\\s"']+|"[^"]*"|'[^']*')`, 'g'),
         '',
       );
     }
