@@ -53,6 +53,7 @@ export class SchematicManager implements ISchematicManager {
     const knownKeys = [
       'projectId',
       'zone',
+      'providerType',
       'networkAccessType',
       'dnsSuffix',
       'userSuffix',
@@ -69,6 +70,7 @@ export class SchematicManager implements ISchematicManager {
       'sshSourceRanges',
       'bootDiskType',
       'dataDiskType',
+      'allowDevUpdates',
     ];
 
     const cleanFlags: any = {};
@@ -77,7 +79,9 @@ export class SchematicManager implements ISchematicManager {
       if (val !== undefined) {
         // Handle type casting from CLI strings
         if (
-          (key === 'useDefaultNetwork' || key === 'manageFirewallRules') &&
+          (key === 'useDefaultNetwork' ||
+            key === 'manageFirewallRules' ||
+            key === 'allowDevUpdates') &&
           typeof val === 'string'
         ) {
           val = val.toLowerCase() === 'true';

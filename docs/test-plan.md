@@ -81,8 +81,8 @@ external public IP.
 1.  **Schematic Creation**:
     - `orbit infra schematic create gemini-team`
     - Configure the wizard for `external` networking and
-      `manageNetworking: false`.
-    - [x] **Verification**: `manageNetworking` is false, and networking is
+      `useDefaultNetwork: true`.
+    - [x] **Verification**: `useDefaultNetwork` is true, and networking is
           external.
 2.  **External Liftoff**:
     - `orbit infra liftoff team-station --schematic gemini-team`

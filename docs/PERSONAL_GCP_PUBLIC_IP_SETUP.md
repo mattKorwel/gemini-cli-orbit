@@ -33,7 +33,7 @@ For personal projects, prefer:
   "projectId": "my-project",
   "zone": "us-central1-a",
   "networkAccessType": "external",
-  "manageNetworking": true,
+  "useDefaultNetwork": false,
   "machineType": "n2-standard-8"
 }
 ```
@@ -41,7 +41,7 @@ For personal projects, prefer:
 Why:
 
 - `external` matches Orbit's current raw SSH design
-- `manageNetworking: true` lets Orbit create its own isolated networking and
+- `useDefaultNetwork: false` lets Orbit create its own isolated networking and
   firewall rules instead of assuming a preconfigured VPC
 
 ## Required Auth Paths
@@ -129,7 +129,7 @@ With `--apply`, the helper will:
 - register that public key with OS Login
 - save a recommended personal-project schematic with:
   - `networkAccessType: external`
-  - `manageNetworking: true`
+  - `useDefaultNetwork: false`
 
 What it does **not** do in this first pass:
 
@@ -181,7 +181,7 @@ Use the wizard or a JSON file with:
 - `projectId`
 - `zone`
 - `networkAccessType: external`
-- `manageNetworking: true`
+- `useDefaultNetwork: false`
 - `machineType`
 
 ### 2. Authenticate
@@ -214,7 +214,7 @@ node bundle/orbit-cli.js mission start <id> chat --for-station <station-name>
   SSH key path per station.
 - Orbit does not yet support `gcloud compute ssh` as a transport.
 - Orbit does not yet support IAP as a first-class transport.
-- `manageNetworking: false` is higher-friction and is best treated as an
+- `useDefaultNetwork: true` is higher-friction and is best treated as an
   advanced/shared-network mode.
 
 ## Recommended Future Improvement

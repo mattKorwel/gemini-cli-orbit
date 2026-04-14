@@ -83,21 +83,22 @@ Schematics allow you to switch between different infrastructure environments
 
 Orbit supports two distinct networking strategies for cloud stations:
 
-1.  **Managed Networking (`manageNetworking: true`)**:
-    - **Recommended** for isolation.
+1.  **Isolated Networking (`useDefaultNetwork: false`)**:
+    - **Recommended** for isolation and ease of setup.
     - Orbit automatically creates a dedicated VPC, Subnet, Cloud Router, and NAT
       Gateway for the station.
     - VPC and Subnet names are dynamically generated based on the instance name
       to prevent collisions.
-    - Do **not** provide `vpcName` or `subnetName` in the schematic when using
-      this mode.
+    - You can still provide `vpcName` or `subnetName` to override the generated
+      names while remaining in isolated mode.
 
-2.  **Pre-existing Networking (`manageNetworking: false`)**:
-    - Use this if you want to place your station in an existing corporate or
-      shared VPC.
-    - You **must** provide `vpcName` and `subnetName` in the schematic.
-    - Orbit will only provision the VM and ensure firewall rules are present in
-      the specified network.
+2.  **Shared/Default Networking (`useDefaultNetwork: true`)**:
+    - Use this if you want to place your station in the GCP `default` VPC or a
+      pre-existing shared network.
+    - If you provide `vpcName` and `subnetName`, Orbit will use those. Otherwise
+      it defaults to `default`.
+    - Orbit will ensure SSH firewall rules are present in the specified network
+      if `manageFirewallRules` is enabled.
 
 **Managing Schematics via CLI**:
 
@@ -127,10 +128,13 @@ Orbit supports two distinct networking strategies for cloud stations:
 - `zone`: The Cloud Zone (e.g., `us-west1-a`).
 - `machineType`: The Cloud Machine Type (e.g., `n2-standard-8`).
 - `networkAccessType`: Connectivity method (`direct-internal`, `external`).
-- `vpcName`: The target VPC.
-- `subnetName`: The target Subnet.
+- `useDefaultNetwork`: (Boolean) Whether to use the GCP default network.
+- `manageFirewallRules`: (Boolean) Whether Orbit should manage SSH firewall rules.
+- `vpcName`: The target VPC (Used if `useDefaultNetwork` is true, or to override isolation name).
+- `subnetName`: The target Subnet (Used if `useDefaultNetwork` is true, or to override isolation name).
 - `sshSourceRanges`: (Optional) Array of CIDR blocks allowed to connect via SSH.
-  Defaults to `["0.0.0.0/0"]`.
+  Defaults to `["0.0.0.0/0"]` for external access.
+- `allowDevUpdates`: (Boolean) Whether to unlock the station for development updates.
 
 ---
 

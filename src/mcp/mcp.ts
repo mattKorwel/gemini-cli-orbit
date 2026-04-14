@@ -440,6 +440,45 @@ export function createOrbitMcpServer() {
     },
   );
 
+  const OrbitConfigSchema = z.object({
+    projectId: z.string().optional().describe('The GCP Project ID'),
+    zone: z.string().optional().describe('The GCE Zone (e.g. us-central1-a)'),
+    instanceName: z
+      .string()
+      .optional()
+      .describe('The primary name for the station VM'),
+    providerType: z
+      .enum(['gce', 'local-worktree', 'local-git', 'local-docker'])
+      .optional()
+      .describe('Infrastructure provider'),
+    networkAccessType: z
+      .enum(['direct-internal', 'external'])
+      .optional()
+      .describe('Connectivity method'),
+    useDefaultNetwork: z
+      .boolean()
+      .optional()
+      .describe('Whether to use the default VPC/subnet'),
+    manageFirewallRules: z
+      .boolean()
+      .optional()
+      .describe('Whether Orbit should manage SSH firewall rules'),
+    vpcName: z.string().optional().describe('Override VPC name'),
+    subnetName: z.string().optional().describe('Override Subnet name'),
+    machineType: z.string().optional().describe('GCE Machine Type'),
+    sshSourceRanges: z
+      .array(z.string())
+      .optional()
+      .describe('Allowed CIDR ranges for SSH'),
+    allowDevUpdates: z
+      .boolean()
+      .optional()
+      .describe('Unlock station for development updates'),
+    imageUri: z.string().optional().describe('Custom supervisor image URI'),
+    bootDiskType: z.string().optional().describe('GCE Boot Disk Type'),
+    dataDiskType: z.string().optional().describe('GCE Data Disk Type'),
+  });
+
   server.registerTool(
     'infra_manage',
     {
@@ -447,10 +486,9 @@ export function createOrbitMcpServer() {
       inputSchema: z.object({
         action: z.enum(['list', 'create', 'view']),
         name: z.string().describe('The name of the schematic'),
-        config: z
-          .any()
-          .optional()
-          .describe('Full configuration object for creation'),
+        config: OrbitConfigSchema.optional().describe(
+          'Full configuration object for creation',
+        ),
       }).shape,
     },
     async ({ action, name, config }) => {
