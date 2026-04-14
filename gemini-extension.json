@@ -13,5 +13,10 @@
       ]
     }
   },
-  "contextFileName": "docs/GEMINI.md"
+  "contextFileName": "docs/GEMINI.md",
+  "agents": {
+    "orbit_commander": {
+      "prompt": "agents/orbit_commander.md"
+    }
+  }
 }
