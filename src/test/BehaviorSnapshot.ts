@@ -17,6 +17,9 @@ const DEFAULT_HISTORY_ENV_VARS = [
   'TERM',
   'COLORTERM',
   'FORCE_COLOR',
+  'TERM_PROGRAM',
+  'TERM_PROGRAM_VERSION',
+  'TERM_SESSION_ID',
 ];
 
 const DEFAULT_ENV_KEYS = [
@@ -33,7 +36,12 @@ const DEFAULT_ENV_KEYS = [
 const DEFAULT_COMMAND_NAMES = ['tmux', 'git', 'docker', 'gh'];
 
 function normalizeSlashes(value: string): string {
-  return value.replaceAll('\\', '/');
+  let normalized = value.replaceAll('\\', '/');
+  // Normalize macOS /private prefix which is inconsistent across environments
+  // Replace globally as it may appear in different parts of a log string
+  normalized = normalized.replaceAll('/private/var', '/var');
+  normalized = normalized.replaceAll('/private/tmp', '/tmp');
+  return normalized;
 }
 
 function applyPlaceholders(
@@ -86,8 +94,10 @@ export function normalizeBehaviorHistory(
 
     for (const envVar of stripEnvVars) {
       const escaped = envVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Matches: -e VAR=VAL or -e VAR='VAL' or -e VAR="VAL"
+      // Handles values without spaces or quoted values
       normalized = normalized.replace(
-        new RegExp(`\\s+-e\\s+${escaped}=[^\\s]+`, 'g'),
+        new RegExp(`\\s+-e\\s+${escaped}=([^\\s"']+|"[^"]*"|'[^']*')`, 'g'),
         '',
       );
     }

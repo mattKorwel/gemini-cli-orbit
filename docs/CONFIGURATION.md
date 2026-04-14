@@ -79,6 +79,27 @@ active Station.
 Schematics allow you to switch between different infrastructure environments
 (e.g., `corp`, `sandbox`, `local-lab`).
 
+**Built-in Templates**:
+Orbit automatically seeds a few standard templates into your schematics directory
+to help you get started:
+
+- **`google`**: Optimized for internal Google corporate projects. Uses
+  `direct-internal` networking and standard internal DNS suffixes.
+- **`personal-gcp`**: Optimized for fresh personal GCP projects. Uses
+  `external` networking and the default VPC.
+
+**How to use a template**:
+To provision hardware using one of these templates, pass the `--schematic` flag
+during liftoff:
+
+```bash
+# Create a station for a Google corporate project
+orbit infra liftoff my-corp-station --schematic google
+
+# Create a station for a personal GCP project
+orbit infra liftoff my-home-station --schematic personal-gcp
+```
+
 #### 🌐 Networking Modes
 
 Orbit supports two distinct networking strategies for cloud stations:
@@ -119,7 +140,7 @@ Orbit supports two distinct networking strategies for cloud stations:
 **Personal GCP bootstrap today**:
 
 - The repo currently ships a prep script at `npm run infra:gcp:prep`.
-- That script prepares a recommended personal-project schematic.
+- That script prepares a recommended personal-project schematic by detecting your public IP for secure SSH ingress.
 - There is not yet a first-class `orbit infra prepare ...` CLI command.
 
 **Key Attributes**:

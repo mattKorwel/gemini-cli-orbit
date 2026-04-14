@@ -259,7 +259,6 @@ process.exit(0);
           harness.getHistory(),
           {
             placeholders: {
-              [process.cwd()]: '<cwd>',
               [repoRoot]: '<tmp>/repo',
               [orbitRoot]: '<tmp>/orbit-root',
               [devShmRoot]: '<tmp>/dev-shm',

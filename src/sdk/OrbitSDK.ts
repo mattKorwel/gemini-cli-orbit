@@ -93,6 +93,7 @@ export class OrbitSDK implements IOrbitSDK {
   private readonly status: StatusManager;
   private readonly ci: CIManager;
   private readonly integrations: IntegrationManager;
+  private readonly schematicManager: SchematicManager;
   private readonly shadow: ShadowManager;
 
   constructor(
@@ -132,7 +133,9 @@ export class OrbitSDK implements IOrbitSDK {
     const shellIntegration = new ShellIntegration();
     const dependencyManager = new DependencyManager(processManager);
     const stationRegistry = new StationRegistry(providerFactory, configManager);
-    const schematicManager = new SchematicManager(configManager);
+    this.schematicManager = new SchematicManager(configManager);
+    this.schematicManager.seed();
+
     const starfleetClient = new StarfleetClient(
       (this.context.infra as any).apiUrl || 'http://localhost:8080',
     );
@@ -174,7 +177,7 @@ export class OrbitSDK implements IOrbitSDK {
       this.context.infra,
       this.observer,
       stationRegistry,
-      schematicManager,
+      this.schematicManager,
       providerFactory,
       infraFactory,
       configManager,

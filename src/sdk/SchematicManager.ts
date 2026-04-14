@@ -12,6 +12,7 @@ import {
   SCHEMATICS_DIR,
   DEFAULT_VPC_NAME,
   DEFAULT_SUBNET_NAME,
+  EXTENSION_ROOT,
   type OrbitConfig,
 } from '../core/Constants.js';
 import { sanitizeName } from '../core/ConfigManager.js';
@@ -38,6 +39,30 @@ function ask(query: string): Promise<string> {
 
 export class SchematicManager implements ISchematicManager {
   constructor(private readonly configManager: IConfigManager) {}
+
+  /**
+   * Seed standard templates if they don't exist in the user's schematics dir.
+   */
+  seed(): void {
+    const templateDir = path.join(EXTENSION_ROOT, 'configs', 'schematics');
+    if (!fs.existsSync(templateDir)) return;
+
+    if (!fs.existsSync(SCHEMATICS_DIR)) {
+      fs.mkdirSync(SCHEMATICS_DIR, { recursive: true });
+    }
+
+    const templates = fs
+      .readdirSync(templateDir)
+      .filter((f) => f.endsWith('.json'));
+
+    for (const file of templates) {
+      const targetPath = path.join(SCHEMATICS_DIR, file);
+      if (!fs.existsSync(targetPath)) {
+        fs.copyFileSync(path.join(templateDir, file), targetPath);
+        logger.debug('CONFIG', `Seeded built-in schematic: ${file}`);
+      }
+    }
+  }
 
   /**
    * Runs the interactive wizard to create or edit an infrastructure schematic.

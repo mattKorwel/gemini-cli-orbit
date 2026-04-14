@@ -30,10 +30,11 @@ const _filename = getFilename();
 const _dirname = getDirname();
 
 // This is the root of the Gemini Orbit extension code (the folder containing package.json)
-let EXTENSION_ROOT = path.resolve(_dirname, '../..');
-if (!fs.existsSync(path.join(EXTENSION_ROOT, 'package.json'))) {
-  EXTENSION_ROOT = path.resolve(_dirname, '..');
+let _EXTENSION_ROOT = path.resolve(_dirname, '../..');
+if (!fs.existsSync(path.join(_EXTENSION_ROOT, 'package.json'))) {
+  _EXTENSION_ROOT = path.resolve(_dirname, '..');
 }
+export const EXTENSION_ROOT = _EXTENSION_ROOT;
 
 /**
  * ProjectContext: Immutable data about the local repository environment.
