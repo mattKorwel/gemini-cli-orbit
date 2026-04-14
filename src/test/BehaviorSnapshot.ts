@@ -35,7 +35,9 @@ const DEFAULT_COMMAND_NAMES = ['tmux', 'git', 'docker', 'gh'];
 function normalizeSlashes(value: string): string {
   let normalized = value.replaceAll('\\', '/');
   // Normalize macOS /private prefix which is inconsistent across environments
-  normalized = normalized.replace(/^\/private\/(var|tmp)/, '/$1');
+  // Replace globally as it may appear in different parts of a log string
+  normalized = normalized.replaceAll('/private/var', '/var');
+  normalized = normalized.replaceAll('/private/tmp', '/tmp');
   return normalized;
 }
 
