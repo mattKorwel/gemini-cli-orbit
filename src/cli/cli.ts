@@ -234,6 +234,8 @@ export async function dispatch(argv: string[]): Promise<number> {
       schematics: 'infra schematic list',
       pulse: 'constellation --pulse',
       logs: 'mission logs',
+      jettison: 'mission jettison',
+      delete: 'mission delete',
       provision: 'infra liftoff',
     };
     if (processedArgv[0]) {
@@ -342,89 +344,6 @@ QUICK START:
         'The Workflow: Launch or resume isolated developer presence.',
         (y: Argv) => {
           return y
-            .command(
-              [
-                '$0 <identifier> [action] [extra..]',
-                'launch <identifier> [action] [extra..]',
-                'start <identifier> [action] [extra..]',
-              ],
-              'Start or resume a mission.',
-              (y2) => {
-                applyFriendlyUsage(
-                  y2,
-                  'mission launch <id>',
-                  'Missions are isolated, persistent developer environments. They escape local machine constraints by running inside agent satellites (Docker containers) with their own dedicated workspace. Every mission is persistent—you can launch it, walk away, and resume later from any machine.',
-                  [
-                    [
-                      'mission launch 123 review',
-                      'Start an autonomous PR review for PR #123.',
-                    ],
-                    [
-                      'mission launch 456 chat',
-                      'Drop into a persistent terminal session with Gemini.',
-                    ],
-                    [
-                      'mission launch 789:test fix',
-                      'Use a named mission for isolation.',
-                    ],
-                    [
-                      'mission logs 123',
-                      "Inspect the agent's work-in-progress.",
-                    ],
-                    [
-                      'mission peek 123',
-                      'See exactly what the agent sees (Terminal snapshot).',
-                    ],
-                    ['mission resume 123', 'Jump back into an active session.'],
-                    [
-                      'mission delete 123',
-                      'Surgically cleanup the environment.',
-                    ],
-                  ],
-                );
-                y2.positional('identifier', {
-                  type: 'string',
-                  description: 'PR or Issue ID',
-                })
-                  .positional('action', {
-                    type: 'string',
-                    default: 'chat',
-                    description: 'Verb: chat, fix, review, implement',
-                  })
-                  .option('git-auth', {
-                    type: 'string',
-                    choices: ['host-gh-config', 'repo-token', 'none'],
-                    description: 'Override Git auth mode for this mission',
-                  })
-                  .option('gemini-auth', {
-                    type: 'string',
-                    choices: ['env-chain', 'accounts-file', 'none'],
-                    description: 'Override Gemini auth mode for this mission',
-                  });
-                return applyGlobalOptions(
-                  applyHardwareOptions(applyContextOptions(y2)),
-                );
-              },
-              async (args: any) => {
-                const subcommands = [
-                  'start',
-                  'launch',
-                  'attach',
-                  'resume',
-                  'peek',
-                  'uplink',
-                  'logs',
-                  'jettison',
-                  'delete',
-                  'rm',
-                  'shell',
-                  'reap',
-                  'exec',
-                ];
-                if (subcommands.includes(args.identifier)) return;
-                await runStartMission(args);
-              },
-            )
             .command(
               'exec <identifier> <cmd>',
               'Execute a one-off command in the mission capsule.',
@@ -535,6 +454,11 @@ QUICK START:
                   identifier: args.identifier,
                   action: args.action,
                 });
+                if (res.exitCode === 0) {
+                  console.info(
+                    `✅ Mission '${args.identifier}'${args.action ? ` (${args.action})` : ''} decommissioned.`,
+                  );
+                }
                 args.exitCode = res.exitCode;
               },
             )
@@ -551,6 +475,73 @@ QUICK START:
                 args.exitCode = await sdk.missionShell({
                   identifier: args.identifier,
                 });
+              },
+            )
+            .command(
+              [
+                '$0 <identifier> [action] [extra..]',
+                'launch <identifier> [action] [extra..]',
+                'start <identifier> [action] [extra..]',
+              ],
+              'Start or resume a mission.',
+              (y2) => {
+                applyFriendlyUsage(
+                  y2,
+                  'mission launch <id>',
+                  'Missions are isolated, persistent developer environments. They escape local machine constraints by running inside agent satellites (Docker containers) with their own dedicated workspace. Every mission is persistent—you can launch it, walk away, and resume later from any machine.',
+                  [
+                    [
+                      'mission launch 123 review',
+                      'Start an autonomous PR review for PR #123.',
+                    ],
+                    [
+                      'mission launch 456 chat',
+                      'Drop into a persistent terminal session with Gemini.',
+                    ],
+                    [
+                      'mission launch 789:test fix',
+                      'Use a named mission for isolation.',
+                    ],
+                    [
+                      'mission logs 123',
+                      "Inspect the agent's work-in-progress.",
+                    ],
+                    [
+                      'mission peek 123',
+                      'See exactly what the agent sees (Terminal snapshot).',
+                    ],
+                    ['mission resume 123', 'Jump back into an active session.'],
+                    [
+                      'mission delete 123',
+                      'Surgically cleanup the environment.',
+                    ],
+                  ],
+                );
+                y2.positional('identifier', {
+                  type: 'string',
+                  description: 'PR or Issue ID',
+                })
+                  .positional('action', {
+                    type: 'string',
+                    default: 'chat',
+                    description: 'Verb: chat, fix, review, implement',
+                  })
+                  .option('git-auth', {
+                    type: 'string',
+                    choices: ['host-gh-config', 'repo-token', 'none'],
+                    description: 'Override Git auth mode for this mission',
+                  })
+                  .option('gemini-auth', {
+                    type: 'string',
+                    choices: ['env-chain', 'accounts-file', 'none'],
+                    description: 'Override Gemini auth mode for this mission',
+                  });
+                return applyGlobalOptions(
+                  applyHardwareOptions(applyContextOptions(y2)),
+                );
+              },
+              async (args: any) => {
+                await runStartMission(args);
               },
             );
         },
@@ -862,6 +853,9 @@ QUICK START:
                   force: args.force,
                   all: args.all,
                 });
+                console.info(
+                  `🌊 Splashdown complete: ${args.name || 'Local'} hardware decommissioned.`,
+                );
               },
             );
         },

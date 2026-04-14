@@ -269,6 +269,27 @@ describe('CLI Argument Parsing', () => {
       );
     });
 
+    it('should handle top-level "jettison" alias', async () => {
+      await dispatch(['jettison', '202', 'fix']);
+
+      expect(mockJettisonMission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '202',
+          action: 'fix',
+        }),
+      );
+    });
+
+    it('should handle top-level "delete" alias', async () => {
+      await dispatch(['delete', '303']);
+
+      expect(mockJettisonMission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: '303',
+        }),
+      );
+    });
+
     it('should handle "mission peek" with action', async () => {
       await dispatch(['mission', 'peek', '123', 'fix']);
 
