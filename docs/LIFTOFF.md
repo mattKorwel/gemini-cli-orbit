@@ -46,6 +46,8 @@ To use a specific blueprint (Schematic) or one of the built-in templates (`googl
 orbit infra liftoff --schematic google
 ```
 
+For a deep dive into creating and managing blueprints, see the [Schematics Guide](./SCHEMATICS.md).
+
 ## 🌊 Decommissioning
 
 To permanently delete a station and all its cloud resources (VPC, Disks, VM):

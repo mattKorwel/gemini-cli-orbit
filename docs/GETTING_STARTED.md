@@ -1,70 +1,13 @@
-# Getting Started With Gemini Orbit
+# Getting Started With Gemini Orbit 🛰️
 
-Gemini Orbit gives Gemini CLI a persistent execution environment for coding
-work. Instead of tying long-running work to your laptop, Orbit launches a
-mission that can keep running in a local worktree, in local Docker, or on a
-remote station.
+Orbit transforms Gemini into a distributed engineering platform. It allows you
+to run persistent, autonomous "missions" on remote hardware or local containers.
 
-## What Orbit Is
+This guide will take you from zero to your first remote mission in 5 steps.
 
-Orbit is useful when you want:
+---
 
-- a persistent coding session you can re-attach to later
-- an isolated workspace for a PR, issue, or branch
-- a heavier execution environment than your local shell
-- a way to drive work from direct CLI commands, natural language, or MCP tools
-
-At a high level:
-
-- the local `orbit` CLI is the control surface
-- a station supervisor manages mission lifecycle
-- each mission runs in its own workspace and execution environment
-
-## Choose A Starting Path
-
-### Local Worktree
-
-Use this when you want the fastest local path and do not need Docker isolation.
-
-```bash
-orbit mission launch 123 chat --local
-```
-
-This starts a mission in a local git worktree and uses your machine's local
-tooling.
-
-### Local Docker
-
-Use this when you want a local supervisor plus containerized mission execution.
-
-```bash
-orbit mission launch 123 chat --local-docker
-```
-
-This uses the local Starfleet flow and gives each mission a Docker-backed
-runtime while still running on your machine.
-
-### Remote Station (GCE)
-
-Use this when you want persistent remote hardware for heavier work.
-
-```bash
-orbit infra liftoff my-station --schematic personal-gcp
-orbit mission launch 123 chat --for-station my-station
-```
-
-If you are setting up a personal GCP environment from scratch, the repo
-currently provides a prep script rather than a first-class `orbit infra prepare`
-command:
-
-```bash
-npm run infra:gcp:prep
-```
-
-That script prepares a recommended personal-project schematic under
-`~/.gemini/orbit/schematics/`.
-
-## Installation
+## 🚀 The 5-Step Golden Path
 
 ### 1. Install the Extension
 Add Orbit to your Gemini CLI environment:
@@ -73,64 +16,80 @@ Add Orbit to your Gemini CLI environment:
 gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
 ```
 
-### 2. Setup Shell Integration
-Since the `orbit` command is provided by the extension, you must bootstrap it to your shell.
-
-#### Option A: Natural Language (Recommended)
-If you are already in a Gemini session with the Orbit extension loaded, simply ask:
-> "Use the orbit mcp server to install orbit shell integration"
-
-This will automatically trigger the `config_install` tool to set up your aliases.
-
-#### Option B: Direct Bootstrap
-If you prefer the terminal, you can run the bundled CLI entry point directly from the extension folder to install the `orbit` shim:
+### 2. Install Shell Integration
+Orbit provides its own CLI. You must install the `orbit` command into your shell
+profile (`.zshrc` or `.bashrc`):
 
 ```bash
 node ~/.gemini/extensions/orbit/bundle/orbit-cli.js config install
+# Restart your terminal or source your profile
 ```
 
-Once installed, you can use the `orbit` command directly.
+### 3. Choose Your Schematic
+Orbit uses "Schematics" as blueprints for your hardware. Two templates are
+pre-seeded for you:
+- **`google`**: Optimized for internal corporate networks (BeyondCorp).
+- **`personal-gcp`**: Optimized for standard personal GCP projects.
 
-## Core Workflow
-
-### 1. Launch A Mission
+### 4. Configure Your Project ID
+Before liftoff, you must point the schematic to your actual GCP project. Run the
+wizard headlessly:
 
 ```bash
-orbit mission launch 123 review
+# If you are on a corporate setup:
+orbit infra schematic edit google --projectId <YOUR_PROJECT_ID>
+
+# For personal sandboxes:
+# (Strongly recommended to also lock down SSH access to your current IP)
+orbit infra schematic edit personal-gcp --projectId <YOUR_PROJECT_ID> --sshSourceRanges <YOUR_PUBLIC_IP>/32
 ```
 
-### 2. Re-attach Later
+> **💡 Pro Tip**: For personal GCP projects, run `npm run infra:gcp:prep -- --apply` to
+> automatically enable APIs, generate SSH keys, and setup your schematic.
+
+### 5. Achieving Liftoff
+Now, provision and wake your remote hardware. This command is idempotent—run it
+any time to wake or update your station:
 
 ```bash
-orbit mission attach 123 review
+orbit infra liftoff my-station --schematic <google|personal-gcp>
 ```
 
-### 3. Inspect Mission State
+**✅ Success!** Your station is now ready to host missions.
+
+---
+
+## 🏗️ Launching Your First Mission
+
+Once your station is "READY" (check with `orbit constellation`), you can delegate
+work to it. Missions are identified by a PR ID, Issue ID, or custom name.
 
 ```bash
-orbit constellation --pulse
-orbit mission uplink 123 review
-orbit mission peek 123 review
+# Launch a persistent chat session on your new station
+orbit mission launch my-first-mission chat --for-station my-station
 ```
 
-### 4. Clean Up
+### Common Maneuvers
+- `orbit mission launch 123 review`: Start an autonomous PR review.
+- `orbit mission launch 456 fix`: Start an iterative bug-fix mission.
+- `orbit mission attach 123`: Jump back into an active session.
 
-```bash
-orbit mission jettison 123 review
-orbit infra splashdown my-station
-```
+---
 
-## How To Think About The Command Surface
+## 💡 Tips for Corporate Users
 
-- `orbit mission ...` is your day-to-day workflow surface
-- `orbit station ...` manages an existing station host
-- `orbit infra ...` manages schematics and hardware provisioning
-- `orbit config ...` manages local integration
+- **Networking**: Always use the `google` schematic. It handles internal
+  corporate DNS (`internal.gcpnode.com`) and VPC requirements automatically.
+- **IAP**: Do not use Gcloud IAP flags. Orbit uses a direct SSH relay that is
+  significantly more stable in corporate environments.
+- **Project Setup**: Ensure your project has the Compute Engine API enabled and
+  that you have `Editor` permissions.
 
-## Next Reads
+---
 
-- [Commanding Orbit](./COMMANDING_ORBIT.md)
-- [Configuration](./CONFIGURATION.md)
-- [Mission Guide](./MISSION.md)
-- [Liftoff](./LIFTOFF.md)
-- [Manual Testing](./MANUAL_TESTING.md)
+## 🔭 Next Reads
+
+- [Schematics Guide](./SCHEMATICS.md): Learn how to customize your blueprints.
+- [Liftoff Guide](./LIFTOFF.md): Deep dive into hardware provisioning.
+- [Mission Guide](./MISSION.md): Master the mission lifecycle.
+- [Testing Guide](./TESTING.md): How to verify your setup.

@@ -15,6 +15,7 @@ This is the main index for the Gemini Orbit docs set.
 | Doc                         | Focus                                           |
 | :-------------------------- | :---------------------------------------------- |
 | [Liftoff](./LIFTOFF.md)     | Provision or wake hardware and supervisors.     |
+| [Schematics](./SCHEMATICS.md) | Manage infrastructure blueprints and templates. |
 | [Mission](./MISSION.md)     | Launch, attach, inspect, and clean up missions. |
 | [Attach](./ATTACH.md)       | Re-attach to a running mission session.         |
 | [Pulse](./PULSE.md)         | Inspect fleet and mission state.                |
@@ -35,8 +36,7 @@ This is the main index for the Gemini Orbit docs set.
 
 | Doc                                                               | Focus                                          |
 | :---------------------------------------------------------------- | :--------------------------------------------- |
-| [Manual Testing](./MANUAL_TESTING.md)                             | Smoke tests for local and remote flows.        |
-| [Test Plan](./test-plan.md)                                       | Structured validation scenarios.               |
+| [Testing & Validation](./TESTING.md)                              | Smoke tests and structured validation flow.     |
 | [Personal GCP Public IP Setup](./PERSONAL_GCP_PUBLIC_IP_SETUP.md) | Public-IP-oriented personal GCP guidance.      |
 | [Day In The Life](./DAY_IN_THE_LIFE.md)                           | Example operator workflow across a normal day. |
 
@@ -46,10 +46,3 @@ This is the main index for the Gemini Orbit docs set.
 | :------------------------------------------------ | :------------------------------------------------- |
 | [Container Paths](./reference/container-paths.md) | Expected in-container paths and runtime contracts. |
 | [Host Mounts](./reference/host-mounts.md)         | Host-to-capsule mount expectations.                |
-
-## Archive
-
-| Doc                                                           | Focus                              |
-| :------------------------------------------------------------ | :--------------------------------- |
-| [Remote Transport Notes](./archive/remote-transport-notes.md) | Archived planning/reference notes. |
-| [cmd-ssh.txt](./archive/cmd-ssh.txt)                          | Archived ad hoc command reference. |

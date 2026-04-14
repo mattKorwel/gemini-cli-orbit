@@ -102,31 +102,31 @@ Before `orbit infra liftoff`, make sure:
 Orbit now includes a standalone preflight/apply helper for this exact setup:
 
 ```bash
-npm run gcp:prepare-personal -- --project my-project --schematic personal-gcp
+npm run infra:gcp:prep -- --project my-project --schematic personal-gcp
 ```
 
 This runs in **dry-run mode** by default. It checks:
 
-- active `gcloud` login
+- active Cloud login
 - ADC
 - billing visibility
 - required APIs
 - direct OS Login IAM visibility
-- local `~/.ssh/google_compute_engine` key presence
+- local SSH key presence
 - OS Login key registration
 
 To let it fix what it safely can, re-run with `--apply`:
 
 ```bash
-npm run gcp:prepare-personal -- --project my-project --schematic personal-gcp --apply
+npm run infra:gcp:prep -- --project my-project --schematic personal-gcp --apply
 ```
 
 With `--apply`, the helper will:
 
 - enable `compute.googleapis.com`
 - enable `oslogin.googleapis.com`
-- generate `~/.ssh/google_compute_engine` if missing
-- register that public key with OS Login
+- generate standard GCE SSH keys if missing
+- register the public key with OS Login
 - save a recommended personal-project schematic with:
   - `networkAccessType: external`
   - `useDefaultNetwork: false`
@@ -144,7 +144,7 @@ Orbit's current GCE provisioner enables:
 
 - `enable-oslogin=TRUE`
 
-That means SSH access is not just "have a key". Your Google identity also needs
+That means SSH access is not just "have a key". Your cloud identity also needs
 appropriate OS Login IAM on the project.
 
 Because Orbit uses commands like:
@@ -194,18 +194,18 @@ gcloud auth application-default login
 ### 3. Prime SSH
 
 Run a `gcloud compute ssh` flow once on this machine so the standard
-`google_compute_engine` keypair is created.
+SSH keypair is created.
 
 ### 4. Provision
 
 ```bash
-node bundle/orbit-cli.js infra liftoff <station-name> --schematic <schematic-name>
+orbit infra liftoff <station-name> --schematic <schematic-name>
 ```
 
 ### 5. Start a mission
 
 ```bash
-node bundle/orbit-cli.js mission start <id> chat --for-station <station-name>
+orbit mission start <id> chat --for-station <station-name>
 ```
 
 ## Known Limitations Today
