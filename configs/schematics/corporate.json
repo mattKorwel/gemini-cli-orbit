@@ -1,6 +1,6 @@
 {
   "projectId": "my-corporate-project",
-  "zone": "us-central1-a",
+  "zone": "us-west1-a",
   "networkAccessType": "direct-internal",
   "useDefaultNetwork": false,
   "manageFirewallRules": true,
