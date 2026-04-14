@@ -312,6 +312,7 @@ export interface IShellIntegration {
   detectShell(): string;
   getProfilePath(shell: string): string | null;
   install(shimPath: string, targetShell?: string): boolean;
+  isInstalled(profilePath: string): boolean;
 }
 
 /**

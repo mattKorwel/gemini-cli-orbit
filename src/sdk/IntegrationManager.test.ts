@@ -22,6 +22,7 @@ describe('IntegrationManager', () => {
       detectShell: vi.fn(),
       getProfilePath: vi.fn(),
       install: vi.fn(),
+      isInstalled: vi.fn(),
     } as any;
     manager = new IntegrationManager(observer as any, shellIntegration);
   });
@@ -52,5 +53,19 @@ describe('IntegrationManager', () => {
       'SETUP',
       expect.stringContaining('Failed'),
     );
+  });
+
+  it('should return integration status', async () => {
+    shellIntegration.detectShell.mockReturnValue('zsh');
+    shellIntegration.getProfilePath.mockReturnValue('/home/user/.zshrc');
+    shellIntegration.isInstalled.mockReturnValue(true);
+
+    const status = await manager.getIntegrationStatus();
+
+    expect(status).toEqual({
+      installed: true,
+      shell: 'zsh',
+      profile: '/home/user/.zshrc',
+    });
   });
 });

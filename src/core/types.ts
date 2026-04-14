@@ -245,6 +245,11 @@ export interface IOrbitSDK {
   attach(options: AttachOptions): Promise<number>;
   getLogs(options: GetLogsOptions): Promise<number>;
   installShell(): Promise<void>;
+  getIntegrationStatus(): Promise<{
+    installed: boolean;
+    shell: string;
+    profile: string | null;
+  }>;
   listStations(options: ListStationsOptions): Promise<StationState[]>;
   activateStation(name: string): Promise<void>;
   listSchematics(): SchematicInfo[];

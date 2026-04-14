@@ -68,4 +68,19 @@ export class IntegrationManager {
       );
     }
   }
+
+  /**
+   * Get the current status of Orbit shell integration.
+   */
+  async getIntegrationStatus(): Promise<{
+    installed: boolean;
+    shell: string;
+    profile: string | null;
+  }> {
+    const shell = this.integration.detectShell();
+    const profile = this.integration.getProfilePath(shell);
+    const installed = profile ? this.integration.isInstalled(profile) : false;
+
+    return { installed, shell, profile };
+  }
 }

@@ -48,6 +48,11 @@ const mockSaveSchematic = vi.fn().mockResolvedValue(undefined);
 const mockReapMissions = vi.fn().mockResolvedValue(2);
 const mockGetLogs = vi.fn().mockResolvedValue(0);
 const mockInstallShell = vi.fn().mockResolvedValue(undefined);
+const mockGetIntegrationStatus = vi.fn().mockResolvedValue({
+  installed: true,
+  shell: 'zsh',
+  profile: '/home/user/.zshrc',
+});
 
 vi.mock('../sdk/OrbitSDK.js', () => ({
   OrbitSDK: vi.fn().mockImplementation(() => ({
@@ -66,6 +71,7 @@ vi.mock('../sdk/OrbitSDK.js', () => ({
     reapMissions: mockReapMissions,
     getLogs: mockGetLogs,
     installShell: mockInstallShell,
+    getIntegrationStatus: mockGetIntegrationStatus,
   })),
 }));
 
@@ -239,6 +245,19 @@ describe('MCP Server Integration', () => {
         }),
       );
       expect((result.content as any)[0].text).toContain('Reaped missions: 2');
+    });
+  });
+
+  describe('Config Tools', () => {
+    it('should call config_status correctly', async () => {
+      const result = await client.callTool({
+        name: 'config_status',
+        arguments: {},
+      });
+
+      expect(mockGetIntegrationStatus).toHaveBeenCalled();
+      expect((result.content as any)[0].text).toContain('"installed": true');
+      expect((result.content as any)[0].text).toContain('"shell": "zsh"');
     });
   });
 });

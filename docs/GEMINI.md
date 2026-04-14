@@ -56,3 +56,11 @@ provides high-fidelity insight into every mission:
 - 🛑 **BLOCKED**: The satellite is waiting for you to approve a tool call.
 - ✅ **COMPLETED**: The mission is done. Read the summary snippet before
   attaching.
+
+## 🛠️ Onboarding & Self-Healing
+
+Orbit requires local shell integration for the best experience.
+
+1. **Detection**: If the user asks about Orbit or attempts a mission and it fails, proactively check the status using `config_status`.
+2. **Setup**: If `config_status` reports `installed: false`, offer to run `config_install` for the user. Explain that this will enable the `orbit` command in their terminal.
+3. **Infrastructure**: If no stations are found in `constellation`, suggest `infra_liftoff` to provision a new environment.

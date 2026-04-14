@@ -373,6 +373,17 @@ export class OrbitSDK implements IOrbitSDK {
   }
 
   /**
+   * Get the current status of Orbit shell integration.
+   */
+  async getIntegrationStatus(): Promise<{
+    installed: boolean;
+    shell: string;
+    profile: string | null;
+  }> {
+    return this.integrations.getIntegrationStatus();
+  }
+
+  /**
    * List all provisioned stations and discovered local repos.
    */
   async listStations(

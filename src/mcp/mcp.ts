@@ -477,6 +477,26 @@ export function createOrbitMcpServer() {
   // --- CONFIG TOOLS (The Local) ---
 
   server.registerTool(
+    'config_status',
+    {
+      description: 'Check if Orbit shell integration is installed.',
+      inputSchema: z.object({}).shape,
+    },
+    async () => {
+      const sdk = await getSDK();
+      const status = await sdk.getIntegrationStatus();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(status, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
     'config_install',
     {
       description: 'Install Orbit shell aliases and tab-completion.',

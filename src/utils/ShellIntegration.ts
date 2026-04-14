@@ -168,7 +168,10 @@ export class ShellIntegration implements IShellIntegration {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  private isInstalled(profilePath: string): boolean {
+  /**
+   * Checks if the shell integration is already present in the given profile.
+   */
+  isInstalled(profilePath: string): boolean {
     if (!fs.existsSync(profilePath)) return false;
     const content = fs.readFileSync(profilePath, 'utf8');
     return content.includes('# Gemini Orbit Shell Integration');
