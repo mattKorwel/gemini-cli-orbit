@@ -1,4 +1,4 @@
-# Orbit Mission: Attach (orbit attach)
+# Orbit Mission: Attach (`orbit mission attach`)
 
 The **Attach** command allows you to jump directly into an active mission
 environment. This is the primary way to take manual control of an ongoing
@@ -28,8 +28,8 @@ working.
 
 ### 2. Advanced Terminal Handling (macOS + iTerm2)
 
-If you are running the Gemini CLI on macOS with iTerm2, `orbit attach` will
-automatically:
+If you are running the Gemini CLI on macOS with iTerm2, `orbit mission attach`
+will automatically:
 
 - Open a new iTerm2 tab.
 - Establish the secure tunnel (if remote).
@@ -50,7 +50,8 @@ automatically:
 - **Real-time Monitoring**: Watch the agent work in real-time as it executes
   complex refactors.
 - **Hardware Freedom**: Disconnect from your terrestrial machine, and
-  `orbit attach` again later from any device to resume right where you were.
+  `orbit mission attach` again later from any device to resume right where you
+  were.
 
 ---
 

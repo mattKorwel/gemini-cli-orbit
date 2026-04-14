@@ -14,22 +14,12 @@ corporate-ready blueprint.
 1.  **Shell Integration**:
     - `orbit config install`
     - [x] **Verification**: `~/.zshrc` contains Orbit aliases and path exports.
-2.  **Schematic Creation (Headless)**:
-    - Create a schematic with BeyondCorp settings and automated networking.
-
-    ```bash
-    orbit infra schematic create corp-val \
-      --projectId korwel-gcli-02-sandbox-676005 \
-      --networkAccessType direct-internal \
-      --dnsSuffix internal.gcpnode.com \
-      --userSuffix _google_com \
-      --manageNetworking true \
-      --sshSourceRanges 172.253.30.0/23 \
-      --zone us-central1-a
-    ```
-
+2.  **Schematic Creation**:
+    - Create a schematic with `orbit infra schematic create corp-val`.
+    - Fill the wizard with BeyondCorp-compatible settings and automated
+      networking values.
     - [x] **Verification**: `~/.gemini/orbit/schematics/corp-val.json` contains
-          the correct values and types (boolean/array).
+          the expected values and types.
 
 ---
 
@@ -65,7 +55,7 @@ stack idempotently.
     - [x] **Verification**: Handles new branches by creating them locally if
           missing on remote.
 2.  **Pulse Check**:
-    - `orbit station pulse`
+    - `orbit constellation --pulse`
     - [x] **Verification**: Displays READY status and lists the active
           `val-mission` capsule with stats.
 
@@ -89,8 +79,10 @@ stack idempotently.
 external public IP.
 
 1.  **Schematic Creation**:
-    - `node bundle/orbit-cli.js infra schematic gemini-team --projectId gemini-cli-team-quota --networkAccessType external --zone us-central1-a --manageNetworking false`
-    - [x] **Verification**: `manageNetworking` is false, and backend is
+    - `orbit infra schematic create gemini-team`
+    - Configure the wizard for `external` networking and
+      `manageNetworking: false`.
+    - [x] **Verification**: `manageNetworking` is false, and networking is
           external.
 2.  **External Liftoff**:
     - `orbit infra liftoff team-station --schematic gemini-team`
