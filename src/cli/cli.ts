@@ -169,11 +169,18 @@ export async function dispatch(argv: string[]): Promise<number> {
     // Command handlers
     async function runStartMission(args: any) {
       const action = args.action || args.verb || 'chat';
+      
+      let terminalTarget: any = args.target;
+      if (args.background || args.bg) terminalTarget = 'background';
+      if (args['new-window'] || args.nw) terminalTarget = 'new-window';
+      if (args['new-tab'] || args.nt) terminalTarget = 'new-tab';
+
       const manifest = await sdk.resolveMission({
         identifier: args.identifier || args.id,
         action,
         args: args.extra || [],
         dev: args.dev,
+        terminalTarget,
         gitAuthMode: args.gitAuth,
         geminiAuthMode: args.geminiAuth,
       });
@@ -535,6 +542,26 @@ QUICK START:
                     type: 'string',
                     choices: ['env-chain', 'accounts-file', 'none'],
                     description: 'Override Gemini auth mode for this mission',
+                  })
+                  .option('target', {
+                    type: 'string',
+                    choices: ['foreground', 'background', 'new-window', 'new-tab'],
+                    description: 'Terminal target for the mission',
+                  })
+                  .option('background', {
+                    type: 'boolean',
+                    alias: 'bg',
+                    description: 'Run mission in the background (silent)',
+                  })
+                  .option('new-window', {
+                    type: 'boolean',
+                    alias: 'nw',
+                    description: 'Launch mission in a new terminal window',
+                  })
+                  .option('new-tab', {
+                    type: 'boolean',
+                    alias: 'nt',
+                    description: 'Launch mission in a new terminal tab',
                   });
                 return applyGlobalOptions(
                   applyHardwareOptions(applyContextOptions(y2)),

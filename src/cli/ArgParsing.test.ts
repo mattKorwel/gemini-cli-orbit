@@ -216,6 +216,44 @@ describe('CLI Argument Parsing', () => {
       );
     });
 
+    it('should handle terminal target flags', async () => {
+      // Test --background
+      await dispatch(['mission', 'start', '123', '--background']);
+      expect(mockResolveMission).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          identifier: '123',
+          terminalTarget: 'background',
+        }),
+      );
+
+      // Test --new-window
+      await dispatch(['mission', 'start', '456', '--new-window']);
+      expect(mockResolveMission).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          identifier: '456',
+          terminalTarget: 'new-window',
+        }),
+      );
+
+      // Test --new-tab
+      await dispatch(['mission', 'start', '789', '--new-tab']);
+      expect(mockResolveMission).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          identifier: '789',
+          terminalTarget: 'new-tab',
+        }),
+      );
+
+      // Test --target foreground
+      await dispatch(['mission', 'start', 'abc', '--target', 'foreground']);
+      expect(mockResolveMission).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          identifier: 'abc',
+          terminalTarget: 'foreground',
+        }),
+      );
+    });
+
     it('should handle "mission launch" alias identically to start', async () => {
       await dispatch(['mission', 'launch', '789', 'implement']);
 

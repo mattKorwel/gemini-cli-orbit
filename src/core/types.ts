@@ -27,6 +27,10 @@ export const MissionManifestSchema = z.object({
   verbose: z.boolean().optional(), // Whether to enable detailed logging
   tempDir: z.string().optional(), // Root directory for temporary logs
   isDev: z.boolean().optional(), // Whether to use Shadow Mode (Dev override)
+  terminalTarget: z
+    .enum(['foreground', 'background', 'new-window', 'new-tab'])
+    .optional()
+    .nullable(),
   gitAuthMode: z.enum(['host-gh-config', 'repo-token', 'none']).optional(),
   geminiAuthMode: z.enum(['env-chain', 'accounts-file', 'none']).optional(),
   env: z.record(z.string(), z.string()).optional(), // Standard environment variables
@@ -128,6 +132,13 @@ export interface MissionOptions {
   action: string;
   args?: string[];
   dev?: boolean;
+  terminalTarget?:
+    | 'foreground'
+    | 'background'
+    | 'new-window'
+    | 'new-tab'
+    | null
+    | undefined;
   gitAuthMode?: 'host-gh-config' | 'repo-token' | 'none';
   geminiAuthMode?: 'env-chain' | 'accounts-file' | 'none';
 }

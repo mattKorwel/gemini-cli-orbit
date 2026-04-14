@@ -39,6 +39,7 @@ import { type StarfleetClient } from './StarfleetClient.js';
 import { loadAuthEnvChain } from '../utils/EnvResolver.js';
 import type { InfrastructureState } from '../infrastructure/InfrastructureState.js';
 import { getInteractiveTerminalEnv } from '../utils/TerminalEnv.js';
+import { spawnTerminal } from '../utils/TerminalLauncher.js';
 
 type GitAuthMode = 'host-gh-config' | 'repo-token' | 'none';
 type GeminiAuthMode = 'env-chain' | 'accounts-file' | 'none';
@@ -422,7 +423,11 @@ export class MissionManager {
         if (action === 'chat') {
           // Give tmux a moment to spawn the session
           await new Promise((resolve) => setTimeout(resolve, 1500));
-          const attachCode = await this.attach({ identifier, action });
+          const attachCode = await this.attach({
+            identifier,
+            action,
+            terminalTarget: manifest.terminalTarget,
+          });
           return { missionId: manifest.identifier, exitCode: attachCode };
         }
 
@@ -494,7 +499,11 @@ export class MissionManager {
     if (action === 'chat') {
       // Give tmux a moment to spawn the session
       await new Promise((resolve) => setTimeout(resolve, 800));
-      const exitCode = await this.attach({ identifier, action });
+      const exitCode = await this.attach({
+        identifier,
+        action,
+        terminalTarget: manifest.terminalTarget,
+      });
       return { missionId, exitCode };
     }
 
@@ -564,8 +573,44 @@ export class MissionManager {
   async attach(options: {
     identifier: string;
     action?: string | undefined;
+    terminalTarget?:
+      | 'foreground'
+      | 'background'
+      | 'new-window'
+      | 'new-tab'
+      | null
+      | undefined;
   }): Promise<number> {
     const provider = this.getProvider();
+    const target = options.terminalTarget || 'foreground';
+
+    if (target === 'background') {
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'ATTACH',
+        `🛰️ Mission ${options.identifier} running in background.`,
+      );
+      return 0;
+    }
+
+    // Reconstruct the attach command for external terminal spawning
+    if (target === 'new-window' || target === 'new-tab') {
+      const { idSlug } = resolveMissionContext(
+        options.identifier,
+        this.projectCtx.repoName,
+        this.pm,
+      );
+      const action = options.action || 'chat';
+      const cmd = `orbit mission attach ${idSlug} ${action}`;
+      
+      this.observer.onLog?.(
+        LogLevel.INFO,
+        'ATTACH',
+        `🖥️  Opening mission ${idSlug} in a ${target}...`,
+      );
+      spawnTerminal(cmd, target);
+      return 0;
+    }
 
     // 1. Calculate canonical names
     const {
@@ -611,9 +656,9 @@ export class MissionManager {
 
     // 3. Fallback: List Capsules to find the right one (Legacy support or slug mismatch)
     const capsules = await provider.listCapsules();
-    const target = capsules.find((c) => c.includes(options.identifier));
+    const targetCapsule = capsules.find((c) => c.includes(options.identifier));
 
-    if (!target) {
+    if (!targetCapsule) {
       this.observer.onLog?.(
         LogLevel.ERROR,
         'ATTACH',
@@ -623,7 +668,7 @@ export class MissionManager {
     }
 
     // 4. Attach via Provider with identified container
-    return provider.attach(target, sessionName);
+    return provider.attach(targetCapsule, sessionName);
   }
 
   /**

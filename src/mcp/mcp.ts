@@ -86,7 +86,8 @@ export function createOrbitMcpServer() {
   server.registerTool(
     'mission_start',
     {
-      description: 'Launch or resume an Orbit mission for a PR or branch.',
+      description:
+        'Launch or resume an Orbit mission for a PR or branch. Note: Use terminalTarget: "background" when launching multiple tasks to avoid terminal hijacking.',
       inputSchema: z.object({
         identifier: z.string().describe('PR number or branch name'),
         station: z.string().optional().describe('Target station instance'),
@@ -97,14 +98,19 @@ export function createOrbitMcpServer() {
           .string()
           .optional()
           .describe('Initial instruction for the mission'),
+        terminalTarget: z
+          .enum(['foreground', 'background', 'new-window', 'new-tab'])
+          .optional()
+          .describe('Terminal target (foreground, background, new-window, new-tab)'),
       }).shape,
     },
-    async ({ identifier, station, action, prompt }) => {
+    async ({ identifier, station, action, prompt, terminalTarget }) => {
       const sdk = await getSDK(undefined, station);
       const manifest = await sdk.resolveMission({
         identifier,
         action,
         args: prompt ? [prompt] : [],
+        terminalTarget,
       });
       const result = await sdk.startMission(manifest);
       const output = observer.getOutput();
