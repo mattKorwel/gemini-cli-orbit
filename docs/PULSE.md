@@ -33,7 +33,7 @@ By default, **Constellation** is context-aware:
 
 ## 📡 Monitoring Depths
 
-You can control the amount of "Reality Sync" performed by using different flags:
+You can control the amount of detail you request by using different modes:
 
 ### 1. Inventory View (Default)
 
@@ -43,16 +43,7 @@ Fast and lightweight. Shows what is registered in your local receipts.
 orbit constellation
 ```
 
-### 2. Health View (`--sync`)
-
-Pings the hardware to verify real-time status (Running, Stopped, etc.) and
-retrieves IPs.
-
-```bash
-orbit constellation --sync
-```
-
-### 3. Monitoring View (`--pulse`)
+### 2. Monitoring View (`--pulse`)
 
 The deepest dive. Connects to the station to fetch real-time telemetry and agent
 intent from every active mission capsule.
@@ -61,7 +52,7 @@ intent from every active mission capsule.
 orbit constellation --pulse
 ```
 
-### 4. Live Terminal View (`--pulse --peek`)
+### 3. Live Terminal View (`--pulse --peek`)
 
 Adds a text-based **Terminal Snapshot** to the pulse output, showing you exactly
 what is currently visible on the agent's screen.

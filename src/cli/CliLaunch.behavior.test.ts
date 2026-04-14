@@ -59,8 +59,8 @@ describe('CLI Launch Behavior', () => {
 
   afterEach(async () => {
     process.chdir(originalCwd);
+    await logger.close();
     logger.setRepoRoot(originalCwd);
-    await new Promise((resolve) => setTimeout(resolve, 50));
     activeBinDir = '';
     vi.resetModules();
     vi.unstubAllEnvs();

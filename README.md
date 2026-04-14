@@ -16,7 +16,13 @@ Built around a **Starfleet-inspired conceptual model**, Orbit orchestrates
 lightweight worker capsules via a remote or local supervisor API. Launch a
 mission, close your laptop, and re-attach later exactly where you left off.
 
-## 🛰️ The Star Map (Starfleet Architecture)
+Start with the full docs:
+
+- [Getting Started](docs/GETTING_STARTED.md)
+- [Full Documentation Index](docs/README.md)
+- [Commanding Orbit: CLI, MCP, and Natural Language](docs/COMMANDING_ORBIT.md)
+
+## 🛰️ The Star Map
 
 Orbit uses a unified, API-driven model that maps space-themed roles to specific
 technical components:
@@ -37,9 +43,9 @@ technical components:
 Orbit is designed to be controlled directly from your **Gemini CLI** session:
 
 - _"Launch a review for PR #42"_
-- _"How is my fleet looking?"_ (Triggers `station pulse`)
+- _"How is my fleet looking?"_ (Triggers `orbit constellation --pulse`)
 - _"Fix the CI failures on this branch"_
-- _"Attach to mission 42"_
+- _"Attach to mission 42 review"_
 
 ---
 
@@ -61,7 +67,7 @@ Orbit can run a "Local Starfleet" using Docker on your own machine:
 
 ```bash
 # Start a local mission for PR #42
-orbit mission start 42 --local-docker
+orbit mission launch 42 chat --local-docker
 
 # Orbit automatically builds the worker image and ignites the capsule.
 # Re-attach at any time:
@@ -73,36 +79,45 @@ orbit mission attach 42
 For heavy workloads, achieve **Liftoff** to provision a persistent GCE station:
 
 ```bash
-# Provision a new station
-orbit infra liftoff my-station --manageNetworking
+# Prepare a personal-project schematic if you have not already
+npm run infra:gcp:prep
+
+# Provision a new station from a schematic
+orbit infra liftoff my-station --schematic personal-gcp
 
 # Launch missions to that station
-orbit mission start 42 --for-station my-station
+orbit mission launch 42 chat --for-station my-station
 ```
+
+For the complete walkthrough, see [Getting Started](docs/GETTING_STARTED.md).
 
 ---
 
 ## 🛸 Common Maneuvers
 
-| Intent            | Command                             |
-| :---------------- | :---------------------------------- |
-| **Start Mission** | `orbit mission start <id> [action]` |
-| **Attach**        | `orbit mission attach <id>`         |
-| **Jettison**      | `orbit mission jettison <id>`       |
-| **Pulse**         | `orbit station pulse`               |
-| **Liftoff**       | `orbit infra liftoff [name]`        |
-| **Splashdown**    | `orbit infra splashdown --all`      |
+| Intent            | Command                              |
+| :---------------- | :----------------------------------- |
+| **Start Mission** | `orbit mission launch <id> [action]` |
+| **Attach**        | `orbit mission attach <id>`          |
+| **Jettison**      | `orbit mission jettison <id>`        |
+| **Pulse**         | `orbit constellation --pulse`        |
+| **Liftoff**       | `orbit infra liftoff [name]`         |
+| **Splashdown**    | `orbit infra splashdown --all`       |
 
 ---
 
 ## 📖 Documentation
 
-| Doc                                  | Description                             |
-| :----------------------------------- | :-------------------------------------- |
-| [Missions](docs/MISSION.md)          | Deep dive into mission lifecycles       |
-| [Architecture](docs/ARCHITECTURE.md) | The Starfleet model and logical pillars |
-| [Roadmap](docs/ROADMAP.md)           | Upcoming features and priorities        |
-| [Security](docs/SECURITY.md)         | Isolation and credential management     |
+| Doc                                          | Description                                          |
+| :------------------------------------------- | :--------------------------------------------------- |
+| [Getting Started](docs/GETTING_STARTED.md)   | What Orbit is, why to use it, and how to begin       |
+| [Full Documentation Index](docs/README.md)   | Table of contents for the full docs set              |
+| [Commanding Orbit](docs/COMMANDING_ORBIT.md) | How to use Orbit from CLI, MCP, and natural language |
+| [Mission Guide](docs/MISSION.md)             | Deep dive into mission lifecycle and commands        |
+| [Configuration](docs/CONFIGURATION.md)       | Schematics, registry, and configuration layering     |
+| [Architecture](docs/ARCHITECTURE.md)         | The Starfleet model and runtime structure            |
+| [Manual Testing](docs/MANUAL_TESTING.md)     | Smoke-test and operator validation flows             |
+| [Security](docs/SECURITY.md)                 | Isolation and credential management                  |
 
 ---
 

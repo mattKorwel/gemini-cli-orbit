@@ -57,8 +57,8 @@ describe('Local Worktree Behavior', () => {
 
   afterEach(async () => {
     process.chdir(originalCwd);
+    await logger.close();
     logger.setRepoRoot(originalCwd);
-    await new Promise((resolve) => setTimeout(resolve, 100));
     activeBinDir = '';
     vi.resetModules();
     vi.unstubAllEnvs();

@@ -169,25 +169,23 @@ orbit mission launch <ISSUE_NUMBER> implement
 
 _Unified status, health, and monitoring across your entire constellation._
 
-| Maneuver         | Command                         | Description                                     |
-| :--------------- | :------------------------------ | :---------------------------------------------- |
-| **Inventory**    | `orbit constellation`           | View registered stations (fast).                |
-| **Reality Sync** | `orbit constellation --sync`    | Health check of hardware (ping).                |
-| **Telemetry**    | `orbit pulse`                   | Deep dive into mission logs and resource stats. |
-| **Surgical**     | `orbit constellation -n <name>` | Target a specific station by name.              |
+| Maneuver      | Command                         | Description                                     |
+| :------------ | :------------------------------ | :---------------------------------------------- |
+| **Inventory** | `orbit constellation`           | View registered stations (fast).                |
+| **Telemetry** | `orbit constellation --pulse`   | Deep dive into mission logs and resource stats. |
+| **Surgical**  | `orbit constellation -n <name>` | Target a specific station by name.              |
 
 ### 2. Mission (The Workflow)
 
 _Focused on the PR or Issue you are working on._
 
-| Maneuver     | Command                       | Description                                     |
-| :----------- | :---------------------------- | :---------------------------------------------- |
-| **Chat**     | `orbit mission chat <id>`     | **Drop in or resume.** Auto-starts or attaches. |
-| **Shell**    | `orbit mission shell <id>`    | **Side-terminal.** Raw bash in mission capsule. |
-| **Uplink**   | `orbit mission uplink <id>`   | View latest mission telemetry and logs.         |
-| **Attach**   | `orbit mission attach <id>`   | Re-attach to the persistent terminal session.   |
-| **CI**       | `orbit mission ci <id>`       | Monitor GitHub Actions status for the branch.   |
-| **Jettison** | `orbit mission jettison <id>` | Cleanup mission-specific worktree and capsule.  |
+| Maneuver     | Command                          | Description                                        |
+| :----------- | :------------------------------- | :------------------------------------------------- |
+| **Chat**     | `orbit mission launch <id> chat` | **Drop in or resume.** Starts or reuses a mission. |
+| **Shell**    | `orbit mission shell <id>`       | **Side-terminal.** Raw bash in mission capsule.    |
+| **Uplink**   | `orbit mission uplink <id>`      | View latest mission telemetry and logs.            |
+| **Attach**   | `orbit mission attach <id>`      | Re-attach to the persistent terminal session.      |
+| **Jettison** | `orbit mission jettison <id>`    | Cleanup mission-specific worktree and capsule.     |
 
 ### 3. Station (The Hardware)
 

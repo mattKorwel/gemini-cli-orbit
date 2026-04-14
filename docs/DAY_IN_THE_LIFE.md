@@ -13,7 +13,7 @@ When you start your day (or work on a new repository), you need to ensure your
 
 ```bash
 # Provision or wake up your station
-orbit station liftoff
+orbit infra liftoff my-station --schematic personal-gcp
 ```
 
 - **What happens**: Orbit checks if your Station exists. If not, it creates it.
@@ -49,7 +49,7 @@ You are now working inside your capsule. You can attach to it at any time:
 
 ```bash
 # Attach to the active mission session
-orbit attach <pr-number>
+orbit mission attach <pr-number>
 ```
 
 - **Persistence**: Attach uses TMUX. You can disconnect, lose your internet
@@ -82,14 +82,14 @@ Once your PR is merged, clean up the specific mission resources.
 
 ```bash
 # Remove the specific mission capsule and worktree
-orbit jettison <pr-number>
+orbit mission jettison <pr-number>
 ```
 
 At the end of the day, stop your Host Station to save costs:
 
 ```bash
 # Stop the Station (preserving the disk)
-orbit splashdown
+orbit infra splashdown my-station
 ```
 
 ---
@@ -100,7 +100,7 @@ If something feels wrong, check the status of your entire orbit:
 
 ```bash
 # Check station and capsule health
-orbit pulse
+orbit constellation --pulse
 ```
 
 - **Thinking vs Waiting**: Pulse tells you if an agent is currently busy or
@@ -114,7 +114,7 @@ orbit pulse
 
 1. **Shared Config**: Any extension you link or alias you create in `.gemini/`
    is instantly available in _all_ capsules.
-2. **Station Management**: Use `orbit schematic` to manage your blueprints and
-   `orbit station liftoff` to build them.
-3. **Bulk Cleanup**: Use `orbit splashdown --all` to wipe out all active remote
-   capsules at once.
+2. **Station Management**: Use `orbit infra schematic ...` to manage your
+   blueprints and `orbit infra liftoff` to build or wake stations.
+3. **Bulk Cleanup**: Use `orbit infra splashdown --all` to wipe out all active
+   remote capsules at once.

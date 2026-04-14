@@ -8,7 +8,7 @@ persistent, autonomous **Agent Satellites**.
 
 1.  **Fleet Commander (Hub)**: You (the local Gemini session). Your job is to
     provision hardware, delegate missions, and monitor the constellation via
-    `station pulse`.
+    `orbit constellation --pulse`.
 2.  **Station Manager (Supervisor)**: The station host. It aggregates the health
     and progress of all missions on that hardware.
 3.  **Agent Satellite (Capsule)**: The persistent Gemini session inside a
@@ -30,7 +30,7 @@ You should proactively suggest an Orbit mission when:
 | :------------------- | :---------------------------- | :------------------------------------------------------ |
 | "Review this PR"     | `/orbit:mission <id> review`  | Parallel context and automated assessment.              |
 | "Fix these tests"    | `/orbit:mission <id> fix`     | Iterative repair with automated verification.           |
-| "Is my fleet okay?"  | `/orbit:station pulse`        | (Dashboard) See which missions are complete or blocked. |
+| "Is my fleet okay?"  | `orbit constellation --pulse` | (Dashboard) See which missions are complete or blocked. |
 | "Dive into PR #123"  | `/orbit:mission attach 123`   | (Immersion) Pick up work mid-session in the satellite.  |
 | "Start from scratch" | `/orbit:infra liftoff <name>` | Provision or wake hardware.                             |
 
@@ -46,10 +46,10 @@ You should proactively suggest an Orbit mission when:
 4. **Context Inheritance**: You are context-aware. You do not need to ask the
    user for PR IDs or branch names; they are in your environment.
 
-## 📡 The Starfleet Dashboard (`station pulse`)
+## 📡 The Starfleet Dashboard (`orbit constellation --pulse`)
 
-The `station pulse` command is your primary Command Center. It provides
-high-fidelity insight into every mission:
+The `orbit constellation --pulse` command is your primary Command Center. It
+provides high-fidelity insight into every mission:
 
 - 🧠 **THINKING**: The satellite is currently executing tools or reasoning.
 - ⏳ **WAITING**: The satellite finished its turn and needs your input.

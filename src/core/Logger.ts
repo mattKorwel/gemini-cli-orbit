@@ -18,6 +18,7 @@ class Logger {
   private verbose: boolean = false;
   private logStream: fs.WriteStream | null = null;
   private repoRoot: string = process.cwd();
+  private pendingClose: Promise<void> | null = null;
 
   /**
    * Updates the repo root for logging.
@@ -26,10 +27,39 @@ class Logger {
     if (this.repoRoot !== repoRoot) {
       this.repoRoot = repoRoot;
       if (this.logStream) {
-        this.logStream.end();
+        this.pendingClose = this.closeStream(this.logStream);
         this.logStream = null;
       }
     }
+  }
+
+  async close(): Promise<void> {
+    if (this.logStream) {
+      this.pendingClose = this.closeStream(this.logStream);
+      this.logStream = null;
+    }
+
+    if (this.pendingClose) {
+      await this.pendingClose;
+      this.pendingClose = null;
+    }
+  }
+
+  private closeStream(stream: fs.WriteStream): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+
+      stream.once('close', finish);
+      stream.once('error', finish);
+      stream.end(() => {
+        stream.destroy();
+      });
+    });
   }
 
   private ensureInitialized() {

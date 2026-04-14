@@ -1,63 +1,55 @@
-# Orbit Documentation 🚀
+# Orbit Documentation
 
-Welcome to the **Gemini Orbit** documentation. Orbit allows you to launch your
-development presence into a persistent, high-performance environment, escaping
-the physical constraints of terrestrial hardware.
+This is the main index for the Gemini Orbit docs set.
 
-## 🚀 User Guides
+## Start Here
 
-### 1. [Mission: Liftoff](./LIFTOFF.md)
+| Doc                                       | Why Read It                                                                            |
+| :---------------------------------------- | :------------------------------------------------------------------------------------- |
+| [Getting Started](./GETTING_STARTED.md)   | The fastest way to understand what Orbit is, why you would use it, and how to begin.   |
+| [Commanding Orbit](./COMMANDING_ORBIT.md) | How Orbit is driven from direct CLI commands, natural language in Gemini CLI, and MCP. |
+| [Configuration](./CONFIGURATION.md)       | How project config, global settings, schematics, and station blueprints fit together.  |
 
-Learn how to provision your Host Station, configure your networking backend, and
-synchronize your digital identity.
+## Core Workflows
 
-### 2. [Mission: Launch](./MISSION.md)
+| Doc                         | Focus                                           |
+| :-------------------------- | :---------------------------------------------- |
+| [Liftoff](./LIFTOFF.md)     | Provision or wake hardware and supervisors.     |
+| [Mission](./MISSION.md)     | Launch, attach, inspect, and clean up missions. |
+| [Attach](./ATTACH.md)       | Re-attach to a running mission session.         |
+| [Pulse](./PULSE.md)         | Inspect fleet and mission state.                |
+| [Jettison](./JETTISON.md)   | Remove mission-specific resources.              |
+| [Maneuvers](./MANEUVERS.md) | Review, fix, and implement mission patterns.    |
 
-Explore the different mission modes, including interactive agent sessions,
-autonomous maneuvers (fix, review, implement), and raw bash access (EVA).
+## Concepts And Internals
 
-### 3. [Mission: Pulse](./PULSE.md)
+| Doc                               | Focus                                           |
+| :-------------------------------- | :---------------------------------------------- |
+| [Architecture](./ARCHITECTURE.md) | Orbit runtime roles and execution flow.         |
+| [Providers](./PROVIDERS.md)       | Local and remote execution/provider modes.      |
+| [Gemini Guidance](./GEMINI.md)    | Strategic guidance for using Orbit with Gemini. |
+| [Dependencies](./DEPENDENCIES.md) | External tooling and environment assumptions.   |
+| [Security](./SECURITY.md)         | Isolation model and credential handling.        |
 
-Monitor the health and telemetry of your orbital environment and track the
-intelligence state of active agents.
+## Setup, Validation, And Operations
 
-### 4. [Mission: Attach](./ATTACH.md)
+| Doc                                                               | Focus                                          |
+| :---------------------------------------------------------------- | :--------------------------------------------- |
+| [Manual Testing](./MANUAL_TESTING.md)                             | Smoke tests for local and remote flows.        |
+| [Test Plan](./test-plan.md)                                       | Structured validation scenarios.               |
+| [Personal GCP Public IP Setup](./PERSONAL_GCP_PUBLIC_IP_SETUP.md) | Public-IP-oriented personal GCP guidance.      |
+| [Day In The Life](./DAY_IN_THE_LIFE.md)                           | Example operator workflow across a normal day. |
 
-How to jump directly into a running Mission Capsule and take manual control of
-an ongoing workstream.
+## Reference
 
-### 5. [Mission: Jettison](./JETTISON.md)
+| Doc                                               | Focus                                              |
+| :------------------------------------------------ | :------------------------------------------------- |
+| [Container Paths](./reference/container-paths.md) | Expected in-container paths and runtime contracts. |
+| [Host Mounts](./reference/host-mounts.md)         | Host-to-capsule mount expectations.                |
 
-Surgically clean up mission capsules, isolated worktrees, and ephemeral history
-files once a mission is complete.
+## Archive
 
----
-
-## 🛸 Maneuvers
-
-### [Autonomous Maneuvers (Review, Fix, Implement)](./MANEUVERS.md)
-
-Learn how to trigger high-fidelity autonomous missions like parallel PR reviews,
-automated remediation, and issue-to-implementation workflows.
-
----
-
-## 🏗️ Deep Dives
-
-### [Orbit Architecture](./ARCHITECTURE.md)
-
-A high-level overview of the Hub & Spoke model, persistent stations, and
-isolated capsules.
-
-### [Mission Providers](./PROVIDERS.md)
-
-Deep dive into Local vs Remote providers (Cloud, Worktrees).
-
-### [Configuration Hierarchy](./CONFIGURATION.md)
-
-Understand how settings are merged across project defaults, global registries,
-named schematics, and environment variables.
-
-### [Test Plan](./test-plan.md)
-
-The structured protocol for validating the Orbit platform.
+| Doc                                                           | Focus                              |
+| :------------------------------------------------------------ | :--------------------------------- |
+| [Remote Transport Notes](./archive/remote-transport-notes.md) | Archived planning/reference notes. |
+| [cmd-ssh.txt](./archive/cmd-ssh.txt)                          | Archived ad hoc command reference. |

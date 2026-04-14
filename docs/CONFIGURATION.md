@@ -4,15 +4,18 @@ Orbit utilizes a sophisticated configuration system designed for flexibility and
 security. Settings are merged from multiple sources to determine the final
 mission parameters.
 
-## 🏗️ Configuration Split: Schematic vs. Station
+## 🏗️ Configuration Split: Schematics, Registry, And Station Blueprints
 
-To ensure reusable infrastructure and maintainable repository settings, Orbit
-separates configuration into two distinct layers:
+Orbit currently splits configuration into a few distinct layers:
 
-1.  **Orbit Schematic (Environment)**: Global infrastructure templates (e.g.,
-    `corp`, `sandbox`) that define _where_ missions run.
-2.  **Station Schematic (Repository)**: Repository-specific links and overrides
-    that define _how_ a specific repo interacts with a Schematic.
+1. **Project Defaults**: Repository-local defaults under
+   `.gemini/orbit/config.json`.
+2. **Global Registry**: User-level settings and active-station links under
+   `~/.gemini/orbit/settings.json`.
+3. **Schematics**: Named infrastructure templates under
+   `~/.gemini/orbit/schematics/*.json`.
+4. **Station Blueprints**: Runtime contracts in `configs/station.local.json` and
+   `configs/station.starfleet.json`.
 
 ### 🛰️ Starfleet Station Blueprints
 
@@ -98,15 +101,25 @@ Orbit supports two distinct networking strategies for cloud stations:
 
 **Managing Schematics via CLI**:
 
-- **List available schematics**: `orbit schematic list`
-- **Create/Edit a schematic**: `orbit schematic create <name>`
-- **Import a schematic**: `orbit schematic import <path|url>`
+- **List available schematics**: `orbit infra schematic list`
+- **Show one schematic**: `orbit infra schematic show <name>`
+- **Import a schematic**: `orbit infra schematic import <path|url>`
+- **Create a schematic**: `orbit infra schematic create <name>`
+- **Edit a schematic**: `orbit infra schematic edit <name>`
 
 **Managing Stations via CLI**:
 
-- **List active stations**: `orbit station list`
 - **Activate a station**: `orbit station activate <name>`
-- **Initial station setup**: `orbit station liftoff`
+- **Provision or wake a station**:
+  `orbit infra liftoff <name> --schematic <name>`
+- **Decommission a station**: `orbit infra splashdown <name>` or
+  `orbit station delete <name>`
+
+**Personal GCP bootstrap today**:
+
+- The repo currently ships a prep script at `npm run infra:gcp:prep`.
+- That script prepares a recommended personal-project schematic.
+- There is not yet a first-class `orbit infra prepare ...` CLI command.
 
 **Key Attributes**:
 
@@ -121,32 +134,26 @@ Orbit supports two distinct networking strategies for cloud stations:
 
 ---
 
-## 🏎️ CLI Configuration Flags
+## 🏎️ Current CLI Surface
 
-You can provide configuration flags directly to many Orbit commands. These flags
-serve two primary purposes:
+The current public schematic command surface is:
 
-1.  **Wizard Pre-fill**: When running `orbit schematic create <name>`, flags
-    like `--projectId=my-project` will pre-populate the interactive wizard
-    fields.
-2.  **Runtime Overrides**: When running `orbit station liftoff`, flags act as
-    immediate overrides for the current execution, bypassing settings in your
-    Schematic or Project config.
+```bash
+orbit infra schematic list
+orbit infra schematic show <name>
+orbit infra schematic import <path-or-url>
+orbit infra schematic create <name>
+orbit infra schematic edit <name>
+```
 
-### Supported Flags
+The `orbit infra schematic --help` output currently exposes:
 
-| Flag                    | Schematic Property  | Description                                     |
-| ----------------------- | ------------------- | ----------------------------------------------- |
-| `--projectId`           | `projectId`         | The Cloud Project ID.                           |
-| `--zone`                | `zone`              | The Cloud Zone (e.g., `us-central1-a`).         |
-| `--instanceName`        | `instanceName`      | The name of the Station.                        |
-| `--network-access-type` | `networkAccessType` | `direct-internal` or `external`.                |
-| `--machineType`         | `machineType`       | The Cloud Machine Type (e.g., `n2-standard-8`). |
-| `--vpcName`             | `vpcName`           | The target VPC network name.                    |
-| `--subnetName`          | `subnetName`        | The target Subnet name.                         |
-| `--image`               | `imageUri`          | The Docker image for mission capsules.          |
-| `--schematic`           | N/A                 | The name of the schematic to use.               |
-| `--for-station`         | N/A                 | Target a specific station by name.              |
+- schematic actions (`list`, `show`, `import`, `create`, `edit`)
+- source-context flags (`--local`, `--repo`, `--repo-dir`)
+- global flags (`--verbose`, `--json`, `--yes`)
+
+If you need one-shot environment bootstrapping for personal GCP, use
+`npm run infra:gcp:prep` and then provision with `orbit infra liftoff`.
 
 ---
 
