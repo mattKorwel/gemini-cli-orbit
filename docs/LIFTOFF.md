@@ -40,10 +40,10 @@ To provision or wake your default station:
 orbit infra liftoff
 ```
 
-To use a specific blueprint (Schematic):
+To use a specific blueprint (Schematic) or one of the built-in templates (`google`, `personal-gcp`):
 
 ```bash
-orbit infra liftoff --schematic my-sandbox
+orbit infra liftoff --schematic google
 ```
 
 ## 🌊 Decommissioning

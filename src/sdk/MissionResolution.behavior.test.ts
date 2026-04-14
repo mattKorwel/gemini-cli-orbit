@@ -5,6 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import os from 'node:os';
 import { StarfleetHarness } from '../test/StarfleetHarness.js';
 import { MissionManager } from './MissionManager.js';
 import { ProviderFactory } from '../providers/ProviderFactory.js';
@@ -53,10 +54,12 @@ describe('Mission Resolution Behavior', () => {
       placeholders: {
         [harness.root]: '<tmp>',
         [process.cwd()]: '<cwd>',
+        [os.tmpdir()]: '<tmp>',
       },
       volatileReplacements: [
         [/^\/tmp\/orbit-git-worktrees\//, '<tmp>/orbit-git-worktrees/'],
         [/.*\/Temp\/orbit-git-worktrees\//, '<tmp>/orbit-git-worktrees/'],
+        [/\/var\/folders\/[^/]+\/[^/]+\/T\//, '<tmp>/'],
       ] as Array<[RegExp, string]>,
     };
 

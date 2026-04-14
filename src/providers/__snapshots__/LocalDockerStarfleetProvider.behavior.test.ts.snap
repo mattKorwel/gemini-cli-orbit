@@ -5,7 +5,7 @@ exports[`Local Docker Starfleet Provider Behavior > rebuilds and validates the l
   "history": [
     "[<cwd>] docker image inspect orbit-worker:local",
     "[<cwd>] docker run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orbit-worker:local --version",
-    "[/private<tmp>/repo] docker build -t orbit-worker:local -f docker/orbit-worker.Dockerfile .",
+    "[<tmp>/repo] docker build -t orbit-worker:local -f docker/orbit-worker.Dockerfile .",
     "[<cwd>] docker run --rm --entrypoint /usr/local/share/npm-global/bin/gemini orbit-worker:local --version",
   ],
   "ok": true,

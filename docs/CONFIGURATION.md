@@ -88,6 +88,18 @@ to help you get started:
 - **`personal-gcp`**: Optimized for fresh personal GCP projects. Uses
   `external` networking and the default VPC.
 
+**How to use a template**:
+To provision hardware using one of these templates, pass the `--schematic` flag
+during liftoff:
+
+```bash
+# Create a station for a Google corporate project
+orbit infra liftoff my-corp-station --schematic google
+
+# Create a station for a personal GCP project
+orbit infra liftoff my-home-station --schematic personal-gcp
+```
+
 #### 🌐 Networking Modes
 
 Orbit supports two distinct networking strategies for cloud stations:
