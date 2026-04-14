@@ -1,6 +1,6 @@
 {
   "name": "@google/gemini-orbit-extension",
-  "version": "0.0.37",
+  "version": "0.0.38",
   "description": "High-performance remote missions for Gemini CLI.",
   "type": "module",
   "scripts": {
