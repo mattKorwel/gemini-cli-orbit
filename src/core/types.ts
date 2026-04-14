@@ -254,6 +254,7 @@ export interface IOrbitSDK {
   activateStation(name: string): Promise<void>;
   listSchematics(): SchematicInfo[];
   getSchematic(name: string): OrbitConfig | null;
+  deleteSchematic(name: string): Promise<void>;
   saveSchematic(name: string, config: Partial<OrbitConfig>): Promise<void>;
   importSchematic(source: string): Promise<string>;
   runSchematicWizard(

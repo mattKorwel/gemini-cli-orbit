@@ -425,6 +425,13 @@ export class OrbitSDK implements IOrbitSDK {
   }
 
   /**
+   * Delete a schematic by name.
+   */
+  async deleteSchematic(name: string): Promise<void> {
+    return this.schematicManager.deleteSchematic(name);
+  }
+
+  /**
    * Save a new or existing schematic.
    */
   async saveSchematic(

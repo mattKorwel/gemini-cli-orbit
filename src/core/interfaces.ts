@@ -63,6 +63,7 @@ export interface IStationRegistry {
 export interface ISchematicManager {
   seed(): void;
   listSchematics(): SchematicInfo[];
+  deleteSchematic(name: string): void;
   importSchematic(source: string): Promise<string>;
   runWizard(name: string, cliFlags?: Partial<OrbitConfig>): Promise<void>;
   prepareGcp(

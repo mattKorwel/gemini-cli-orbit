@@ -506,9 +506,9 @@ export function createOrbitMcpServer() {
   server.registerTool(
     'infra_manage',
     {
-      description: 'Manage infrastructure schematics (list, create, view).',
+      description: 'Manage infrastructure schematics (list, create, view, delete).',
       inputSchema: z.object({
-        action: z.enum(['list', 'create', 'view']),
+        action: z.enum(['list', 'create', 'view', 'delete']),
         name: z.string().describe('The name of the schematic'),
         config: OrbitConfigSchema.optional().describe(
           'Full configuration object for creation',
@@ -529,6 +529,9 @@ export function createOrbitMcpServer() {
         text = s
           ? JSON.stringify(s, null, 2)
           : `Schematic "${name}" not found.`;
+      } else if (action === 'delete') {
+        await sdk.deleteSchematic(name);
+        text = `Schematic "${name}" deleted.`;
       }
       const output = observer.getOutput();
       if (output) text += `\n\nLogs:\n${output}`;

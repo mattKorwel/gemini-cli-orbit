@@ -301,6 +301,16 @@ export class SchematicManager implements ISchematicManager {
     });
   }
 
+  deleteSchematic(name: string): void {
+    const p = path.join(SCHEMATICS_DIR, `${sanitizeName(name)}.json`);
+    if (fs.existsSync(p)) {
+      fs.unlinkSync(p);
+      logger.info('CONFIG', `🗑️ Schematic "${name}" deleted.`);
+    } else {
+      logger.warn('CONFIG', `Schematic "${name}" not found, nothing to delete.`);
+    }
+  }
+
   async prepareGcp(options: PrepareOptions): Promise<CheckResult[]> {
     return runGcpPrepare(options);
   }
