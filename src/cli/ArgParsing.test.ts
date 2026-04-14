@@ -150,11 +150,23 @@ describe('CLI Argument Parsing', () => {
         );
       });
 
-      it('should handle schematic edit', async () => {
-        await dispatch(['infra', 'schematic', 'edit', 'existing-schematic']);
+      it('should handle schematic edit with headless flags', async () => {
+        await dispatch([
+          'infra',
+          'schematic',
+          'edit',
+          'existing-schematic',
+          '--projectId',
+          'new-project',
+          '--zone',
+          'us-east1-c',
+        ]);
         expect(mockRunSchematicWizard).toHaveBeenCalledWith(
           'existing-schematic',
-          expect.anything(),
+          expect.objectContaining({
+            projectId: 'new-project',
+            zone: 'us-east1-c',
+          }),
         );
       });
     });

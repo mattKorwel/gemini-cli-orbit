@@ -825,6 +825,86 @@ QUICK START:
                   .positional('name', {
                     type: 'string',
                     description: 'Schematic name or source',
+                  })
+                  .option('projectId', {
+                    type: 'string',
+                    description: 'GCP Project ID',
+                  })
+                  .option('zone', {
+                    type: 'string',
+                    description: 'GCE Zone',
+                  })
+                  .option('providerType', {
+                    type: 'string',
+                    description: 'Provider type (gce, local-docker)',
+                  })
+                  .option('networkAccessType', {
+                    type: 'string',
+                    description: 'Network access type (direct-internal, external)',
+                  })
+                  .option('dnsSuffix', {
+                    type: 'string',
+                    description: 'DNS Suffix',
+                  })
+                  .option('userSuffix', {
+                    type: 'string',
+                    description: 'User Suffix',
+                  })
+                  .option('useDefaultNetwork', {
+                    type: 'boolean',
+                    description: 'Use default VPC/subnet',
+                  })
+                  .option('manageFirewallRules', {
+                    type: 'boolean',
+                    description: 'Orbit manages SSH firewall rules',
+                  })
+                  .option('vpcName', {
+                    type: 'string',
+                    description: 'VPC Name',
+                  })
+                  .option('subnetName', {
+                    type: 'string',
+                    description: 'Subnet Name',
+                  })
+                  .option('instanceName', {
+                    type: 'string',
+                    description: 'Station VM Name',
+                  })
+                  .option('machineType', {
+                    type: 'string',
+                    description: 'GCE Machine Type',
+                  })
+                  .option('imageUri', {
+                    type: 'string',
+                    description: 'Custom supervisor image URI',
+                  })
+                  .option('gitAuthMode', {
+                    type: 'string',
+                    description: 'Git authentication mode',
+                  })
+                  .option('geminiAuthMode', {
+                    type: 'string',
+                    description: 'Gemini authentication mode',
+                  })
+                  .option('repoToken', {
+                    type: 'string',
+                    description: 'Repository token',
+                  })
+                  .option('sshSourceRanges', {
+                    type: 'string',
+                    description: 'Allowed SSH Source Ranges (comma separated)',
+                  })
+                  .option('bootDiskType', {
+                    type: 'string',
+                    description: 'GCE Boot Disk Type',
+                  })
+                  .option('dataDiskType', {
+                    type: 'string',
+                    description: 'GCE Data Disk Type',
+                  })
+                  .option('allowDevUpdates', {
+                    type: 'boolean',
+                    description: 'Unlock station for development updates',
                   });
                 return applyGlobalOptions(applyContextOptions(yLocal));
               },
