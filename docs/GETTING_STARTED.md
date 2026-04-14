@@ -78,7 +78,7 @@ Since the `orbit` command is provided by the extension, you must bootstrap it to
 
 #### Option A: Natural Language (Recommended)
 If you are already in a Gemini session with the Orbit extension loaded, simply ask:
-> "Install the orbit shell integration"
+> "Use the orbit mcp server to install orbit shell integration"
 
 This will automatically trigger the `config_install` tool to set up your aliases.
 
