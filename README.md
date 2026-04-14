@@ -57,8 +57,8 @@ Orbit is designed to be controlled directly from your **Gemini CLI** session:
 # Install the extension
 gemini extensions install https://github.com/mattKorwel/gemini-cli-orbit.git
 
-# Enable the orbit command and tab-completion
-orbit install-shell
+# Setup shell integration (bootstrap the 'orbit' command)
+node ~/.gemini/extensions/orbit/bundle/orbit-cli.js config install
 ```
 
 ### 2. Local Launch (No Cloud Needed)

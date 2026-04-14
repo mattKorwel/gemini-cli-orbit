@@ -36,6 +36,7 @@ in intent rather than command syntax.
 
 Examples:
 
+- "Install the orbit shell integration."
 - "Launch a review mission for PR 123."
 - "Attach to mission 123."
 - "Show me the fleet with pulse details."
