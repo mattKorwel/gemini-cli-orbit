@@ -90,7 +90,7 @@ Orbit can run missions directly on your own machine:
 orbit mission launch 42 chat --local
 
 # Re-attach at any time:
-orbit mission attach 42
+orbit mission attach 42 --local
 ```
 
 ### 🔭 Remote Missions (GCE)
