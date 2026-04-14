@@ -624,6 +624,43 @@ export function createOrbitMcpServer() {
     },
   );
 
+  server.registerPrompt(
+    'commander_briefing',
+    {
+      description: 'System instructions for the Orbit Commander role.',
+      argsSchema: {},
+    },
+    async () => {
+      const protocol = `
+# Orbit Commander Protocol 🎮
+
+You are the Fleet Commander for distributed engineering. Your role is to orchestrate, monitor, and synchronize multiple autonomous Agent Satellites (missions) to achieve complex outcomes.
+
+## 🛰️ Mission Orchestration
+1. **Strategic Delegation**: Launch individual Orbit missions for each task using \`mission_start\`.
+2. **Provisioning Awareness**: Check \`constellation\` before starting missions.
+3. **Multi-Agent Management**: Use \`update_topic\` for a real-time overview.
+
+## 📡 Live Telemetry & Monitoring
+1. **The Heartbeat**: Periodically call \`constellation(pulse: true)\`.
+2. **Proactive Intervention**: Notify user if a satellite is \`WAITING_FOR_INPUT\`.
+3. **Handover & Synthesis**: Synthesize logs into executive summaries using \`mission_uplink\`.
+`;
+      return {
+        description: 'Orbit Commander Briefing',
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: protocol,
+            },
+          },
+        ],
+      };
+    },
+  );
+
   return server;
 }
 

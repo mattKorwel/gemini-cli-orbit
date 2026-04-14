@@ -49,6 +49,21 @@ interrupting an active agent session.
 
 ---
 
+## 🛰️ Distributed Orchestration
+
+For complex workflows involving multiple missions, Orbit uses the **Orbit Commander** sub-agent to coordinate the fleet.
+
+### The Commander Role
+When a task involves multiple PRs or complex monitoring, the AI delegates to the `orbit_commander`. This sub-agent:
+- **Parallelizes Launches**: Ignites multiple capsules simultaneously.
+- **Synthesizes Progress**: Periodically polls the fleet and provides high-level updates.
+- **Offloads Context**: Handles the verbose technical logs and pulse data, keeping your main chat clean.
+
+### Handover Protocol
+Once a coordinated task is finished, the Commander provides a **Fleet Synthesis Report**—a unified summary of all missions, their outcomes, and any required manual follow-ups.
+
+---
+
 ## ✨ Quick Commands
 
 - `orbit mission launch <PR> [action]`: Launch a mission (chat, fix, review,
