@@ -69,6 +69,8 @@ Orbit is designed to be controlled directly from your **Gemini CLI** session:
 
 ## 🚀 Getting Started
 
+For the complete walkthrough, see [Getting Started](docs/GETTING_STARTED.md).
+
 ### 1. Installation
 
 ```bash
@@ -81,13 +83,12 @@ node ~/.gemini/extensions/orbit/bundle/orbit-cli.js config install
 
 ### 2. Local Launch (No Cloud Needed)
 
-Orbit can run a "Local Starfleet" using Docker on your own machine:
+Orbit can run missions directly on your own machine:
 
 ```bash
 # Start a local mission for PR #42
-orbit mission launch 42 chat --local-docker
+orbit mission launch 42 chat --local
 
-# Orbit automatically builds the worker image and ignites the capsule.
 # Re-attach at any time:
 orbit mission attach 42
 ```
@@ -107,7 +108,10 @@ orbit infra liftoff my-station --schematic personal-gcp
 orbit mission launch 42 chat --for-station my-station
 ```
 
-For the complete walkthrough, see [Getting Started](docs/GETTING_STARTED.md).
+### 🤖 Natural Language
+
+Orbit is designed to be controlled directly from your Gemini CLI session.
+For more details, see [Commanding Orbit: CLI, MCP, and Natural Language](docs/COMMANDING_ORBIT.md).
 
 ---
 
@@ -134,7 +138,7 @@ For the complete walkthrough, see [Getting Started](docs/GETTING_STARTED.md).
 | [Mission Guide](docs/MISSION.md)             | Deep dive into mission lifecycle and commands        |
 | [Configuration](docs/CONFIGURATION.md)       | Schematics, registry, and configuration layering     |
 | [Architecture](docs/ARCHITECTURE.md)         | The Starfleet model and runtime structure            |
-| [Manual Testing](docs/MANUAL_TESTING.md)     | Smoke-test and operator validation flows             |
+| [Testing & Validation](docs/TESTING.md)      | Smoke-test and operator validation flows             |
 | [Security](docs/SECURITY.md)                 | Isolation and credential management                  |
 
 ---
