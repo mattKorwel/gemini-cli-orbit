@@ -316,7 +316,7 @@ export class GcpCosTarget implements InfrastructureProvisioner {
               --restart always \
               -p 8080:8080 \
               -v /var/run/docker.sock:/var/run/docker.sock \
-              -v $MOUNT_PATH:/orbit/data \
+              -v $MOUNT_PATH:$MOUNT_PATH \
               -v /dev/shm:/dev/shm \
               -e ORBIT_SERVER_PORT=8080 \
               -e GCLI_ORBIT_WORKER_IMAGE=$WORKER_IMAGE \
