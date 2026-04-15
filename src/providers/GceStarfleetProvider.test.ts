@@ -96,4 +96,66 @@ describe('GceStarfleetProvider.verifyIgnition', () => {
       expect.stringContaining('Restarting (1) 5 seconds ago'),
     );
   });
+
+  it('launches supervisor container with host parity volume mount', async () => {
+    const exec = vi.fn(async (command: any) => {
+      const bin = command.bin;
+      const args = command.args || [];
+      const joined = `${bin} ${args.join(' ')}`;
+
+      if (joined === 'echo pong') return { status: 0, stdout: 'pong', stderr: '' };
+      if (joined === 'df -h /mnt/disks/data') return { status: 0, stdout: '/mnt/disks/data', stderr: '' };
+      if (joined === 'ls -d /mnt/disks/data') return { status: 0, stdout: '/mnt/disks/data', stderr: '' };
+      if (joined === 'sudo docker version') return { status: 0, stdout: 'Docker version', stderr: '' };
+      
+      // The refresh command
+      if (bin === 'sh' && args[0] === '-lc') {
+        return { status: 0, stdout: 'refreshed', stderr: '' };
+      }
+      
+      // Successful inspect
+      if (joined.includes('sudo docker inspect --format')) {
+        return { status: 0, stdout: 'running|false|0', stderr: '' };
+      }
+
+      return { status: 1, stdout: '', stderr: `unexpected: ${joined}` };
+    });
+
+    const ping = vi.fn();
+    ping.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    const provider = new GceStarfleetProvider(
+      {
+        ping,
+        setBaseUrl: vi.fn(),
+      } as any,
+      {
+        exec,
+        ensureTunnel: vi.fn().mockResolvedValue(true),
+        getConnectionHandle: vi.fn().mockReturnValue('mock@host'),
+        setOverrideHost: vi.fn(),
+      } as any,
+      {} as any,
+      {} as any,
+      { repoRoot: '/repo', repoName: 'gemini-cli-orbit' } as any,
+      { networkAccessType: 'external' } as any,
+      {
+        projectId: 'ai-01-492020',
+        zone: 'us-central1-a',
+        stationName: 'starfleet-main',
+      },
+    );
+
+    const observer = { onLog: vi.fn() } as any;
+
+    const ok = await provider.verifyIgnition(observer);
+    expect(ok).toBe(true);
+
+    const shCall = exec.mock.calls.find((c) => c[0].bin === 'sh' && c[0].args[0] === '-lc');
+    expect(shCall).toBeDefined();
+    
+    const script = shCall![0].args[1];
+    expect(script).toContain('-v /mnt/disks/data:/mnt/disks/data');
+    expect(script).not.toContain('-v /mnt/disks/data:/orbit/data');
+  });
 });
