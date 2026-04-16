@@ -77,4 +77,40 @@ describe('StationPathResolver', () => {
 
     expect(resolver.getManifestCapsuleRoot()).toBe('/orbit/manifests');
   });
+
+  describe('toSupervisorPath', () => {
+    const config: any = {
+      manifestRoot: '/orbit/manifests',
+      mounts: [
+        {
+          host: '/host/orbit',
+          capsule: '/orbit',
+        },
+      ],
+      storage: {
+        workspacesRoot: '/orbit/workspaces',
+        mirrorPath: '/orbit/main',
+      },
+    };
+
+    it('hijacks paths to host when port is missing (Local CLI/Tests)', () => {
+      const resolver = new StationPathResolver({ ...config, port: undefined });
+      expect(resolver.toSupervisorPath('/orbit/workspaces/my-mission')).toBe(
+        '/host/orbit/workspaces/my-mission',
+      );
+    });
+
+    it('uses capsule paths directly when port is present (API Server)', () => {
+      const originalPort = process.env.ORBIT_SERVER_PORT;
+      process.env.ORBIT_SERVER_PORT = '8080';
+      try {
+        const resolver = new StationPathResolver({ ...config, port: 8080 });
+        expect(resolver.toSupervisorPath('/orbit/workspaces/my-mission')).toBe(
+          '/orbit/workspaces/my-mission',
+        );
+      } finally {
+        process.env.ORBIT_SERVER_PORT = originalPort;
+      }
+    });
+  });
 });

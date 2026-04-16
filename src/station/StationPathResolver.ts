@@ -46,6 +46,23 @@ export class StationPathResolver {
     );
   }
 
+  /**
+   * Translates an internal capsule path to the supervisor's active filesystem path.
+   * If running as the API Server, this returns the internal path.
+   * If running locally (tests or CLI), this returns the hijacked host path.
+   */
+  toSupervisorPath(targetPath: string): string {
+    // If we are running inside the actual Starfleet API container,
+    // ORBIT_SERVER_PORT will be set in the environment. In this mode,
+    // we must use the internal capsule paths.
+    if (process.env.ORBIT_SERVER_PORT) {
+      return normalizeCapsulePath(targetPath);
+    }
+
+    // Otherwise, we are running locally (CLI or Unit Tests) and should hijack to host paths.
+    return this.toHostPath(targetPath);
+  }
+
   getWorkspaceHostRoot(): string {
     return this.toHostPath(this.config.storage.workspacesRoot);
   }

@@ -144,7 +144,7 @@ export class GceStarfleetProvider extends StarfleetProvider {
               '--restart always',
               '-p 8080:8080',
               '-v /var/run/docker.sock:/var/run/docker.sock',
-              '-v /mnt/disks/data:/mnt/disks/data',
+              '-v /mnt/disks/data:/orbit/data',
               '-v /dev/shm:/dev/shm',
               '-e ORBIT_SERVER_PORT=8080',
               `-e GCLI_ORBIT_WORKER_IMAGE=${this.workerImage}`,

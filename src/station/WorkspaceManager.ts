@@ -31,7 +31,7 @@ export class WorkspaceManager {
   }
 
   private resolveSupervisorPath(targetPath: string): string {
-    return this.paths.toHostPath(targetPath);
+    return this.paths.toSupervisorPath(targetPath);
   }
 
   /**

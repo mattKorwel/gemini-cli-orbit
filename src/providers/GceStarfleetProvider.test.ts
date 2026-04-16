@@ -155,7 +155,7 @@ describe('GceStarfleetProvider.verifyIgnition', () => {
     expect(shCall).toBeDefined();
     
     const script = shCall![0].args[1];
-    expect(script).toContain('-v /mnt/disks/data:/mnt/disks/data');
-    expect(script).not.toContain('-v /mnt/disks/data:/orbit/data');
+    expect(script).toContain('-v /mnt/disks/data:/orbit/data');
+    expect(script).not.toContain('-v /mnt/disks/data:/mnt/disks/data');
   });
 });

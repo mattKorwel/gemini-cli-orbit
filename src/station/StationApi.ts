@@ -51,8 +51,10 @@ async function getJsonBody(req: http.IncomingMessage): Promise<any> {
 
 export function createDefaultStationDependencies(): StationApiDependencies {
   const config = hydrateStationSupervisorConfig();
-  const workspaceHostRoot = resolveWorkspaceHostRoot(config);
-  const logPath = path.join(workspaceHostRoot, 'supervisor.log');
+  const pathResolver = new StationPathResolver(config);
+  const logPath = pathResolver.toSupervisorPath(
+    path.posix.join(config.storage.workspacesRoot, 'supervisor.log'),
+  );
   const debugLog = (msg: string) => {
     const line = `[${new Date().toISOString()}] ${msg}\n`;
     process.stdout.write(line);
@@ -90,10 +92,12 @@ export function createStationServer(
       config,
     );
   const pathResolver = new StationPathResolver(config);
-  const workspaceHostRoot = resolveWorkspaceHostRoot(config);
+  const workspaceHostRoot = pathResolver.toSupervisorPath(
+    config.storage.workspacesRoot,
+  );
 
   const resolveSupervisorFsPath = (internalPath: string): string => {
-    return pathResolver.toHostPath(internalPath);
+    return pathResolver.toSupervisorPath(internalPath);
   };
 
   const resolveGeminiSettingsPath = (): string => {
